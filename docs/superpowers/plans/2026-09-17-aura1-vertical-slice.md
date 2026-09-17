@@ -24,6 +24,10 @@
 - **Secrets never enter git.** `secrets.h` and `credentials.ini` are gitignored; committed seed data uses neutral placeholder names.
 - Commit after every task. Conventional Commits. End commit messages with:
   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
+- **Test runner is `tsx --test`, not `node --test --experimental-strip-types`.** The
+  target machine runs Node v20.18.0, which lacks native TypeScript stripping.
+  `tsx` is a devDependency of every package that has tests. Do not "modernise"
+  this back to the native runner.
 
 ---
 
@@ -46,7 +50,7 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=20" },
   "scripts": {
     "db:up": "docker compose up -d postgres postgres-test",
     "db:down": "docker compose down",
@@ -168,8 +172,9 @@ git commit -m "chore: scaffold pnpm monorepo with postgres containers"
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "node --test --experimental-strip-types test/*.test.ts" },
-  "dependencies": { "zod": "^4.0.0" }
+  "scripts": { "test": "tsx --test test/*.test.ts" },
+  "dependencies": { "zod": "^4.0.0" },
+  "devDependencies": { "tsx": "^4.19.0" }
 }
 ```
 
@@ -365,10 +370,10 @@ git commit -m "feat(shared): add sync contract and session helpers"
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node --experimental-strip-types src/server.ts",
+    "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "node --test --experimental-strip-types test/*.test.ts"
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@aura/shared": "workspace:*",
@@ -380,7 +385,8 @@ git commit -m "feat(shared): add sync contract and session helpers"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
-    "drizzle-kit": "^0.30.0"
+    "drizzle-kit": "^0.30.0",
+    "tsx": "^4.19.0"
   }
 }
 ```
@@ -1170,7 +1176,7 @@ Deliberately unstyled beyond the palette. The design system is Phase 5; styling 
     "build": "vite build",
     "test": "echo 'no web tests in the vertical slice'"
   },
-  "dependencies": { "@aura/shared": "workspace:*", "vue": "^3.5.0" },
+  "dependencies": { "vue": "^3.5.0" },
   "devDependencies": { "@vitejs/plugin-vue": "^5.2.0", "vite": "^6.0.0" }
 }
 ```

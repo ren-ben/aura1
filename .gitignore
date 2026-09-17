@@ -13,3 +13,5 @@ packages/firmware/credentials.ini
 packages/api/seed.local.*
 
 .DS_Store
+
+.superpowers/
