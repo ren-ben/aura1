@@ -28,6 +28,14 @@
   target machine runs Node v20.18.0, which lacks native TypeScript stripping.
   `tsx` is a devDependency of every package that has tests. Do not "modernise"
   this back to the native runner.
+- **Test scripts name every test file explicitly. No globs, no directory form.**
+  Two discovery methods fail silently here and both exit 0 with zero tests run:
+  a `test/*.test.ts` glob is not expanded by pnpm's default Windows shell, and
+  `tsx --test test/` finds nothing because Node 20's runner does not recognise
+  `.ts` as a test extension. A task that adds a test file MUST add it to that
+  package's `test` script in the same commit, and MUST confirm the reported test
+  count matches the number of test files on disk. A suite that reports fewer
+  tests than you wrote is the failure mode to watch for.
 
 ---
 
@@ -373,7 +381,7 @@ git commit -m "feat(shared): add sync contract and session helpers"
     "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/schema.test.ts"
   },
   "dependencies": {
     "@aura/shared": "workspace:*",
@@ -807,10 +815,21 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
 Run: `cd packages/api && pnpm test`
 Expected: PASS, 9 tests total across both files.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Register the new test file**
+
+Add `test/sync-service.test.ts` to the `test` script in `packages/api/package.json`:
+
+```json
+    "test": "tsx --test test/schema.test.ts test/sync-service.test.ts"
+```
+
+Re-run `pnpm --filter @aura/api test` and confirm it reports 9 tests, not 3.
+Explicit file lists are required; see Global Constraints.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/api/src/sync packages/api/test/sync-service.test.ts
+git add packages/api
 git commit -m "feat(api): idempotent sync service keyed on device_uuid"
 ```
 
@@ -1042,7 +1061,17 @@ await app.listen({ port: Number(process.env.PORT ?? 3000), host: '0.0.0.0' });
 Run: `cd packages/api && pnpm test`
 Expected: PASS, 12 tests total.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Register the new test file**
+
+Add `test/routes.test.ts` to the `test` script in `packages/api/package.json`:
+
+```json
+    "test": "tsx --test test/schema.test.ts test/sync-service.test.ts test/routes.test.ts"
+```
+
+Re-run `pnpm --filter @aura/api test` and confirm it reports 12 tests, not 9.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add packages/api
@@ -1061,7 +1090,14 @@ git commit -m "feat(api): add sync and sessions http routes"
 - Consumes: the API from Task 5.
 - Produces: a running API on the Pi reachable at `https://aura.amygdala-inc.org/api/v1/*`, gated by Cloudflare Access, with a service token a non-browser client can use.
 
-This task exists because it is the single riskiest assumption in the slice. Verify it with curl before any firmware is written.
+**This task is authored on the dev machine and executed on the Pi.** Steps 1 and 2
+produce the artifacts and commit them. Step 3 writes the runbook. Step 4 is run by
+the user on the Pi after cloning this repo there — it is the single riskiest
+assumption in the slice and must pass before any firmware is written.
+
+Both base images (`node:22-alpine`, `postgres:17-alpine`) are multi-arch, so
+`docker compose build` runs natively on the Pi's arm64. No cross-build, no
+buildx emulation.
 
 - [ ] **Step 1: Write the Dockerfile**
 
@@ -1122,9 +1158,9 @@ Write each step into `docs/deploy.md` as you do it:
 
 The `device` policy must use the Service Auth action, not Allow. Allow still triggers an identity redirect, which an embedded client cannot follow.
 
-- [ ] **Step 4: Verify the service token works from a non-browser client**
+- [ ] **Step 4: Verify the service token works from a non-browser client** (on the Pi)
 
-Run:
+On the Pi, after `git clone` and `docker compose up -d`, run:
 ```bash
 curl -i https://aura.amygdala-inc.org/api/v1/sync \
   -H "CF-Access-Client-Id: $CF_ID" \
@@ -2582,6 +2618,8 @@ Run: `pnpm db:up && pnpm test` then `cd packages/firmware && pio test -e native`
 Record the actual pass counts.
 
 - [ ] **Step 2: Flash and configure**
+
+(Device steps below run wherever the AURA-1 is plugged in; the backend is already live on the Pi from Task 6.)
 
 Copy `secrets.example.h` to `secrets.h`, fill in the real wifi credentials, service token and device id. Run `pio run -e aura1 -t upload`.
 Expected: the device boots to the IDLE screen showing `AXIOM` and its activities.
