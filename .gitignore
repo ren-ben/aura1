@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# firmware
+.pio/
+packages/firmware/secrets.h
+packages/firmware/credentials.ini
+
+# local seed with real personal data
+packages/api/seed.local.*
+
+.DS_Store
