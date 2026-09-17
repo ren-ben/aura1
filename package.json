@@ -1,0 +1,16 @@
+{
+  "name": "aura1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "db:up": "docker compose up -d postgres postgres-test",
+    "db:down": "docker compose down",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0"
+  }
+}
