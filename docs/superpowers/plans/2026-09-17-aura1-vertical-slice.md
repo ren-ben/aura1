@@ -47,7 +47,7 @@
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: a pnpm workspace with `packages/shared`, `packages/api`, `packages/web`, `packages/firmware`; a Postgres 17 container on `localhost:5433` for development and `localhost:5434` for tests.
+- Produces: a pnpm workspace with `packages/shared`, `packages/api` and `packages/web`; a Postgres 17 container on `localhost:5433` for development and `localhost:5434` for tests. `packages/firmware` is a PlatformIO C++ tree with no `package.json`, so it is deliberately NOT a workspace member.
 
 - [ ] **Step 1: Create the workspace root**
 
