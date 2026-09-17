@@ -145,6 +145,15 @@ Sync also runs on wake, every 6 hours, and never continuously.
 
 ### Screens
 
+Throwaway. These layouts are a functional prototype, not the design. The
+real device interface is Phase 4, once the art pipeline exists and the visual
+language is settled.
+
+To keep that rework cheap, the state machine never draws. It emits a view
+model; a `Renderer` interface consumes it. Reskinning in Phase 4 means writing
+a second `Renderer`, not touching the FSM. It also means the FSM is host
+testable with a fake renderer, which Section 8 depends on.
+
 200x200, 1-bit. Text only in this phase.
 
 ```
