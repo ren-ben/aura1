@@ -1,5 +1,8 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { sql } from 'drizzle-orm';
 import { createDb, type Db } from '../src/db/client.ts';
@@ -75,4 +78,15 @@ test('GET /api/v1/sessions returns the stored session with its names', async () 
   assert.equal(body.length, 1);
   assert.equal(body[0].folder, 'AXIOM');
   assert.equal(body[0].minutes, 107);
+});
+
+test('GET / serves the web app when webRoot is set', async () => {
+  const webRoot = mkdtempSync(join(tmpdir(), 'aura-web-'));
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>AURA-1</title>');
+  const withWeb = buildApp(db, { logger: false, webRoot });
+  await withWeb.ready();
+  const response = await withWeb.inject({ method: 'GET', url: '/' });
+  await withWeb.close();
+  assert.equal(response.statusCode, 200);
+  assert.match(response.body, /AURA-1/);
 });
