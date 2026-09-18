@@ -2453,7 +2453,7 @@ void SessionMachine::draw(int minutes) {
 - [ ] **Step 6: Run the whole host suite**
 
 Run: `pnpm firmware:test`
-Expected: PASS, 20 tests across the four suites (1 ports + 7 carousel + 4 queue + 8 session machine).
+Expected: PASS, 24 tests across the four suites (1 ports + 7 carousel + 8 queue + 8 session machine).
 
 - [ ] **Step 7: Commit**
 
@@ -2790,7 +2790,7 @@ Expected on the serial monitor at 115200: either `flash=4MB psram=2048KB` or `fl
 - [ ] **Step 10: Verify it builds and the host tests still pass**
 
 Run: `cd packages/firmware && cp secrets.example.h secrets.h && python -m platformio run -e aura1 && cd ../.. && pnpm firmware:test`
-Expected: the `aura1` build succeeds, and all 20 native tests still pass.
+Expected: the `aura1` build succeeds, and all 24 native tests still pass.
 
 - [ ] **Step 11: Commit**
 
