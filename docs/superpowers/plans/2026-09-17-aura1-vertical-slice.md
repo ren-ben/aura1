@@ -2688,10 +2688,13 @@ public:
   bool append(const std::string& path, const std::string& line) override {
     File f = SD_MMC.open(path.c_str(), FILE_APPEND);
     if (!f) return false;
-    f.print(line.c_str());
-    f.print('\n');
+    // A full card opens fine and then writes nothing. Returning true there would let
+    // stopSession delete the marker and lose the session, so check the byte count.
+    const size_t want = line.size() + 1;
+    size_t wrote = f.print(line.c_str());
+    wrote += f.print('\n');
     f.close();
-    return true;
+    return wrote == want;
   }
   std::vector<std::string> readLines(const std::string& path) override {
     std::vector<std::string> out;
@@ -2708,9 +2711,9 @@ public:
   bool write(const std::string& path, const std::string& content) override {
     File f = SD_MMC.open(path.c_str(), FILE_WRITE);
     if (!f) return false;
-    f.print(content.c_str());
+    const size_t wrote = f.print(content.c_str());
     f.close();
-    return true;
+    return wrote == content.size();
   }
   bool remove(const std::string& path) override { return SD_MMC.remove(path.c_str()); }
   bool exists(const std::string& path) override { return SD_MMC.exists(path.c_str()); }
@@ -2879,7 +2882,13 @@ void setup() {
 void loop() {
   Input input;
   if (buttons.poll(input)) {
-    if (input == Input::PowerLong) { Buttons::powerOff(); return; }
+    if (input == Input::PowerLong) {
+      // Let the machine write a final heartbeat first: a running session then
+      // survives power-off to the second instead of losing up to 5 minutes.
+      machine.handle(input);
+      Buttons::powerOff();
+      return;
+    }
     machine.handle(input);
     if (machine.screen() == Screen::Stopped) {
       sync.run(configVersion, carousel);
@@ -2889,7 +2898,9 @@ void loop() {
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
-  if (now - lastSync >= SYNC_INTERVAL_MS) {
+  // Never sync mid-session: sync sets the RTC, and moving the clock under a running
+  // session can make endedAt < startedAt. Stopping triggers a sync anyway.
+  if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {
     lastSync = now;
     sync.run(configVersion, carousel);
   }
