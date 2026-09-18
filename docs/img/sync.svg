@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" role="img" aria-label="Sync: the device sends up to 200 queued sessions, the server stores each once and replies with the IDs it settled">
+  <defs>
+    <style>
+      .h { font: 600 13px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #C5BCAB; letter-spacing: 3px; }
+      .t { font: 600 14px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #DBD5CA; }
+      .s { font: 12px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #9A9385; }
+      .k { font: 12px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #DBD5CA; }
+      .l { font: 11px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #C5BCAB; }
+      .box { fill: #1A1A1A; stroke: #C5BCAB; stroke-width: 1.2; }
+      .inner { fill: #161616; stroke: #6E6A62; stroke-width: 1; }
+      .line { stroke: #C5BCAB; stroke-width: 1.2; fill: none; }
+    </style>
+    <pattern id="dither" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="1" height="1" fill="#1F1F1F"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C5BCAB"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="360" fill="#121212"/>
+  <rect width="960" height="360" fill="url(#dither)"/>
+
+  <text x="20" y="34" class="h">SYNC</text>
+
+  <!-- Device -->
+  <rect x="20" y="70" width="250" height="220" class="box"/>
+  <text x="145" y="98" text-anchor="middle" class="t">AURA-1 SD card</text>
+  <rect x="40" y="115" width="210" height="60" class="inner"/>
+  <text x="145" y="140" text-anchor="middle" class="k">queue.ndjson</text>
+  <text x="145" y="160" text-anchor="middle" class="s">sessions not synced</text>
+  <rect x="40" y="200" width="210" height="60" class="inner"/>
+  <text x="145" y="225" text-anchor="middle" class="k">acked.ndjson</text>
+  <text x="145" y="245" text-anchor="middle" class="s">IDs already settled</text>
+
+  <!-- Server -->
+  <rect x="670" y="70" width="270" height="220" class="box"/>
+  <text x="805" y="98" text-anchor="middle" class="t">Server</text>
+  <text x="805" y="130" text-anchor="middle" class="k">stores each session once</text>
+  <text x="805" y="149" text-anchor="middle" class="s">(keyed on its ID)</text>
+  <text x="805" y="182" text-anchor="middle" class="k">unknown activity</text>
+  <text x="805" y="201" text-anchor="middle" class="s">rejected, not stored</text>
+  <text x="805" y="236" text-anchor="middle" class="k">replies with the IDs</text>
+  <text x="805" y="255" text-anchor="middle" class="s">it acked or rejected</text>
+
+  <!-- Request -->
+  <line x1="270" y1="145" x2="668" y2="145" class="line" marker-end="url(#arrow)"/>
+  <text x="470" y="133" text-anchor="middle" class="l">POST up to 200 sessions</text>
+  <text x="470" y="163" text-anchor="middle" class="l">times sent as ISO text</text>
+
+  <!-- Response -->
+  <line x1="668" y1="230" x2="272" y2="230" class="line" marker-end="url(#arrow)"/>
+  <text x="470" y="218" text-anchor="middle" class="l">acked + rejected IDs</text>
+  <text x="470" y="248" text-anchor="middle" class="l">acted on only after HTTP 200</text>
+
+  <text x="480" y="322" text-anchor="middle" class="s">All settled: both files deleted.   Any failure: nothing deleted, tried again next sync.</text>
+  <text x="480" y="342" text-anchor="middle" class="s">Sending the same session twice is safe. The server keeps one copy.</text>
+</svg>

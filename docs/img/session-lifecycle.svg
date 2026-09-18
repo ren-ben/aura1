@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-label="Session lifecycle on the device: Idle, Running, Stopped, and crash recovery">
+  <defs>
+    <style>
+      .h { font: 600 13px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #C5BCAB; letter-spacing: 3px; }
+      .t { font: 600 14px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #DBD5CA; letter-spacing: 2px; }
+      .s { font: 12px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #9A9385; }
+      .k { font: 12px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #DBD5CA; }
+      .l { font: 11px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #C5BCAB; }
+      .box { fill: #1A1A1A; stroke: #C5BCAB; stroke-width: 1.2; }
+      .inner { fill: #161616; stroke: #6E6A62; stroke-width: 1; }
+      .line { stroke: #C5BCAB; stroke-width: 1.2; fill: none; }
+      .dash { stroke: #6E6A62; stroke-width: 1; fill: none; stroke-dasharray: 4 4; }
+    </style>
+    <pattern id="dither" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="1" height="1" fill="#1F1F1F"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C5BCAB"/>
+    </marker>
+    <marker id="arrowDim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6E6A62"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="400" fill="#121212"/>
+  <rect width="960" height="400" fill="url(#dither)"/>
+
+  <text x="20" y="34" class="h">ON THE DEVICE</text>
+
+  <!-- Return path: Stopped back to Idle, drawn above -->
+  <path d="M820,108 L820,72 L140,72 L140,106" class="line" marker-end="url(#arrow)"/>
+  <text x="480" y="62" text-anchor="middle" class="l">after 5 s, or any button</text>
+
+  <!-- States -->
+  <rect x="40" y="110" width="200" height="90" class="box"/>
+  <text x="140" y="143" text-anchor="middle" class="t">IDLE</text>
+  <text x="140" y="166" text-anchor="middle" class="s">SUN: next activity</text>
+  <text x="140" y="184" text-anchor="middle" class="s">hold SUN: next folder</text>
+
+  <rect x="380" y="110" width="200" height="90" class="box"/>
+  <text x="480" y="143" text-anchor="middle" class="t">RUNNING</text>
+  <text x="480" y="166" text-anchor="middle" class="s">no timer shown</text>
+  <text x="480" y="184" text-anchor="middle" class="s">SUN does nothing</text>
+
+  <rect x="720" y="110" width="200" height="90" class="box"/>
+  <text x="820" y="143" text-anchor="middle" class="t">STOPPED</text>
+  <text x="820" y="166" text-anchor="middle" class="s">shows the duration</text>
+  <text x="820" y="184" text-anchor="middle" class="s">then syncs</text>
+
+  <line x1="240" y1="155" x2="378" y2="155" class="line" marker-end="url(#arrow)"/>
+  <text x="309" y="145" text-anchor="middle" class="l">POWER</text>
+
+  <line x1="580" y1="155" x2="718" y2="155" class="line" marker-end="url(#arrow)"/>
+  <text x="649" y="145" text-anchor="middle" class="l">POWER</text>
+
+  <!-- What goes to the SD card -->
+  <line x1="480" y1="200" x2="480" y2="298" class="dash" marker-end="url(#arrowDim)"/>
+  <rect x="380" y="300" width="200" height="60" class="inner"/>
+  <text x="480" y="325" text-anchor="middle" class="k">marker file</text>
+  <text x="480" y="345" text-anchor="middle" class="s">heartbeat every 5 min</text>
+
+  <line x1="820" y1="200" x2="820" y2="298" class="dash" marker-end="url(#arrowDim)"/>
+  <rect x="720" y="300" width="200" height="60" class="inner"/>
+  <text x="820" y="325" text-anchor="middle" class="k">queue file</text>
+  <text x="820" y="345" text-anchor="middle" class="s">session added</text>
+
+  <!-- Crash recovery -->
+  <path d="M400,200 L400,250 L170,250 L170,298" class="dash" marker-end="url(#arrowDim)"/>
+  <text x="285" y="242" text-anchor="middle" class="l">power cut</text>
+  <rect x="40" y="300" width="260" height="60" class="inner"/>
+  <text x="170" y="325" text-anchor="middle" class="k">next boot recovers it</text>
+  <text x="170" y="345" text-anchor="middle" class="s">up to the last heartbeat</text>
+
+  <text x="480" y="388" text-anchor="middle" class="s">The session ID is made at start and reused on recovery, so nothing is stored twice.</text>
+</svg>
