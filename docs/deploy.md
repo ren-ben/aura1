@@ -25,7 +25,15 @@ docker compose up -d postgres api
 never on a bare `up`. `api` runs its migrations on boot, then seeds the five
 folders and their placeholder activity names if the database is still empty
 (safe to restart: it skips seeding once rows exist); rename activities
-directly in the database afterwards, no admin UI exists yet. `api` has no
+directly in the database afterwards, no admin UI exists yet. After ANY edit
+to folders or activities, bump `config_version` in the same step, or the
+device never picks up the rename:
+
+```bash
+docker compose exec postgres psql -U aura -d aura -c "UPDATE meta SET value = value + 1 WHERE key = 'config_version';"
+```
+
+The device picks up the change on its next sync. `api` has no
 host port: it is reachable only on the compose network, by `cloudflared`.
 Check `docker compose logs api` for the "Server listening" line before
 continuing. Do not start `cloudflared` yet — it has no tunnel token and no
@@ -46,22 +54,10 @@ before Access exists would put the unauthenticated API on the internet.
 
 ## 4. Create Access applications and policies
 
-Two applications on `aura.amygdala-inc.org`, in this order:
+Create the service token first, then the two applications on
+`aura.amygdala-inc.org`, in this order:
 
-1. **Application 1 (root)**: leave Path empty, so it covers every path
-   including `/` — this is where the web dashboard will live in a later
-   task. Policy `browser`: action Allow, include your email.
-2. **Application 2**: Path `api/v1/sync`. Its only policy is `device`:
-   action **Service Auth**, selector "Service Token" (not "Any Access
-   Service Token"), set to the `aura-1` token created below.
-
-   The more specific path (`api/v1/sync`) wins for requests to that path and
-   does not inherit the root application's `browser` policy. Every other
-   path, including `/api/v1/sessions`, falls under the root application and
-   its Allow policy only — so it is closed to a service token and open only
-   to your logged-in browser session.
-
-3. Zero Trust, Access, Service Auth: create a service token named `aura-1`.
+1. Zero Trust, Access, Service Auth: create a service token named `aura-1`.
    Copy the client id and secret now; they are shown only once. Set them
    with `read`, not literal text, so they never land in shell history:
 
@@ -69,6 +65,22 @@ Two applications on `aura.amygdala-inc.org`, in this order:
    read -r CF_ID
    read -rs CF_SECRET
    ```
+
+   Record the token's expiry date somewhere you will see it again. An
+   expired token fails Access silently and the device just stops syncing.
+
+2. **Application 1 (root)**: leave Path empty, so it covers every path
+   including `/`, where the web dashboard is served (Task 7). Policy
+   `browser`: action Allow, include your email.
+3. **Application 2**: Path `api/v1/sync`. Its only policy is `device`:
+   action **Service Auth**, selector "Service Token" (not "Any Access
+   Service Token"), set to the `aura-1` token created above.
+
+   The more specific path (`api/v1/sync`) wins for requests to that path and
+   does not inherit the root application's `browser` policy. Every other
+   path, including `/api/v1/sessions`, falls under the root application and
+   its Allow policy only — so it is closed to a service token and open only
+   to your logged-in browser session.
 
    Never use the Bypass action on any application or policy. Access
    evaluates Bypass first, so it is the one policy mistake that opens a
@@ -92,6 +104,16 @@ starts it for the first time. `docker compose config` prints the
 substituted token in plain text, so never paste its output anywhere.
 
 ## 6. Verify
+
+Unauthenticated GET on the root, must redirect to the Cloudflare Access
+login:
+
+```bash
+curl -i https://aura.amygdala-inc.org/
+```
+
+Expected: `302` whose `Location` is on `<team>.cloudflareaccess.com`. A
+`200` means the root application is missing and the dashboard is public.
 
 Unauthenticated GET, must not reach the API:
 
