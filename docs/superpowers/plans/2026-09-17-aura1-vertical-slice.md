@@ -2063,6 +2063,16 @@ git commit -m "feat(firmware): append-only ndjson event queue"
 
 Crash recovery is the subtle part: `begin()` finds an open-session marker left by a power cut and closes the session at its last heartbeat.
 
+**The session uuid is minted at START and stored in the marker.** Both a normal stop and a
+crash recovery use that same uuid. A power cut after the event reached the queue but before
+the marker was cleared makes recovery append the session a second time; because it carries
+the same `device_uuid`, the server deduplicates it instead of storing a duplicate session.
+Marker format: `activityId startedAt heartbeat uuid`.
+
+**A failed queue append must not lose the session.** `EventQueue::append` returns `bool`
+(Task 10). If it returns false (SD card unseated or full), `stopSession` keeps the marker
+and stays `Running`; the user can reseat the card and press stop again.
+
 - [ ] **Step 1: Add the Random port and write the fakes**
 
 Append to `packages/firmware/include/ports.h` (Task 8 created the file; this adds one
@@ -2253,8 +2263,67 @@ void test_consecutive_uuids_differ_even_within_the_same_second() {
   TEST_ASSERT_FALSE(pending[0].uuid == pending[1].uuid);
 }
 
+class FailingAppendStorage : public FakeStorage {
+public:
+  bool append(const std::string& path, const std::string& line) override {
+    if (path == "/queue.ndjson") return false;
+    return FakeStorage::append(path, line);
+  }
+};
+
+void test_failed_queue_append_keeps_the_session_running() {
+  FailingAppendStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  EventQueue queue(storage);
+  SessionMachine m(carousel, queue, clock, storage, renderer, random);
+  m.begin();
+  m.handle(Input::PowerShort);
+  clock.now += 600;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  TEST_ASSERT_TRUE(storage.exists("/session.open"));
+}
+
+void test_recovery_reuses_the_uuid_minted_at_start() {
+  Rig rig;
+  std::string markerUuid;
+  {
+    auto m = rig.machine();
+    m.begin();
+    m.handle(Input::PowerShort);
+    const auto line = rig.storage.readLines("/session.open")[0];
+    markerUuid = line.substr(line.rfind(' ') + 1);
+    rig.clock.now += 300;
+    m.handle(Input::Tick);
+  }
+  auto recovered = rig.machine();
+  recovered.begin();
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_STRING(markerUuid.c_str(), pending[0].uuid.c_str());
+}
+
+void test_normal_stop_uses_the_uuid_minted_at_start() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  const auto line = rig.storage.readLines("/session.open")[0];
+  const std::string markerUuid = line.substr(line.rfind(' ') + 1);
+  rig.clock.now += 60;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_STRING(markerUuid.c_str(), rig.queue.pending()[0].uuid.c_str());
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_failed_queue_append_keeps_the_session_running);
+  RUN_TEST(test_recovery_reuses_the_uuid_minted_at_start);
+  RUN_TEST(test_normal_stop_uses_the_uuid_minted_at_start);
   RUN_TEST(test_uuid_is_rfc9562_version_4);
   RUN_TEST(test_consecutive_uuids_differ_even_within_the_same_second);
   RUN_TEST(test_power_short_starts_a_session);
@@ -2317,6 +2386,7 @@ private:
 
   Screen screen_ = Screen::Idle;
   int activityId_ = 0;
+  std::string sessionUuid_;
   uint64_t startedAt_ = 0;
   uint64_t lastHeartbeat_ = 0;
 };
@@ -2373,21 +2443,27 @@ void SessionMachine::recoverMarker() {
 
   int activityId = 0;
   unsigned long long startedAt = 0, heartbeat = 0;
-  if (std::sscanf(lines[0].c_str(), "%d %llu %llu",
-                  &activityId, &startedAt, &heartbeat) == 3 && heartbeat > startedAt) {
-    queue_.append({ uuidV4(random_), activityId,
-                    static_cast<uint64_t>(startedAt),
-                    static_cast<uint64_t>(heartbeat), true });
+  char uuid[37] = {0};
+  if (std::sscanf(lines[0].c_str(), "%d %llu %llu %36s",
+                  &activityId, &startedAt, &heartbeat, uuid) == 4 && heartbeat > startedAt) {
+    // Reuse the uuid minted at start: if this session already reached the queue before
+    // the power cut, the server sees the same device_uuid and deduplicates it.
+    if (!queue_.append({ std::string(uuid), activityId,
+                         static_cast<uint64_t>(startedAt),
+                         static_cast<uint64_t>(heartbeat), true })) {
+      return;  // keep the marker; try again on the next boot
+    }
   }
   storage_.remove(MARKER);
 }
 
 void SessionMachine::writeMarker(uint64_t heartbeat) {
-  char line[96];
-  std::snprintf(line, sizeof(line), "%d %llu %llu",
+  char line[128];
+  std::snprintf(line, sizeof(line), "%d %llu %llu %s",
                 activityId_,
                 static_cast<unsigned long long>(startedAt_),
-                static_cast<unsigned long long>(heartbeat));
+                static_cast<unsigned long long>(heartbeat),
+                sessionUuid_.c_str());
   storage_.write(MARKER, std::string(line) + "\n");
   lastHeartbeat_ = heartbeat;
 }
@@ -2395,6 +2471,7 @@ void SessionMachine::writeMarker(uint64_t heartbeat) {
 void SessionMachine::startSession() {
   activityId_ = carousel_.currentActivityId();
   if (activityId_ == 0) return;
+  sessionUuid_ = uuidV4(random_);
   startedAt_ = clock_.nowEpochSeconds();
   writeMarker(startedAt_);
   screen_ = Screen::Running;
@@ -2403,7 +2480,10 @@ void SessionMachine::startSession() {
 
 void SessionMachine::stopSession() {
   const uint64_t endedAt = clock_.nowEpochSeconds();
-  queue_.append({ uuidV4(random_), activityId_, startedAt_, endedAt, true });
+  if (!queue_.append({ sessionUuid_, activityId_, startedAt_, endedAt, true })) {
+    draw();  // stay Running with the marker intact; nothing is lost
+    return;
+  }
   storage_.remove(MARKER);
   screen_ = Screen::Stopped;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
@@ -2453,7 +2533,7 @@ void SessionMachine::draw(int minutes) {
 - [ ] **Step 6: Run the whole host suite**
 
 Run: `pnpm firmware:test`
-Expected: PASS, 24 tests across the four suites (1 ports + 7 carousel + 8 queue + 8 session machine).
+Expected: PASS, 29 tests across the four suites (1 ports + 7 carousel + 10 queue + 11 session machine).
 
 - [ ] **Step 7: Commit**
 
@@ -2571,12 +2651,16 @@ public:
 #include <SD.h>
 #include "ports.h"
 
+// Contract: readLines returns lines WITHOUT terminators. arduino-esp32's println writes
+// "\r\n"; never use it here. A stray '\r' makes every acked uuid fail to match, so the
+// queue never drains and, past 200 events, never syncs again.
 class SdStorage : public Storage {
 public:
   bool append(const std::string& path, const std::string& line) override {
     File f = SD.open(path.c_str(), FILE_APPEND);
     if (!f) return false;
-    f.println(line.c_str());
+    f.print(line.c_str());
+    f.print('\n');
     f.close();
     return true;
   }
@@ -2586,6 +2670,7 @@ public:
     if (!f) return out;
     while (f.available()) {
       String line = f.readStringUntil('\n');
+      if (line.endsWith("\r")) line.remove(line.length() - 1);  // card may be edited on a PC
       if (line.length() > 0) out.push_back(std::string(line.c_str()));
     }
     f.close();
@@ -2698,13 +2783,15 @@ private:
 };
 ```
 
-In `sync_client.cpp`: connect with a 15-second timeout and return false on failure. Build the body as `{"deviceId":DEVICE_ID,"configVersion":N,"events":[...]}` using `EventQueue::serialise` for each pending event. POST with `WiFiClientSecure` and both `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. On a 200, parse with ArduinoJson, then:
+In `sync_client.cpp`: connect with a 15-second timeout and return false on failure. Build the body as `{"deviceId":DEVICE_ID,"configVersion":N,"events":[...]}` using `EventQueue::serialise` for **at most the first 200** pending events. The server's `syncRequestSchema` caps `events` at 200; sending more gets a 400 on every attempt, forever, and nothing ever syncs again. The append-only queue copes with a partial drain, and the next sync takes the rest. POST with `WiFiClientSecure` and both `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. On a 200, parse with ArduinoJson, then:
 
 1. `queue_.prune(settled)` where `settled` is `acked` concatenated with `rejected` — both are permanently decided and must leave the queue.
 2. `clock_.setEpochSeconds(parsed serverTime)`.
 3. If `config` is present, `saveConfigToSd` and reload the carousel, updating `configVersion`.
 
 Always call `WiFi.disconnect(true)` and `WiFi.mode(WIFI_OFF)` before returning, on every path. The radio is the largest battery cost in the system.
+
+Call `bootloader_random_disable()` before `WiFi.begin()` and `bootloader_random_enable()` after the radio is off, on every path. The bootloader entropy source conflicts with Wi-Fi and the ADC; outside sync it must stay on so session uuids stay truly random.
 
 - [ ] **Step 8: Write main.cpp**
 
@@ -2713,6 +2800,7 @@ Always call `WiFi.disconnect(true)` and `WiFi.mode(WIFI_OFF)` before returning, 
 #include <Arduino.h>
 #include <SD.h>
 #include <Wire.h>
+#include <bootloader_random.h>
 #include "secrets.h"
 #include "carousel.h"
 #include "config_store.h"
@@ -2743,6 +2831,11 @@ constexpr unsigned long TICK_MS = 1000;
 constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
 
 void setup() {
+  // esp_random() is only a true RNG while RF or the bootloader entropy source is on.
+  // Session uuids are minted at button presses with the radio OFF, so keep the entropy
+  // source on except during sync; SyncClient disables it before WiFi.begin() and
+  // re-enables it after WiFi is off. Verify against Espressif's esp_random docs.
+  bootloader_random_enable();
   buttons.begin();
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   rtc.begin();
@@ -2790,7 +2883,7 @@ Expected on the serial monitor at 115200: either `flash=4MB psram=2048KB` or `fl
 - [ ] **Step 10: Verify it builds and the host tests still pass**
 
 Run: `cd packages/firmware && cp secrets.example.h secrets.h && python -m platformio run -e aura1 && cd ../.. && pnpm firmware:test`
-Expected: the `aura1` build succeeds, and all 24 native tests still pass.
+Expected: the `aura1` build succeeds, and all 29 native tests still pass.
 
 - [ ] **Step 11: Commit**
 
