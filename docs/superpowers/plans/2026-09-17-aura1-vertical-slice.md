@@ -2555,7 +2555,21 @@ git commit -m "feat(firmware): session state machine with crash recovery"
 
 No new logic. These are adapters implementing the ports against real hardware. Nothing here is host tested, which is exactly why nothing here may contain logic. If you find yourself writing a branch that is not about hardware, it belongs in a tested class instead.
 
-**The one place this plan cannot give you literal code.** The e-paper SPI pins (MOSI, SCK, CS, DC, RST) and the SD card pins are not published in Waveshare's wiki text and must be read off the board schematic, linked from the ESP32-S3-ePaper-1.54 resources page. Steps 4 to 7 therefore specify algorithms, register addresses and required behaviour precisely, and leave only those pin constants to be filled in from the schematic. Everything with a decision in it was already written and tested in Tasks 9 to 11.
+**Pins are verified against Waveshare's own code**, not guessed:
+`github.com/waveshareteam/ESP32-S3-ePaper-1.54`, `02_Example/Arduino/*/user_config.h`,
+`04_SD_Card/sdcard_bsp.cpp`, `07_BATT_PWR_Test/src/power/board_power_bsp.cpp` and
+`src/button_bsp/button_bsp.c`. Four facts there contradict earlier assumptions and are
+load-bearing:
+
+1. **The SD card is SDMMC 1-bit, not SPI.** CLK 39, CMD 41, D0 40. Arduino's `SD.h` is the
+   SPI driver and would never mount it. Use `SD_MMC` (same `File` API).
+2. **E-paper BUSY is HIGH while busy, LOW when idle.** This is the normal SSD1681 behaviour and
+   GxEPD2's default. An earlier note said "idle HIGH"; that was the 1.54G colour variant.
+3. **Panel power (GPIO6) must be driven LOW before the display is touched.** Nothing drives it
+   by default, and without it the panel is unpowered.
+4. **The POWER button is still held when the firmware boots**, because holding it is how the
+   board powers on. Its first release must be ignored, or it registers as a long press and
+   powers the device straight back off. Waveshare's own example guards this the same way.
 
 - [ ] **Step 1: Write the secrets template**
 
@@ -2581,12 +2595,19 @@ No new logic. These are adapters implementing the ports against real hardware. N
 
 // Waveshare ESP32-S3-ePaper-1.54. Both PWR and BOOT are user-programmable.
 // GPIO0 is a strapping pin: never require it held during power-on.
-constexpr int PIN_POWER_BTN   = 18;
-constexpr int PIN_POWER_HOLD  = 17;
-constexpr int PIN_SUN_BTN     = 0;
-constexpr int PIN_BATTERY_ADC = 4;
+constexpr int PIN_POWER_BTN   = 18;  // active LOW
+constexpr int PIN_POWER_HOLD  = 17;  // HIGH keeps the board powered
+constexpr int PIN_SUN_BTN     = 0;   // BOOT, active LOW
 constexpr int PIN_PANEL_POWER = 6;   // LOW powers the panel
-constexpr int PIN_EPD_BUSY    = 8;   // idle HIGH
+constexpr int PIN_EPD_BUSY    = 8;   // HIGH while busy, LOW when idle
+constexpr int PIN_EPD_RST     = 9;
+constexpr int PIN_EPD_DC      = 10;
+constexpr int PIN_EPD_CS      = 11;
+constexpr int PIN_EPD_SCK     = 12;
+constexpr int PIN_EPD_MOSI    = 13;
+constexpr int PIN_SD_CLK      = 39;  // SDMMC 1-bit, not SPI
+constexpr int PIN_SD_D0       = 40;
+constexpr int PIN_SD_CMD      = 41;
 constexpr int PIN_I2C_SDA     = 47;
 constexpr int PIN_I2C_SCL     = 48;
 
@@ -2595,15 +2616,20 @@ constexpr unsigned long LONG_PRESS_MS = 700;
 class Buttons {
 public:
   void begin() {
+    pinMode(PIN_POWER_HOLD, OUTPUT);
+    digitalWrite(PIN_POWER_HOLD, HIGH);  // latch power on, first thing
     pinMode(PIN_POWER_BTN, INPUT_PULLUP);
     pinMode(PIN_SUN_BTN, INPUT_PULLUP);
-    pinMode(PIN_POWER_HOLD, OUTPUT);
-    digitalWrite(PIN_POWER_HOLD, HIGH);  // latch power on
+    // Holding POWER is how the board turns on, so it is usually still held here.
+    // Ignore POWER until it has been seen released once, or that release would
+    // register as a long press and switch the device straight back off.
+    pwrArmed_ = digitalRead(PIN_POWER_BTN) == HIGH;
   }
 
   bool poll(Input& out) {
-    return read(PIN_SUN_BTN, sunDown_, sunAt_, Input::SunShort, Input::SunLong, out)
-        || read(PIN_POWER_BTN, pwrDown_, pwrAt_, Input::PowerShort, Input::PowerLong, out);
+    if (!pwrArmed_ && digitalRead(PIN_POWER_BTN) == HIGH) pwrArmed_ = true;
+    if (read(PIN_SUN_BTN, sunDown_, sunAt_, Input::SunShort, Input::SunLong, out)) return true;
+    return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrAt_, Input::PowerShort, Input::PowerLong, out);
   }
 
   static void powerOff() { digitalWrite(PIN_POWER_HOLD, LOW); }
@@ -2623,6 +2649,7 @@ private:
   }
 
   bool sunDown_ = false, pwrDown_ = false;
+  bool pwrArmed_ = false;
   unsigned long sunAt_ = 0, pwrAt_ = 0;
 };
 ```
@@ -2648,16 +2675,18 @@ public:
 `packages/firmware/src/device/sd_storage.h`:
 ```cpp
 #pragma once
-#include <SD.h>
+#include <SD_MMC.h>
 #include "ports.h"
 
+// The card is wired for SDMMC 1-bit (CLK 39, CMD 41, D0 40). SD.h is the SPI driver and
+// would never mount it.
 // Contract: readLines returns lines WITHOUT terminators. arduino-esp32's println writes
 // "\r\n"; never use it here. A stray '\r' makes every acked uuid fail to match, so the
 // queue never drains and, past 200 events, never syncs again.
 class SdStorage : public Storage {
 public:
   bool append(const std::string& path, const std::string& line) override {
-    File f = SD.open(path.c_str(), FILE_APPEND);
+    File f = SD_MMC.open(path.c_str(), FILE_APPEND);
     if (!f) return false;
     f.print(line.c_str());
     f.print('\n');
@@ -2666,7 +2695,7 @@ public:
   }
   std::vector<std::string> readLines(const std::string& path) override {
     std::vector<std::string> out;
-    File f = SD.open(path.c_str(), FILE_READ);
+    File f = SD_MMC.open(path.c_str(), FILE_READ);
     if (!f) return out;
     while (f.available()) {
       String line = f.readStringUntil('\n');
@@ -2677,14 +2706,14 @@ public:
     return out;
   }
   bool write(const std::string& path, const std::string& content) override {
-    File f = SD.open(path.c_str(), FILE_WRITE);
+    File f = SD_MMC.open(path.c_str(), FILE_WRITE);
     if (!f) return false;
     f.print(content.c_str());
     f.close();
     return true;
   }
-  bool remove(const std::string& path) override { return SD.remove(path.c_str()); }
-  bool exists(const std::string& path) override { return SD.exists(path.c_str()); }
+  bool remove(const std::string& path) override { return SD_MMC.remove(path.c_str()); }
+  bool exists(const std::string& path) override { return SD_MMC.exists(path.c_str()); }
 };
 ```
 
@@ -2738,7 +2767,7 @@ private:
 };
 ```
 
-In `eink_renderer.cpp`, instantiate `GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT>` with the SPI pins from the Waveshare schematic and `PIN_EPD_BUSY`. Draw the three layouts from spec section 6 of the design doc. Use `display.setPartialWindow` for cursor movement within a folder. Force a full refresh when `vm.folderIndex != lastFolderIndex_` or `partials_ >= PARTIALS_BEFORE_FULL`, resetting `partials_` to zero. Never draw elapsed time on the `Running` screen: `vm.minutes` is zero there by contract and must stay unused.
+In `eink_renderer.cpp`, instantiate `GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT>` (SSD1681, 200x200) with `GxEPD2_154_D67(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY)`, and call `SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, PIN_EPD_CS)` before `display.init()`: the panel is not on the default SPI pins. `begin()` must first drive `PIN_PANEL_POWER` LOW (panel on) and wait about 10 ms. BUSY is HIGH while busy, which is GxEPD2's default for this panel; do not invert it. Draw the three layouts from spec section 6 of the design doc. Use `display.setPartialWindow` for cursor movement within a folder. Force a full refresh when `vm.folderIndex != lastFolderIndex_` or `partials_ >= PARTIALS_BEFORE_FULL`, resetting `partials_` to zero. Never draw elapsed time on the `Running` screen: `vm.minutes` is zero there by contract and must stay unused.
 
 - [ ] **Step 6: Write the config store**
 
@@ -2798,7 +2827,7 @@ Call `bootloader_random_disable()` before `WiFi.begin()` and `bootloader_random_
 `packages/firmware/src/main.cpp`:
 ```cpp
 #include <Arduino.h>
-#include <SD.h>
+#include <SD_MMC.h>
 #include <Wire.h>
 #include <bootloader_random.h>
 #include "secrets.h"
@@ -2839,7 +2868,8 @@ void setup() {
   buttons.begin();
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   rtc.begin();
-  SD.begin();
+  SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);
+  SD_MMC.begin("/sdcard", true);  // true = 1-bit mode, as the board is wired
   renderer.begin();
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
