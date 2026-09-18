@@ -1196,10 +1196,19 @@ git commit -m "feat(deploy): dockerise api behind cloudflare tunnel and access"
 
 **Files:**
 - Create: `packages/web/package.json`, `packages/web/vite.config.ts`, `packages/web/index.html`, `packages/web/src/main.ts`, `packages/web/src/App.vue`
+- Modify: `packages/api/package.json`, `packages/api/src/app.ts`, `packages/api/src/server.ts`, `packages/api/Dockerfile`
+- Test: `packages/api/test/routes.test.ts`
 
 **Interfaces:**
-- Consumes: `GET /api/v1/sessions` (Task 5).
-- Produces: a page listing sessions grouped by day.
+- Consumes: `GET /api/v1/sessions` (Task 5); `buildApp(db, opts)` (Task 5).
+- Produces: a page listing sessions grouped by day, **served by the API itself** in production.
+  `buildApp(db: Db, opts: { logger?: boolean; webRoot?: string } = {})` — when `webRoot` is set,
+  the API serves that directory at `/` via `@fastify/static`; API routes stay under `/api/v1`.
+
+**Why the API serves the page:** the Cloudflare tunnel routes `aura.amygdala-inc.org` to
+`api:3000` and nothing else. Without this, the Pi answers `/` with a 404. One origin means
+one tunnel route, one Access application, and no CORS. A separate web container was
+rejected as a second service and a second route to get right for no gain.
 
 Deliberately unstyled beyond the palette. The design system is Phase 5; styling it now means restyling it later.
 
@@ -1342,11 +1351,54 @@ Run, in three terminals: `pnpm db:up`; then `cd packages/api && pnpm dev`; then 
 POST a session to the local API with curl, then load `http://localhost:5173`.
 Expected: one line under today's date showing folder, activity, times and duration.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Serve the built page from the API**
+
+Add `"@fastify/static"` (latest, currently `^10.1.4`; confirm it peers on fastify 5) to
+`packages/api/package.json`.
+
+Write the failing test first. Add to `packages/api/test/routes.test.ts`:
+
+```ts
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('GET / serves the web app when webRoot is set', async () => {
+  const webRoot = mkdtempSync(join(tmpdir(), 'aura-web-'));
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>AURA-1</title>');
+  const withWeb = buildApp(db, { logger: false, webRoot });
+  await withWeb.ready();
+  const response = await withWeb.inject({ method: 'GET', url: '/' });
+  await withWeb.close();
+  assert.equal(response.statusCode, 200);
+  assert.match(response.body, /AURA-1/);
+});
+```
+
+Run it and confirm it fails. Then in `buildApp`, register `@fastify/static` with
+`{ root: opts.webRoot }` only when `opts.webRoot` is set. Register it AFTER the API route
+plugins so `/api/v1/*` is never shadowed.
+
+In `server.ts`, pass `webRoot: resolve(import.meta.dirname, '../../web/dist')`. Note that
+`import.meta.dirname` needs Node 20.11+; the machine runs 20.18.0.
+
+In `packages/api/Dockerfile`, also copy `packages/web/package.json` before install and
+`packages/web` after, then run `pnpm --filter @aura/web build` before the final `WORKDIR`.
+
+The API suite must now report **16 tests**.
+
+- [ ] **Step 5: Verify the page in the real container**
+
+`docker compose build api && docker compose up -d postgres api` (never a bare `up`; that
+starts cloudflared). Then `docker compose exec api wget -qO- http://localhost:3000/` must
+return the built `index.html`, and `/api/v1/sessions` must still return JSON.
+`docker compose stop api` afterwards.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/web
-git commit -m "feat(web): add session list page"
+git add packages/web packages/api
+git commit -m "feat(web): add session list page served by the api"
 ```
 
 ---
