@@ -8,13 +8,13 @@
     "start": "tsx src/server.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "tsx --test test/schema.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts"
   },
   "dependencies": {
     "@aura/shared": "workspace:*",
     "@fastify/type-provider-zod": "^1.0.0",
     "drizzle-orm": "^0.38.0",
-    "fastify": "^5.2.0",
+    "fastify": "^5.5.0",
     "pg": "^8.13.0",
     "zod": "^4.0.0"
   },
