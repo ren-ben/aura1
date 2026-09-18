@@ -387,7 +387,7 @@ git commit -m "feat(shared): add sync contract and session helpers"
     "@aura/shared": "workspace:*",
     "@fastify/type-provider-zod": "^1.0.0",
     "drizzle-orm": "^0.38.0",
-    "fastify": "^5.2.0",
+    "fastify": "^5.5.0",
     "pg": "^8.13.0",
     "zod": "^4.0.0"
   },
