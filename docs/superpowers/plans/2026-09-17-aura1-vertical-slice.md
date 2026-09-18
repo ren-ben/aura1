@@ -818,7 +818,7 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd packages/api && pnpm test`
-Expected: PASS, 9 tests total across both files.
+Expected: PASS, 9 tests total across both files. (Task 4's review later added two more, for 11.)
 
 - [ ] **Step 5: Register the new test file**
 
@@ -1064,7 +1064,7 @@ await app.listen({ port: Number(process.env.PORT ?? 3000), host: '0.0.0.0' });
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd packages/api && pnpm test`
-Expected: PASS, 12 tests total.
+Expected: PASS, 14 tests total.
 
 - [ ] **Step 6: Register the new test file**
 
@@ -1074,7 +1074,7 @@ Add `test/routes.test.ts` to the `test` script in `packages/api/package.json`:
     "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts test/routes.test.ts"
 ```
 
-Re-run `pnpm --filter @aura/api test` and confirm it reports 12 tests, not 9.
+Re-run `pnpm --filter @aura/api test` and confirm it reports 14 tests, not 11. (Task 4's review added two sync-service tests, bringing that file to 8.)
 
 - [ ] **Step 7: Commit**
 
