@@ -28,6 +28,14 @@
   target machine runs Node v20.18.0, which lacks native TypeScript stripping.
   `tsx` is a devDependency of every package that has tests. Do not "modernise"
   this back to the native runner.
+- **Firmware host tests run in Docker, never on the Windows host.** The host's only C++
+  compiler is MinGW.org GCC 6.3.0 (2016): it rejects `-std=gnu++17` and lacks
+  `std::to_string`. `pnpm firmware:test` builds a small image from `python:3.13`
+  (g++ 14.2) with PlatformIO installed and runs `pio test -e native` inside it, with
+  `-f <suite>` passed through. The device build and upload (`env:aura1`) run on the
+  Windows host as `python -m platformio ...`, because they use PlatformIO's own xtensa
+  toolchain and need the USB port. `pio` is not on PATH on this machine; always invoke
+  it as `python -m platformio`.
 - **API tests run with `--test-concurrency=1`.** Every API test file truncates and
   reseeds the same live test database in `beforeEach`. Node runs test files in
   parallel by default, so two files race on the same tables and fail
@@ -1523,15 +1531,53 @@ int main() {
 }
 ```
 
-- [ ] **Step 4: Run the host tests**
+- [ ] **Step 4: Add the Docker test runner**
 
-Run: `cd packages/firmware && pio test -e native`
-Expected: PASS, 1 test.
+The host compiler cannot build C++17 (see Global Constraints), so host tests run in a
+container. `packages/firmware/test.Dockerfile`:
 
-- [ ] **Step 5: Commit**
+```dockerfile
+FROM python:3.13
+RUN pip install --no-cache-dir platformio
+WORKDIR /fw
+```
+
+`scripts/firmware-test.mjs` (Node, so it works in pnpm's Windows shell, where `$PWD` and
+globs do not expand):
+
+```js
+import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
+const fw = resolve(import.meta.dirname, '../packages/firmware');
+const run = (args) => {
+  const r = spawnSync('docker', args, { stdio: 'inherit' });
+  if (r.status !== 0) process.exit(r.status ?? 1);
+};
+
+run(['build', '-q', '-t', 'aura-fw-test', '-f', resolve(fw, 'test.Dockerfile'), fw]);
+run([
+  'run', '--rm',
+  '-v', `${fw}:/fw`,
+  '-v', 'aura-pio:/root/.platformio',
+  'aura-fw-test',
+  'pio', 'test', '-e', 'native', ...process.argv.slice(2),
+]);
+```
+
+Add to the root `package.json` scripts: `"firmware:test": "node scripts/firmware-test.mjs"`.
+The `aura-pio` named volume caches PlatformIO's downloaded packages between runs.
+
+- [ ] **Step 5: Run the host tests**
+
+Run: `pnpm firmware:test`
+Expected: PASS, 1 test. Confirm the count in the output; a run that compiles nothing and
+reports zero tests is not a pass.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/firmware
+git add packages/firmware scripts package.json
 git commit -m "feat(firmware): scaffold platformio with host-testable ports"
 ```
 
@@ -1632,7 +1678,7 @@ int main() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd packages/firmware && pio test -e native -f test_carousel`
+Run: `pnpm firmware:test -f test_carousel`
 Expected: FAIL, `carousel.h` not found.
 
 - [ ] **Step 3: Write the header**
@@ -1737,7 +1783,7 @@ void Carousel::fill(ViewModel& vm) const {
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd packages/firmware && pio test -e native -f test_carousel`
+Run: `pnpm firmware:test -f test_carousel`
 Expected: PASS, 6 tests.
 
 - [ ] **Step 6: Commit**
@@ -1868,7 +1914,7 @@ int main() {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd packages/firmware && pio test -e native -f test_queue`
+Run: `pnpm firmware:test -f test_queue`
 Expected: FAIL, `queue.h` not found.
 
 - [ ] **Step 4: Write the header**
@@ -1988,7 +2034,7 @@ size_t EventQueue::size() { return pending().size(); }
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `cd packages/firmware && pio test -e native -f test_queue`
+Run: `pnpm firmware:test -f test_queue`
 Expected: PASS, 4 tests.
 
 - [ ] **Step 7: Commit**
@@ -2157,7 +2203,7 @@ int main() {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd packages/firmware && pio test -e native -f test_session_machine`
+Run: `pnpm firmware:test -f test_session_machine`
 Expected: FAIL, `session_machine.h` not found.
 
 - [ ] **Step 4: Write the header**
@@ -2327,7 +2373,7 @@ void SessionMachine::draw(int minutes) {
 
 - [ ] **Step 6: Run the whole host suite**
 
-Run: `cd packages/firmware && pio test -e native`
+Run: `pnpm firmware:test`
 Expected: PASS, 17 tests across the four suites.
 
 - [ ] **Step 7: Commit**
@@ -2646,7 +2692,7 @@ Expected on the serial monitor at 115200: either `flash=4MB psram=2048KB` or `fl
 
 - [ ] **Step 10: Verify it builds and the host tests still pass**
 
-Run: `cd packages/firmware && cp secrets.example.h secrets.h && pio run -e aura1 && pio test -e native`
+Run: `cd packages/firmware && cp secrets.example.h secrets.h && python -m platformio run -e aura1 && cd ../.. && pnpm firmware:test`
 Expected: the `aura1` build succeeds, and all 17 native tests still pass.
 
 - [ ] **Step 11: Commit**
@@ -2671,14 +2717,14 @@ No code. Run each check, paste the real output into `docs/verification.md`, and 
 
 - [ ] **Step 1: Full test suite**
 
-Run: `pnpm db:up && pnpm test` then `cd packages/firmware && pio test -e native`
+Run: `pnpm db:up && pnpm test` then `pnpm firmware:test`
 Record the actual pass counts.
 
 - [ ] **Step 2: Flash and configure**
 
 (Device steps below run wherever the AURA-1 is plugged in; the backend is already live on the Pi from Task 6.)
 
-Copy `secrets.example.h` to `secrets.h`, fill in the real wifi credentials, service token and device id. Run `pio run -e aura1 -t upload`.
+Copy `secrets.example.h` to `secrets.h`, fill in the real wifi credentials, service token and device id. Run `python -m platformio run -e aura1 -t upload`.
 Expected: the device boots to the IDLE screen showing `AXIOM` and its activities.
 
 - [ ] **Step 3: Offline durability**
