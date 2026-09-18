@@ -27,5 +27,6 @@ public:
 
 private:
   static constexpr const char* PATH = "/queue.ndjson";
+  static constexpr const char* ACKED = "/acked.ndjson";
   Storage& storage_;
 };
