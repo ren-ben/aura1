@@ -6,13 +6,17 @@
 #include <WiFiClientSecure.h>
 #include <bootloader_random.h>
 #include "config_store.h"
-#include "iso_time.h"
 #include "secrets.h"
+#include "time_util.h"
 
 // The server's syncRequestSchema caps events at 200. More would 400 on every
 // attempt, forever. The append-only queue copes with a partial drain.
 constexpr size_t MAX_EVENTS = 200;
 constexpr unsigned long CONNECT_TIMEOUT_MS = 15000;
+
+// Mozilla root store, embedded by board_build.embed_files. objcopy names the
+// symbol after the path relative to the project root.
+extern const uint8_t x509_crt_bundle_start[] asm("_binary_data_cert_x509_crt_bundle_bin_start");
 
 // Radio up, one POST, radio down. Every path ends with the radio off and the
 // bootloader entropy source back on: it conflicts with Wi-Fi, and outside sync
@@ -27,7 +31,10 @@ static bool post(const String& body, String& response) {
   int code = -1;
   if (WiFi.status() == WL_CONNECTED) {
     WiFiClientSecure client;
-    client.setInsecure();  // no certificate check: see the task 12 report
+    // Verify the server against the Mozilla roots. Never setInsecure(): the
+    // CF Access secret is the API's only credential and the device syncs over
+    // untrusted hotspots. No pinning: Cloudflare rotates its edge CAs.
+    client.setCACertBundle(x509_crt_bundle_start);
     HTTPClient http;
     http.begin(client, SYNC_URL);
     http.addHeader("Content-Type", "application/json");
@@ -58,8 +65,8 @@ bool SyncClient::run(int& configVersion, Carousel& carousel) {
     JsonObject event = events.add<JsonObject>();
     event["uuid"] = e.uuid;
     event["activityId"] = e.activityId;
-    event["startedAt"] = isoFromEpoch(e.startedAt);
-    event["endedAt"] = isoFromEpoch(e.endedAt);
+    event["startedAt"] = toIso8601(e.startedAt);
+    event["endedAt"] = toIso8601(e.endedAt);
     event["clockSynced"] = e.clockSynced;
   }
   String body;
@@ -76,7 +83,9 @@ bool SyncClient::run(int& configVersion, Carousel& carousel) {
   for (JsonVariant uuid : response["rejected"].as<JsonArray>()) settled.push_back(uuid.as<std::string>());
   queue_.prune(settled);
 
-  clock_.setEpochSeconds(epochFromIso(response["serverTime"] | ""));
+  // Never set the RTC from an unparseable time: every later session would carry it.
+  uint64_t serverTime = 0;
+  if (fromIso8601(response["serverTime"] | "", serverTime)) clock_.setEpochSeconds(serverTime);
 
   if (response["config"].is<JsonObject>()) {
     std::string config;
