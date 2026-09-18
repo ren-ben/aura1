@@ -57,13 +57,13 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
         })),
       ).onConflictDoNothing({ target: sessions.deviceUuid });
 
-      const latest = new Map<number, string>();
+      const latest = new Map<number, Date>();
       for (const e of storable) {
+        const endedAt = new Date(e.endedAt);
         const current = latest.get(e.activityId);
-        if (!current || e.endedAt > current) latest.set(e.activityId, e.endedAt);
+        if (!current || endedAt > current) latest.set(e.activityId, endedAt);
       }
-      for (const [id, endedAt] of latest) {
-        const at = new Date(endedAt);
+      for (const [id, at] of latest) {
         await db.update(activities)
           .set({ lastUsedAt: at })
           .where(sql`${activities.id} = ${id} and (${activities.lastUsedAt} is null or ${activities.lastUsedAt} < ${at})`);

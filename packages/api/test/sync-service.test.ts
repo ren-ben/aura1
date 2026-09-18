@@ -93,6 +93,82 @@ test('config is sent when the device version is stale', async () => {
   request.configVersion = 0;
   const response = await applySync(db, request);
   assert.ok(response.config);
+  assert.equal(response.config.version, 1);
   assert.equal(response.config.folders.length, 5);
   assert.equal(response.config.activities.length, 10);
+});
+
+test('mixed batch acks known events, including an already-stored one, and rejects only the unknown activity', async () => {
+  await applySync(db, batch());
+
+  const [, second] = await db.select().from(activities).limit(2);
+  assert.ok(second);
+
+  const request: SyncRequest = {
+    deviceId: 'aura-1',
+    configVersion: 1,
+    events: [
+      {
+        uuid: '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b',
+        activityId,
+        startedAt: '2026-09-17T10:00:00.000Z',
+        endedAt: '2026-09-17T11:47:00.000Z',
+        clockSynced: true,
+      },
+      {
+        uuid: '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6c',
+        activityId: second.id,
+        startedAt: '2026-09-17T12:00:00.000Z',
+        endedAt: '2026-09-17T12:30:00.000Z',
+        clockSynced: true,
+      },
+      {
+        uuid: '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6d',
+        activityId: 99999,
+        startedAt: '2026-09-17T13:00:00.000Z',
+        endedAt: '2026-09-17T13:30:00.000Z',
+        clockSynced: true,
+      },
+    ],
+  };
+
+  const response = await applySync(db, request);
+  assert.deepEqual(response.acked, [
+    '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b',
+    '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6c',
+  ]);
+  assert.deepEqual(response.rejected, ['018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6d']);
+  const rows = await db.select().from(sessions);
+  assert.equal(rows.length, 2);
+});
+
+test('last_used_at never moves backwards', async () => {
+  const first: SyncRequest = {
+    deviceId: 'aura-1',
+    configVersion: 1,
+    events: [{
+      uuid: '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a70',
+      activityId,
+      startedAt: '2026-09-17T10:00:00.000Z',
+      endedAt: '2026-09-17T11:47:00.000Z',
+      clockSynced: true,
+    }],
+  };
+  await applySync(db, first);
+
+  const second: SyncRequest = {
+    deviceId: 'aura-1',
+    configVersion: 1,
+    events: [{
+      uuid: '018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a71',
+      activityId,
+      startedAt: '2026-09-17T10:00:00.000Z',
+      endedAt: '2026-09-17T10:30:00.000Z',
+      clockSynced: true,
+    }],
+  };
+  await applySync(db, second);
+
+  const [row] = await db.select().from(activities).where(eq(activities.id, activityId));
+  assert.equal(row?.lastUsedAt?.toISOString(), '2026-09-17T11:47:00.000Z');
 });
