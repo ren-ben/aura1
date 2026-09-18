@@ -6,7 +6,6 @@
 class FakeStorage : public Storage {
 public:
   std::map<std::string, std::string> files;
-  std::map<std::string, int> writeCounts;
 
   bool append(const std::string& path, const std::string& line) override {
     files[path] += line + "\n";
@@ -23,7 +22,6 @@ public:
   }
   bool write(const std::string& path, const std::string& content) override {
     files[path] = content;
-    writeCounts[path]++;
     return true;
   }
   bool remove(const std::string& path) override { return files.erase(path) > 0; }

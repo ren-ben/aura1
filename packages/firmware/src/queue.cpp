@@ -42,15 +42,18 @@ bool EventQueue::parse(const std::string& line, QueuedEvent& out) {
   return true;
 }
 
-void EventQueue::append(const QueuedEvent& event) {
+bool EventQueue::append(const QueuedEvent& event) {
   // A leading newline terminates any unterminated previous line left by a
   // power cut mid-write, so the two lines never glue into one.
-  storage_.append(PATH, "\n" + serialise(event));
+  return storage_.append(PATH, "\n" + serialise(event));
 }
 
 std::vector<QueuedEvent> EventQueue::pending() {
   std::set<std::string> acked;
-  for (const auto& line : storage_.readLines(ACKED)) {
+  for (auto line : storage_.readLines(ACKED)) {
+    // The SD adapter's println() writes "\r\n"; readLines splits on '\n'
+    // only, so a real acked line reads back with a trailing '\r'.
+    if (!line.empty() && line.back() == '\r') line.pop_back();
     // A blank line (e.g. from a torn write) contributes no uuid.
     if (!line.empty()) acked.insert(line);
   }
@@ -67,9 +70,14 @@ std::vector<QueuedEvent> EventQueue::pending() {
 
 void EventQueue::prune(const std::vector<std::string>& uuids) {
   if (uuids.empty()) return;
-  for (const auto& uuid : uuids) {
-    storage_.append(ACKED, uuid);
+  // One append for the whole batch: a leading newline terminates any torn
+  // previous acked line, and this is a single FAT open/close per sync
+  // rather than one per uuid.
+  std::string batch = "\n" + uuids[0];
+  for (size_t i = 1; i < uuids.size(); ++i) {
+    batch += "\n" + uuids[i];
   }
+  storage_.append(ACKED, batch);
   if (pending().empty()) {
     // Order matters: removing the queue first means a cut between the two
     // removes leaves a stale acked file, which filters nothing and is

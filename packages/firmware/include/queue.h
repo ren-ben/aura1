@@ -17,7 +17,7 @@ class EventQueue {
 public:
   explicit EventQueue(Storage& storage) : storage_(storage) {}
 
-  void append(const QueuedEvent& event);
+  bool append(const QueuedEvent& event);
   std::vector<QueuedEvent> pending();
   void prune(const std::vector<std::string>& uuids);
   size_t size();

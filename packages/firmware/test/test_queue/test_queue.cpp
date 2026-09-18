@@ -2,6 +2,11 @@
 #include "queue.h"
 #include "../fake_storage.h"
 
+class FailingStorage : public FakeStorage {
+public:
+  bool append(const std::string&, const std::string&) override { return false; }
+};
+
 void setUp() {}
 void tearDown() {}
 
@@ -68,8 +73,9 @@ void test_prune_never_rewrites_the_queue_file() {
   EventQueue q(fs);
   q.append(event("018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b"));
   q.append(event("028f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b"));
+  const std::string before = fs.files["/queue.ndjson"];
   q.prune({ "018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b" });
-  TEST_ASSERT_EQUAL_INT(0, fs.writeCounts["/queue.ndjson"]);
+  TEST_ASSERT_EQUAL_STRING(before.c_str(), fs.files["/queue.ndjson"].c_str());
 }
 
 void test_drained_queue_removes_both_files() {
@@ -97,6 +103,32 @@ void test_acked_filtering_survives_restart() {
   TEST_ASSERT_EQUAL_STRING("028f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b", pending[0].uuid.c_str());
 }
 
+void test_crlf_acked_lines_still_match_and_drain_the_queue() {
+  FakeStorage fs;
+  // Simulates the SD adapter's println() writing "\r\n" and readLines
+  // splitting on '\n' only, so an already-acked uuid reads back as
+  // "<uuid>\r".
+  fs.files["/acked.ndjson"] =
+    "018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b\r\n"
+    "028f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b\r\n";
+  EventQueue q(fs);
+  q.append(event("018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b"));
+  q.append(event("028f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b"));
+
+  TEST_ASSERT_TRUE(q.pending().empty());
+
+  q.prune({ "018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b",
+            "028f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b" });
+  TEST_ASSERT_FALSE(fs.exists("/queue.ndjson"));
+  TEST_ASSERT_FALSE(fs.exists("/acked.ndjson"));
+}
+
+void test_append_returns_false_when_storage_write_fails() {
+  FailingStorage fs;
+  EventQueue q(fs);
+  TEST_ASSERT_FALSE(q.append(event("018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b")));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_appended_event_is_pending);
@@ -107,5 +139,7 @@ int main() {
   RUN_TEST(test_prune_never_rewrites_the_queue_file);
   RUN_TEST(test_drained_queue_removes_both_files);
   RUN_TEST(test_acked_filtering_survives_restart);
+  RUN_TEST(test_crlf_acked_lines_still_match_and_drain_the_queue);
+  RUN_TEST(test_append_returns_false_when_storage_write_fails);
   return UNITY_END();
 }
