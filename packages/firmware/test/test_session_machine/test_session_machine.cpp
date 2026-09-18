@@ -24,6 +24,22 @@ struct Rig {
   }
 };
 
+class FailingAppendStorage : public FakeStorage {
+public:
+  bool append(const std::string& path, const std::string& line) override {
+    if (path == "/queue.ndjson") return false;
+    return FakeStorage::append(path, line);
+  }
+};
+
+class FailingWriteStorage : public FakeStorage {
+public:
+  bool write(const std::string& path, const std::string& content) override {
+    if (path == "/session.open") return false;
+    return FakeStorage::write(path, content);
+  }
+};
+
 void test_power_short_starts_a_session() {
   Rig rig;
   auto m = rig.machine();
@@ -69,12 +85,27 @@ void test_stopped_screen_shows_the_duration_once() {
 }
 
 void test_sun_presses_are_ignored_while_running() {
-  Rig rig;
-  auto m = rig.machine();
+  // A single activity would make this pass for the wrong reason: nextActivity()
+  // would have nothing to change to. Load two so a SUN press would actually move
+  // the cursor if it were not ignored.
+  FakeStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0}, {11, 1, "reading", 0} });
+  EventQueue queue(storage);
+  SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
   m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
   m.handle(Input::SunShort);
   TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  clock.now += 60;
+  m.handle(Input::PowerShort);
+  auto pending = queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_INT(10, pending[0].activityId);
 }
 
 void test_power_cut_mid_session_recovers_at_the_last_heartbeat() {
@@ -94,6 +125,128 @@ void test_power_cut_mid_session_recovers_at_the_last_heartbeat() {
   TEST_ASSERT_EQUAL_UINT64(300, pending[0].endedAt - pending[0].startedAt);
   TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
   TEST_ASSERT_TRUE(recovered.screen() == Screen::Idle);
+}
+
+void test_torn_final_heartbeat_line_does_not_lose_the_valid_marker() {
+  // Built directly, as append-only heartbeats would leave it: an initial
+  // zero-length line, a good heartbeat at 300, then a line torn by a power
+  // cut mid-append (missing its uuid field). Recovery must use the last
+  // line that parses cleanly, not just the first line in the file.
+  Rig rig;
+  const std::string uuid = "11111111-1111-4111-8111-111111111111";
+  rig.storage.write("/session.open", "10 1758100000 1758100000 " + uuid + "\n");
+  rig.storage.append("/session.open", "\n10 1758100000 1758100300 " + uuid);
+  rig.storage.append("/session.open", "\n10 1758100000 17581");
+  auto m = rig.machine();
+  m.begin();
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_UINT64(300, pending[0].endedAt - pending[0].startedAt);
+  TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
+}
+
+void test_tick_does_not_redraw_while_running() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  const size_t framesAfterStart = rig.renderer.frames.size();
+  for (int i = 0; i < 10; ++i) {
+    rig.clock.now += 60;
+    m.handle(Input::Tick);
+  }
+  TEST_ASSERT_EQUAL_INT((int)framesAfterStart, (int)rig.renderer.frames.size());
+}
+
+void test_power_long_while_running_saves_a_final_heartbeat() {
+  Rig rig;
+  {
+    auto m = rig.machine();
+    m.begin();
+    m.handle(Input::PowerShort);
+    rig.clock.now += 120;
+    m.handle(Input::PowerLong);
+    TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+    // the device powers off here
+  }
+  auto recovered = rig.machine();
+  recovered.begin();
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_UINT64(120, pending[0].endedAt - pending[0].startedAt);
+}
+
+void test_failed_marker_write_keeps_the_session_from_starting() {
+  FailingWriteStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  EventQueue queue(storage);
+  SessionMachine m(carousel, queue, clock, storage, renderer, random);
+  m.begin();
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_EQUAL_INT(0, (int)queue.pending().size());
+}
+
+void test_start_never_overwrites_an_unrecovered_marker() {
+  FailingAppendStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  EventQueue queue(storage);
+  storage.write("/session.open",
+                 "10 1758100000 1758100300 11111111-1111-4111-8111-111111111111\n");
+  SessionMachine m(carousel, queue, clock, storage, renderer, random);
+  m.begin();
+  TEST_ASSERT_TRUE(storage.exists("/session.open"));
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_TRUE(storage.exists("/session.open"));
+  TEST_ASSERT_EQUAL_INT(0, (int)queue.pending().size());
+}
+
+void test_stopped_screen_holds_for_five_seconds_then_returns_to_idle() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  rig.clock.now += 60;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+  rig.clock.now += 1;
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+  rig.clock.now += 4;  // 5 s since stop
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+}
+
+void test_power_cut_between_queue_append_and_marker_clear_requeues_with_the_same_uuid() {
+  Rig rig;
+  std::string markerLine;
+  {
+    auto m = rig.machine();
+    m.begin();
+    m.handle(Input::PowerShort);
+    rig.clock.now += 300;
+    m.handle(Input::Tick);  // heartbeat at 300, so the marker is non-zero-length
+    markerLine = rig.storage.readLines("/session.open").back();
+    rig.clock.now += 60;
+    m.handle(Input::PowerShort);  // queues the event and clears the marker
+  }
+  // The SD write that removes the marker never completed, so it reappears
+  // with the content it held just before the crash.
+  rig.storage.write("/session.open", markerLine + "\n");
+  auto recovered = rig.machine();
+  recovered.begin();
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(2, (int)pending.size());
+  TEST_ASSERT_EQUAL_STRING(pending[0].uuid.c_str(), pending[1].uuid.c_str());
 }
 
 void test_uuid_is_rfc9562_version_4() {
@@ -123,14 +276,6 @@ void test_consecutive_uuids_differ_even_within_the_same_second() {
   TEST_ASSERT_EQUAL_INT(2, (int)pending.size());
   TEST_ASSERT_FALSE(pending[0].uuid == pending[1].uuid);
 }
-
-class FailingAppendStorage : public FakeStorage {
-public:
-  bool append(const std::string& path, const std::string& line) override {
-    if (path == "/queue.ndjson") return false;
-    return FakeStorage::append(path, line);
-  }
-};
 
 void test_failed_queue_append_keeps_the_session_running() {
   FailingAppendStorage storage;
@@ -193,5 +338,12 @@ int main() {
   RUN_TEST(test_stopped_screen_shows_the_duration_once);
   RUN_TEST(test_sun_presses_are_ignored_while_running);
   RUN_TEST(test_power_cut_mid_session_recovers_at_the_last_heartbeat);
+  RUN_TEST(test_torn_final_heartbeat_line_does_not_lose_the_valid_marker);
+  RUN_TEST(test_tick_does_not_redraw_while_running);
+  RUN_TEST(test_power_long_while_running_saves_a_final_heartbeat);
+  RUN_TEST(test_failed_marker_write_keeps_the_session_from_starting);
+  RUN_TEST(test_start_never_overwrites_an_unrecovered_marker);
+  RUN_TEST(test_stopped_screen_holds_for_five_seconds_then_returns_to_idle);
+  RUN_TEST(test_power_cut_between_queue_append_and_marker_clear_requeues_with_the_same_uuid);
   return UNITY_END();
 }

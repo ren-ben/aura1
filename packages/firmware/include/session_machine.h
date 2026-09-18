@@ -24,11 +24,14 @@ private:
   void draw(int minutes = 0);
   void startSession();
   void stopSession();
-  void writeMarker(uint64_t heartbeat);
+  std::string serialiseMarker(uint64_t heartbeat) const;
+  bool writeMarker(uint64_t heartbeat);
+  void appendHeartbeat(uint64_t heartbeat);
   void recoverMarker();
 
   static constexpr const char* MARKER = "/session.open";
   static constexpr uint64_t HEARTBEAT_SECONDS = 300;
+  static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
 
   Carousel& carousel_;
   EventQueue& queue_;
@@ -42,4 +45,5 @@ private:
   std::string sessionUuid_;
   uint64_t startedAt_ = 0;
   uint64_t lastHeartbeat_ = 0;
+  uint64_t stoppedAt_ = 0;
 };

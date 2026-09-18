@@ -1,6 +1,6 @@
 #include "session_machine.h"
-#include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 // Entropy comes from the Random port: esp_random() on the device, a deterministic
 // fake in tests. Never seed from the clock: two sessions ending in the same second
@@ -27,6 +27,38 @@ std::string uuidV4(Random& random) {
   return out;
 }
 
+namespace {
+
+// Splits a marker line on spaces and validates it: exactly 4 fields, a
+// non-empty startedAt and heartbeat, and a uuid of exactly 36 characters.
+// No sscanf/snprintf and no %llu: arduino-esp32's printf/scanf support for
+// it is unconfirmed, so this mirrors the field-splitting queue.cpp already
+// uses for its own line format.
+bool parseMarkerLine(const std::string& line, int& activityId, uint64_t& startedAt,
+                      uint64_t& heartbeat, std::string& uuid) {
+  std::vector<std::string> fields;
+  size_t start = 0;
+  while (start <= line.size()) {
+    const size_t end = line.find(' ', start);
+    if (end == std::string::npos) {
+      fields.push_back(line.substr(start));
+      break;
+    }
+    fields.push_back(line.substr(start, end - start));
+    start = end + 1;
+  }
+  if (fields.size() != 4) return false;
+  if (fields[1].empty() || fields[2].empty()) return false;
+  if (fields[3].size() != 36) return false;
+  activityId = std::atoi(fields[0].c_str());
+  startedAt = std::strtoull(fields[1].c_str(), nullptr, 10);
+  heartbeat = std::strtoull(fields[2].c_str(), nullptr, 10);
+  uuid = fields[3];
+  return true;
+}
+
+}  // namespace
+
 SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clock,
                                Storage& storage, Renderer& renderer, Random& random)
   : carousel_(carousel), queue_(queue), clock_(clock),
@@ -41,41 +73,76 @@ void SessionMachine::begin() {
 void SessionMachine::recoverMarker() {
   if (!storage_.exists(MARKER)) return;
   const auto lines = storage_.readLines(MARKER);
-  if (lines.empty()) { storage_.remove(MARKER); return; }
 
+  bool found = false;
   int activityId = 0;
-  unsigned long long startedAt = 0, heartbeat = 0;
-  char uuid[37] = {0};
-  if (std::sscanf(lines[0].c_str(), "%d %llu %llu %36s",
-                  &activityId, &startedAt, &heartbeat, uuid) == 4 && heartbeat > startedAt) {
-    // Reuse the uuid minted at start: if this session already reached the queue before
-    // the power cut, the server sees the same device_uuid and deduplicates it.
-    if (!queue_.append({ std::string(uuid), activityId,
-                         static_cast<uint64_t>(startedAt),
-                         static_cast<uint64_t>(heartbeat), true })) {
+  uint64_t startedAt = 0, heartbeat = 0;
+  std::string uuid;
+
+  // Heartbeats are appended, never overwritten, so a power cut mid-append can
+  // leave a torn or blank line after the last good one. Scan every line and
+  // keep the last one that parses cleanly, rather than trusting the first.
+  for (const auto& line : lines) {
+    int a = 0;
+    uint64_t s = 0, h = 0;
+    std::string u;
+    if (parseMarkerLine(line, a, s, h, u)) {
+      found = true;
+      activityId = a;
+      startedAt = s;
+      heartbeat = h;
+      uuid = u;
+    }
+  }
+
+  if (!found) { storage_.remove(MARKER); return; }
+
+  if (heartbeat > startedAt) {
+    // Reuse the uuid minted at start: if this session already reached the queue
+    // before the power cut, the server sees the same device_uuid and dedupes it.
+    if (!queue_.append({ uuid, activityId, startedAt, heartbeat, true })) {
       return;  // keep the marker; try again on the next boot
     }
   }
+  // heartbeat == startedAt means the session never reached its first
+  // heartbeat: discard it deliberately, as a zero-length session.
   storage_.remove(MARKER);
 }
 
-void SessionMachine::writeMarker(uint64_t heartbeat) {
-  char line[128];
-  std::snprintf(line, sizeof(line), "%d %llu %llu %s",
-                activityId_,
-                static_cast<unsigned long long>(startedAt_),
-                static_cast<unsigned long long>(heartbeat),
-                sessionUuid_.c_str());
-  storage_.write(MARKER, std::string(line) + "\n");
+std::string SessionMachine::serialiseMarker(uint64_t heartbeat) const {
+  return std::to_string(activityId_) + " " + std::to_string(startedAt_) + " "
+       + std::to_string(heartbeat) + " " + sessionUuid_;
+}
+
+bool SessionMachine::writeMarker(uint64_t heartbeat) {
+  // The very first line: nothing exists yet, so a truncating write cannot
+  // lose anything.
+  if (!storage_.write(MARKER, serialiseMarker(heartbeat) + "\n")) return false;
   lastHeartbeat_ = heartbeat;
+  return true;
+}
+
+void SessionMachine::appendHeartbeat(uint64_t heartbeat) {
+  // Append, never overwrite: FILE_WRITE on the device truncates before
+  // writing, and a power cut between the two would empty the marker. A
+  // leading newline terminates any unterminated previous line, matching
+  // EventQueue's append convention.
+  if (storage_.append(MARKER, "\n" + serialiseMarker(heartbeat))) {
+    lastHeartbeat_ = heartbeat;
+  }
 }
 
 void SessionMachine::startSession() {
+  // Recovery may not have finished (e.g. the queue append keeps failing);
+  // never start a new session on top of a marker that is still unrecovered.
+  recoverMarker();
+  if (storage_.exists(MARKER)) return;
+
   activityId_ = carousel_.currentActivityId();
   if (activityId_ == 0) return;
   sessionUuid_ = uuidV4(random_);
   startedAt_ = clock_.nowEpochSeconds();
-  writeMarker(startedAt_);
+  if (!writeMarker(startedAt_)) return;  // first write failed: stay Idle
   screen_ = Screen::Running;
   draw();
 }
@@ -88,6 +155,7 @@ void SessionMachine::stopSession() {
   }
   storage_.remove(MARKER);
   screen_ = Screen::Stopped;
+  stoppedAt_ = endedAt;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
 }
 
@@ -103,17 +171,28 @@ void SessionMachine::handle(Input input) {
       // Sun is deliberately inert while running. Changing activity mid-session
       // would make the logged block a lie.
       if (input == Input::PowerShort) { stopSession(); }
-      else if (input == Input::Tick) {
+      else if (input == Input::PowerLong) {
+        // The device is about to power off: append a final heartbeat so at
+        // most a partial interval is lost on recovery, not the whole
+        // session. Stays Running; there is no more input coming.
+        appendHeartbeat(clock_.nowEpochSeconds());
+      } else if (input == Input::Tick) {
         const uint64_t now = clock_.nowEpochSeconds();
-        if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) writeMarker(now);
-        draw();
+        if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) appendHeartbeat(now);
+        // No draw(): an identical frame every second would flash the
+        // e-ink needlessly on every redraw.
       }
       break;
 
     case Screen::Stopped:
-      if (input == Input::PowerShort || input == Input::SunShort || input == Input::Tick) {
+      if (input == Input::PowerShort || input == Input::SunShort) {
         screen_ = Screen::Idle;
         draw();
+      } else if (input == Input::Tick) {
+        if (clock_.nowEpochSeconds() - stoppedAt_ >= STOPPED_HOLD_SECONDS) {
+          screen_ = Screen::Idle;
+          draw();
+        }
       }
       break;
 
