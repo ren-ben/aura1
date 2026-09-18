@@ -1,0 +1,7 @@
+**/node_modules
+.pio
+.superpowers
+.git
+.env
+.env.*
+packages/firmware
