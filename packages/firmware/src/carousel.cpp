@@ -5,6 +5,12 @@ void Carousel::load(std::vector<FolderEntry> folders,
                     std::vector<ActivityEntry> activities) {
   folders_ = std::move(folders);
   activities_ = std::move(activities);
+  // visible_ points into the old activities_, which were just freed. Reset
+  // the selection before any early return, or a reload to an empty config
+  // leaves it dangling.
+  visible_.clear();
+  folderIndex_ = 0;
+  cursor_ = 0;
   if (folders_.empty()) return;
   selectFolder(0);
   // A folder with no activities would strand the cursor, so advance past it.

@@ -244,6 +244,10 @@ void SessionMachine::handle(Input input) {
   }
 }
 
+void SessionMachine::redraw() {
+  if (screen_ == Screen::Idle) draw();
+}
+
 void SessionMachine::draw(int minutes) {
   ViewModel vm;
   carousel_.fill(vm);

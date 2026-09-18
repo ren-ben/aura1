@@ -80,6 +80,20 @@ void test_ties_break_by_id_ascending() {
   TEST_ASSERT_EQUAL_INT(30, c.currentActivityId());
 }
 
+void test_reloading_an_empty_config_leaves_nothing_selected() {
+  Carousel c = makeCarousel();
+  c.load({}, {});
+  TEST_ASSERT_EQUAL_INT(0, c.currentActivityId());
+  ViewModel vm;
+  c.fill(vm);
+  TEST_ASSERT_EQUAL_STRING("", vm.folder.c_str());
+  TEST_ASSERT_EQUAL_STRING("", vm.activity.c_str());
+  TEST_ASSERT_EQUAL_INT(0, vm.count);
+  TEST_ASSERT_EQUAL_INT(0, vm.cursor);
+  TEST_ASSERT_EQUAL_INT(0, vm.folderIndex);
+  TEST_ASSERT_EQUAL_INT(0, vm.folderCount);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_starts_on_most_recently_used_activity_of_first_folder);
@@ -89,5 +103,6 @@ int main() {
   RUN_TEST(test_fill_populates_the_view_model);
   RUN_TEST(test_empty_folder_is_skipped_rather_than_stranding_the_cursor);
   RUN_TEST(test_ties_break_by_id_ascending);
+  RUN_TEST(test_reloading_an_empty_config_leaves_nothing_selected);
   return UNITY_END();
 }

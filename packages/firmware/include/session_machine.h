@@ -19,6 +19,10 @@ public:
   void begin();
   void handle(Input input);
   Screen screen() const { return screen_; }
+  // Redraws after the carousel was reloaded under the machine (a sync pulled a
+  // new config). Only Idle shows the selection; other screens pick it up on
+  // their next transition.
+  void redraw();
 
 private:
   void draw(int minutes = 0);

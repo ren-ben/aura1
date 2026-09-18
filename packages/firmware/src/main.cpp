@@ -31,6 +31,14 @@ static unsigned long lastSync = 0;
 constexpr unsigned long TICK_MS = 1000;
 constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
 
+// A sync that pulled a new config reloaded the carousel under the machine;
+// redraw so Idle never shows a selection POWER would not start.
+static void runSync() {
+  const int before = configVersion;
+  syncClient.run(configVersion, carousel);
+  if (configVersion != before) machine.redraw();
+}
+
 void setup() {
   // esp_random() is only a true RNG while RF or the bootloader entropy source is on.
   // Session uuids are minted at button presses with the radio OFF, so keep the entropy
@@ -49,7 +57,7 @@ void setup() {
                 (unsigned long)(ESP.getPsramSize() / 1024));
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
-  syncClient.run(configVersion, carousel);
+  runSync();
 }
 
 void loop() {
@@ -64,7 +72,7 @@ void loop() {
     }
     machine.handle(input);
     if (machine.screen() == Screen::Stopped) {
-      syncClient.run(configVersion, carousel);
+      runSync();
       lastSync = millis();
     }
   }
@@ -75,6 +83,6 @@ void loop() {
   // session can make endedAt < startedAt. Stopping triggers a sync anyway.
   if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {
     lastSync = now;
-    syncClient.run(configVersion, carousel);
+    runSync();
   }
 }

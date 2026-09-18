@@ -31,14 +31,18 @@ public:
     pinMode(PIN_POWER_BTN, INPUT_PULLUP);
     pinMode(PIN_SUN_BTN, INPUT_PULLUP);
     // Holding POWER is how the board turns on, so it is usually still held here.
-    // Ignore POWER until it has been seen released once, or that release would
+    // Ignore POWER until it has been seen released, or that release would
     // register as a long press and switch the device straight back off.
-    pwrArmed_ = digitalRead(PIN_POWER_BTN) == HIGH;
+    pwrEdge_ = millis();
   }
 
   bool poll(Input& out) {
-    // Arming counts as an edge, so the release's own bounce cannot read as a new press.
-    if (!pwrArmed_ && digitalRead(PIN_POWER_BTN) == HIGH) { pwrArmed_ = true; pwrEdge_ = millis(); }
+    // Arm POWER only once it has read HIGH for a full DEBOUNCE_MS, so the
+    // bounce of the boot-hold release cannot read as a new press.
+    if (!pwrArmed_) {
+      if (digitalRead(PIN_POWER_BTN) == LOW) pwrEdge_ = millis();
+      else if (millis() - pwrEdge_ >= DEBOUNCE_MS) pwrArmed_ = true;
+    }
     if (read(PIN_SUN_BTN, sunDown_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, out)) return true;
     return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
   }

@@ -389,6 +389,33 @@ void test_normal_stop_uses_the_uuid_minted_at_start() {
   TEST_ASSERT_EQUAL_STRING(markerUuid.c_str(), rig.queue.pending()[0].uuid.c_str());
 }
 
+void test_redraw_in_idle_shows_the_reloaded_carousel() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  const size_t before = rig.renderer.frames.size();
+  rig.carousel.load({ {2, "WORKSHOP"} }, { {30, 2, "aura-1", 0} });
+  m.redraw();
+  TEST_ASSERT_EQUAL_INT((int)before + 1, (int)rig.renderer.frames.size());
+  TEST_ASSERT_EQUAL_STRING("aura-1", rig.renderer.last().activity.c_str());
+  TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().folder.c_str());
+}
+
+void test_redraw_outside_idle_draws_nothing() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  const size_t running = rig.renderer.frames.size();
+  m.redraw();
+  TEST_ASSERT_EQUAL_INT((int)running, (int)rig.renderer.frames.size());
+  rig.clock.now += 60;
+  m.handle(Input::PowerShort);
+  const size_t stopped = rig.renderer.frames.size();
+  m.redraw();
+  TEST_ASSERT_EQUAL_INT((int)stopped, (int)rig.renderer.frames.size());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_failed_queue_append_keeps_the_session_running);
@@ -412,5 +439,7 @@ int main() {
   RUN_TEST(test_start_never_overwrites_an_unrecovered_marker);
   RUN_TEST(test_stopped_screen_holds_for_five_seconds_then_returns_to_idle);
   RUN_TEST(test_power_cut_between_queue_append_and_marker_clear_requeues_with_the_same_uuid);
+  RUN_TEST(test_redraw_in_idle_shows_the_reloaded_carousel);
+  RUN_TEST(test_redraw_outside_idle_draws_nothing);
   return UNITY_END();
 }
