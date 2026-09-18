@@ -12,4 +12,4 @@ COPY packages/api packages/api
 
 WORKDIR /app/packages/api
 EXPOSE 3000
-CMD ["sh", "-c", "pnpm db:migrate && pnpm start"]
+CMD ["sh", "-c", "pnpm db:migrate && pnpm db:seed && pnpm start"]

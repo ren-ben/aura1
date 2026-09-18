@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { sql } from 'drizzle-orm';
 import { createDb, type Db } from '../src/db/client.ts';
-import { seed } from '../src/db/seed.ts';
+import { seed, seedIfEmpty } from '../src/db/seed.ts';
 import { folders, activities, sessions } from '../src/db/schema.ts';
 
 const url = process.env.TEST_DATABASE_URL
@@ -39,6 +39,22 @@ test('seed creates five folders in order', async () => {
 test('seed creates ten activities', async () => {
   const rows = await db.select().from(activities);
   assert.equal(rows.length, 10);
+});
+
+test('seedIfEmpty seeds once and skips thereafter', async () => {
+  await db.execute(
+    sql`TRUNCATE sessions, activities, folders, meta RESTART IDENTITY CASCADE`,
+  );
+
+  const seeded = await seedIfEmpty(db);
+  assert.equal(seeded, true);
+  const rowsAfterFirst = await db.select().from(folders);
+  assert.equal(rowsAfterFirst.length, 5);
+
+  const seededAgain = await seedIfEmpty(db);
+  assert.equal(seededAgain, false);
+  const rowsAfterSecond = await db.select().from(folders);
+  assert.equal(rowsAfterSecond.length, 5);
 });
 
 test('device_uuid is unique', async () => {

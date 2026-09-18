@@ -25,8 +25,12 @@ docker compose up -d
 ```
 
 This builds and starts `postgres`, `api`, and `cloudflared`. `api` runs its
-migrations on boot and has no host port: it is reachable only on the compose
-network, by `cloudflared`. Check `docker compose logs api` for the "Server
+migrations on boot, then seeds the five folders and their placeholder
+activity names if the database is still empty (safe to restart: it skips
+seeding once rows exist); rename activities directly in the database
+afterwards, no admin UI exists yet. `api` has no host port: it is reachable
+only on the compose network, by `cloudflared`. Check `docker compose logs
+api` for the "Server
 listening" line before continuing.
 
 ## 4. Configure Cloudflare

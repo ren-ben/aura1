@@ -9,6 +9,13 @@ const LAYOUT: Array<[string, string[]]> = [
   ['HUNT',     ['lifting', 'running']],
 ];
 
+export async function seedIfEmpty(db: Db): Promise<boolean> {
+  const [existing] = await db.select({ id: folders.id }).from(folders).limit(1);
+  if (existing) return false;
+  await seed(db);
+  return true;
+}
+
 export async function seed(db: Db): Promise<void> {
   for (const [index, entry] of LAYOUT.entries()) {
     const [folderName, activityNames] = entry;
