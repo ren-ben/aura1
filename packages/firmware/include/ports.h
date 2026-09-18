@@ -19,3 +19,9 @@ public:
   virtual bool remove(const std::string& path) = 0;
   virtual bool exists(const std::string& path) = 0;
 };
+
+class Random {
+public:
+  virtual ~Random() = default;
+  virtual uint32_t next() = 0;
+};
