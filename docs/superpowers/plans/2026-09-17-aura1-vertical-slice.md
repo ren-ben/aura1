@@ -28,6 +28,11 @@
   target machine runs Node v20.18.0, which lacks native TypeScript stripping.
   `tsx` is a devDependency of every package that has tests. Do not "modernise"
   this back to the native runner.
+- **API tests run with `--test-concurrency=1`.** Every API test file truncates and
+  reseeds the same live test database in `beforeEach`. Node runs test files in
+  parallel by default, so two files race on the same tables and fail
+  intermittently on FK and unique-constraint violations. Serial execution is
+  required, not a performance choice.
 - **Test scripts name every test file explicitly. No globs, no directory form.**
   Two discovery methods fail silently here and both exit 0 with zero tests run:
   a `test/*.test.ts` glob is not expanded by pnpm's default Windows shell, and
@@ -820,7 +825,7 @@ Expected: PASS, 9 tests total across both files.
 Add `test/sync-service.test.ts` to the `test` script in `packages/api/package.json`:
 
 ```json
-    "test": "tsx --test test/schema.test.ts test/sync-service.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts"
 ```
 
 Re-run `pnpm --filter @aura/api test` and confirm it reports 9 tests, not 3.
@@ -1066,7 +1071,7 @@ Expected: PASS, 12 tests total.
 Add `test/routes.test.ts` to the `test` script in `packages/api/package.json`:
 
 ```json
-    "test": "tsx --test test/schema.test.ts test/sync-service.test.ts test/routes.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts test/routes.test.ts"
 ```
 
 Re-run `pnpm --filter @aura/api test` and confirm it reports 12 tests, not 9.
