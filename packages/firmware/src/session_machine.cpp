@@ -29,11 +29,45 @@ std::string uuidV4(Random& random) {
 
 namespace {
 
-// Splits a marker line on spaces and validates it: exactly 4 fields, a
-// non-empty startedAt and heartbeat, and a uuid of exactly 36 characters.
-// No sscanf/snprintf and no %llu: arduino-esp32's printf/scanf support for
-// it is unconfirmed, so this mirrors the field-splitting queue.cpp already
-// uses for its own line format.
+// True only for a non-empty string made entirely of ASCII digits. Rejects
+// "-5" (a leading '-'), "abc" (strtoull/atoi silently return 0 for these)
+// and "17581x" (strtoull stops at the first non-digit and still returns a
+// value), any of which would otherwise parse as a plausible-looking number.
+bool isDigitsOnly(const std::string& s) {
+  if (s.empty()) return false;
+  for (const char c : s) {
+    if (c < '0' || c > '9') return false;
+  }
+  return true;
+}
+
+// True only for a 36-character string shaped exactly like a uuid: '-' at
+// positions 8, 13, 18, 23, and a lowercase hex digit everywhere else.
+bool isValidUuid(const std::string& s) {
+  if (s.size() != 36) return false;
+  for (size_t i = 0; i < s.size(); ++i) {
+    const char c = s[i];
+    if (i == 8 || i == 13 || i == 18 || i == 23) {
+      if (c != '-') return false;
+    } else if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Splits a marker line on spaces and validates it: exactly 4 fields, an
+// activityId, startedAt and heartbeat that are all-digit and non-empty, a
+// positive activityId, a heartbeat that is not before startedAt, and a
+// well-formed uuid. No sscanf/snprintf and no %llu: arduino-esp32's
+// printf/scanf support for it is unconfirmed, so this mirrors the
+// field-splitting queue.cpp already uses for its own line format.
+//
+// A line that fails any of these checks is skipped entirely rather than
+// partially trusted: strtoull/atoi parse a corrupted field into a number
+// that looks legitimate (e.g. "xyz" -> heartbeat 0), and a corrupted line
+// that "wins" as the last valid one can delete a real session or feed the
+// server a device_uuid it rejects forever.
 bool parseMarkerLine(const std::string& line, int& activityId, uint64_t& startedAt,
                       uint64_t& heartbeat, std::string& uuid) {
   std::vector<std::string> fields;
@@ -48,11 +82,20 @@ bool parseMarkerLine(const std::string& line, int& activityId, uint64_t& started
     start = end + 1;
   }
   if (fields.size() != 4) return false;
-  if (fields[1].empty() || fields[2].empty()) return false;
-  if (fields[3].size() != 36) return false;
-  activityId = std::atoi(fields[0].c_str());
-  startedAt = std::strtoull(fields[1].c_str(), nullptr, 10);
-  heartbeat = std::strtoull(fields[2].c_str(), nullptr, 10);
+  if (!isDigitsOnly(fields[0]) || !isDigitsOnly(fields[1]) || !isDigitsOnly(fields[2])) {
+    return false;
+  }
+  if (!isValidUuid(fields[3])) return false;
+
+  const int a = std::atoi(fields[0].c_str());
+  if (a <= 0) return false;
+  const uint64_t s = std::strtoull(fields[1].c_str(), nullptr, 10);
+  const uint64_t h = std::strtoull(fields[2].c_str(), nullptr, 10);
+  if (h < s) return false;
+
+  activityId = a;
+  startedAt = s;
+  heartbeat = h;
   uuid = fields[3];
   return true;
 }

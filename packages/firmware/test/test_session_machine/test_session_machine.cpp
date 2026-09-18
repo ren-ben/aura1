@@ -1,4 +1,6 @@
 #include <unity.h>
+#include <string>
+#include <vector>
 #include "session_machine.h"
 #include "../fake_storage.h"
 #include "../fake_clock.h"
@@ -99,8 +101,15 @@ void test_sun_presses_are_ignored_while_running() {
   m.begin();
   m.handle(Input::PowerShort);
   TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  const int activityIdBeforeSun = carousel.currentActivityId();
+  const size_t framesBeforeSun = renderer.frames.size();
   m.handle(Input::SunShort);
   TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  // Stopping reads the activityId saved at start, so that alone would pass
+  // even if SUN silently moved the carousel. Assert directly that SUN
+  // touched neither the carousel's cursor nor the renderer.
+  TEST_ASSERT_EQUAL_INT(activityIdBeforeSun, carousel.currentActivityId());
+  TEST_ASSERT_EQUAL_INT((int)framesBeforeSun, (int)renderer.frames.size());
   clock.now += 60;
   m.handle(Input::PowerShort);
   auto pending = queue.pending();
@@ -143,6 +152,61 @@ void test_torn_final_heartbeat_line_does_not_lose_the_valid_marker() {
   TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
   TEST_ASSERT_EQUAL_UINT64(300, pending[0].endedAt - pending[0].startedAt);
   TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
+}
+
+void test_garbage_heartbeat_field_does_not_override_the_last_good_line() {
+  // A line that parses "successfully" with strtoull's partial-parse leniency
+  // (heartbeat "xyz" -> 0) must not beat a real, earlier heartbeat: 0 would
+  // read as heartbeat <= startedAt and recovery would delete the session.
+  Rig rig;
+  const std::string uuid = "11111111-1111-4111-8111-111111111111";
+  rig.storage.write("/session.open", "10 1758100000 1758100300 " + uuid + "\n");
+  rig.storage.append("/session.open", "\n10 1758100000 xyz " + uuid);
+  auto m = rig.machine();
+  m.begin();
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_UINT64(300, pending[0].endedAt - pending[0].startedAt);
+}
+
+void test_corrupted_marker_lines_are_rejected_not_parsed() {
+  const std::string uuid = "11111111-1111-4111-8111-111111111111";
+  const std::string noHexUuid(36, 'z');
+  const std::vector<std::string> garbageLines = {
+    "10 abc 1758100300 " + uuid,               // startedAt is not digits
+    "10 17581x 1758100300 " + uuid,            // startedAt has trailing garbage
+    " 10 1758100000 1758100300 " + uuid,       // leading space empties the activityId field
+    "0 1758100000 1758100300 " + uuid,         // activityId zero
+    "-5 1758100000 1758100300 " + uuid,        // activityId negative
+    "abc 1758100000 1758100300 " + uuid,       // activityId is not digits
+    "10 1758100000 1758100300 " + noHexUuid,   // uuid has no dashes or hex digits
+  };
+  for (const auto& line : garbageLines) {
+    Rig rig;
+    rig.storage.write("/session.open", line + "\n");
+    auto m = rig.machine();
+    m.begin();
+    TEST_ASSERT_EQUAL_INT(0, (int)rig.queue.pending().size());
+  }
+}
+
+void test_heartbeats_accumulate_as_separate_marker_lines() {
+  // Pins the append-only marker: each heartbeat must be its own line, not a
+  // truncating overwrite of the last one. Fails if appendHeartbeat used
+  // storage_.write() instead of storage_.append().
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  rig.clock.now += 300;
+  m.handle(Input::Tick);   // first heartbeat
+  rig.clock.now += 300;
+  m.handle(Input::Tick);   // second heartbeat
+  int nonBlankLines = 0;
+  for (const auto& line : rig.storage.readLines("/session.open")) {
+    if (!line.empty()) ++nonBlankLines;
+  }
+  TEST_ASSERT_EQUAL_INT(3, nonBlankLines);
 }
 
 void test_tick_does_not_redraw_while_running() {
@@ -339,6 +403,9 @@ int main() {
   RUN_TEST(test_sun_presses_are_ignored_while_running);
   RUN_TEST(test_power_cut_mid_session_recovers_at_the_last_heartbeat);
   RUN_TEST(test_torn_final_heartbeat_line_does_not_lose_the_valid_marker);
+  RUN_TEST(test_garbage_heartbeat_field_does_not_override_the_last_good_line);
+  RUN_TEST(test_corrupted_marker_lines_are_rejected_not_parsed);
+  RUN_TEST(test_heartbeats_accumulate_as_separate_marker_lines);
   RUN_TEST(test_tick_does_not_redraw_while_running);
   RUN_TEST(test_power_long_while_running_saves_a_final_heartbeat);
   RUN_TEST(test_failed_marker_write_keeps_the_session_from_starting);
