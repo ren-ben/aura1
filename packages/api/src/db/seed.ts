@@ -10,10 +10,12 @@ const LAYOUT: Array<[string, string[]]> = [
 ];
 
 export async function seedIfEmpty(db: Db): Promise<boolean> {
-  const [existing] = await db.select({ id: folders.id }).from(folders).limit(1);
-  if (existing) return false;
-  await seed(db);
-  return true;
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: folders.id }).from(folders).limit(1);
+    if (existing) return false;
+    await seed(tx);
+    return true;
+  });
 }
 
 export async function seed(db: Db): Promise<void> {
