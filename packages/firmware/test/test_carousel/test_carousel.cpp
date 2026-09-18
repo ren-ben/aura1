@@ -1,5 +1,10 @@
 #include <unity.h>
+#include <type_traits>
 #include "carousel.h"
+
+static_assert(!std::is_copy_constructible_v<Carousel>);
+static_assert(!std::is_copy_assignable_v<Carousel>);
+static_assert(std::is_move_constructible_v<Carousel>);
 
 void setUp() {}
 void tearDown() {}
@@ -60,6 +65,21 @@ void test_empty_folder_is_skipped_rather_than_stranding_the_cursor() {
   TEST_ASSERT_EQUAL_INT(20, c.currentActivityId());
 }
 
+void test_ties_break_by_id_ascending() {
+  Carousel c;
+  c.load({ {1, "AXIOM"} },
+         {
+           {30, 1, "third",  0},
+           {10, 1, "first",  0},
+           {20, 1, "second", 0},
+         });
+  TEST_ASSERT_EQUAL_INT(10, c.currentActivityId());
+  c.nextActivity();
+  TEST_ASSERT_EQUAL_INT(20, c.currentActivityId());
+  c.nextActivity();
+  TEST_ASSERT_EQUAL_INT(30, c.currentActivityId());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_starts_on_most_recently_used_activity_of_first_folder);
@@ -68,5 +88,6 @@ int main() {
   RUN_TEST(test_long_press_wraps_back_to_first_folder);
   RUN_TEST(test_fill_populates_the_view_model);
   RUN_TEST(test_empty_folder_is_skipped_rather_than_stranding_the_cursor);
+  RUN_TEST(test_ties_break_by_id_ascending);
   return UNITY_END();
 }

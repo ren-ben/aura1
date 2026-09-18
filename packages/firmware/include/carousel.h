@@ -16,6 +16,12 @@ struct ActivityEntry {
 
 class Carousel {
 public:
+  Carousel() = default;
+  Carousel(const Carousel&) = delete;
+  Carousel& operator=(const Carousel&) = delete;
+  Carousel(Carousel&&) = default;
+  Carousel& operator=(Carousel&&) = default;
+
   void load(std::vector<FolderEntry> folders, std::vector<ActivityEntry> activities);
   void nextActivity();
   void nextFolder();

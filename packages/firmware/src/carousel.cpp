@@ -22,7 +22,8 @@ void Carousel::selectFolder(size_t index) {
   }
   std::sort(visible_.begin(), visible_.end(),
             [](const ActivityEntry* a, const ActivityEntry* b) {
-              return a->lastUsedAt > b->lastUsedAt;
+              if (a->lastUsedAt != b->lastUsedAt) return a->lastUsedAt > b->lastUsedAt;
+              return a->id < b->id;
             });
 }
 
