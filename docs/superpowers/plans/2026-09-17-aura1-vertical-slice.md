@@ -2049,19 +2049,33 @@ git commit -m "feat(firmware): append-only ndjson event queue"
 ### Task 11: Session state machine
 
 **Files:**
-- Create: `packages/firmware/include/session_machine.h`, `packages/firmware/src/session_machine.cpp`, `packages/firmware/test/fake_clock.h`, `packages/firmware/test/fake_renderer.h`
+- Create: `packages/firmware/include/session_machine.h`, `packages/firmware/src/session_machine.cpp`, `packages/firmware/test/fake_clock.h`, `packages/firmware/test/fake_renderer.h`, `packages/firmware/test/fake_random.h`
+- Modify: `packages/firmware/include/ports.h` (add the `Random` port)
 - Test: `packages/firmware/test/test_session_machine/test_session_machine.cpp`
 
 **Interfaces:**
 - Consumes: `Carousel` (Task 9), `EventQueue` (Task 10), `Clock`/`Storage`/`Renderer` (Task 8).
 - Produces:
   - `enum class Input { SunShort, SunLong, PowerShort, PowerLong, Tick }`
-  - `std::string uuidV4(Clock&)`
-  - `class SessionMachine { SessionMachine(Carousel&, EventQueue&, Clock&, Storage&, Renderer&); void begin(); void handle(Input); Screen screen() const; }`
+  - `std::string uuidV4(Random&)` — RFC 9562 version 4, 32 random bits per `next()` call
+  - `class SessionMachine { SessionMachine(Carousel&, EventQueue&, Clock&, Storage&, Renderer&, Random&); ... }`
+  - `SessionMachine::begin()`, `handle(Input)`, `screen() const`
 
 Crash recovery is the subtle part: `begin()` finds an open-session marker left by a power cut and closes the session at its last heartbeat.
 
-- [ ] **Step 1: Write the fakes**
+- [ ] **Step 1: Add the Random port and write the fakes**
+
+Append to `packages/firmware/include/ports.h` (Task 8 created the file; this adds one
+port). Session ids need real entropy: the server silently keeps only the first row for
+a repeated `device_uuid`, so a collision loses a session.
+
+```cpp
+class Random {
+public:
+  virtual ~Random() = default;
+  virtual uint32_t next() = 0;
+};
+```
 
 `packages/firmware/test/fake_clock.h`:
 ```cpp
@@ -2073,6 +2087,25 @@ public:
   uint64_t now = 1758100000ULL;
   uint64_t nowEpochSeconds() override { return now; }
   void setEpochSeconds(uint64_t seconds) override { now = seconds; }
+};
+```
+
+`packages/firmware/test/fake_random.h` — a deterministic xorshift, so tests are repeatable
+but consecutive values differ:
+
+```cpp
+#pragma once
+#include "ports.h"
+
+class FakeRandom : public Random {
+public:
+  uint32_t state = 0x12345678u;
+  uint32_t next() override {
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    return state;
+  }
 };
 ```
 
@@ -2099,6 +2132,7 @@ public:
 #include "../fake_storage.h"
 #include "../fake_clock.h"
 #include "../fake_renderer.h"
+#include "../fake_random.h"
 
 void setUp() {}
 void tearDown() {}
@@ -2110,10 +2144,12 @@ struct Rig {
   Carousel carousel;
   EventQueue queue{storage};
 
+  FakeRandom random;
+
   Rig() { carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} }); }
 
   SessionMachine machine() {
-    return SessionMachine(carousel, queue, clock, storage, renderer);
+    return SessionMachine(carousel, queue, clock, storage, renderer, random);
   }
 };
 
@@ -2189,8 +2225,38 @@ void test_power_cut_mid_session_recovers_at_the_last_heartbeat() {
   TEST_ASSERT_TRUE(recovered.screen() == Screen::Idle);
 }
 
+void test_uuid_is_rfc9562_version_4() {
+  FakeRandom random;
+  const std::string id = uuidV4(random);
+  TEST_ASSERT_EQUAL_INT(36, (int)id.size());
+  TEST_ASSERT_EQUAL_CHAR('-', id[8]);
+  TEST_ASSERT_EQUAL_CHAR('-', id[13]);
+  TEST_ASSERT_EQUAL_CHAR('-', id[18]);
+  TEST_ASSERT_EQUAL_CHAR('-', id[23]);
+  TEST_ASSERT_EQUAL_CHAR('4', id[14]);
+  TEST_ASSERT_TRUE(id[19] == '8' || id[19] == '9' || id[19] == 'a' || id[19] == 'b');
+}
+
+void test_consecutive_uuids_differ_even_within_the_same_second() {
+  // The clock never advances here. The server silently keeps only the first row
+  // for a repeated device_uuid, so a collision would lose a session.
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);
+  m.handle(Input::SunShort);   // leave Stopped
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(2, (int)pending.size());
+  TEST_ASSERT_FALSE(pending[0].uuid == pending[1].uuid);
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_uuid_is_rfc9562_version_4);
+  RUN_TEST(test_consecutive_uuids_differ_even_within_the_same_second);
   RUN_TEST(test_power_short_starts_a_session);
   RUN_TEST(test_running_screen_never_shows_elapsed_time);
   RUN_TEST(test_second_power_short_queues_the_session_and_clears_the_marker);
@@ -2221,12 +2287,12 @@ Expected: FAIL, `session_machine.h` not found.
 
 enum class Input { SunShort, SunLong, PowerShort, PowerLong, Tick };
 
-std::string uuidV4(Clock& clock);
+std::string uuidV4(Random& random);
 
 class SessionMachine {
 public:
   SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clock,
-                 Storage& storage, Renderer& renderer);
+                 Storage& storage, Renderer& renderer, Random& random);
 
   void begin();
   void handle(Input input);
@@ -2247,6 +2313,7 @@ private:
   Clock& clock_;
   Storage& storage_;
   Renderer& renderer_;
+  Random& random_;
 
   Screen screen_ = Screen::Idle;
   int activityId_ = 0;
@@ -2263,23 +2330,35 @@ private:
 #include <cstdio>
 #include <cstdlib>
 
-std::string uuidV4(Clock& clock) {
+// Entropy comes from the Random port: esp_random() on the device, a deterministic
+// fake in tests. Never seed from the clock: two sessions ending in the same second
+// would get the same id, and the server silently keeps only the first.
+std::string uuidV4(Random& random) {
   static const char* HEX = "0123456789abcdef";
-  std::srand(static_cast<unsigned>(clock.nowEpochSeconds()) ^ std::rand());
-  std::string out(36, '-');
-  for (size_t i = 0; i < 36; ++i) {
-    if (i == 8 || i == 13 || i == 18 || i == 23) continue;
-    out[i] = HEX[std::rand() % 16];
+  uint8_t bytes[16];
+  for (int i = 0; i < 16; i += 4) {
+    const uint32_t r = random.next();
+    bytes[i] = r & 0xFF;
+    bytes[i + 1] = (r >> 8) & 0xFF;
+    bytes[i + 2] = (r >> 16) & 0xFF;
+    bytes[i + 3] = (r >> 24) & 0xFF;
   }
-  out[14] = '4';
-  out[19] = HEX[8 + (std::rand() % 4)];
+  bytes[6] = (bytes[6] & 0x0F) | 0x40;  // version 4
+  bytes[8] = (bytes[8] & 0x3F) | 0x80;  // RFC 9562 variant
+  std::string out;
+  out.reserve(36);
+  for (int i = 0; i < 16; ++i) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) out += '-';
+    out += HEX[bytes[i] >> 4];
+    out += HEX[bytes[i] & 0x0F];
+  }
   return out;
 }
 
 SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clock,
-                               Storage& storage, Renderer& renderer)
+                               Storage& storage, Renderer& renderer, Random& random)
   : carousel_(carousel), queue_(queue), clock_(clock),
-    storage_(storage), renderer_(renderer) {}
+    storage_(storage), renderer_(renderer), random_(random) {}
 
 void SessionMachine::begin() {
   recoverMarker();
@@ -2296,7 +2375,7 @@ void SessionMachine::recoverMarker() {
   unsigned long long startedAt = 0, heartbeat = 0;
   if (std::sscanf(lines[0].c_str(), "%d %llu %llu",
                   &activityId, &startedAt, &heartbeat) == 3 && heartbeat > startedAt) {
-    queue_.append({ uuidV4(clock_), activityId,
+    queue_.append({ uuidV4(random_), activityId,
                     static_cast<uint64_t>(startedAt),
                     static_cast<uint64_t>(heartbeat), true });
   }
@@ -2324,7 +2403,7 @@ void SessionMachine::startSession() {
 
 void SessionMachine::stopSession() {
   const uint64_t endedAt = clock_.nowEpochSeconds();
-  queue_.append({ uuidV4(clock_), activityId_, startedAt_, endedAt, true });
+  queue_.append({ uuidV4(random_), activityId_, startedAt_, endedAt, true });
   storage_.remove(MARKER);
   screen_ = Screen::Stopped;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
@@ -2374,7 +2453,7 @@ void SessionMachine::draw(int minutes) {
 - [ ] **Step 6: Run the whole host suite**
 
 Run: `pnpm firmware:test`
-Expected: PASS, 17 tests across the four suites.
+Expected: PASS, 20 tests across the four suites (1 ports + 7 carousel + 4 queue + 8 session machine).
 
 - [ ] **Step 7: Commit**
 
@@ -2388,7 +2467,7 @@ git commit -m "feat(firmware): session state machine with crash recovery"
 ### Task 12: Device adapters and main loop
 
 **Files:**
-- Create: `packages/firmware/secrets.example.h`, `packages/firmware/src/device/buttons.h`, `packages/firmware/src/device/sd_storage.h`, `packages/firmware/src/device/rtc_clock.h`, `packages/firmware/src/device/rtc_clock.cpp`, `packages/firmware/src/device/eink_renderer.h`, `packages/firmware/src/device/eink_renderer.cpp`, `packages/firmware/src/device/sync_client.h`, `packages/firmware/src/device/sync_client.cpp`, `packages/firmware/src/config_store.h`, `packages/firmware/src/config_store.cpp`, `packages/firmware/src/main.cpp`
+- Create: `packages/firmware/secrets.example.h`, `packages/firmware/src/device/esp_random.h`, `packages/firmware/src/device/buttons.h`, `packages/firmware/src/device/sd_storage.h`, `packages/firmware/src/device/rtc_clock.h`, `packages/firmware/src/device/rtc_clock.cpp`, `packages/firmware/src/device/eink_renderer.h`, `packages/firmware/src/device/eink_renderer.cpp`, `packages/firmware/src/device/sync_client.h`, `packages/firmware/src/device/sync_client.cpp`, `packages/firmware/src/config_store.h`, `packages/firmware/src/config_store.cpp`, `packages/firmware/src/main.cpp`
 
 **Interfaces:**
 - Consumes: everything from Tasks 8 to 11.
@@ -2468,7 +2547,23 @@ private:
 };
 ```
 
-- [ ] **Step 3: Write the SD storage adapter**
+- [ ] **Step 3: Write the hardware random adapter**
+
+`packages/firmware/src/device/esp_random.h`:
+
+```cpp
+#pragma once
+#include <esp_random.h>
+#include "ports.h"
+
+// Hardware RNG. Never seeded from the clock.
+class EspRandom : public Random {
+public:
+  uint32_t next() override { return esp_random(); }
+};
+```
+
+- [ ] **Step 3b: Write the SD storage adapter**
 
 `packages/firmware/src/device/sd_storage.h`:
 ```cpp
@@ -2628,6 +2723,7 @@ Always call `WiFi.disconnect(true)` and `WiFi.mode(WIFI_OFF)` before returning, 
 #include "device/rtc_clock.h"
 #include "device/sd_storage.h"
 #include "device/sync_client.h"
+#include "device/esp_random.h"
 
 static SdStorage storage;
 static RtcClock rtc;
@@ -2635,7 +2731,8 @@ static EinkRenderer renderer;
 static Buttons buttons;
 static Carousel carousel;
 static EventQueue queue(storage);
-static SessionMachine machine(carousel, queue, rtc, storage, renderer);
+static EspRandom random_;
+static SessionMachine machine(carousel, queue, rtc, storage, renderer, random_);
 static SyncClient sync(queue, rtc, storage);
 
 static int configVersion = 0;
@@ -2693,7 +2790,7 @@ Expected on the serial monitor at 115200: either `flash=4MB psram=2048KB` or `fl
 - [ ] **Step 10: Verify it builds and the host tests still pass**
 
 Run: `cd packages/firmware && cp secrets.example.h secrets.h && python -m platformio run -e aura1 && cd ../.. && pnpm firmware:test`
-Expected: the `aura1` build succeeds, and all 17 native tests still pass.
+Expected: the `aura1` build succeeds, and all 20 native tests still pass.
 
 - [ ] **Step 11: Commit**
 
