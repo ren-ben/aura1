@@ -1,4 +1,5 @@
 #include "session_machine.h"
+#include "validate.h"
 #include <cstdlib>
 #include <vector>
 
@@ -29,32 +30,8 @@ std::string uuidV4(Random& random) {
 
 namespace {
 
-// True only for a non-empty string made entirely of ASCII digits. Rejects
-// "-5" (a leading '-'), "abc" (strtoull/atoi silently return 0 for these)
-// and "17581x" (strtoull stops at the first non-digit and still returns a
-// value), any of which would otherwise parse as a plausible-looking number.
-bool isDigitsOnly(const std::string& s) {
-  if (s.empty()) return false;
-  for (const char c : s) {
-    if (c < '0' || c > '9') return false;
-  }
-  return true;
-}
-
-// True only for a 36-character string shaped exactly like a uuid: '-' at
-// positions 8, 13, 18, 23, and a lowercase hex digit everywhere else.
-bool isValidUuid(const std::string& s) {
-  if (s.size() != 36) return false;
-  for (size_t i = 0; i < s.size(); ++i) {
-    const char c = s[i];
-    if (i == 8 || i == 13 || i == 18 || i == 23) {
-      if (c != '-') return false;
-    } else if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
-      return false;
-    }
-  }
-  return true;
-}
+using validate::isDigitsOnly;
+using validate::isValidUuid;
 
 // Splits a marker line on spaces and validates it: exactly 4 fields, an
 // activityId, startedAt and heartbeat that are all-digit and non-empty, a
@@ -83,6 +60,13 @@ bool parseMarkerLine(const std::string& line, int& activityId, uint64_t& started
   }
   if (fields.size() != 4) return false;
   if (!isDigitsOnly(fields[0]) || !isDigitsOnly(fields[1]) || !isDigitsOnly(fields[2])) {
+    return false;
+  }
+  // Same overflow caps as queue.cpp: without them "99999999999" wraps
+  // through atoi to a small positive int and is silently accepted.
+  if (fields[0].size() > validate::MAX_ACTIVITY_ID_DIGITS ||
+      fields[1].size() > validate::MAX_TIMESTAMP_DIGITS ||
+      fields[2].size() > validate::MAX_TIMESTAMP_DIGITS) {
     return false;
   }
   if (!isValidUuid(fields[3])) return false;
@@ -180,6 +164,10 @@ void SessionMachine::startSession() {
   // never start a new session on top of a marker that is still unrecovered.
   recoverMarker();
   if (storage_.exists(MARKER)) return;
+
+  // Refuse before anything is written: stay Idle on an unset/reset clock
+  // rather than mint a session that will land under the wrong date.
+  if (clock_.nowEpochSeconds() < MIN_VALID_CLOCK_EPOCH_SECONDS) return;
 
   activityId_ = carousel_.currentActivityId();
   if (activityId_ == 0) return;

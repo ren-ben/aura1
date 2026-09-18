@@ -1,4 +1,5 @@
 #include "queue.h"
+#include "validate.h"
 #include <cstdlib>
 #include <set>
 
@@ -34,8 +35,31 @@ bool EventQueue::parse(const std::string& line, QueuedEvent& out) {
   if (!field(line, "startedAt", startedAt)) return false;
   if (!field(line, "endedAt", endedAt)) return false;
   if (!field(line, "clockSynced", clockSynced)) return false;
+
+  // Reject a line the server's zod validation would 400 the whole batch
+  // over: acked/rejected are z.uuid() arrays, so the server can never name
+  // a malformed uuid back to us for pruning, and a 400 leaves every later
+  // sync failing on the same line forever.
+  if (!validate::isValidUuid(uuid)) return false;
+  if (!validate::isDigitsOnly(activityId) ||
+      activityId.size() > validate::MAX_ACTIVITY_ID_DIGITS) {
+    return false;
+  }
+  if (!validate::isDigitsOnly(startedAt) ||
+      startedAt.size() > validate::MAX_TIMESTAMP_DIGITS) {
+    return false;
+  }
+  if (!validate::isDigitsOnly(endedAt) ||
+      endedAt.size() > validate::MAX_TIMESTAMP_DIGITS) {
+    return false;
+  }
+  if (clockSynced != "true" && clockSynced != "false") return false;
+
+  const int parsedActivityId = std::atoi(activityId.c_str());
+  if (parsedActivityId <= 0) return false;
+
   out.uuid = uuid;
-  out.activityId = std::atoi(activityId.c_str());
+  out.activityId = parsedActivityId;
   out.startedAt = std::strtoull(startedAt.c_str(), nullptr, 10);
   out.endedAt = std::strtoull(endedAt.c_str(), nullptr, 10);
   out.clockSynced = clockSynced == "true";

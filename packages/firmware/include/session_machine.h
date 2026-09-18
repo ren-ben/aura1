@@ -36,6 +36,13 @@ private:
   static constexpr const char* MARKER = "/session.open";
   static constexpr uint64_t HEARTBEAT_SECONDS = 300;
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
+  // 2025-01-01T00:00:00Z. Below this the clock is treated as unset: the
+  // PCF85063 restarts at 2000-01-01 after a battery/power-loss reset, and
+  // RtcClock returns 0 if the first I2C read fails. A session logged under
+  // either lands in Postgres under a permanently wrong date, with no
+  // correction path, so refuse to start rather than log it. Deliberately
+  // below FakeClock's default of 1758100000, so existing tests are unaffected.
+  static constexpr uint64_t MIN_VALID_CLOCK_EPOCH_SECONDS = 1735689600;
 
   Carousel& carousel_;
   EventQueue& queue_;

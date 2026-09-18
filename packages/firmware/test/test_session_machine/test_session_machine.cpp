@@ -180,6 +180,7 @@ void test_corrupted_marker_lines_are_rejected_not_parsed() {
     "-5 1758100000 1758100300 " + uuid,        // activityId negative
     "abc 1758100000 1758100300 " + uuid,       // activityId is not digits
     "10 1758100000 1758100300 " + noHexUuid,   // uuid has no dashes or hex digits
+    "99999999999 1758100000 1758100300 " + uuid,  // activityId overflow (11 digits)
   };
   for (const auto& line : garbageLines) {
     Rig rig;
@@ -401,6 +402,42 @@ void test_redraw_in_idle_shows_the_reloaded_carousel() {
   TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().folder.c_str());
 }
 
+void test_power_short_on_a_reset_rtc_stays_idle_and_writes_nothing() {
+  // 2000-01-01T00:00:00Z: the PCF85063's power-on default after an RTC reset
+  // (flat battery / power loss), well below the 2025-01-01 floor.
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  rig.clock.now = 946684805ULL;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
+  TEST_ASSERT_EQUAL_INT(0, (int)rig.queue.pending().size());
+}
+
+void test_power_short_on_a_zero_clock_stays_idle_and_writes_nothing() {
+  // A failed first I2C read: RtcClock returns 0.
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  rig.clock.now = 0;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
+  TEST_ASSERT_EQUAL_INT(0, (int)rig.queue.pending().size());
+}
+
+void test_power_short_at_exactly_the_clock_floor_starts_the_session() {
+  // 1735689600 = 2025-01-01T00:00:00Z, the boundary: this must start.
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  rig.clock.now = 1735689600ULL;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  TEST_ASSERT_TRUE(rig.storage.exists("/session.open"));
+}
+
 void test_redraw_outside_idle_draws_nothing() {
   Rig rig;
   auto m = rig.machine();
@@ -441,5 +478,8 @@ int main() {
   RUN_TEST(test_power_cut_between_queue_append_and_marker_clear_requeues_with_the_same_uuid);
   RUN_TEST(test_redraw_in_idle_shows_the_reloaded_carousel);
   RUN_TEST(test_redraw_outside_idle_draws_nothing);
+  RUN_TEST(test_power_short_on_a_reset_rtc_stays_idle_and_writes_nothing);
+  RUN_TEST(test_power_short_on_a_zero_clock_stays_idle_and_writes_nothing);
+  RUN_TEST(test_power_short_at_exactly_the_clock_floor_starts_the_session);
   return UNITY_END();
 }
