@@ -32,7 +32,7 @@ const NECK: Pt = [200, 286];
 // wide as the eyes need, so they sit close to the edges of the face. The ears are their own triangles laid
 // over the top corners, so they meet the head at a small natural bend, the
 // way a hand draws them. The right ear is a touch lower: drawn, not mirrored.
-const HEAD = superellipse(200, 226, 102, { b: 90, n: 2.2 }, { b: 62, n: 2.9 });
+const HEAD = superellipse(200, 226, 102, { b: 90, n: 2.2 }, { b: 64, n: 2.0 });
 
 const outline = (pts: Pt[]) => curve([...pts, pts[0]!], 4).slice(0, -1);
 // Each ear's outer edge, tip to base; the ear outline adds the inner edge.
