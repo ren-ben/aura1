@@ -9,6 +9,8 @@
 #include "config_store.h"
 #include "queue.h"
 #include "session_machine.h"
+#include "battery.h"
+#include "device/battery_reader.h"
 #include "device/buttons.h"
 #include "device/eink_renderer.h"
 #include "device/rtc_clock.h"
@@ -18,7 +20,7 @@
 
 static SdStorage storage;
 static RtcClock rtc;
-static EinkRenderer renderer;
+static EinkRenderer renderer(storage);
 static Buttons buttons;
 static Carousel carousel;
 static EventQueue queue(storage);
@@ -29,9 +31,16 @@ static SyncClient syncClient(queue, rtc, storage);
 static int configVersion = 0;
 static unsigned long lastTick = 0;
 static unsigned long lastSync = 0;
+static unsigned long lastBatteryLog = 0;
 
 constexpr unsigned long TICK_MS = 1000;
 constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
+
+// On USB this is the charger's voltage, so it reads full.
+static void logBattery() {
+  const int mv = readBatteryMillivolts();
+  Serial.printf("battery=%dmV %d%%\n", mv, batteryPercent(mv));
+}
 
 // A press abandons the sync, so the device never ignores the user while it
 // waits for Wi-Fi. The queue is untouched and goes with the next sync.
@@ -66,7 +75,7 @@ void setup() {
   Serial.printf("flash=%luMB psram=%luKB\n",
                 (unsigned long)(ESP.getFlashChipSize() / (1024 * 1024)),
                 (unsigned long)(ESP.getPsramSize() / 1024));
-  Serial.printf("battery=%lumV\n",(unsigned long)analogReadMilliVolts(PIN_BATTERY) * 2);
+  logBattery();
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
   runSync();
@@ -100,6 +109,7 @@ void loop() {
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
+  if (now - lastBatteryLog >= 60000) { lastBatteryLog = now; logBattery(); }
   // Never sync mid-session: sync sets the RTC, and moving the clock under a running
   // session can make endedAt < startedAt. Stopping triggers a sync anyway.
   if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {

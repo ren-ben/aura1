@@ -1,7 +1,9 @@
 #include "eink_renderer.h"
 #include <SPI.h>
+#include <cstdlib>
 #include <GxEPD2_BW.h>
 #include "battery.h"
+#include "battery_reader.h"
 #include "buttons.h"
 
 // SSD1681, 200x200. GxEPD2_154_D67 defaults BUSY to active HIGH, which is this panel.
@@ -11,13 +13,6 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 // Default 6x8 font at size 2: 12x16 px per glyph, 16 glyphs per line.
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
-
-// Read at each frame: the glass only changes then anyway.
-static int readBatteryPercent() {
-  uint32_t mv = 0;
-  for (int i = 0; i < 8; ++i) mv += analogReadMilliVolts(PIN_BATTERY);
-  return batteryPercent(static_cast<int>(mv / 8 * 2));  // undo the divider
-}
 
 // Bottom-right corner: an outline with a nub, filled in quarters.
 static void drawBattery(int percent) {
@@ -34,6 +29,8 @@ static void line(int row, const std::string& text) {
 }
 
 void EinkRenderer::begin() {
+  const auto count = storage_.readLines(PARTIALS_FILE);
+  if (!count.empty()) partials_ = std::atoi(count[0].c_str());
   pinMode(PIN_PANEL_POWER, OUTPUT);
   digitalWrite(PIN_PANEL_POWER, LOW);  // panel power on
   delay(10);
@@ -51,11 +48,11 @@ void EinkRenderer::begin() {
 }
 
 void EinkRenderer::render(const ViewModel& vm) {
-  // Partial refresh everywhere, for no flashing. A full refresh clears the
-  // ghosting partials leave behind: on DORMANT (the frame that stays on the
-  // glass while off, and the next boot's starting point) and as a fallback
-  // every PARTIALS_BEFORE_FULL partials.
-  if (vm.screen == Screen::Dormant || partials_ >= PARTIALS_BEFORE_FULL) {
+  // Partial refresh everywhere, for no flashing. The ghosting partials leave
+  // behind is cleared by a full refresh, preferably at power-off where the
+  // flash does not interrupt anything; mid-use only as a late fallback.
+  const int limit = vm.screen == Screen::Dormant ? FULL_AT_POWER_OFF : FULL_ANYWHERE;
+  if (partials_ >= limit) {
     display.setFullWindow();
     partials_ = 0;
   } else {
@@ -63,7 +60,8 @@ void EinkRenderer::render(const ViewModel& vm) {
     ++partials_;
   }
 
-  const int battery = readBatteryPercent();
+  // Read at each frame: the glass only changes then anyway.
+  const int battery = batteryPercent(readBatteryMillivolts());
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
@@ -79,6 +77,8 @@ void EinkRenderer::render(const ViewModel& vm) {
     if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery);
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
+  // The count must survive power-off, or short uses would never reach a full refresh.
+  if (vm.screen == Screen::Dormant) storage_.write(PARTIALS_FILE, std::to_string(partials_) + "\n");
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text) {
