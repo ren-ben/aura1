@@ -8,6 +8,7 @@ import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } 
 import { cArray, packBits } from './bitmap.ts';
 import { pose, type Pose as BodyPose } from './body.ts';
 import { scenes } from './scenes.ts';
+import { silhouette } from './silhouette.ts';
 import { svg as frame, DEVICE_PALETTE } from './rig.ts';
 
 const root = resolve(import.meta.dirname, '..');
@@ -139,3 +140,8 @@ const sceneTiles = cells.map(({ s, f, i }, n) => {
 });
 writeFileSync(resolve(out, 'scenes.png'), new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${SCENE_COLS * 210}" height="${Math.ceil(cells.length / SCENE_COLS) * 236}"><rect width="100%" height="100%" fill="#ccc"/>${sceneTiles.join('')}</svg>`).render().asPng());
 console.log(`scenes: ${library.length}, frames: ${cells.length} -> ${sd}`);
+
+// The web's 3D Kael'thos is extruded from this outline.
+const web = resolve(root, '../web/src/kaelthos');
+mkdirSync(web, { recursive: true });
+writeFileSync(resolve(web, 'silhouette.json'), JSON.stringify(silhouette()));

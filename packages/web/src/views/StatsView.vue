@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { duration, type Progress, type Stats } from '../api';
+import KaelthosModel from '../kaelthos/KaelthosModel.vue';
 
 const props = defineProps<{ stats: Stats | null }>();
 
@@ -23,6 +24,7 @@ const idle = computed(() => props.stats?.activities.filter((a) => a.xp === 0) ??
 
 <template>
   <template v-if="stats">
+    <div class="hero"><KaelthosModel mode="ascii" :size="300" /></div>
     <p>{{ FORM_TEXT[stats.form] }}</p>
     <p v-if="stats.needsReview" class="warn">
       {{ stats.needsReview }} session(s) over 6 hours await confirmation in the Log.
@@ -49,6 +51,7 @@ const idle = computed(() => props.stats?.activities.filter((a) => a.xp === 0) ??
 </template>
 
 <style scoped>
+.hero { display: flex; justify-content: center; margin-bottom: 0.5rem; }
 .name { min-width: 7rem; }
 .bar { display: block; height: 6px; border: 1px solid var(--line); }
 .bar span { display: block; height: 100%; background: var(--fg); }

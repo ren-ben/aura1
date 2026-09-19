@@ -3,13 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/rig.ts" },
+  "exports": {
+    ".": "./src/rig.ts"
+  },
   "scripts": {
     "bake": "tsx src/bake.ts",
     "test": "tsx --test test/bitmap.test.ts"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "polygon-clipping": "^0.15.7",
     "tsx": "^4.19.0"
   }
 }

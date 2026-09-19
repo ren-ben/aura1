@@ -7,6 +7,7 @@ import HabitsView from './views/HabitsView.vue';
 import QuotesView from './views/QuotesView.vue';
 import CatalogView from './views/CatalogView.vue';
 import StatsView from './views/StatsView.vue';
+import KaelthosModel from './kaelthos/KaelthosModel.vue';
 
 const tabs: { name: string; view: Component }[] = [
   { name: 'Log', view: LogView },
@@ -27,10 +28,22 @@ const stats = ref<Stats | null>(null);
 async function loadStats() {
   stats.value = await api<Stats>('GET', '/stats');
 }
-onMounted(loadStats);
+
+// The first load shows him turning in the dark for at least a moment.
+const ready = ref(false);
+onMounted(async () => {
+  await Promise.all([loadStats(), new Promise((done) => setTimeout(done, 1200))]);
+  ready.value = true;
+});
 </script>
 
 <template>
+  <Transition name="fade">
+    <div v-if="!ready" class="loader">
+      <KaelthosModel mode="outline" :size="260" />
+      <p>AURA-1</p>
+    </div>
+  </Transition>
   <header>
     <h1>AURA-1</h1>
     <p v-if="stats" class="bond">
@@ -97,4 +110,12 @@ nav button.on { color: var(--hi); border-bottom-color: var(--hi); }
 .error { color: var(--hi); }
 ul { list-style: none; padding: 0; margin: 0; }
 @media (max-width: 40rem) { body { padding: 1rem; } }
+.loader {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.loader p { letter-spacing: 0.6em; color: var(--muted); margin: 1rem 0 0 0.6em; }
+.fade-leave-active { transition: opacity 0.6s ease; }
+.fade-leave-to { opacity: 0; }
 </style>

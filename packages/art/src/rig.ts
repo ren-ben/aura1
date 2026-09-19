@@ -171,6 +171,20 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}, opts: { back
   return `<g transform="rotate(${expr.tilt ?? 0} ${NECK[0]} ${NECK[1]})">${parts.join('')}</g>`;
 }
 
+// The bust's shapes for the web's 3D model: body, head and ears (to be
+// merged into one outline) and the eye whites (holes through it). Upright,
+// in canonical coordinates, with the same hand wobble as the drawing.
+export function silhouetteParts(): { solids: Pt[][]; eyes: Pt[][] } {
+  const ears = [
+    outline([[122, 228], ...EAR_EDGES[0]!.slice().reverse(), ...EAR_INNER[0]!]),
+    outline([...EAR_INNER[1]!, ...EAR_EDGES[1]!, [278, 228]]),
+  ];
+  return {
+    solids: [wobble(BODY, 11, 2.2), wobble(HEAD, 7, 1.8), ...ears.map((e, i) => wobble(e, 20 + i, 1.2))],
+    eyes: EYES.map(([cx, cy], i) => wobble(ellipse(cx, cy, 24, 31, 48), 50 + i * 10, 0.7)),
+  };
+}
+
 export function svg(inner: string, p: Palette): string {
   const bg = p.background ? `<rect width="${SIZE}" height="${SIZE}" fill="${p.background}"/>` : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}">${bg}${inner}</svg>`;
