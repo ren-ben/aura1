@@ -115,8 +115,9 @@ nav button.on { color: var(--hi); border-bottom-color: var(--hi); }
 ul { list-style: none; padding: 0; margin: 0; }
 @media (max-width: 40rem) { body { padding: 1rem; } }
 .companion { position: fixed; right: 1rem; bottom: 0.5rem; z-index: 5; }
-@media (max-width: 40rem) { .companion :deep(.kaelthos) { width: 96px !important; height: 96px !important; } }
 main { padding-bottom: 9rem; }
+/* On a phone he would sit on top of the content. */
+@media (max-width: 40rem) { .companion { display: none; } main { padding-bottom: 1rem; } }
 .loader {
   position: fixed; inset: 0; z-index: 10;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
