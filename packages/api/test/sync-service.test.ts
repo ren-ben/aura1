@@ -9,7 +9,7 @@ import { applySync } from '../src/sync/service.ts';
 import type { SyncRequest } from '@aura/shared';
 
 const url = process.env.TEST_DATABASE_URL
-  ?? 'postgres://aura:aura@localhost:5434/aura_test';
+  ?? 'postgres://aura:aura@localhost:15434/aura_test';
 
 let db: Db;
 let close: () => Promise<void>;

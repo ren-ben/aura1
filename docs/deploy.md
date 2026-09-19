@@ -38,14 +38,15 @@ docker compose exec postgres psql -U aura -d aura -c "UPDATE meta SET value = va
 ```
 
 The device picks up the change on its next sync. `api` is published on
-`127.0.0.1:3000` only, where the host's `cloudflared` reaches it. Keep the
-`127.0.0.1`: Docker's port rules bypass UFW, so a bare `3000:3000` would put
-the unauthenticated API on your LAN. If another app already uses host port
-3000, change the left-hand port in `docker-compose.yml` and use that port in
-step 4.
+`127.0.0.1:13000` only, where the host's `cloudflared` reaches it. Keep the
+`127.0.0.1`: Docker's port rules bypass UFW, so a bare `13000:3000` would
+put the unauthenticated API on your LAN. The host ports (13000, and 15433 for
+Postgres) are chosen to stay clear of other compose projects. If one is
+still taken, change the left-hand port in `docker-compose.yml` and use the
+new API port in step 4.
 
 Check `docker compose logs api` for the "Server listening" line, and
-`curl -s http://127.0.0.1:3000/api/v1/sessions` for `[]`, before
+`curl -s http://127.0.0.1:13000/api/v1/sessions` for `[]`, before
 continuing. Do not touch the tunnel config yet: no Access policy exists to
 protect the API.
 
@@ -92,7 +93,7 @@ Rules match top to bottom, so put it above the catch-all
 
 ```yaml
   - hostname: aura.amygdala-inc.org
-    service: http://127.0.0.1:3000
+    service: http://127.0.0.1:13000
 ```
 
 Check the file, create the DNS record, and restart the tunnel:

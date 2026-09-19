@@ -77,7 +77,7 @@ tunnel already on your Pi; you do not create a new one.
 3. Create the two Access apps: one for your login on every path, and one for the device
    token on `/api/v1/sync` only.
 4. Add `aura.amygdala-inc.org` to `/etc/cloudflared/config.yml`, pointing at
-   `http://127.0.0.1:3000`, create its DNS record, and restart `cloudflared`.
+   `http://127.0.0.1:13000`, create its DNS record, and restart `cloudflared`.
 5. Run the curl checks. If an unauthenticated request gets `200`, `400` or `404`, the site
    is exposed. Stop there.
 

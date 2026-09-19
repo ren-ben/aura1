@@ -7,7 +7,7 @@ import { seed, seedIfEmpty } from '../src/db/seed.ts';
 import { folders, activities, sessions } from '../src/db/schema.ts';
 
 const url = process.env.TEST_DATABASE_URL
-  ?? 'postgres://aura:aura@localhost:5434/aura_test';
+  ?? 'postgres://aura:aura@localhost:15434/aura_test';
 
 let db: Db;
 let close: () => Promise<void>;

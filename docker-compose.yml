@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: aura
       POSTGRES_PASSWORD: aura
       POSTGRES_DB: aura
-    ports: ["127.0.0.1:5433:5432"]
+    ports: ["127.0.0.1:15433:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aura"]
@@ -20,7 +20,7 @@ services:
       POSTGRES_USER: aura
       POSTGRES_PASSWORD: aura
       POSTGRES_DB: aura_test
-    ports: ["127.0.0.1:5434:5432"]
+    ports: ["127.0.0.1:15434:5432"]
     tmpfs: ["/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aura"]
@@ -35,7 +35,7 @@ services:
     environment:
       DATABASE_URL: postgres://aura:aura@postgres:5432/aura
       PORT: "3000"
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:13000:3000"]
     depends_on:
       postgres: { condition: service_healthy }
     restart: unless-stopped

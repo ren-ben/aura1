@@ -10,14 +10,14 @@ real sessions. Follow the sections and numbering in order.
    device's RTC is set from the Pi's clock).
 2. `docker compose up -d`. Logs show migrate, then "seeded", then "Server
    listening". `docker compose ps` shows no `postgres-test`. `ss -ltn` shows
-   5433 and 3000 on `127.0.0.1` only.
+   15433 and 13000 on `127.0.0.1` only.
 3. If you rename activities, bump `config_version` in the same step (see
    [docs/deploy.md](deploy.md)).
 4. Create the `aura-1` service token and record its expiry. Access app 1:
    root, empty path, Allow your email. Access app 2: path `api/v1/sync`,
    Service Auth, selector Service Token `aura-1`. Never use Bypass.
 5. Add `aura.amygdala-inc.org` to `/etc/cloudflared/config.yml`, above the
-   catch-all, pointing at `http://127.0.0.1:3000`. Create the DNS record and
+   catch-all, pointing at `http://127.0.0.1:13000`. Create the DNS record and
    restart `cloudflared` (see [docs/deploy.md](deploy.md)). The other
    hostnames on the tunnel still work.
 6. Run the curl checks in [docs/deploy.md](deploy.md), including the
