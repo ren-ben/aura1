@@ -2,3 +2,4 @@ packages:
   - "packages/shared"
   - "packages/api"
   - "packages/web"
+  - "packages/art"
