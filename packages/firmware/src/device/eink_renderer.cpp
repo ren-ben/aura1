@@ -21,18 +21,24 @@ void EinkRenderer::begin() {
   digitalWrite(PIN_PANEL_POWER, LOW);  // panel power on
   delay(10);
   SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, PIN_EPD_CS);  // not the default SPI pins
-  display.init();
+  // Not an initial init: the glass already shows DORMANT, drawn at power-off.
+  // Loading that image into the controller as the previous frame lets WAKING
+  // arrive by partial refresh instead of the flashing full one.
+  display.init(0, false);
+  GFXcanvas1 glass(display.width(), display.height());
+  drawDormant(glass);
+  display.epd2.writeImageAgain(glass.getBuffer(), 0, 0, display.width(), display.height());
   display.setRotation(0);
   display.setTextColor(GxEPD_BLACK);
   display.setTextSize(2);
 }
 
 void EinkRenderer::render(const ViewModel& vm) {
-  // Partial refresh keeps navigation fast. A full refresh clears ghosting: on
-  // WAKING (the first frame after init must be full), on DORMANT (the frame
-  // that stays on the glass while off), and every PARTIALS_BEFORE_FULL partials.
-  if (vm.screen == Screen::Waking || vm.screen == Screen::Dormant
-      || partials_ >= PARTIALS_BEFORE_FULL) {
+  // Partial refresh everywhere, for no flashing. A full refresh clears the
+  // ghosting partials leave behind: on DORMANT (the frame that stays on the
+  // glass while off, and the next boot's starting point) and as a fallback
+  // every PARTIALS_BEFORE_FULL partials.
+  if (vm.screen == Screen::Dormant || partials_ >= PARTIALS_BEFORE_FULL) {
     display.setFullWindow();
     partials_ = 0;
   } else {
@@ -50,19 +56,19 @@ void EinkRenderer::render(const ViewModel& vm) {
       case Screen::Idle: drawList(vm); break;
       case Screen::Running: drawRunning(vm); break;
       case Screen::Stopped: drawStopped(vm); break;
-      case Screen::Dormant: drawDormant(); break;
+      case Screen::Dormant: drawDormant(display); break;
     }
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
 }
 
-static void centered(int y, int size, const char* text) {
+static void centered(Adafruit_GFX& g, int y, int size, const char* text) {
   int16_t x1, y1;
   uint16_t w, h;
-  display.setTextSize(size);
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-  display.setCursor((display.width() - w) / 2, y);
-  display.print(text);
+  g.setTextSize(size);
+  g.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  g.setCursor((g.width() - w) / 2, y);
+  g.print(text);
 }
 
 // Prototype glyphs. The Kael'thos art replaces them in Phase 3/4.
@@ -75,30 +81,33 @@ static void openEye(int cx, int cy) {
   display.drawLine(cx + 28, cy, cx + 46, cy, GxEPD_BLACK);
 }
 
-static void closedEye(int cx, int cy) {
+static void closedEye(Adafruit_GFX& g, int cx, int cy) {
   // A lid curving down, with lashes.
   for (int x = -32; x <= 32; ++x) {
     const int y = cy + x * x / 64;
-    display.drawPixel(cx + x, y, GxEPD_BLACK);
-    display.drawPixel(cx + x, y + 1, GxEPD_BLACK);
+    g.drawPixel(cx + x, y, GxEPD_BLACK);
+    g.drawPixel(cx + x, y + 1, GxEPD_BLACK);
   }
   for (int x = -24; x <= 24; x += 12) {
     const int y = cy + x * x / 64 + 2;
-    display.drawLine(cx + x, y, cx + x + x / 6, y + 9, GxEPD_BLACK);
+    g.drawLine(cx + x, y, cx + x + x / 6, y + 9, GxEPD_BLACK);
   }
 }
 
 void EinkRenderer::drawWaking() {
   openEye(100, 78);
-  centered(126, 2, "AURA-1");
-  centered(152, 1, "waking");
+  centered(display, 126, 2, "AURA-1");
+  centered(display, 152, 1, "waking");
 }
 
-void EinkRenderer::drawDormant() {
-  closedEye(100, 70);
-  centered(126, 2, "AURA-1");
-  centered(152, 1, "dormant");
-  centered(176, 1, "hold POWER");
+// Also drawn off-screen at boot, as the image the glass is known to show.
+void EinkRenderer::drawDormant(Adafruit_GFX& g) {
+  g.fillScreen(GxEPD_WHITE);
+  g.setTextColor(GxEPD_BLACK);
+  closedEye(g, 100, 70);
+  centered(g, 126, 2, "AURA-1");
+  centered(g, 152, 1, "dormant");
+  centered(g, 176, 1, "hold POWER");
 }
 
 void EinkRenderer::drawList(const ViewModel& vm) {

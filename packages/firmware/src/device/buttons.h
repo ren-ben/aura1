@@ -39,8 +39,8 @@ public:
 
   bool poll(Input& out) {
     arm();
-    if (read(PIN_SUN_BTN, sunDown_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, out)) return true;
-    return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
+    if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, out)) return true;
+    return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrLong_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
   }
 
   // True while a button is down. Lets a sync give way to the user; the press
@@ -61,24 +61,33 @@ private:
     else if (millis() - pwrEdge_ >= DEBOUNCE_MS) pwrArmed_ = true;
   }
 
-  bool read(int pin, bool& down, unsigned long& at, unsigned long& edge,
+  // A long press fires the moment it is held long enough, not on release, so
+  // there is no guessing how long to hold. Its release then fires nothing.
+  bool read(int pin, bool& down, bool& longFired, unsigned long& at, unsigned long& edge,
             Input shortPress, Input longPress, Input& out) {
     const bool pressed = digitalRead(pin) == LOW;
     const unsigned long now = millis();
     // Contacts bounce for a few ms on both edges. Without this, one press reads as
     // press-release-press and fires a spurious short press.
     if (now - edge < DEBOUNCE_MS) return false;
-    if (pressed && !down) { down = true; at = now; edge = now; return false; }
+    if (pressed && !down) { down = true; longFired = false; at = now; edge = now; return false; }
+    if (pressed && !longFired && now - at >= LONG_PRESS_MS) {
+      longFired = true;
+      out = longPress;
+      return true;
+    }
     if (!pressed && down) {
       down = false;
       edge = now;
-      out = (now - at >= LONG_PRESS_MS) ? longPress : shortPress;
+      if (longFired) return false;
+      out = shortPress;
       return true;
     }
     return false;
   }
 
   bool sunDown_ = false, pwrDown_ = false;
+  bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;
   unsigned long sunAt_ = 0, pwrAt_ = 0;
   unsigned long sunEdge_ = 0, pwrEdge_ = 0;

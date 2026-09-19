@@ -78,7 +78,10 @@ void loop() {
       // Let the machine write a final heartbeat and draw DORMANT first: a
       // running session then survives power-off to the second.
       machine.handle(input);
+      // On battery the board dies here, or at the button's release: a held
+      // POWER keeps it powered in hardware.
       Buttons::powerOff();
+      while (digitalRead(PIN_POWER_BTN) == LOW) delay(10);
       delay(200);
       // Still running means USB is powering the board. Sleep until POWER
       // wakes it; waking reboots, the same as switching on from battery.
