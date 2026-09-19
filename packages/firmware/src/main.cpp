@@ -140,8 +140,10 @@ void loop() {
 
   // Sleep until the next press or tick: a few mA instead of tens. RAM, the
   // clock and millis() all survive light sleep, so a running session carries
-  // on. Not while a computer is attached: light sleep drops the USB serial link.
-  if (buttons.settled() && !Serial) {
+  // on. Only on battery: light sleep also stops the USB port, and the serial
+  // check (!Serial) proved unreliable, leaving a plugged-in board unflashable.
+  // USB power is measured directly on the battery pin (see onExternalPower).
+  if (buttons.settled() && !onExternalPower(readBatteryMillivolts())) {
     esp_sleep_enable_timer_wakeup(TICK_MS * 1000);
     esp_light_sleep_start();
   }
