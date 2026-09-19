@@ -165,9 +165,18 @@ analog-horror.
 - Dither, grain, 1-bit woodcut etching, high-contrast vector line.
 - Motion: bezier ease in/out, spatial panning between nodes.
 
-Kael'thos is a flat black silhouette plus three marks: two eye wedges and a
-nose. No shading, no gradient. The charm lives in outline wobble and eye
-angle. Consistency comes from a parts rig, not from redrawing poses.
+Kael'thos is a flat black silhouette plus paper marks: big round eyes, a dash
+of a nose at eye level, a white line down the outer side of each ear. No
+shading, no gradient. He is drawn, not constructed: every outline carries a
+seeded hand wobble, lines taper like brush strokes, whiskers droop. The head
+tilts and the gaze goes aside, never dead ahead. He likes the user, so his
+faces are bright or content, never sullen (references: inspiration/ghibli*).
+Consistency comes from a parts rig (packages/art), not from redrawing poses.
+
+Poses: idle (bright, glancing aside), focused (headphones, eyes closed,
+vibing). Later: studying with a coffee mug, sealed/proud after a stop,
+sleeping for dormant, and decay states. Skins: default, astrolabe halo; later
+pumpkin-head and blood moon.
 
 Bake constraint: no stroke thinner than 3px at final 200x200 size. Whiskers
 are tapered filled shapes, not hairlines.
