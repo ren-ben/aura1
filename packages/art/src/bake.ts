@@ -1,6 +1,7 @@
 // Renders every pose x skin: SVGs for the web, 1-bit bitmaps for the device
-// (a C header the firmware includes), and a contact sheet to review them.
-import { mkdirSync, writeFileSync } from 'node:fs';
+// (a C header the firmware includes), a contact sheet, and a side-by-side
+// with the reference to review them.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { POSES, SKINS, SIZE, compose, type Pose, type Skin } from './rig.ts';
@@ -63,4 +64,13 @@ const sheetW = SKINS.length * 2 * (SIZE + 20);
 const sheetH = POSES.length * (SIZE + 20);
 const sheet = `<svg xmlns="http://www.w3.org/2000/svg" width="${sheetW}" height="${sheetH}"><rect width="100%" height="100%" fill="#888"/>${tiles.join('')}</svg>`;
 writeFileSync(resolve(out, 'sheet.png'), new Resvg(sheet).render().asPng());
+
+// The style check: the reference beside idle and focused (see STYLE.md).
+const reference = readFileSync(resolve(root, '../../inspiration/reference-jiji.png')).toString('base64');
+const smooth = (pose: Pose) => render(compose(pose, 'default'), SIZE, false).asPng().toString('base64');
+const compare = `<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="420"><rect width="100%" height="100%" fill="#fff"/>`
+  + `<image width="400" height="420" href="data:image/png;base64,${reference}"/>`
+  + `<image x="420" y="10" width="400" height="400" href="data:image/png;base64,${smooth('idle')}"/>`
+  + `<image x="840" y="10" width="400" height="400" href="data:image/png;base64,${smooth('focused')}"/></svg>`;
+writeFileSync(resolve(out, 'compare.png'), new Resvg(compare).render().asPng());
 console.log(`baked ${POSES.length * SKINS.length} frames -> ${header}`);

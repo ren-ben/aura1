@@ -29,9 +29,10 @@ const NECK: Pt = [200, 286];
 // The head is a bun: a superellipse domed over the whole top and flatter
 // underneath, whose sides curve evenly everywhere. Straight sides read as a
 // rounded rectangle; uneven rounding reads as drooping cheeks. It is only as
-// wide as the eyes need, so they sit close to the edges of the face. The ears are their own triangles laid
-// over the top corners, so they meet the head at a small natural bend, the
-// way a hand draws them. The right ear is a touch lower: drawn, not mirrored.
+// wide as the eyes need, so they sit close to the edges of the face. The ears
+// are their own triangles laid over the top corners, so they meet the head at
+// a small natural bend, the way a hand draws them. The right ear is a touch
+// lower: drawn, not mirrored. See STYLE.md before changing any of this.
 const HEAD = superellipse(200, 226, 102, { b: 90, n: 2.2 }, { b: 64, n: 2.0 });
 
 const outline = (pts: Pt[]) => curve([...pts, pts[0]!], 4).slice(0, -1);
