@@ -36,14 +36,16 @@ const HEAD = superellipse(200, 226, 102, { b: 90, n: 2.2 }, { b: 64, n: 2.4 });
 
 const outline = (pts: Pt[]) => curve([...pts, pts[0]!], 4).slice(0, -1);
 // Each ear's outer edge, tip to base; the ear outline adds the inner edge.
+// Sized from the reference: each ear about three quarters the height of the
+// head below it, its base about 40% of the head's width.
 const EAR_EDGES: Pt[][] = [
-  [[146, 54], [140, 62], [133, 86], [125, 116], [117, 150], [112, 184]],
-  [[254, 58], [259, 66], [266, 90], [274, 120], [282, 154], [288, 186]],
+  [[138, 20], [131, 30], [123, 62], [115, 100], [108, 140], [104, 184]],
+  [[262, 24], [269, 34], [277, 66], [285, 104], [292, 144], [296, 188]],
 ];
 const EARS: Pt[][] = [
-  outline([[124, 226], ...EAR_EDGES[0]!.slice().reverse(), [152, 54],
-    [157, 62], [167, 88], [177, 114], [186, 142], [194, 168]]),
-  outline([[206, 168], [214, 142], [223, 116], [233, 90], [243, 66], [248, 58], ...EAR_EDGES[1]!, [276, 226]]),
+  outline([[122, 228], ...EAR_EDGES[0]!.slice().reverse(), [144, 20],
+    [150, 28], [162, 60], [174, 96], [184, 126], [194, 162]]),
+  outline([[206, 162], [216, 126], [226, 96], [238, 62], [250, 32], [256, 24], ...EAR_EDGES[1]!, [278, 228]]),
 ];
 
 // From the neck (about half the head's width) the body flares gently and runs
