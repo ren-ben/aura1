@@ -51,6 +51,12 @@ public:
     return digitalRead(PIN_SUN_BTN) == LOW || (pwrArmed_ && digitalRead(PIN_POWER_BTN) == LOW);
   }
 
+  // Nothing held and nothing half-handled: safe to sleep until the next press.
+  bool settled() const {
+    return !sunDown_ && !pwrDown_
+        && digitalRead(PIN_SUN_BTN) == HIGH && digitalRead(PIN_POWER_BTN) == HIGH;
+  }
+
   static void powerOff() { digitalWrite(PIN_POWER_HOLD, LOW); }
 
 private:

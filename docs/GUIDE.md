@@ -38,6 +38,9 @@ Other docs:
   instead, and POWER wakes it.
 - **SEALED** shows the duration after a stop. SUN or POWER skips it.
 - **The battery icon** (bottom right) fills in quarters. It reads full while charging.
+- **Between presses the device sleeps** unless a computer is attached (sleep drops the
+  USB serial link). Switched off, it draws almost nothing. Serial logs `battery=` every
+  minute while awake, which is how to measure drain.
 
 - **No timer is shown while you work.** That is deliberate: you see the duration only
   when you stop.

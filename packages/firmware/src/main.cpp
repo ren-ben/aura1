@@ -2,6 +2,7 @@
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <bootloader_random.h>
+#include <driver/gpio.h>
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include "secrets.h"
@@ -20,7 +21,7 @@
 
 static SdStorage storage;
 static RtcClock rtc;
-static EinkRenderer renderer(storage);
+static EinkRenderer renderer;
 static Buttons buttons;
 static Carousel carousel;
 static EventQueue queue(storage);
@@ -60,7 +61,14 @@ void setup() {
   // source on except during sync; SyncClient disables it before WiFi.begin() and
   // re-enables it after WiFi is off. Verify against Espressif's esp_random docs.
   bootloader_random_enable();
+  // 80 MHz is plenty for buttons and e-ink, and draws about half of 240 MHz.
+  // Wi-Fi still works at this speed; TLS is just slower.
+  setCpuFrequencyMhz(80);
   buttons.begin();
+  // Either button wakes the chip from light sleep (see loop()).
+  gpio_wakeup_enable((gpio_num_t)PIN_SUN_BTN, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)PIN_POWER_BTN, GPIO_INTR_LOW_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
   // Without this rail the RTC is unpowered and every I2C read times out (error 263).
   // Waveshare's own RTC example switches it on first, despite the "audio" name.
   pinMode(PIN_AUX_POWER, OUTPUT);
@@ -95,6 +103,7 @@ void loop() {
       delay(200);
       // Still running means USB is powering the board. Sleep until POWER
       // wakes it; waking reboots, the same as switching on from battery.
+      esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);  // no light-sleep timer
       rtc_gpio_pullup_en((gpio_num_t)PIN_POWER_BTN);
       rtc_gpio_pulldown_dis((gpio_num_t)PIN_POWER_BTN);
       esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_POWER_BTN, 0);
@@ -115,5 +124,13 @@ void loop() {
   if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {
     lastSync = now;
     runSync();
+  }
+
+  // Sleep until the next press or tick: a few mA instead of tens. RAM, the
+  // clock and millis() all survive light sleep, so a running session carries
+  // on. Not while a computer is attached: light sleep drops the USB serial link.
+  if (buttons.settled() && !Serial) {
+    esp_sleep_enable_timer_wakeup(TICK_MS * 1000);
+    esp_light_sleep_start();
   }
 }

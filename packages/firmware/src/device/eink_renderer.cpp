@@ -1,6 +1,5 @@
 #include "eink_renderer.h"
 #include <SPI.h>
-#include <cstdlib>
 #include <GxEPD2_BW.h>
 #include "battery.h"
 #include "battery_reader.h"
@@ -29,8 +28,6 @@ static void line(int row, const std::string& text) {
 }
 
 void EinkRenderer::begin() {
-  const auto count = storage_.readLines(PARTIALS_FILE);
-  if (!count.empty()) partials_ = std::atoi(count[0].c_str());
   pinMode(PIN_PANEL_POWER, OUTPUT);
   digitalWrite(PIN_PANEL_POWER, LOW);  // panel power on
   delay(10);
@@ -48,11 +45,10 @@ void EinkRenderer::begin() {
 }
 
 void EinkRenderer::render(const ViewModel& vm) {
-  // Partial refresh everywhere, for no flashing. The ghosting partials leave
-  // behind is cleared by a full refresh, preferably at power-off where the
-  // flash does not interrupt anything; mid-use only as a late fallback.
-  const int limit = vm.screen == Screen::Dormant ? FULL_AT_POWER_OFF : FULL_ANYWHERE;
-  if (partials_ >= limit) {
+  // Partial refresh everywhere else, for no flashing. Partials leave stuck
+  // pixels behind, so DORMANT always gets a full refresh: the flash comes at
+  // power-off, and the next boot starts from a clean, known frame.
+  if (vm.screen == Screen::Dormant || partials_ >= PARTIALS_BEFORE_FULL) {
     display.setFullWindow();
     partials_ = 0;
   } else {
@@ -77,8 +73,6 @@ void EinkRenderer::render(const ViewModel& vm) {
     if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery);
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
-  // The count must survive power-off, or short uses would never reach a full refresh.
-  if (vm.screen == Screen::Dormant) storage_.write(PARTIALS_FILE, std::to_string(partials_) + "\n");
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text) {
