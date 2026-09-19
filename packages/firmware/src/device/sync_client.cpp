@@ -62,7 +62,7 @@ bool SyncClient::run(int& configVersion, Carousel& carousel, bool (*cancel)()) {
   // The pending list and the JSON document both die inside this expression,
   // before the radio and TLS need the heap.
   const auto pending = queue_.pending();
-  const std::string body = buildRequest(DEVICE_ID, configVersion, pending);
+  const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks());
   if (body.empty()) return false;
 
   String text;
@@ -97,6 +97,9 @@ bool SyncClient::run(int& configVersion, Carousel& carousel, bool (*cancel)()) {
     saveConfigToSd(storage_, result.config);
     loadConfigFromSd(storage_, carousel, configVersion);
   }
+  // The server applied the ticks sent with this request; its fresh bundle
+  // replaces the local one and clears them.
+  if (result.hasToday) daily_.replace(result.today);
   Serial.printf("sync ok: http %d, sent %u, settled %u, config %s, rtc %s\n", httpCode,
                 (unsigned)std::min(pending.size(), MAX_SYNC_EVENTS),
                 (unsigned)result.settled.size(), result.hasConfig ? "yes" : "no",

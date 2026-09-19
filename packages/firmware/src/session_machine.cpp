@@ -1,4 +1,5 @@
 #include "session_machine.h"
+#include "art_index.h"
 #include "validate.h"
 #include <cstdlib>
 #include <vector>
@@ -92,7 +93,10 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
     storage_(storage), renderer_(renderer), random_(random) {}
 
 void SessionMachine::begin() {
+  daily_.load();
+  lastInput_ = clock_.nowEpochSeconds();
   screen_ = Screen::Waking;
+  moment_ = wakeMoment(daily_.form(lastInput_));
   draw();
   recoverMarker();
   const auto nav = storage_.readLines(NAV);
@@ -191,6 +195,7 @@ void SessionMachine::stopSession() {
     return;
   }
   storage_.remove(MARKER);
+  daily_.sessionEnded(endedAt);
   screen_ = Screen::Stopped;
   stoppedAt_ = endedAt;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
@@ -207,17 +212,30 @@ void SessionMachine::handle(Input input) {
     return;
   }
 
+  const uint64_t now = clock_.nowEpochSeconds();
+  if (input != Input::Tick) lastInput_ = now;
+
   switch (screen_) {
     case Screen::Idle:
-      // SUN moves, POWER acts on the selection, holding SUN goes up a level.
-      if (input == Input::SunShort) { carousel_.next(); draw(); }
-      else if (input == Input::SunLong && carousel_.level() == Level::Activities) {
-        carousel_.up();
-        draw();
-      } else if (input == Input::PowerShort) {
-        if (carousel_.level() == Level::Folders) { carousel_.enter(); draw(); }
-        else startSession();
+      if (input == Input::Tick) {
+        // Left alone, he fills the glass with something of his own.
+        if (now - lastInput_ >= SCREENSAVER_SECONDS) {
+          screen_ = Screen::Screensaver;
+          moment_ = screensaverMoment(daily_.form(now), daily_.date());
+          draw();
+        }
+      } else {
+        browse(input);
       }
+      break;
+
+    case Screen::Screensaver:
+      // Any press only wakes the list; it does not also act.
+      if (input != Input::Tick) { screen_ = Screen::Idle; draw(); }
+      break;
+
+    case Screen::Celebrate:
+      if (input != Input::Tick || now - celebrateAt_ >= CELEBRATE_SECONDS) { screen_ = Screen::Idle; draw(); }
       break;
 
     case Screen::Running:
@@ -250,6 +268,65 @@ void SessionMachine::handle(Input input) {
   }
 }
 
+// SUN moves, POWER acts on the selection, holding SUN goes up a level: from
+// a folder to the folder list, from any place to the menu.
+void SessionMachine::browse(Input input) {
+  switch (place_) {
+    case Place::Menu:
+      if (input == Input::SunShort) { menuCursor_ = (menuCursor_ + 1) % 4; draw(); }
+      else if (input == Input::PowerShort) {
+        const Place places[] = { Place::Activities, Place::Todos, Place::Habits, Place::Quotes };
+        enter(places[menuCursor_]);
+      }
+      break;
+    case Place::Activities:
+      if (input == Input::SunShort) { carousel_.next(); draw(); }
+      else if (input == Input::SunLong) {
+        if (carousel_.level() == Level::Activities) carousel_.up();
+        else place_ = Place::Menu;
+        draw();
+      } else if (input == Input::PowerShort) {
+        if (carousel_.level() == Level::Folders) { carousel_.enter(); draw(); }
+        else startSession();
+      }
+      break;
+    case Place::Todos:
+    case Place::Habits: {
+      const bool todos = place_ == Place::Todos;
+      const size_t count = todos ? daily_.todos().size() : daily_.habits().size();
+      if (input == Input::SunShort && count) { listCursor_ = (listCursor_ + 1) % count; draw(); }
+      else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort && count) {
+        const bool ticked = todos ? daily_.toggleTodo(listCursor_) : daily_.toggleHabit(listCursor_);
+        if (ticked && todos && daily_.allTodosDone()) celebrate("todos-done");
+        else draw();
+      }
+      break;
+    }
+    case Place::Quotes: {
+      const size_t count = daily_.quotes().size();
+      if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if ((input == Input::SunShort || input == Input::PowerShort) && count) { quote_ = (quote_ + 1) % count; draw(); }
+      break;
+    }
+  }
+}
+
+void SessionMachine::enter(Place place) {
+  place_ = place;
+  listCursor_ = 0;
+  const size_t quotes = daily_.quotes().size();
+  if (place == Place::Quotes && quotes) quote_ = random_.next() % quotes;
+  draw();
+}
+
+void SessionMachine::celebrate(const std::string& moment) {
+  moment_ = moment;
+  celebrateAt_ = clock_.nowEpochSeconds();
+  screen_ = Screen::Celebrate;
+  draw();
+}
+
 void SessionMachine::redraw() {
   if (screen_ == Screen::Idle) draw();
 }
@@ -258,6 +335,43 @@ void SessionMachine::draw(int minutes) {
   ViewModel vm;
   carousel_.fill(vm);
   vm.screen = screen_;
+  vm.moment = moment_;
+  vm.place = place_;
+  const auto doneOf = [](const std::vector<DailyItem>& items) {
+    int n = 0;
+    for (const auto& i : items) n += i.done;
+    return std::to_string(n) + "/" + std::to_string(items.size());
+  };
+  const auto list = [&](const char* title, const std::vector<DailyItem>& items) {
+    vm.title = title;
+    vm.items.clear();
+    for (const auto& i : items) {
+      vm.items.push_back(i.text);
+      vm.checks.push_back(i.done);
+    }
+    vm.cursor = static_cast<int>(listCursor_);
+  };
+  switch (place_) {
+    case Place::Menu:
+      vm.title = "AURA-1";
+      vm.items = { "ACTIVITIES", "TODAY " + doneOf(daily_.todos()), "HABITS " + doneOf(daily_.habits()), "QUOTES" };
+      vm.cursor = static_cast<int>(menuCursor_);
+      vm.top = true;
+      break;
+    case Place::Todos: list("TODAY", daily_.todos()); break;
+    case Place::Habits: list("HABITS", daily_.habits()); break;
+    case Place::Quotes:
+      vm.title = "QUOTES";
+      vm.items.assign(daily_.quotes().size(), "");
+      vm.cursor = static_cast<int>(quote_);
+      if (quote_ < daily_.quotes().size()) {
+        vm.quote = daily_.quotes()[quote_].body;
+        vm.source = daily_.quotes()[quote_].source;
+      }
+      break;
+    case Place::Activities:
+      break;
+  }
   // Running never carries elapsed time. Design decision, not an omission.
   vm.minutes = (screen_ == Screen::Stopped) ? minutes : 0;
   renderer_.render(vm);

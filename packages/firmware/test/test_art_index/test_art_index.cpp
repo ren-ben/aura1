@@ -37,6 +37,19 @@ void test_sealed_moment_by_duration() {
   TEST_ASSERT_EQUAL_STRING("sealed-marathon", sealedMoment(360).c_str());
 }
 
+void test_wake_after_decay_is_neglect() {
+  TEST_ASSERT_EQUAL_STRING("wake", wakeMoment("stable").c_str());
+  TEST_ASSERT_EQUAL_STRING("wake", wakeMoment("thinning").c_str());
+  TEST_ASSERT_EQUAL_STRING("neglected", wakeMoment("dormant").c_str());
+}
+
+void test_screensaver_by_form_and_season() {
+  TEST_ASSERT_EQUAL_STRING("lore", screensaverMoment("stable", "2026-09-19").c_str());
+  TEST_ASSERT_EQUAL_STRING("decay-thinning", screensaverMoment("thinning", "2026-09-19").c_str());
+  TEST_ASSERT_EQUAL_STRING("halloween", screensaverMoment("stable", "2026-10-31").c_str());
+  TEST_ASSERT_EQUAL_STRING("lore", screensaverMoment("stable", "2026-10-23").c_str());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_parses_scene_lines);
@@ -44,5 +57,7 @@ int main() {
   RUN_TEST(test_picks_only_matching_scenes);
   RUN_TEST(test_session_moment_is_the_lowercased_folder);
   RUN_TEST(test_sealed_moment_by_duration);
+  RUN_TEST(test_wake_after_decay_is_neglect);
+  RUN_TEST(test_screensaver_by_form_and_season);
   return UNITY_END();
 }

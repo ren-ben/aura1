@@ -503,18 +503,101 @@ void test_power_on_a_folder_opens_it_instead_of_starting() {
   TEST_ASSERT_EQUAL_STRING("aura-1", rig.renderer.last().activity.c_str());
 }
 
-void test_holding_sun_goes_up_and_does_nothing_at_the_top() {
+void test_holding_sun_goes_up_a_level_and_then_to_the_menu() {
   TwoFolderRig rig;
   auto m = rig.machine();
   m.begin();
-  m.handle(Input::SunLong);
-  const size_t atTop = rig.renderer.frames.size();
-  TEST_ASSERT_EQUAL_INT(2, (int)atTop);
   m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   m.handle(Input::SunLong);
   TEST_ASSERT_EQUAL_STRING("FOLDERS", rig.renderer.last().title.c_str());
   TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().cursor);  // still on WORKSHOP
+  m.handle(Input::SunLong);
+  TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
+  TEST_ASSERT_EQUAL_STRING("ACTIVITIES", rig.renderer.last().items[0].c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_STRING("FOLDERS", rig.renderer.last().title.c_str());
+}
+
+static const char* BUNDLE =
+  "{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,"
+  "\"todos\":[{\"id\":7,\"body\":\"write\",\"done\":false},{\"id\":8,\"body\":\"read\",\"done\":true}],"
+  "\"habits\":[{\"id\":2,\"name\":\"stretch\",\"done\":false}],"
+  "\"quotes\":[{\"body\":\"A\",\"source\":null},{\"body\":\"B\",\"source\":\"Kos\"}]}";
+
+// From the folder list: hold SUN for the menu, then SUN to a place and POWER.
+static void openPlace(SessionMachine& m, int index) {
+  m.handle(Input::SunLong);
+  for (int i = 0; i < index; ++i) m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+}
+
+void test_the_menu_shows_todays_progress() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace(BUNDLE);
+  m.begin();
+  m.handle(Input::SunLong);
+  TEST_ASSERT_EQUAL_STRING("TODAY 1/2", rig.renderer.last().items[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("HABITS 0/1", rig.renderer.last().items[2].c_str());
+}
+
+void test_power_ticks_a_todo_and_the_last_one_celebrates() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace(BUNDLE);
+  m.begin();
+  openPlace(m, 1);
+  TEST_ASSERT_EQUAL_STRING("TODAY", rig.renderer.last().title.c_str());
+  TEST_ASSERT_FALSE(rig.renderer.last().checks[0]);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Celebrate);
+  TEST_ASSERT_EQUAL_STRING("todos-done", rig.renderer.last().moment.c_str());
+  TEST_ASSERT_EQUAL_INT(1, (int)m.daily().ticks().size());
+  rig.clock.now += 5;
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_TRUE(rig.renderer.last().checks[0]);
+}
+
+void test_power_ticks_a_habit() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace(BUNDLE);
+  m.begin();
+  openPlace(m, 2);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(rig.renderer.last().checks[0]);
+  TEST_ASSERT_EQUAL_STRING("habit 2 2026-09-19 1", m.daily().ticks()[0].c_str());
+}
+
+void test_quotes_cycle_with_sun() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace(BUNDLE);
+  m.begin();
+  openPlace(m, 3);
+  const std::string first = rig.renderer.last().quote;
+  m.handle(Input::SunShort);
+  TEST_ASSERT_FALSE(first == rig.renderer.last().quote);
+  m.handle(Input::SunLong);
+  TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
+}
+
+void test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  rig.clock.now += 179;
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  rig.clock.now += 1;
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Screensaver);
+  TEST_ASSERT_EQUAL_STRING("lore", rig.renderer.last().moment.c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
 }
 
 void test_boot_reopens_the_last_started_activity() {
@@ -562,7 +645,12 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_begin_shows_waking_then_the_list);
   RUN_TEST(test_power_on_a_folder_opens_it_instead_of_starting);
-  RUN_TEST(test_holding_sun_goes_up_and_does_nothing_at_the_top);
+  RUN_TEST(test_holding_sun_goes_up_a_level_and_then_to_the_menu);
+  RUN_TEST(test_the_menu_shows_todays_progress);
+  RUN_TEST(test_power_ticks_a_todo_and_the_last_one_celebrates);
+  RUN_TEST(test_power_ticks_a_habit);
+  RUN_TEST(test_quotes_cycle_with_sun);
+  RUN_TEST(test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it);
   RUN_TEST(test_boot_reopens_the_last_started_activity);
   RUN_TEST(test_power_long_draws_dormant_from_idle);
   RUN_TEST(test_sun_skips_the_sealed_screen);

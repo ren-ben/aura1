@@ -27,7 +27,7 @@ static Carousel carousel;
 static EventQueue queue(storage);
 static EspRandom random_;
 static SessionMachine machine(carousel, queue, rtc, storage, renderer, random_);
-static SyncClient syncClient(queue, rtc, storage);
+static SyncClient syncClient(queue, rtc, storage, machine.daily());
 
 static int configVersion = 0;
 static unsigned long lastTick = 0;
@@ -58,8 +58,12 @@ static bool userPressed() { return buttons.anyDown(); }
 // redraw so Idle never shows a selection POWER would not start.
 static void runSync() {
   const int before = configVersion;
+  const bool known = !machine.daily().date().empty();
+  const int level = machine.daily().level();
   syncClient.run(configVersion, carousel, userPressed);
-  if (configVersion != before) machine.redraw();
+  // A level up is his to celebrate. The first bundle ever is not a level up.
+  if (known && machine.daily().level() > level) machine.celebrate("levelup");
+  else if (configVersion != before) machine.redraw();
 }
 
 void setup() {

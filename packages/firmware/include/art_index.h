@@ -22,3 +22,9 @@ const ArtScene* pickScene(const std::vector<ArtScene>& scenes, const std::string
 // by how long it ran.
 std::string sessionMoment(const std::string& folder);
 std::string sealedMoment(int minutes);
+
+// Waking after he decayed, he is offended you left him; otherwise he greets.
+std::string wakeMoment(const std::string& form);
+// Left alone: his decay if he is fading, Halloween in its last week of
+// October, otherwise a lore screensaver. date is "YYYY-MM-DD".
+std::string screensaverMoment(const std::string& form, const std::string& date);

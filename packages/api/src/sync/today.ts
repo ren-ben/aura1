@@ -30,6 +30,7 @@ export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
     date,
     form: stats.form,
     level: stats.bond.level,
+    lastSessionAt: stats.lastSessionAt,
     todos: todoRows
       .filter((t) => t.doneAt === null || localDate(t.doneAt) === date)
       .map((t) => ({ id: t.id, body: t.body, done: t.doneAt !== null })),

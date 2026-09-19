@@ -3,8 +3,11 @@
 #include <ArduinoJson.h>
 #include "time_util.h"
 
+#include <sstream>
+
 std::string buildRequest(const std::string& deviceId, int configVersion,
-                         const std::vector<QueuedEvent>& pending) {
+                         const std::vector<QueuedEvent>& pending,
+                         const std::vector<std::string>& ticks) {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["configVersion"] = configVersion;
@@ -18,6 +21,20 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     event["startedAt"] = toIso8601(e.startedAt);
     event["endedAt"] = toIso8601(e.endedAt);
     event["clockSynced"] = e.clockSynced;
+  }
+  JsonArray tickArray = doc["ticks"].to<JsonArray>();
+  for (const auto& line : ticks) {
+    std::istringstream in(line);
+    std::string kind, date;
+    int id = 0, done = 0;
+    if (!(in >> kind >> id) || id <= 0) continue;
+    if (kind == "habit" && !(in >> date)) continue;
+    if (!(in >> done) || (kind != "todo" && kind != "habit")) continue;
+    JsonObject tick = tickArray.add<JsonObject>();
+    tick["kind"] = kind;
+    tick["id"] = id;
+    if (kind == "habit") tick["date"] = date;
+    tick["done"] = done == 1;
   }
   if (doc.overflowed()) return "";
   std::string body;
@@ -51,6 +68,10 @@ SyncResult parseResponse(const std::string& body) {
   if (doc["config"].is<JsonObjectConst>()) {
     result.hasConfig = true;
     serializeJson(doc["config"], result.config);
+  }
+  if (doc["today"].is<JsonObjectConst>()) {
+    result.hasToday = true;
+    serializeJson(doc["today"], result.today);
   }
   return result;
 }

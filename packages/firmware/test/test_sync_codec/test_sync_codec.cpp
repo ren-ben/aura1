@@ -29,12 +29,12 @@ void test_request_has_the_exact_wire_shape() {
     "\"startedAt\":\"2026-09-17T10:00:00Z\",\"endedAt\":\"2026-09-17T10:30:00Z\",\"clockSynced\":true},"
     "{\"uuid\":\"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\"activityId\":12,"
     "\"startedAt\":\"2025-09-17T10:00:00Z\",\"endedAt\":\"2025-09-17T11:00:00Z\",\"clockSynced\":false}"
-    "]}",
+    "],\"ticks\":[]}",
     body.c_str());
 }
 
 void test_request_with_nothing_pending_sends_an_empty_array() {
-  TEST_ASSERT_EQUAL_STRING("{\"deviceId\":\"aura-1\",\"configVersion\":0,\"events\":[]}",
+  TEST_ASSERT_EQUAL_STRING("{\"deviceId\":\"aura-1\",\"configVersion\":0,\"events\":[],\"ticks\":[]}",
                            buildRequest("aura-1", 0, {}).c_str());
 }
 
@@ -145,6 +145,22 @@ void test_unparseable_config_is_not_ok() {
   TEST_ASSERT_FALSE(configToCarousel("").ok);
 }
 
+void test_request_carries_ticks_and_skips_malformed_ones() {
+  const std::string body = buildRequest("aura-1", 1, {},
+    { "todo 7 1", "habit 3 2026-09-19 0", "todo x 1", "habit 4 1", "sock 1 1" });
+  TEST_ASSERT_TRUE(body.find("\"ticks\":[{\"kind\":\"todo\",\"id\":7,\"done\":true},"
+    "{\"kind\":\"habit\",\"id\":3,\"date\":\"2026-09-19\",\"done\":false}]") != std::string::npos);
+}
+
+void test_today_is_returned_when_present() {
+  const SyncResult r = parseResponse(
+    "{\"serverTime\":\"2026-09-19T10:00:00Z\",\"configVersion\":1,\"acked\":[],\"rejected\":[],"
+    "\"today\":{\"date\":\"2026-09-19\",\"todos\":[]}}");
+  TEST_ASSERT_TRUE(r.ok);
+  TEST_ASSERT_TRUE(r.hasToday);
+  TEST_ASSERT_TRUE(r.today.find("2026-09-19") != std::string::npos);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_request_has_the_exact_wire_shape);
@@ -156,5 +172,7 @@ int main() {
   RUN_TEST(test_config_is_returned_only_when_present);
   RUN_TEST(test_config_maps_folders_activities_and_last_used);
   RUN_TEST(test_unparseable_config_is_not_ok);
+  RUN_TEST(test_request_carries_ticks_and_skips_malformed_ones);
+  RUN_TEST(test_today_is_returned_when_present);
   return UNITY_END();
 }

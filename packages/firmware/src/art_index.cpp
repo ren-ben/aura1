@@ -29,6 +29,16 @@ std::string sessionMoment(const std::string& folder) {
   return m;
 }
 
+std::string wakeMoment(const std::string& form) {
+  return form == "fragmenting" || form == "dormant" ? "neglected" : "wake";
+}
+
+std::string screensaverMoment(const std::string& form, const std::string& date) {
+  if (form != "stable") return "decay-" + form;
+  if (date.size() == 10 && date.compare(5, 2, "10") == 0 && date.compare(8, 2, "24") >= 0) return "halloween";
+  return "lore";
+}
+
 std::string sealedMoment(int minutes) {
   if (minutes < 5) return "sealed-short";
   if (minutes >= 360) return "sealed-marathon";

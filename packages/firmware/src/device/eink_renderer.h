@@ -21,7 +21,10 @@ private:
   void drawStopped(const ViewModel& vm);
   // Plays a scene's frames in order; the last one gets a full refresh if asked.
   bool play(const std::string& moment, bool fullLast);
-  bool drawArt(const ArtScene& scene, int frame);
+  // Centred unless a position is given.
+  bool drawArt(const ArtScene& scene, int frame, int x = -1, int y = -1);
+  bool drawScene(const std::string& moment);
+  void drawQuote(const ViewModel& vm);
   void drawBand(const std::string& text);
 
   std::vector<ArtScene> art_;

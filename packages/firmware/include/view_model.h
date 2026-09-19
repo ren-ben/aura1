@@ -2,7 +2,10 @@
 #include <string>
 #include <vector>
 
-enum class Screen { Waking, Idle, Running, Stopped, Dormant };
+enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
+
+// Where the user is while browsing: the menu, or one of its places.
+enum class Place { Menu, Activities, Todos, Habits, Quotes };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -13,4 +16,9 @@ struct ViewModel {
   std::string folder;
   std::string activity;
   int minutes = 0;
+  Place place = Place::Activities;
+  std::vector<bool> checks;        // ticked items, for the todo and habit lists
+  std::string quote;
+  std::string source;
+  std::string moment;              // the art pack scene for Waking, Celebrate, Screensaver
 };

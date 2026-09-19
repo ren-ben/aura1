@@ -48,6 +48,7 @@ export const todayDtoSchema = z.object({
   date: z.iso.date(),
   form: z.enum(FORM_STATES),
   level: z.number().int(),
+  lastSessionAt: z.iso.datetime().nullable(),
   todos: z.array(z.object({ id: z.number().int(), body: z.string(), done: z.boolean() })),
   habits: z.array(z.object({ id: z.number().int(), name: z.string(), done: z.boolean() })),
   quotes: z.array(z.object({ body: z.string(), source: z.string().nullable() })),

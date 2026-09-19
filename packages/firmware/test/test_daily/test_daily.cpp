@@ -1,0 +1,102 @@
+#include <unity.h>
+#include "daily.h"
+#include "../fake_storage.h"
+
+void setUp() {}
+void tearDown() {}
+
+static const char* BUNDLE =
+  "{\"date\":\"2026-09-19\",\"form\":\"stable\",\"level\":3,\"lastSessionAt\":\"2026-09-19T08:00:00Z\","
+  "\"todos\":[{\"id\":7,\"body\":\"write\",\"done\":false},{\"id\":8,\"body\":\"read\",\"done\":true}],"
+  "\"habits\":[{\"id\":2,\"name\":\"stretch\",\"done\":false}],"
+  "\"quotes\":[{\"body\":\"Fear the old blood.\",\"source\":null}]}";
+
+// 2026-09-19T08:00:00Z
+constexpr uint64_t LAST = 1789804800ULL;
+
+void test_replace_parses_and_saves_the_bundle() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  TEST_ASSERT_EQUAL_STRING("2026-09-19", daily.date().c_str());
+  TEST_ASSERT_EQUAL_INT(3, daily.level());
+  TEST_ASSERT_EQUAL_INT(2, (int)daily.todos().size());
+  TEST_ASSERT_EQUAL_STRING("stretch", daily.habits()[0].text.c_str());
+  TEST_ASSERT_EQUAL_STRING("Fear the old blood.", daily.quotes()[0].body.c_str());
+  Daily reloaded(storage);
+  reloaded.load();
+  TEST_ASSERT_EQUAL_INT(2, (int)reloaded.todos().size());
+}
+
+void test_toggling_queues_absolute_ticks() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  TEST_ASSERT_TRUE(daily.toggleTodo(0));
+  TEST_ASSERT_TRUE(daily.todos()[0].done);
+  TEST_ASSERT_TRUE(daily.toggleTodo(1));
+  TEST_ASSERT_TRUE(daily.toggleHabit(0));
+  TEST_ASSERT_FALSE(daily.toggleTodo(9));
+  const auto ticks = daily.ticks();
+  TEST_ASSERT_EQUAL_INT(3, (int)ticks.size());
+  TEST_ASSERT_EQUAL_STRING("todo 7 1", ticks[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("todo 8 0", ticks[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("habit 2 2026-09-19 1", ticks[2].c_str());
+}
+
+void test_a_fresh_bundle_clears_the_ticks() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  daily.toggleTodo(0);
+  daily.replace(BUNDLE);
+  TEST_ASSERT_EQUAL_INT(0, (int)daily.ticks().size());
+}
+
+void test_a_bad_bundle_changes_nothing() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  daily.replace("not json");
+  TEST_ASSERT_EQUAL_INT(2, (int)daily.todos().size());
+}
+
+void test_all_todos_done() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  TEST_ASSERT_FALSE(daily.allTodosDone());
+  daily.toggleTodo(0);
+  TEST_ASSERT_TRUE(daily.allTodosDone());
+}
+
+void test_form_by_hours_since_the_last_session() {
+  FakeStorage storage;
+  Daily daily(storage);
+  TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST).c_str());
+  daily.replace(BUNDLE);
+  TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST + 23 * 3600).c_str());
+  TEST_ASSERT_EQUAL_STRING("thinning", daily.form(LAST + 24 * 3600).c_str());
+  TEST_ASSERT_EQUAL_STRING("fragmenting", daily.form(LAST + 48 * 3600).c_str());
+  TEST_ASSERT_EQUAL_STRING("dormant", daily.form(LAST + 72 * 3600).c_str());
+}
+
+void test_a_session_ended_here_counts_before_the_next_sync() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace(BUNDLE);
+  daily.sessionEnded(LAST + 70 * 3600);
+  TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST + 72 * 3600).c_str());
+}
+
+int main() {
+  UNITY_BEGIN();
+  RUN_TEST(test_replace_parses_and_saves_the_bundle);
+  RUN_TEST(test_toggling_queues_absolute_ticks);
+  RUN_TEST(test_a_fresh_bundle_clears_the_ticks);
+  RUN_TEST(test_a_bad_bundle_changes_nothing);
+  RUN_TEST(test_all_todos_done);
+  RUN_TEST(test_form_by_hours_since_the_last_session);
+  RUN_TEST(test_a_session_ended_here_counts_before_the_next_sync);
+  return UNITY_END();
+}

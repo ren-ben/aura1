@@ -96,11 +96,70 @@ void EinkRenderer::begin() {
   display.setTextSize(2);
 }
 
-bool EinkRenderer::drawArt(const ArtScene& scene, int frame) {
+bool EinkRenderer::drawArt(const ArtScene& scene, int frame, int x, int y) {
   if (!loadFrame(framePath(scene, frame), scene.size)) return false;
   const int at = (200 - scene.size) / 2;
-  display.drawBitmap(at, at, frameBits, scene.size, scene.size, GxEPD_BLACK);
+  display.drawBitmap(x < 0 ? at : x, y < 0 ? at : y, frameBits, scene.size, scene.size, GxEPD_BLACK);
   return true;
+}
+
+// A whole-screen scene for a moment; false when the pack has none.
+bool EinkRenderer::drawScene(const std::string& moment) {
+  const ArtScene* scene = pickScene(art_, moment, esp_random());
+  return scene && drawArt(*scene, 0);
+}
+
+static const ArtScene* findScene(const std::vector<ArtScene>& art, const std::string& id) {
+  for (const auto& s : art) {
+    if (s.id == id) return &s;
+  }
+  return nullptr;
+}
+
+// Word wrap for the 6x8 font: whole words, at most `width` characters a line.
+static std::vector<std::string> wrap(const std::string& text, size_t width) {
+  std::vector<std::string> lines;
+  std::string line, word;
+  const auto flush = [&]() {
+    if (word.empty()) return;
+    if (!line.empty() && line.size() + 1 + word.size() > width) { lines.push_back(line); line.clear(); }
+    while (word.size() > width) { lines.push_back(word.substr(0, width)); word = word.substr(width); }
+    line += (line.empty() ? "" : " ") + word;
+    word.clear();
+  };
+  for (char c : text) {
+    if (c == ' ' || c == '\n') flush();
+    else word += c;
+  }
+  flush();
+  if (!line.empty()) lines.push_back(line);
+  return lines;
+}
+
+// Kael'thos says the quote: a bubble across the top, his cameo below it.
+void EinkRenderer::drawQuote(const ViewModel& vm) {
+  constexpr int MAX_LINES = 9;
+  display.setTextSize(1);
+  auto lines = wrap(vm.quote, 30);
+  if (lines.size() > MAX_LINES) { lines.resize(MAX_LINES); lines.back() += "..."; }
+  const int bottom = 14 + static_cast<int>(lines.size()) * 11 + 10;
+  display.drawRoundRect(2, 4, 196, bottom - 4, 8, GxEPD_BLACK);
+  display.drawRoundRect(3, 5, 194, bottom - 6, 7, GxEPD_BLACK);
+  display.fillTriangle(30, bottom - 1, 48, bottom - 1, 34, bottom + 14, GxEPD_BLACK);
+  display.fillTriangle(33, bottom - 3, 45, bottom - 3, 35, bottom + 9, GxEPD_WHITE);
+  for (size_t i = 0; i < lines.size(); ++i) {
+    display.setCursor(12, 14 + static_cast<int>(i) * 11);
+    display.print(lines[i].c_str());
+  }
+  const ArtScene* cameo = pickScene(art_, "cameo", esp_random());
+  if (cameo) drawArt(*cameo, 0, 4, 200 - cameo->size - 4);
+  if (!vm.source.empty()) {
+    display.setCursor(84, 160);
+    display.print(("- " + vm.source).substr(0, 19).c_str());
+  }
+  const std::string count = std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.items.size());
+  display.setCursor(196 - 6 * static_cast<int>(count.size()), 176);
+  display.print(count.c_str());
 }
 
 bool EinkRenderer::play(const std::string& moment, bool fullLast) {
@@ -134,7 +193,7 @@ void EinkRenderer::drawBand(const std::string& text) {
 
 void EinkRenderer::render(const ViewModel& vm) {
   // Kael'thos greets and says goodnight with an animation from the art pack.
-  if (vm.screen == Screen::Waking && play("wake", false)) return;
+  if (vm.screen == Screen::Waking && play(vm.moment.empty() ? "wake" : vm.moment, false)) return;
   if (vm.screen == Screen::Dormant && play("sleep", true)) { partials_ = 0; return; }
 
   // Partial refresh everywhere else, for no flashing. Partials leave stuck
@@ -158,7 +217,19 @@ void EinkRenderer::render(const ViewModel& vm) {
     bool art = false;
     switch (vm.screen) {
       case Screen::Waking: drawWaking(); break;
-      case Screen::Idle: drawList(vm); break;
+      case Screen::Idle:
+        if (vm.place == Place::Quotes) {
+          if (vm.quote.empty()) centered(display, 90, 2, "no quotes");
+          else drawQuote(vm);
+        } else {
+          drawList(vm);
+        }
+        break;
+      case Screen::Celebrate:
+      case Screen::Screensaver:
+        art = drawScene(vm.moment);
+        if (!art) centered(display, 90, 2, vm.screen == Screen::Celebrate ? "!" : "AURA-1");
+        break;
       case Screen::Running: {
         // His scene for this folder, or any session scene for a new folder.
         const ArtScene* scene = pickScene(art_, sessionMoment(vm.folder), esp_random());
@@ -241,23 +312,47 @@ void EinkRenderer::drawList(const ViewModel& vm) {
   display.print(count.c_str());
   display.drawLine(0, 24, display.width(), 24, GxEPD_BLACK);
 
+  const bool checks = !vm.checks.empty();
   const int first = vm.cursor >= ROWS ? vm.cursor - ROWS + 1 : 0;
+  if (vm.items.empty()) centered(display, 80, 1, vm.place == Place::Habits ? "no habits yet" : "nothing due today");
   for (int row = 0; row < ROWS && first + row < static_cast<int>(vm.items.size()); ++row) {
     const int index = first + row;
     const int y = TOP + row * ROW_H;
     const bool selected = index == vm.cursor;
+    const uint16_t fg = selected ? GxEPD_WHITE : GxEPD_BLACK;
     if (selected) display.fillRect(0, y - 2, display.width(), ROW_H, GxEPD_BLACK);
-    display.setTextColor(selected ? GxEPD_WHITE : GxEPD_BLACK);
-    display.setCursor(MARGIN, y);
-    display.print(vm.items[index].substr(0, 15).c_str());
+    display.setTextColor(fg);
+    if (checks) {
+      // A box, ticked when done.
+      display.drawRect(MARGIN, y + 1, 12, 12, fg);
+      if (vm.checks[index]) {
+        display.drawLine(MARGIN + 2, y + 7, MARGIN + 5, y + 10, fg);
+        display.drawLine(MARGIN + 5, y + 10, MARGIN + 10, y + 3, fg);
+        display.drawLine(MARGIN + 2, y + 8, MARGIN + 5, y + 11, fg);
+      }
+      display.setCursor(MARGIN + 18, y);
+      display.print(vm.items[index].substr(0, 14).c_str());
+    } else {
+      display.setCursor(MARGIN, y);
+      display.print(vm.items[index].substr(0, 15).c_str());
+    }
+  }
+
+  // In the menu he watches from the corner, eyes following the cursor.
+  if (vm.place == Place::Menu) {
+    const char* watch[] = { "watch-left", "watch-left", "watch-up", "watch-right" };
+    const ArtScene* w = findScene(art_, watch[vm.cursor % 4]);
+    if (w) drawArt(*w, 0, 200 - w->size, 162 - w->size);
   }
 
   display.setTextColor(GxEPD_BLACK);
   display.setTextSize(1);
   display.drawLine(0, 164, display.width(), 164, GxEPD_BLACK);
   display.setCursor(MARGIN, 172);
-  display.print(vm.top ? "SUN next    POWER open" : "SUN next    POWER start");
-  if (!vm.top) {
+  const char* act = vm.place == Place::Todos || vm.place == Place::Habits ? "tick"
+    : vm.place == Place::Activities && !vm.top ? "start" : "open";
+  display.print((std::string("SUN next    POWER ") + act).c_str());
+  if (vm.place != Place::Menu) {
     display.setCursor(MARGIN, 186);
     display.print("hold SUN    back");
   }
