@@ -13,26 +13,28 @@ not accusing.
 
 ## Expressions (the face kit)
 
-Built from eyes, brows, mouth, cheeks, ears and marks around the head.
+Built from eye shapes, an open mouth when it matters, blush, ears and marks
+around the head. No brows.
 
 | Name | Face | When |
 |---|---|---|
 | curious | round eyes looking up and aside | idle, folders, waiting |
 | content | flat closed arcs | working, vibing |
-| happy | upward arcs, small cat mouth | todos ticked, habit done |
-| proud | upward arcs, chin up, sparkles | session sealed, long focus |
-| flustered | sparkly eyes looking away, blush stripes | praised: level up, a long streak, you come back |
-| touched | teary sparkly eyes, blush | all todos done, a milestone |
-| hmph | glare, angry brows, pout, ears back, anger mark | you ignored him for days, a 1-minute "session" |
-| skeptical | heavy lids, raised brow, "?" | a suspiciously short session, 3 a.m. |
-| surprised | wide eyes, small open mouth, "!" | sync pulled new folders, first boot |
-| scared | wide eyes, worried brows, sweat | battery nearly empty, sync failed |
-| sleepy | heavy lids, yawn | late at night, power-off |
+| happy | eyes flattened from below by the cheeks | a todo ticked, habit done |
+| delighted | round eyes up, mouth wide open with fangs | level up, a new best |
+| overjoyed | huge dilated pupils, wet glints, a tear, blush | the list is done, a milestone, you came back |
+| proud | closed ^ ^ eyes, ears up, sparkles | session sealed, long focus |
+| flustered | sparkly eyes looking away, blush | praised: a long streak |
+| hmph | eyes glaring toward the nose, ears back, anger mark | ignored for days, a 1-minute "session" |
+| annoyed | flat lids, pupils hanging from them | a suspiciously short session |
+| questioning | one round eye, one glaring, "?" | 3 a.m., a strange input |
+| surprised | wide eyes, small o, "!" | sync pulled new folders, first boot |
+| scared | wide eyes, ears back, sweat | battery nearly empty, sync failed |
+| sleepy | heavy flat lids, big yawn | late at night, power-off |
 | asleep | closed lower arcs, "zzz" | dormant, off screens |
-| dizzy | spiral eyes | a 6-hour session, lots of switching |
-| smug | crescent eyes, fanged grin | beating your best week, Halloween |
-| determined | slight lids, flat brows, looking down | starting a session |
-| lonely | worried brows, eyes down | decay: thinning, fragmenting |
+| dizzy | spiral eyes | a 6-hour session |
+| determined | low flat lids, looking down | starting a session |
+| lonely | lids drooping to the outer corners, eyes down | decay: thinning, fragmenting |
 
 ## Scenes (the body kit and props)
 

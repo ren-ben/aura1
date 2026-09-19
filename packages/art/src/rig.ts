@@ -11,7 +11,7 @@
 import {
   curve, ellipse, outline, rotate, sampleCubics, shape, stroke, superellipse, wobble, type Pt,
 } from './ink.ts';
-import { blush, brows, eye, EYES, mouth, type Palette } from './face.ts';
+import { blush, eye, EYES, mouth, type Palette } from './face.ts';
 import { marks } from './marks.ts';
 import { EXPRESSIONS, type Ears, type Expression } from './expressions.ts';
 
@@ -155,7 +155,6 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
     ...eye(eyes[1]!, EYES[1]!, 1, look, expr.lid ?? 0.45, 60, p),
     // The nose: a tiny dash level with the lower half of the eyes.
     shape(wobble(ellipse(200, 230, 6, 3, 16), 80, 0.4), p.paper),
-    ...(expr.brows ? brows(expr.brows, 100, p) : []),
     ...(expr.mouth ? mouth(expr.mouth, 110, p) : []),
     ...(expr.blush ? blush(120, p) : []),
     ...(wear.headphones ? headphonesFront(p, 90) : []),

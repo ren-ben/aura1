@@ -47,11 +47,16 @@ annoyed or sad.
 ## Faces
 
 The face kit (`src/face.ts`, `src/marks.ts`, named in `src/expressions.ts`,
-moods in CHARACTER.md). Brows, mouths and blush are short paper strokes on
-the fur; marks (?, !, sweat, anger vein, notes, zzz, sparkles, hearts) are
-ink on the paper around him. Ears swing about their base: 12 degrees back for
-anger and fear, 4 forward when alert; more reads as bat wings. The mouth is
-absent unless the mood needs it. Check `out/expressions.png` after any change.
+moods in CHARACTER.md). Expression lives in the eye shapes: round, wide,
+sparkling, huge dilated pupils, a smile-flattened bottom, closed arcs, a flat
+lid (annoyed), a lid slanting to the nose (glare) or to the outer corner
+(forlorn), one eye of each (questioning). He has no brows. The mouth is
+absent unless it opens: then it sits low near the bottom of the head, opens
+wide with two fangs from the top edge (catmouthopen.png), drawn as a white
+outline around the dark inside. Blush is three paper strokes per cheek.
+Marks (?, !, sweat, anger vein, notes, zzz, sparkles, hearts) are ink on the
+paper around him. Ears swing about their base: 12 degrees back for anger and
+fear, 4 forward when alert. Check `out/expressions.png` after any change.
 
 ## Never
 
@@ -67,6 +72,9 @@ Each of these was tried and rejected:
 - A big gap between the eyes and the edge of the face.
 - The nose low enough to read as a mouth.
 - Heavy lids, a sagging or smiling lower lid on open eyes, a dead-ahead stare.
+- Eyebrows of any kind; expression comes from the eye shapes.
+- Crescent (smug) eyes, or small shaped mouths (w, grin, pout). A mouth is
+  either absent or open wide with fangs.
 - Round ball headphone cups (the cups are side-on ovals), or a band that
   squares the head.
 
