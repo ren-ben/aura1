@@ -88,8 +88,7 @@ tunnel already on your Pi; you do not create a new one.
 2. Plug in over USB. From `packages/firmware`, run:
    `python -m platformio run -e aura1 -t upload`
 3. Open the serial monitor:
-   `python -m platformio device monitor -b 115200`
-   If nothing appears, `-DARDUINO_USB_CDC_ON_BOOT=1` has to be added to `platformio.ini`.
+   `python -m platformio device monitor -e aura1`
 
 ## What to test
 

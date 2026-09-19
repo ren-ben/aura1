@@ -8,6 +8,7 @@ constexpr int PIN_POWER_BTN   = 18;  // active LOW
 constexpr int PIN_POWER_HOLD  = 17;  // HIGH keeps the board powered
 constexpr int PIN_SUN_BTN     = 0;   // BOOT, active LOW
 constexpr int PIN_PANEL_POWER = 6;   // LOW powers the panel
+constexpr int PIN_AUX_POWER   = 42;  // LOW powers the "audio" rail, which also feeds the I2C bus (RTC)
 constexpr int PIN_EPD_BUSY    = 8;   // HIGH while busy, LOW when idle
 constexpr int PIN_EPD_RST     = 9;
 constexpr int PIN_EPD_DC      = 10;

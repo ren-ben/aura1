@@ -46,6 +46,11 @@ void setup() {
   // re-enables it after WiFi is off. Verify against Espressif's esp_random docs.
   bootloader_random_enable();
   buttons.begin();
+  // Without this rail the RTC is unpowered and every I2C read times out (error 263).
+  // Waveshare's own RTC example switches it on first, despite the "audio" name.
+  pinMode(PIN_AUX_POWER, OUTPUT);
+  digitalWrite(PIN_AUX_POWER, LOW);
+  delay(10);
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
   rtc.begin();
   SD_MMC.setPins(PIN_SD_CLK, PIN_SD_CMD, PIN_SD_D0);

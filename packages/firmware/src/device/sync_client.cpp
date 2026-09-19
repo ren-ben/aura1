@@ -21,6 +21,7 @@ constexpr unsigned long HANDSHAKE_TIMEOUT_S = 20;  // library default is 120 s
 // the two -1 cases for the caller's diagnostics.
 static bool post(const std::string& body, String& response, int& httpCode, bool& wifiConnected) {
   bootloader_random_disable();
+  WiFi.setHostname(DEVICE_ID);  // shows as "aura-1" on the hotspot, not "esp32s3"
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   const unsigned long start = millis();

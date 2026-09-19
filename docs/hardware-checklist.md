@@ -31,8 +31,7 @@ real sessions. Follow the sections and numbering in order.
 8. Fill in `packages/firmware/secrets.h` (never commit it). The hotspot must
    be 2.4 GHz (iPhone: turn on "Maximize Compatibility"). Upload with
    `python -m platformio run -e aura1 -t upload` and open the serial monitor
-   at 115200. If there is no serial output, add
-   `-DARDUINO_USB_CDC_ON_BOOT=1` to `platformio.ini` and reflash. Record the
+   with `python -m platformio device monitor -e aura1`. Record the
    `flash=`/`psram=` line. Confirm no flash-size error, no boot loop, and no
    PSRAM fatal error.
 9. The panel powers on; the first refresh is full; no GxEPD2 "Busy Timeout".
