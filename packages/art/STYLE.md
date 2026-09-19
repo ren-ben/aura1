@@ -44,6 +44,15 @@ annoyed or sad.
 - Curious (idle): full round eyes, pupils looking up and aside.
 - Content (focused): closed eyes as flat, gentle arcs.
 
+## Faces
+
+The face kit (`src/face.ts`, `src/marks.ts`, named in `src/expressions.ts`,
+moods in CHARACTER.md). Brows, mouths and blush are short paper strokes on
+the fur; marks (?, !, sweat, anger vein, notes, zzz, sparkles, hearts) are
+ink on the paper around him. Ears swing about their base: 12 degrees back for
+anger and fear, 4 forward when alert; more reads as bat wings. The mouth is
+absent unless the mood needs it. Check `out/expressions.png` after any change.
+
 ## Never
 
 Each of these was tried and rejected:

@@ -4,7 +4,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
-import { POSES, SKINS, SIZE, compose, type Pose, type Skin } from './rig.ts';
+import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } from './rig.ts';
 import { cArray, packBits } from './bitmap.ts';
 
 const root = resolve(import.meta.dirname, '..');
@@ -74,3 +74,22 @@ const compare = `<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="42
   + `<image x="840" y="10" width="400" height="400" href="data:image/png;base64,${smooth('focused')}"/></svg>`;
 writeFileSync(resolve(out, 'compare.png'), new Resvg(compare).render().asPng());
 console.log(`baked ${POSES.length * SKINS.length} frames -> ${header}`);
+
+// The face kit: every named expression, smooth beside the device's 1-bit
+// render at its real 200 px, labelled.
+const names = Object.keys(EXPRESSIONS) as (keyof typeof EXPRESSIONS)[];
+const COLS = 4;
+const TILE_W = 430;
+const TILE_H = 240;
+const faces = names.map((name, i) => {
+  const x = (i % COLS) * TILE_W;
+  const y = Math.floor(i / COLS) * TILE_H;
+  const art = bust(EXPRESSIONS[name]);
+  const png = (buf: Buffer) => `data:image/png;base64,${buf.toString('base64')}`;
+  return `<image x="${x}" y="${y + 30}" width="200" height="200" href="${png(render(art, 200, false).asPng())}"/>`
+    + `<image x="${x + 210}" y="${y + 30}" width="200" height="200" href="${png(render(art, 200, true).asPng())}"/>`
+    + `<text x="${x + 4}" y="${y + 22}" font-family="Consolas, monospace" font-size="20">${name}</text>`;
+});
+const sheetFaces = `<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * TILE_W}" height="${Math.ceil(names.length / COLS) * TILE_H}">`
+  + `<rect width="100%" height="100%" fill="#ddd"/>${faces.join('')}</svg>`;
+writeFileSync(resolve(out, 'expressions.png'), new Resvg(sheetFaces).render().asPng());

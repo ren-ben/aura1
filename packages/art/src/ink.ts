@@ -138,3 +138,12 @@ export function curve(pts: Pt[], steps = 8): Pt[] {
   out.push(pts[pts.length - 1]!);
   return out;
 }
+
+// A closed shape through a few hand-placed points, smoothed like a pen line.
+export function outline(pts: Pt[], steps = 4): Pt[] {
+  return curve([...pts, pts[0]!], steps).slice(0, -1);
+}
+
+export function shape(pts: Pt[], fill: string): string {
+  return `<path d="${toPath(pts)}" fill="${fill}"/>`;
+}
