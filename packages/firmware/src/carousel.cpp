@@ -3,22 +3,42 @@
 
 void Carousel::load(std::vector<FolderEntry> folders,
                     std::vector<ActivityEntry> activities) {
-  folders_ = std::move(folders);
+  const Level level = level_;
+  const int folderId = folders_.empty() ? 0 : folders_[folderIndex_].id;
+  const int activityId = currentActivityId();
+
   activities_ = std::move(activities);
+  // An empty folder would strand the cursor, so it is never listed.
+  folders_.clear();
+  for (auto& folder : folders) {
+    const bool used = std::any_of(activities_.begin(), activities_.end(),
+                                  [&](const ActivityEntry& a) { return a.folderId == folder.id; });
+    if (used) folders_.push_back(std::move(folder));
+  }
   // visible_ points into the old activities_, which were just freed. Reset
   // the selection before any early return, or a reload to an empty config
   // leaves it dangling.
   visible_.clear();
+  level_ = Level::Folders;
   folderIndex_ = 0;
   cursor_ = 0;
   if (folders_.empty()) return;
   selectFolder(0);
-  // A folder with no activities would strand the cursor, so advance past it.
-  if (visible_.empty()) nextFolder();
+
+  for (size_t i = 0; i < folders_.size(); ++i) {
+    if (folders_[i].id == folderId) selectFolder(i);
+  }
+  if (level == Level::Activities) {
+    if (activityId != 0 && std::any_of(activities_.begin(), activities_.end(),
+                                       [&](const ActivityEntry& a) { return a.id == activityId; })) {
+      openActivity(activityId);
+    } else if (folders_[folderIndex_].id == folderId) {
+      level_ = Level::Activities;
+    }
+  }
 }
 
 void Carousel::selectFolder(size_t index) {
-  if (folders_.empty()) return;
   folderIndex_ = index % folders_.size();
   cursor_ = 0;
   visible_.clear();
@@ -33,30 +53,56 @@ void Carousel::selectFolder(size_t index) {
             });
 }
 
-void Carousel::nextActivity() {
-  if (visible_.empty()) return;
-  cursor_ = (cursor_ + 1) % visible_.size();
+void Carousel::next() {
+  if (folders_.empty()) return;
+  if (level_ == Level::Folders) selectFolder(folderIndex_ + 1);
+  else cursor_ = (cursor_ + 1) % visible_.size();
 }
 
-void Carousel::nextFolder() {
+void Carousel::enter() {
   if (folders_.empty()) return;
-  const size_t start = folderIndex_;
-  for (size_t step = 1; step <= folders_.size(); ++step) {
-    selectFolder(start + step);
-    if (!visible_.empty()) return;
+  level_ = Level::Activities;
+  cursor_ = 0;
+}
+
+void Carousel::up() {
+  level_ = Level::Folders;
+  cursor_ = 0;
+}
+
+void Carousel::openActivity(int activityId) {
+  for (size_t f = 0; f < folders_.size(); ++f) {
+    selectFolder(f);
+    for (size_t i = 0; i < visible_.size(); ++i) {
+      if (visible_[i]->id == activityId) {
+        level_ = Level::Activities;
+        cursor_ = i;
+        return;
+      }
+    }
   }
+  // Unknown id: fall back to the top of the folder list.
+  if (!folders_.empty()) selectFolder(0);
+  level_ = Level::Folders;
 }
 
 int Carousel::currentActivityId() const {
-  if (visible_.empty()) return 0;
+  if (level_ != Level::Activities || visible_.empty()) return 0;
   return visible_[cursor_]->id;
 }
 
 void Carousel::fill(ViewModel& vm) const {
-  vm.folderCount = static_cast<int>(folders_.size());
-  vm.folderIndex = static_cast<int>(folderIndex_);
+  vm.items.clear();
   vm.folder = folders_.empty() ? "" : folders_[folderIndex_].name;
-  vm.count = static_cast<int>(visible_.size());
-  vm.cursor = static_cast<int>(cursor_);
-  vm.activity = visible_.empty() ? "" : visible_[cursor_]->name;
+  vm.activity = currentActivityId() == 0 ? "" : visible_[cursor_]->name;
+  vm.top = level_ == Level::Folders;
+  if (vm.top) {
+    vm.title = "FOLDERS";
+    for (const auto& folder : folders_) vm.items.push_back(folder.name);
+    vm.cursor = static_cast<int>(folderIndex_);
+  } else {
+    vm.title = vm.folder;
+    for (const auto* activity : visible_) vm.items.push_back(activity->name);
+    vm.cursor = static_cast<int>(cursor_);
+  }
 }

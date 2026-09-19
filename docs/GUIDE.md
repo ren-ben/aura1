@@ -26,17 +26,22 @@ Other docs:
 
 ![Session lifecycle](img/session-lifecycle.svg)
 
-| Button | Idle | Running |
-|---|---|---|
-| SUN | next activity in the folder | nothing |
-| hold SUN | next folder | nothing |
-| POWER | start a session | stop the session |
-| hold POWER | switch off | save, then switch off |
+| Button | Folder list | Inside a folder | Running |
+|---|---|---|---|
+| SUN | next folder | next activity | nothing |
+| POWER | open the folder | start a session | stop the session |
+| hold SUN | nothing | back to the folder list | nothing |
+| hold POWER | switch off | switch off | save, then switch off |
+
+- **Power-on shows WAKING, power-off shows DORMANT.** The device then reopens the
+  activity you last started. With USB plugged in it cannot cut power, so it sleeps
+  instead, and POWER wakes it.
+- **SEALED** shows the duration after a stop. SUN or POWER skips it.
 
 - **No timer is shown while you work.** That is deliberate: you see the duration only
   when you stop.
 - **Folders:** AXIOM, WORKSHOP, HERESY, DREAM and HUNT. Activities inside each folder are
-  sorted by when you last used them.
+  sorted by when you last used them. Empty folders are hidden.
 - **A power cut costs at most 5 minutes.** A running session saves a heartbeat every 5
   minutes, and the next boot recovers it. A session shorter than 5 minutes that is cut off
   by a power loss is dropped.
@@ -46,7 +51,8 @@ Other docs:
 ![Sync](img/sync.svg)
 
 - **Syncs happen** when you stop a session, at boot, and every 6 hours. The 6-hourly sync
-  is skipped while a session is running.
+  is skipped while a session is running. Pressing a button while it waits for Wi-Fi
+  cancels the sync, so the device never ignores you; the queue goes with the next one.
 - **Nothing is deleted from the device until the server confirms it.** A failed sync
   changes nothing.
 - **A session sent twice is still stored once.** A lost reply, a retry, or a crash
@@ -134,11 +140,11 @@ in [hardware-checklist.md](hardware-checklist.md).
      the manual command.
    - Show local time on the page.
 3. **Phase 2, full features:** manage folders and activities from the web, habits and the
-   heatmap, the quote vault, XP, the decay mechanic, and manual backfill.
+   heatmap, the quote vault, XP, the decay mechanic, manual backfill, and a todo widget.
 4. **Phase 3, Kael'thos:** one hand-drawn SVG rig that produces every pose and skin, for
    the device and the web. Open question for you: who draws the master, and which poses
    and skins come first.
-5. **Phase 4, device UI:** the real screens and screensavers, replacing today's plain text
-   prototype.
+5. **Phase 4, device UI:** a MENU above the folders with TODAY (tick off today's todos),
+   HABITS and QUOTES, and the real screens and screensavers in place of today's prototype.
 6. **Phase 5, dashboard:** the node-graph interface, typography, dither and motion.
 7. **Phase 6, audio:** a speaker signature, and mic capture into the quote vault.

@@ -29,8 +29,8 @@ work legible, measurable and worth romanticising.
 | Device auth | Cloudflare Access service token | Non-human client path built into Access; no custom auth code |
 | Backend | Node + Fastify + Drizzle, pnpm monorepo | Shared types between API, web and codegen for firmware |
 | Firmware | Arduino-ESP32 via PlatformIO | GxEPD2 handles SSD1681 partial refresh; power APIs still available |
-| Device nav | SUN short = activity, SUN long = place, POWER = act | Two buttons, no modes, no hidden state |
-| Device IA | One carousel; non-tracking screens are places in it | Avoids inventing a fifth gesture |
+| Device nav | SUN = next, POWER = act on the selection, hold SUN = up, hold POWER = off | Two buttons, no double-press lag; POWER always acts, SUN always moves |
+| Device IA | A hierarchy: MENU (ACTIVITIES, TODAY, HABITS, QUOTES) > folders > items; boot reopens the last started activity | Nine-plus places are too many for one ring, and each kind acts differently |
 | Decay | Cosmetic only; XP never lost | Removes incentive to log junk hours |
 | Art | SVG master rig, build-time bake to 1-bit | One source of truth, drift impossible, not pixel art |
 | Live timer | Not shown during a session | Ghosting, battery, and it is the better design |
@@ -47,6 +47,7 @@ session       id, activity_id, started_at, ended_at,
               source ('device'|'manual'), device_uuid, created_at
 habit         id, name, sort_order, archived_at
 habit_entry   habit_id, date, done          -- composite PK
+todo          id, body, due_date, done_at, sort_order, created_at
 quote         id, body, source, created_at
 entity_state  bond_xp, last_session_at, form_state    -- singleton
 ```
@@ -135,10 +136,11 @@ contract has exactly one definition.
 - **Phase 1** Vertical slice. Own spec. One activity, device to database to
   screen.
 - **Phase 2** Full domain. Folder and activity CRUD, habits, quote vault, XP,
-  decay, manual backfill.
+  decay, manual backfill, todos (a web widget to write the list).
 - **Phase 3** Art pipeline. SVG rig, bake script, first skins.
-- **Phase 4** Device complete. Full carousel, screensavers, decay rendering,
-  RITES and ORACLE places.
+- **Phase 4** Device complete. MENU level, TODAY (today's todos, POWER ticks
+  one off; ticks sync through the existing queue), HABITS, QUOTES, screensavers,
+  decay rendering.
 - **Phase 5** Dashboard proper. Node graph, design system, motion, typography.
 - **Phase 6** Audio. Speaker signature, mic capture into the quote vault.
 

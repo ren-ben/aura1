@@ -2,6 +2,8 @@
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <bootloader_random.h>
+#include <driver/rtc_io.h>
+#include <esp_sleep.h>
 #include "secrets.h"
 #include "carousel.h"
 #include "config_store.h"
@@ -31,11 +33,15 @@ static unsigned long lastSync = 0;
 constexpr unsigned long TICK_MS = 1000;
 constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
 
+// A press abandons the sync, so the device never ignores the user while it
+// waits for Wi-Fi. The queue is untouched and goes with the next sync.
+static bool userPressed() { return buttons.anyDown(); }
+
 // A sync that pulled a new config reloaded the carousel under the machine;
 // redraw so Idle never shows a selection POWER would not start.
 static void runSync() {
   const int before = configVersion;
-  syncClient.run(configVersion, carousel);
+  syncClient.run(configVersion, carousel, userPressed);
   if (configVersion != before) machine.redraw();
 }
 
@@ -69,11 +75,17 @@ void loop() {
   Input input;
   if (buttons.poll(input)) {
     if (input == Input::PowerLong) {
-      // Let the machine write a final heartbeat first: a running session then
-      // survives power-off to the second instead of losing up to 5 minutes.
+      // Let the machine write a final heartbeat and draw DORMANT first: a
+      // running session then survives power-off to the second.
       machine.handle(input);
       Buttons::powerOff();
-      return;
+      delay(200);
+      // Still running means USB is powering the board. Sleep until POWER
+      // wakes it; waking reboots, the same as switching on from battery.
+      rtc_gpio_pullup_en((gpio_num_t)PIN_POWER_BTN);
+      rtc_gpio_pulldown_dis((gpio_num_t)PIN_POWER_BTN);
+      esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_POWER_BTN, 0);
+      esp_deep_sleep_start();
     }
     machine.handle(input);
     if (machine.screen() == Screen::Stopped) {

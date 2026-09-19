@@ -19,17 +19,23 @@ constexpr unsigned long HANDSHAKE_TIMEOUT_S = 20;  // library default is 120 s
 // HTTPClient result: a standard HTTP status, or one of its negative
 // HTTPC_ERROR_* codes for a TLS/connect failure. wifiConnected distinguishes
 // the two -1 cases for the caller's diagnostics.
-static bool post(const std::string& body, String& response, int& httpCode, bool& wifiConnected) {
+static bool post(const std::string& body, String& response, int& httpCode, bool& wifiConnected,
+                 bool& cancelled, bool (*cancel)()) {
   bootloader_random_disable();
   WiFi.setHostname(DEVICE_ID);  // shows as "aura-1" on the hotspot, not "esp32s3"
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   const unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < CONNECT_TIMEOUT_MS) delay(100);
+  cancelled = false;
+  while (WiFi.status() != WL_CONNECTED && millis() - start < CONNECT_TIMEOUT_MS) {
+    if ((cancelled = cancel())) break;
+    delay(20);
+  }
 
   wifiConnected = WiFi.status() == WL_CONNECTED;
+  if (!cancelled) cancelled = cancel();
   httpCode = -1;
-  if (wifiConnected) {
+  if (wifiConnected && !cancelled) {
     WiFiClientSecure client;
     // Verify against the roots of Cloudflare's edge CAs. Never setInsecure():
     // the CF Access secret is the API's only credential and the device syncs
@@ -52,7 +58,7 @@ static bool post(const std::string& body, String& response, int& httpCode, bool&
   return httpCode == 200;
 }
 
-bool SyncClient::run(int& configVersion, Carousel& carousel) {
+bool SyncClient::run(int& configVersion, Carousel& carousel, bool (*cancel)()) {
   // The pending list and the JSON document both die inside this expression,
   // before the radio and TLS need the heap.
   const auto pending = queue_.pending();
@@ -62,10 +68,13 @@ bool SyncClient::run(int& configVersion, Carousel& carousel) {
   String text;
   int httpCode = -1;
   bool wifiConnected = false;
-  if (!post(body, text, httpCode, wifiConnected)) {
+  bool cancelled = false;
+  if (!post(body, text, httpCode, wifiConnected, cancelled, cancel)) {
     // Diagnostics only: never a header, the service token, or the Wi-Fi
     // credentials, only the outcome of this attempt.
-    if (!wifiConnected) {
+    if (cancelled) {
+      Serial.println("sync cancelled: button pressed");
+    } else if (!wifiConnected) {
       Serial.println("sync failed: no wifi");
     } else if (httpCode < 0) {
       Serial.printf("sync failed: connect/TLS error (code %d)\n", httpCode);

@@ -1,15 +1,16 @@
 #pragma once
 #include <string>
+#include <vector>
 
-enum class Screen { Idle, Running, Stopped, Syncing };
+enum class Screen { Waking, Idle, Running, Stopped, Dormant };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
+  std::string title;               // "FOLDERS" or the open folder's name
+  std::vector<std::string> items;  // the current list
+  int cursor = 0;
+  bool top = true;                 // on the folder list
   std::string folder;
   std::string activity;
-  int cursor = 0;
-  int count = 0;
-  int folderIndex = 0;
-  int folderCount = 0;
   int minutes = 0;
 };

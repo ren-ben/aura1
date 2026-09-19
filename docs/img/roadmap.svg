@@ -34,8 +34,8 @@
   <text x="228" y="88" text-anchor="middle" class="p">PHASE 2</text>
   <circle cx="228" cy="110" r="9" class="node"/>
   <text x="228" y="142" text-anchor="middle" class="t">Full features</text>
-  <text x="228" y="162" text-anchor="middle" class="s">habits, quotes,</text>
-  <text x="228" y="178" text-anchor="middle" class="s">XP, decay</text>
+  <text x="228" y="162" text-anchor="middle" class="s">habits, todos,</text>
+  <text x="228" y="178" text-anchor="middle" class="s">quotes, XP, decay</text>
 
   <!-- 3 -->
   <text x="396" y="88" text-anchor="middle" class="p">PHASE 3</text>
@@ -48,7 +48,7 @@
   <text x="564" y="88" text-anchor="middle" class="p">PHASE 4</text>
   <circle cx="564" cy="110" r="9" class="node"/>
   <text x="564" y="142" text-anchor="middle" class="t">Device UI</text>
-  <text x="564" y="162" text-anchor="middle" class="s">real screens,</text>
+  <text x="564" y="162" text-anchor="middle" class="s">menu, TODAY,</text>
   <text x="564" y="178" text-anchor="middle" class="s">screensavers</text>
 
   <!-- 5 -->

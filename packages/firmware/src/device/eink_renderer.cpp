@@ -28,36 +28,111 @@ void EinkRenderer::begin() {
 }
 
 void EinkRenderer::render(const ViewModel& vm) {
-  // Partial refresh for cursor movement; full refresh on folder change and every
-  // PARTIALS_BEFORE_FULL partials, to clear ghosting.
-  if (vm.folderIndex != lastFolderIndex_ || partials_ >= PARTIALS_BEFORE_FULL) {
+  // Partial refresh keeps navigation fast. A full refresh clears ghosting: on
+  // WAKING (the first frame after init must be full), on DORMANT (the frame
+  // that stays on the glass while off), and every PARTIALS_BEFORE_FULL partials.
+  if (vm.screen == Screen::Waking || vm.screen == Screen::Dormant
+      || partials_ >= PARTIALS_BEFORE_FULL) {
     display.setFullWindow();
     partials_ = 0;
   } else {
     display.setPartialWindow(0, 0, display.width(), display.height());
     ++partials_;
   }
-  lastFolderIndex_ = vm.folderIndex;
 
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(2);
     switch (vm.screen) {
-      case Screen::Idle: drawIdle(vm); break;
+      case Screen::Waking: drawWaking(); break;
+      case Screen::Idle: drawList(vm); break;
       case Screen::Running: drawRunning(vm); break;
       case Screen::Stopped: drawStopped(vm); break;
-      case Screen::Syncing: break;
+      case Screen::Dormant: drawDormant(); break;
     }
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
 }
 
-void EinkRenderer::drawIdle(const ViewModel& vm) {
-  line(0, vm.folder);
-  line(1, std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.count));
-  line(3, "> " + vm.activity);
-  line(7, "SUN   next");
-  line(8, "HOLD  folder");
+static void centered(int y, int size, const char* text) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.setTextSize(size);
+  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.setCursor((display.width() - w) / 2, y);
+  display.print(text);
+}
+
+// Prototype glyphs. The Kael'thos art replaces them in Phase 3/4.
+static void openEye(int cx, int cy) {
+  display.drawCircle(cx, cy, 24, GxEPD_BLACK);
+  display.drawCircle(cx, cy, 23, GxEPD_BLACK);
+  display.fillCircle(cx, cy, 10, GxEPD_BLACK);
+  display.fillCircle(cx - 3, cy - 3, 3, GxEPD_WHITE);
+  display.drawLine(cx - 46, cy, cx - 28, cy, GxEPD_BLACK);
+  display.drawLine(cx + 28, cy, cx + 46, cy, GxEPD_BLACK);
+}
+
+static void closedEye(int cx, int cy) {
+  // A lid curving down, with lashes.
+  for (int x = -32; x <= 32; ++x) {
+    const int y = cy + x * x / 64;
+    display.drawPixel(cx + x, y, GxEPD_BLACK);
+    display.drawPixel(cx + x, y + 1, GxEPD_BLACK);
+  }
+  for (int x = -24; x <= 24; x += 12) {
+    const int y = cy + x * x / 64 + 2;
+    display.drawLine(cx + x, y, cx + x + x / 6, y + 9, GxEPD_BLACK);
+  }
+}
+
+void EinkRenderer::drawWaking() {
+  openEye(100, 78);
+  centered(126, 2, "AURA-1");
+  centered(152, 1, "waking");
+}
+
+void EinkRenderer::drawDormant() {
+  closedEye(100, 70);
+  centered(126, 2, "AURA-1");
+  centered(152, 1, "dormant");
+  centered(176, 1, "hold POWER");
+}
+
+void EinkRenderer::drawList(const ViewModel& vm) {
+  constexpr int ROWS = 6;
+  constexpr int ROW_H = 20;
+  constexpr int TOP = 30;
+
+  const std::string count = std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.items.size());
+  display.setCursor(MARGIN, 4);
+  display.print(vm.title.substr(0, 10).c_str());
+  display.setCursor(display.width() - MARGIN - 12 * static_cast<int>(count.size()), 4);
+  display.print(count.c_str());
+  display.drawLine(0, 24, display.width(), 24, GxEPD_BLACK);
+
+  const int first = vm.cursor >= ROWS ? vm.cursor - ROWS + 1 : 0;
+  for (int row = 0; row < ROWS && first + row < static_cast<int>(vm.items.size()); ++row) {
+    const int index = first + row;
+    const int y = TOP + row * ROW_H;
+    const bool selected = index == vm.cursor;
+    if (selected) display.fillRect(0, y - 2, display.width(), ROW_H, GxEPD_BLACK);
+    display.setTextColor(selected ? GxEPD_WHITE : GxEPD_BLACK);
+    display.setCursor(MARGIN, y);
+    display.print(vm.items[index].substr(0, 15).c_str());
+  }
+
+  display.setTextColor(GxEPD_BLACK);
+  display.setTextSize(1);
+  display.drawLine(0, 164, display.width(), 164, GxEPD_BLACK);
+  display.setCursor(MARGIN, 172);
+  display.print(vm.top ? "SUN next    POWER open" : "SUN next    POWER start");
+  if (!vm.top) {
+    display.setCursor(MARGIN, 186);
+    display.print("hold SUN    back");
+  }
 }
 
 void EinkRenderer::drawRunning(const ViewModel& vm) {
@@ -72,4 +147,5 @@ void EinkRenderer::drawStopped(const ViewModel& vm) {
   line(0, "SEALED");
   line(3, vm.activity);
   line(5, std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
+  line(8, "SUN back");
 }

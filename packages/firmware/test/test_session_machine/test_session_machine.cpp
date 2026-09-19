@@ -19,7 +19,10 @@ struct Rig {
 
   FakeRandom random;
 
-  Rig() { carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} }); }
+  Rig() {
+    carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+    carousel.enter();
+  }
 
   SessionMachine machine() {
     return SessionMachine(carousel, queue, clock, storage, renderer, random);
@@ -96,6 +99,7 @@ void test_sun_presses_are_ignored_while_running() {
   FakeRandom random;
   Carousel carousel;
   carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0}, {11, 1, "reading", 0} });
+  carousel.enter();
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
@@ -231,7 +235,7 @@ void test_power_long_while_running_saves_a_final_heartbeat() {
     m.handle(Input::PowerShort);
     rig.clock.now += 120;
     m.handle(Input::PowerLong);
-    TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+    TEST_ASSERT_TRUE(m.screen() == Screen::Dormant);
     // the device powers off here
   }
   auto recovered = rig.machine();
@@ -248,6 +252,7 @@ void test_failed_marker_write_keeps_the_session_from_starting() {
   FakeRandom random;
   Carousel carousel;
   carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  carousel.enter();
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
@@ -263,6 +268,7 @@ void test_start_never_overwrites_an_unrecovered_marker() {
   FakeRandom random;
   Carousel carousel;
   carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  carousel.enter();
   EventQueue queue(storage);
   storage.write("/session.open",
                  "10 1758100000 1758100300 11111111-1111-4111-8111-111111111111\n");
@@ -349,6 +355,7 @@ void test_failed_queue_append_keeps_the_session_running() {
   FakeRandom random;
   Carousel carousel;
   carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  carousel.enter();
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
@@ -398,8 +405,9 @@ void test_redraw_in_idle_shows_the_reloaded_carousel() {
   rig.carousel.load({ {2, "WORKSHOP"} }, { {30, 2, "aura-1", 0} });
   m.redraw();
   TEST_ASSERT_EQUAL_INT((int)before + 1, (int)rig.renderer.frames.size());
-  TEST_ASSERT_EQUAL_STRING("aura-1", rig.renderer.last().activity.c_str());
-  TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().folder.c_str());
+  // The open folder vanished, so the list falls back to the folder list.
+  TEST_ASSERT_EQUAL_STRING("FOLDERS", rig.renderer.last().title.c_str());
+  TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().items[0].c_str());
 }
 
 void test_power_short_on_a_reset_rtc_stays_idle_and_writes_nothing() {
@@ -453,8 +461,111 @@ void test_redraw_outside_idle_draws_nothing() {
   TEST_ASSERT_EQUAL_INT((int)stopped, (int)rig.renderer.frames.size());
 }
 
+struct TwoFolderRig {
+  FakeStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  EventQueue queue{storage};
+
+  TwoFolderRig() { load(); }
+  void load() {
+    carousel.load({ {1, "AXIOM"}, {2, "WORKSHOP"} },
+                  { {10, 1, "coursework", 0}, {20, 2, "aura-1", 0}, {21, 2, "side", 0} });
+  }
+  SessionMachine machine() {
+    return SessionMachine(carousel, queue, clock, storage, renderer, random);
+  }
+};
+
+void test_begin_shows_waking_then_the_list() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  TEST_ASSERT_EQUAL_INT(2, (int)rig.renderer.frames.size());
+  TEST_ASSERT_TRUE(rig.renderer.frames[0].screen == Screen::Waking);
+  TEST_ASSERT_TRUE(rig.renderer.last().screen == Screen::Idle);
+  TEST_ASSERT_EQUAL_STRING("FOLDERS", rig.renderer.last().title.c_str());
+}
+
+void test_power_on_a_folder_opens_it_instead_of_starting() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_FALSE(rig.storage.exists("/session.open"));
+  TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().title.c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  TEST_ASSERT_EQUAL_STRING("aura-1", rig.renderer.last().activity.c_str());
+}
+
+void test_holding_sun_goes_up_and_does_nothing_at_the_top() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::SunLong);
+  const size_t atTop = rig.renderer.frames.size();
+  TEST_ASSERT_EQUAL_INT(2, (int)atTop);
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+  m.handle(Input::SunLong);
+  TEST_ASSERT_EQUAL_STRING("FOLDERS", rig.renderer.last().title.c_str());
+  TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().cursor);  // still on WORKSHOP
+}
+
+void test_boot_reopens_the_last_started_activity() {
+  TwoFolderRig rig;
+  {
+    auto m = rig.machine();
+    m.begin();
+    m.handle(Input::SunShort);
+    m.handle(Input::PowerShort);
+    m.handle(Input::SunShort);  // side
+    m.handle(Input::PowerShort);
+    rig.clock.now += 60;
+    m.handle(Input::PowerShort);
+  }
+  rig.carousel.up();
+  rig.load();
+  auto m = rig.machine();
+  m.begin();
+  TEST_ASSERT_EQUAL_INT(21, rig.carousel.currentActivityId());
+  TEST_ASSERT_EQUAL_STRING("WORKSHOP", rig.renderer.last().title.c_str());
+}
+
+void test_power_long_draws_dormant_from_idle() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerLong);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Dormant);
+  TEST_ASSERT_TRUE(rig.renderer.last().screen == Screen::Dormant);
+}
+
+void test_sun_skips_the_sealed_screen() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::PowerShort);
+  rig.clock.now += 60;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+  m.handle(Input::SunShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_begin_shows_waking_then_the_list);
+  RUN_TEST(test_power_on_a_folder_opens_it_instead_of_starting);
+  RUN_TEST(test_holding_sun_goes_up_and_does_nothing_at_the_top);
+  RUN_TEST(test_boot_reopens_the_last_started_activity);
+  RUN_TEST(test_power_long_draws_dormant_from_idle);
+  RUN_TEST(test_sun_skips_the_sealed_screen);
   RUN_TEST(test_failed_queue_append_keeps_the_session_running);
   RUN_TEST(test_recovery_reuses_the_uuid_minted_at_start);
   RUN_TEST(test_normal_stop_uses_the_uuid_minted_at_start);

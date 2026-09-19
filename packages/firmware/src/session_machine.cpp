@@ -92,7 +92,11 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
     storage_(storage), renderer_(renderer), random_(random) {}
 
 void SessionMachine::begin() {
+  screen_ = Screen::Waking;
+  draw();
   recoverMarker();
+  const auto nav = storage_.readLines(NAV);
+  if (!nav.empty()) carousel_.openActivity(std::atoi(nav[0].c_str()));
   screen_ = Screen::Idle;
   draw();
 }
@@ -174,6 +178,8 @@ void SessionMachine::startSession() {
   sessionUuid_ = uuidV4(random_);
   startedAt_ = clock_.nowEpochSeconds();
   if (!writeMarker(startedAt_)) return;  // first write failed: stay Idle
+  // Where the next boot reopens. Losing it only costs the resume position.
+  storage_.write(NAV, std::to_string(activityId_) + "\n");
   screen_ = Screen::Running;
   draw();
 }
@@ -191,23 +197,34 @@ void SessionMachine::stopSession() {
 }
 
 void SessionMachine::handle(Input input) {
+  if (input == Input::PowerLong) {
+    // The device is about to power off: append a final heartbeat so at most a
+    // partial interval is lost on recovery, not the whole session. The marker
+    // stays, so the next boot recovers it.
+    if (screen_ == Screen::Running) appendHeartbeat(clock_.nowEpochSeconds());
+    screen_ = Screen::Dormant;
+    draw();
+    return;
+  }
+
   switch (screen_) {
     case Screen::Idle:
-      if (input == Input::SunShort) { carousel_.nextActivity(); draw(); }
-      else if (input == Input::SunLong) { carousel_.nextFolder(); draw(); }
-      else if (input == Input::PowerShort) { startSession(); }
+      // SUN moves, POWER acts on the selection, holding SUN goes up a level.
+      if (input == Input::SunShort) { carousel_.next(); draw(); }
+      else if (input == Input::SunLong && carousel_.level() == Level::Activities) {
+        carousel_.up();
+        draw();
+      } else if (input == Input::PowerShort) {
+        if (carousel_.level() == Level::Folders) { carousel_.enter(); draw(); }
+        else startSession();
+      }
       break;
 
     case Screen::Running:
       // Sun is deliberately inert while running. Changing activity mid-session
       // would make the logged block a lie.
       if (input == Input::PowerShort) { stopSession(); }
-      else if (input == Input::PowerLong) {
-        // The device is about to power off: append a final heartbeat so at
-        // most a partial interval is lost on recovery, not the whole
-        // session. Stays Running; there is no more input coming.
-        appendHeartbeat(clock_.nowEpochSeconds());
-      } else if (input == Input::Tick) {
+      else if (input == Input::Tick) {
         const uint64_t now = clock_.nowEpochSeconds();
         if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) appendHeartbeat(now);
         // No draw(): an identical frame every second would flash the
@@ -227,7 +244,8 @@ void SessionMachine::handle(Input input) {
       }
       break;
 
-    case Screen::Syncing:
+    case Screen::Waking:
+    case Screen::Dormant:
       break;
   }
 }

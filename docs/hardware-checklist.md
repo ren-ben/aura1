@@ -34,26 +34,30 @@ real sessions. Follow the sections and numbering in order.
    with `python -m platformio device monitor -e aura1`. Record the
    `flash=`/`psram=` line. Confirm no flash-size error, no boot loop, and no
    PSRAM fatal error.
-9. The panel powers on; the first refresh is full; no GxEPD2 "Busy Timeout".
+9. The panel powers on with a full refresh showing WAKING, then the folder
+   list; no GxEPD2 "Busy Timeout".
 10. Holding POWER turns the board on; releasing it does not turn it off or
     start a session. No button needs holding at boot, and plugging in USB
-    does not enter download mode. One SUN tap moves one activity; one hold
-    moves one folder. Moves within a folder use a partial refresh; a folder
-    change uses a full refresh.
+    does not enter download mode. On the folder list, SUN moves one folder
+    and POWER opens it. Inside, SUN moves one activity, POWER starts, and
+    holding SUN returns to the folder list with the cursor on that folder.
+    All of these use a partial refresh.
 11. First boot with the hotspot on: sync succeeds (the serial line shows
-    200), the carousel shows AXIOM, `/config.json` is written, and the RTC
-    matches UTC. The config survives a power cycle.
+    200), the folder list shows AXIOM, `/config.json` is written, and the
+    RTC matches UTC. The config survives a power cycle. Pressing SUN while
+    it waits for Wi-Fi prints `sync cancelled` and moves at once.
 12. Optional: point `SYNC_URL` at a host with a self-signed certificate. The
     sync must fail and post nothing.
 
 ## C. Offline logging
 
 13. Hotspot off. Log 3 sessions across 2 folders. Running shows no elapsed
-    time. Stopped shows the duration and returns to Idle after about 5 s. A
-    block of roughly 15 s after each stop (the failed sync) is expected.
-14. Long-press POWER to switch off, then back on. On a PC, `/queue.ndjson`
-    holds 3 event lines ending in `\n` only, and there is no
-    `/session.open`.
+    time. SEALED shows the duration and returns to the list after about
+    5 s, or at once on SUN.
+14. Long-press POWER to switch off: DORMANT appears. With USB plugged in,
+    POWER wakes it. Switch on: it reopens the last started activity. On a
+    PC, `/queue.ndjson` holds 3 event lines ending in `\n` only, there is no
+    `/session.open`, and `/nav.txt` holds that activity's id.
 15. RTC retention: power off for several minutes, power on, and compare the
     time. If the clock reset, sessions will refuse to start until the next
     successful sync. That is by design.

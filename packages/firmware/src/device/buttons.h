@@ -38,19 +38,29 @@ public:
   }
 
   bool poll(Input& out) {
-    // Arm POWER only once it has read HIGH for a full DEBOUNCE_MS, so the
-    // bounce of the boot-hold release cannot read as a new press.
-    if (!pwrArmed_) {
-      if (digitalRead(PIN_POWER_BTN) == LOW) pwrEdge_ = millis();
-      else if (millis() - pwrEdge_ >= DEBOUNCE_MS) pwrArmed_ = true;
-    }
+    arm();
     if (read(PIN_SUN_BTN, sunDown_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, out)) return true;
     return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
+  }
+
+  // True while a button is down. Lets a sync give way to the user; the press
+  // itself is still delivered by poll() once the sync has stopped.
+  bool anyDown() {
+    arm();
+    return digitalRead(PIN_SUN_BTN) == LOW || (pwrArmed_ && digitalRead(PIN_POWER_BTN) == LOW);
   }
 
   static void powerOff() { digitalWrite(PIN_POWER_HOLD, LOW); }
 
 private:
+  // Arm POWER only once it has read HIGH for a full DEBOUNCE_MS, so the
+  // bounce of the boot-hold release cannot read as a new press.
+  void arm() {
+    if (pwrArmed_) return;
+    if (digitalRead(PIN_POWER_BTN) == LOW) pwrEdge_ = millis();
+    else if (millis() - pwrEdge_ >= DEBOUNCE_MS) pwrArmed_ = true;
+  }
+
   bool read(int pin, bool& down, unsigned long& at, unsigned long& edge,
             Input shortPress, Input longPress, Input& out) {
     const bool pressed = digitalRead(pin) == LOW;
