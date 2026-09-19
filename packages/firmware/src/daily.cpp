@@ -8,6 +8,8 @@ bool Daily::parse(const std::string& json) {
   if (deserializeJson(doc, json) || !doc["date"].is<const char*>()) return false;
   date_ = doc["date"].as<std::string>();
   level_ = doc["level"] | 0;
+  resurrectionId_ = doc["resurrectionId"] | 0;
+  serverDormant_ = std::string(doc["form"] | "") == "dormant";
   lastSessionAt_ = 0;
   fromIso8601(doc["lastSessionAt"] | "", lastSessionAt_);
   todos_.clear();
@@ -65,17 +67,23 @@ bool Daily::allTodosDone() const {
   return true;
 }
 
-void Daily::sessionEnded(uint64_t endedAt) {
-  storage_.write(LAST, std::to_string(endedAt) + "\n");
+// /last.txt holds the last session ended here and whether it completed the
+// ritual: "<endedAt> <0|1>".
+void Daily::sessionEnded(uint64_t endedAt, int activityId, int minutes) {
+  const bool rite = activityId == resurrectionId_ && resurrectionId_ > 0 && minutes >= 60;
+  storage_.write(LAST, std::to_string(endedAt) + (rite ? " 1" : " 0") + "\n");
 }
 
 std::string Daily::form(uint64_t now) const {
   uint64_t last = lastSessionAt_;
+  bool rite = false;
   const auto local = storage_.readLines(LAST);
   if (!local.empty()) {
     const uint64_t here = std::strtoull(local[0].c_str(), nullptr, 10);
+    rite = local[0].size() > 2 && local[0].compare(local[0].size() - 2, 2, " 1") == 0;
     if (here > last) last = here;
   }
+  if (serverDormant_ && !rite) return "dormant";
   // No history at all (a new device, never synced) is a fresh start, not
   // neglect: he greets rather than sulks.
   if (last == 0 || now < last) return "stable";

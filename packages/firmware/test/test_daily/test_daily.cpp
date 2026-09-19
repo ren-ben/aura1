@@ -85,8 +85,21 @@ void test_a_session_ended_here_counts_before_the_next_sync() {
   FakeStorage storage;
   Daily daily(storage);
   daily.replace(BUNDLE);
-  daily.sessionEnded(LAST + 70 * 3600);
+  daily.sessionEnded(LAST + 70 * 3600, 5, 30);
   TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST + 72 * 3600).c_str());
+}
+
+void test_once_dormant_only_the_ritual_wakes_him_here() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace("{\"date\":\"2026-09-19\",\"form\":\"dormant\",\"resurrectionId\":42,\"lastSessionAt\":null}");
+  TEST_ASSERT_EQUAL_INT(42, daily.resurrectionId());
+  daily.sessionEnded(LAST, 5, 90);
+  TEST_ASSERT_EQUAL_STRING("dormant", daily.form(LAST + 60).c_str());
+  daily.sessionEnded(LAST, 42, 59);
+  TEST_ASSERT_EQUAL_STRING("dormant", daily.form(LAST + 60).c_str());
+  daily.sessionEnded(LAST, 42, 60);
+  TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST + 60).c_str());
 }
 
 int main() {
@@ -98,5 +111,6 @@ int main() {
   RUN_TEST(test_all_todos_done);
   RUN_TEST(test_form_by_hours_since_the_last_session);
   RUN_TEST(test_a_session_ended_here_counts_before_the_next_sync);
+  RUN_TEST(test_once_dormant_only_the_ritual_wakes_him_here);
   return UNITY_END();
 }

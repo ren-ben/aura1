@@ -1,6 +1,7 @@
 #include "session_machine.h"
 #include "art_index.h"
 #include "validate.h"
+#include <algorithm>
 #include <cstdlib>
 #include <vector>
 
@@ -167,7 +168,7 @@ void SessionMachine::appendHeartbeat(uint64_t heartbeat) {
   }
 }
 
-void SessionMachine::startSession() {
+void SessionMachine::startSession(int activityId) {
   // Recovery may not have finished (e.g. the queue append keeps failing);
   // never start a new session on top of a marker that is still unrecovered.
   recoverMarker();
@@ -177,13 +178,16 @@ void SessionMachine::startSession() {
   // rather than mint a session that will land under the wrong date.
   if (clock_.nowEpochSeconds() < MIN_VALID_CLOCK_EPOCH_SECONDS) return;
 
-  activityId_ = carousel_.currentActivityId();
+  activityId_ = activityId ? activityId : carousel_.currentActivityId();
   if (activityId_ == 0) return;
+  // The ritual shows its candles instead of the folder's scene.
+  ritual_ = activityId_ == daily_.resurrectionId();
+  moment_ = ritual_ ? "ritual-0" : "";
   sessionUuid_ = uuidV4(random_);
   startedAt_ = clock_.nowEpochSeconds();
   if (!writeMarker(startedAt_)) return;  // first write failed: stay Idle
   // Where the next boot reopens. Losing it only costs the resume position.
-  storage_.write(NAV, std::to_string(activityId_) + "\n");
+  if (!ritual_) storage_.write(NAV, std::to_string(activityId_) + "\n");
   screen_ = Screen::Running;
   draw();
 }
@@ -195,7 +199,9 @@ void SessionMachine::stopSession() {
     return;
   }
   storage_.remove(MARKER);
-  daily_.sessionEnded(endedAt);
+  const int minutes = static_cast<int>((endedAt - startedAt_) / 60);
+  daily_.sessionEnded(endedAt, activityId_, minutes);
+  moment_ = ritual_ && minutes >= 60 ? "resurrected" : "";
   screen_ = Screen::Stopped;
   stoppedAt_ = endedAt;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
@@ -245,6 +251,11 @@ void SessionMachine::handle(Input input) {
       else if (input == Input::Tick) {
         const uint64_t now = clock_.nowEpochSeconds();
         if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) appendHeartbeat(now);
+        // The ritual lights a candle every 15 minutes: the one redraw allowed.
+        if (ritual_) {
+          const std::string stage = "ritual-" + std::to_string(std::min<uint64_t>(4, (now - startedAt_) / RITUAL_STAGE_SECONDS));
+          if (stage != moment_) { moment_ = stage; draw(); }
+        }
         // No draw(): an identical frame every second would flash the
         // e-ink needlessly on every redraw.
       }
@@ -272,12 +283,17 @@ void SessionMachine::handle(Input input) {
 // a folder to the folder list, from any place to the menu.
 void SessionMachine::browse(Input input) {
   switch (place_) {
-    case Place::Menu:
-      if (input == Input::SunShort) { menuCursor_ = (menuCursor_ + 1) % 4; draw(); }
+    case Place::Menu: {
+      const auto places = menu();
+      menuCursor_ %= places.size();
+      if (input == Input::SunShort) { menuCursor_ = (menuCursor_ + 1) % places.size(); draw(); }
       else if (input == Input::PowerShort) {
-        const Place places[] = { Place::Activities, Place::Todos, Place::Habits, Place::Quotes };
-        enter(places[menuCursor_]);
+        if (places[menuCursor_] == Place::Resurrect) startSession(daily_.resurrectionId());
+        else enter(places[menuCursor_]);
       }
+      break;
+    }
+    case Place::Resurrect:
       break;
     case Place::Activities:
       if (input == Input::SunShort) { carousel_.next(); draw(); }
@@ -310,6 +326,14 @@ void SessionMachine::browse(Input input) {
       break;
     }
   }
+}
+
+// While he is dormant the menu opens with the ritual that wakes him.
+std::vector<Place> SessionMachine::menu() const {
+  std::vector<Place> places;
+  if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Quotes }) places.push_back(p);
+  return places;
 }
 
 void SessionMachine::enter(Place place) {
@@ -354,9 +378,20 @@ void SessionMachine::draw(int minutes) {
   switch (place_) {
     case Place::Menu:
       vm.title = "AURA-1";
-      vm.items = { "ACTIVITIES", "TODAY " + doneOf(daily_.todos()), "HABITS " + doneOf(daily_.habits()), "QUOTES" };
-      vm.cursor = static_cast<int>(menuCursor_);
+      vm.items.clear();
+      for (Place p : menu()) {
+        switch (p) {
+          case Place::Resurrect: vm.items.push_back("RESURRECT"); break;
+          case Place::Activities: vm.items.push_back("ACTIVITIES"); break;
+          case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
+          case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
+          default: vm.items.push_back("QUOTES"); break;
+        }
+      }
+      vm.cursor = static_cast<int>(menuCursor_ % vm.items.size());
       vm.top = true;
+      break;
+    case Place::Resurrect:
       break;
     case Place::Todos: list("TODAY", daily_.todos()); break;
     case Place::Habits: list("HABITS", daily_.habits()); break;

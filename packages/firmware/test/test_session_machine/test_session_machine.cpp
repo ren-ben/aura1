@@ -641,8 +641,41 @@ void test_sun_skips_the_sealed_screen() {
   TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
 }
 
+void test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace("{\"date\":\"2026-09-19\",\"form\":\"dormant\",\"resurrectionId\":99,\"lastSessionAt\":null}");
+  m.begin();
+  m.handle(Input::SunLong);
+  TEST_ASSERT_EQUAL_STRING("RESURRECT", rig.renderer.last().items[0].c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  TEST_ASSERT_EQUAL_STRING("ritual-0", rig.renderer.last().moment.c_str());
+  const size_t frames = rig.renderer.frames.size();
+  rig.clock.now += 15 * 60;
+  m.handle(Input::Tick);
+  TEST_ASSERT_EQUAL_INT((int)frames + 1, (int)rig.renderer.frames.size());
+  TEST_ASSERT_EQUAL_STRING("ritual-1", rig.renderer.last().moment.c_str());
+  rig.clock.now += 45 * 60;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_STRING("resurrected", rig.renderer.last().moment.c_str());
+  TEST_ASSERT_EQUAL_INT(99, rig.queue.pending()[0].activityId);
+  TEST_ASSERT_EQUAL_STRING("stable", m.daily().form(rig.clock.now).c_str());
+}
+
+void test_an_ordinary_session_does_not_offer_the_ritual_when_awake() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.daily().replace("{\"date\":\"2026-09-19\",\"form\":\"stable\",\"resurrectionId\":99,\"lastSessionAt\":null}");
+  m.begin();
+  m.handle(Input::SunLong);
+  TEST_ASSERT_EQUAL_STRING("ACTIVITIES", rig.renderer.last().items[0].c_str());
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles);
+  RUN_TEST(test_an_ordinary_session_does_not_offer_the_ritual_when_awake);
   RUN_TEST(test_begin_shows_waking_then_the_list);
   RUN_TEST(test_power_on_a_folder_opens_it_instead_of_starting);
   RUN_TEST(test_holding_sun_goes_up_a_level_and_then_to_the_menu);

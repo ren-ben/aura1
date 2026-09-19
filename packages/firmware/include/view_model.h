@@ -5,7 +5,7 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Resurrect };
 
 struct ViewModel {
   Screen screen = Screen::Idle;

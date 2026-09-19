@@ -30,7 +30,8 @@ public:
 
 private:
   void draw(int minutes = 0);
-  void startSession();
+  void startSession(int activityId = 0);
+  std::vector<Place> menu() const;
   void stopSession();
   std::string serialiseMarker(uint64_t heartbeat) const;
   bool writeMarker(uint64_t heartbeat);
@@ -45,6 +46,7 @@ private:
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
   static constexpr uint64_t CELEBRATE_SECONDS = 5;
   static constexpr uint64_t SCREENSAVER_SECONDS = 180;
+  static constexpr uint64_t RITUAL_STAGE_SECONDS = 15 * 60;  // one candle each
   // 2025-01-01T00:00:00Z. Below this the clock is treated as unset: the
   // PCF85063 restarts at 2000-01-01 after a battery/power-loss reset, and
   // RtcClock returns 0 if the first I2C read fails. A session logged under
@@ -75,4 +77,5 @@ private:
   uint64_t lastInput_ = 0;
   uint64_t celebrateAt_ = 0;
   std::string moment_;
+  bool ritual_ = false;
 };

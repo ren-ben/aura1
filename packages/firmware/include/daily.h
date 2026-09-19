@@ -32,6 +32,8 @@ public:
 
   const std::string& date() const { return date_; }
   int level() const { return level_; }
+  // The ritual's activity, 0 before the first bundle.
+  int resurrectionId() const { return resurrectionId_; }
   const std::vector<DailyItem>& todos() const { return todos_; }
   const std::vector<DailyItem>& habits() const { return habits_; }
   const std::vector<DailyQuote>& quotes() const { return quotes_; }
@@ -42,9 +44,11 @@ public:
   bool allTodosDone() const;
 
   // "stable", "thinning", "fragmenting" or "dormant", from the hours since
-  // his last session: the server's, or one ended here since.
+  // his last session: the server's, or one ended here since. Once the server
+  // has him dormant, only the ritual completed here wakes him before the
+  // next sync.
   std::string form(uint64_t now) const;
-  void sessionEnded(uint64_t endedAt);
+  void sessionEnded(uint64_t endedAt, int activityId, int minutes);
 
   std::vector<std::string> ticks() const;
 
@@ -59,6 +63,8 @@ private:
   Storage& storage_;
   std::string date_;
   int level_ = 0;
+  int resurrectionId_ = 0;
+  bool serverDormant_ = false;
   uint64_t lastSessionAt_ = 0;
   std::vector<DailyItem> todos_;
   std::vector<DailyItem> habits_;

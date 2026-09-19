@@ -17,7 +17,8 @@ import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts
 export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
   | 'sealed' | 'sealed-long' | 'sealed-short' | 'sealed-marathon' | 'levelup' | 'todos-done' | 'neglected'
-  | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch';
+  | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch'
+  | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected';
 
 export type Scene = { id: string; moment: Moment; size: number; frames: string[] };
 
@@ -143,6 +144,18 @@ export function scenes(): Scene[] {
     scene('lore-trueform', 'lore', [svg(`<g transform="translate(-40 -60) scale(1.2)">${bustArt({ ...face('curious'), look: [0, -4] }, VOID)}</g>`
       + eyesInTheDark(P, 7, 183, [70, 40, 260, 130]), voidDefs(10))]),
     scene('lore-pumpkin-hold', 'halloween', [svg(bat(70, 60, P) + bat(330, 90, P, 0.8, 113) + holding(face('delighted'), P, scaled(pumpkin(200, 282, P, 121), 200, 282, 1.3)))]),
+
+    // The rite that wakes him from dormancy: his void form asleep, a candle lit
+    // for every quarter hour, then his return.
+    ...[0, 1, 2, 3, 4].map((lit) => scene(`ritual-${lit}`, `ritual-${lit}` as Moment, [svg(
+      `<rect width="400" height="400" fill="url(#d25)"/>` + runes(150, 140, P, 222 + lit, 3)
+      + cat('loaf', 'asleep', {}, 0, VOID)
+      + [[80, 396], [370, 396], [40, 262], [372, 262]].map(([x, y], i) => candle(x!, y!, P, i < lit, 72 + i)).join(''),
+      voidDefs(11))])),
+    scene('resurrected-back', 'resurrected', [svg(pose('sit', { ...face('overjoyed'), marks: ['sparkles'] }, P)
+      + [[46, 392], [354, 392]].map(([x, y], i) => candle(x!, y!, P, false, 76 + i)).join(''))]),
+    scene('resurrected-yay', 'resurrected', [svg(pose('reach', { ...face('delighted'), marks: ['sparkles'] }, P)
+      + [[46, 392], [354, 392]].map(([x, y], i) => candle(x!, y!, P, false, 78 + i)).join(''))]),
 
     // Cameos: small busts the UI lays over other screens (quotes, lists).
     ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])

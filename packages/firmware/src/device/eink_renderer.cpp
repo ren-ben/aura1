@@ -231,15 +231,17 @@ void EinkRenderer::render(const ViewModel& vm) {
         if (!art) centered(display, 90, 2, vm.screen == Screen::Celebrate ? "!" : "AURA-1");
         break;
       case Screen::Running: {
-        // His scene for this folder, or any session scene for a new folder.
-        const ArtScene* scene = pickScene(art_, sessionMoment(vm.folder), esp_random());
+        // His scene for this folder (or the ritual's candles), or any session
+        // scene for a folder the pack does not know.
+        const bool rite = !vm.moment.empty();
+        const ArtScene* scene = pickScene(art_, rite ? vm.moment : sessionMoment(vm.folder), esp_random());
         if (!scene) scene = pickScene(art_, "session-axiom", esp_random());
         art = scene && drawArt(*scene, 0);
-        if (art) drawBand(vm.activity); else drawRunning(vm);
+        if (art) drawBand(rite ? "THE RITE" : vm.activity); else drawRunning(vm);
         break;
       }
       case Screen::Stopped: {
-        const ArtScene* scene = pickScene(art_, sealedMoment(vm.minutes), esp_random());
+        const ArtScene* scene = pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random());
         art = scene && drawArt(*scene, 0);
         if (art) drawBand(std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
         else drawStopped(vm);
