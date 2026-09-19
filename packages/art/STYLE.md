@@ -49,11 +49,11 @@ annoyed or sad.
 The face kit (`src/face.ts`, `src/marks.ts`, named in `src/expressions.ts`,
 moods in CHARACTER.md). Expression lives in the eye shapes: round, wide,
 sparkling, huge dilated pupils, a smile-flattened bottom, closed arcs, a flat
-lid (annoyed), a lid slanting to the nose (glare) or to the outer corner
-(forlorn), one eye of each (questioning). He has no brows. The mouth is
-absent unless it opens: then it sits low near the bottom of the head, opens
-wide with two fangs from the top edge (catmouthopen.png), drawn as a white
-outline around the dark inside. Blush is three paper strokes per cheek.
+lid (annoyed), a lid slanting to the nose (glare), a steep one for real anger
+(fury, angry.jpg), or to the outer corner (forlorn), one eye of each
+(questioning). He has no brows. The mouth is absent unless it opens: then it
+is a plain white oval low on the face, small when surprised, bigger for a
+laugh or a yawn. Blush is three paper strokes per cheek.
 Marks (?, !, sweat, anger vein, notes, zzz, sparkles, hearts) are ink on the
 paper around him. Ears swing about their base: 12 degrees back for anger and
 fear, 4 forward when alert. Check `out/expressions.png` after any change.
@@ -73,8 +73,9 @@ Each of these was tried and rejected:
 - The nose low enough to read as a mouth.
 - Heavy lids, a sagging or smiling lower lid on open eyes, a dead-ahead stare.
 - Eyebrows of any kind; expression comes from the eye shapes.
-- Crescent (smug) eyes, or small shaped mouths (w, grin, pout). A mouth is
-  either absent or open wide with fangs.
+- Crescent (smug) eyes, shaped mouths (w, grin, pout), or teeth and tongue
+  (reads creepy). A mouth is either absent or a plain white oval.
+- Tears together with blush: they collide on the cheek.
 - Round ball headphone cups (the cups are side-on ovals), or a band that
   squares the head.
 

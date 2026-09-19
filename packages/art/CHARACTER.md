@@ -21,11 +21,12 @@ around the head. No brows.
 | curious | round eyes looking up and aside | idle, folders, waiting |
 | content | flat closed arcs | working, vibing |
 | happy | eyes flattened from below by the cheeks | a todo ticked, habit done |
-| delighted | round eyes up, mouth wide open with fangs | level up, a new best |
-| overjoyed | huge dilated pupils, wet glints, a tear, blush | the list is done, a milestone, you came back |
+| delighted | round eyes up, mouth open | level up, a new best |
+| overjoyed | huge dilated pupils, wet glints, blush | the list is done, a milestone, you came back |
 | proud | closed ^ ^ eyes, ears up, sparkles | session sealed, long focus |
 | flustered | sparkly eyes looking away, blush | praised: a long streak |
-| hmph | eyes glaring toward the nose, ears back, anger mark | ignored for days, a 1-minute "session" |
+| hmph | eyes glaring toward the nose, ears back, anger mark | a 1-minute "session" |
+| furious | steep lids cutting half the eye, ears back, anger mark | ignored for days, the streak broken |
 | annoyed | flat lids, pupils hanging from them | a suspiciously short session |
 | questioning | one round eye, one glaring, "?" | 3 a.m., a strange input |
 | surprised | wide eyes, small o, "!" | sync pulled new folders, first boot |

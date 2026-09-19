@@ -1,8 +1,7 @@
 // The face kit: eyes, mouth and blush, drawn on the head's canonical
 // coordinates (see rig.ts). Expression lives in the eye shapes; he has no
-// brows. The mouth only appears when it matters, low on the face, and when it
-// opens it opens wide with two fangs (inspiration/catmouthopen.png).
-// expressions.ts names the combinations.
+// brows. The mouth only appears when it matters: a plain white oval low on
+// the face. expressions.ts names the combinations.
 
 import { curve, ellipse, outline, shape, stroke, wobble, type Pt } from './ink.ts';
 
@@ -10,7 +9,7 @@ export type Palette = { ink: string; paper: string; background?: string };
 
 export type EyeKind =
   | 'open' | 'wide' | 'sparkle' | 'huge' | 'smile' | 'happy' | 'content' | 'sleep'
-  | 'flat' | 'glare' | 'droop' | 'dizzy';
+  | 'flat' | 'glare' | 'fury' | 'droop' | 'dizzy';
 export type Mouth = 'o' | 'open' | 'yawn';
 
 export const EYES: Pt[] = [[154, 208], [246, 208]];
@@ -49,13 +48,9 @@ export function eye(kind: EyeKind, [cx, cy]: Pt, side: number, look: Pt, lid: nu
       return [white(3), pupil(6, 9, [look[0] * 0.5, look[1] * 0.5])];
     case 'sparkle':
       return [white(), pupil(13, 19), glint(-4, -7, 4.5), glint(5, 6, 2.5)];
-    case 'huge': {
-      // So happy he nearly cries: pupils dilated to fill the eye, wet glints,
-      // a tear gathering at the outer corner.
-      const [tx, ty] = [cx + side * 20, cy + RY - 2];
-      return [white(2), pupil(18, 25), glint(-6, -9, 6), glint(6, 8, 3), glint(-8, 9, 2),
-        shape(wobble(outline([[tx, ty - 8], [tx + 5, ty + 3], [tx, ty + 9], [tx - 5, ty + 3]]), seed + 3, 0.3), p.paper)];
-    }
+    case 'huge':
+      // So happy he nearly cries: pupils dilated to fill the eye, wet glints.
+      return [white(2), pupil(18, 25), glint(-6, -9, 6), glint(6, 8, 3), glint(-8, 9, 2)];
     case 'smile':
       // Round on top, the bottom flattened as if the cheeks push up.
       return [white(), pupil(11, 16, [look[0], look[1] - 2]), lidCut(cy + RY * 0.78, cy + RY * 0.78, 'bottom')];
@@ -73,6 +68,10 @@ export function eye(kind: EyeKind, [cx, cy]: Pt, side: number, look: Pt, lid: nu
     case 'glare':
       // The lid slants down toward the nose.
       return [white(), pupil(8, 13), lidCut(lidY - RY * lid * 0.6, lidY + RY * lid * 0.5, 'top')];
+    case 'fury':
+      // Proper anger (inspiration/angry.jpg): a steep lid from the outer
+      // corner down to the middle of the eye at the nose.
+      return [white(2), pupil(9, 14, [look[0], look[1] + 4]), lidCut(cy - RY - 4, cy + 6, 'top')];
     case 'droop':
       // The lid slants down toward the outer corner: forlorn.
       return [white(), pupil(10, 15), lidCut(lidY + RY * lid * 0.5, lidY - RY * lid * 0.6, 'top')];
@@ -88,17 +87,12 @@ export function eye(kind: EyeKind, [cx, cy]: Pt, side: number, look: Pt, lid: nu
   }
 }
 
-// Low on the face, below the nose. Open mouths are drawn as a white outline
-// around the dark inside, with two fangs from the top edge and a tongue line.
+// Low on the face, below the nose: a plain white oval, small when surprised,
+// bigger when he laughs or yawns.
+const MOUTHS: Record<Mouth, [number, number, number]> = { o: [5, 6, 258], open: [8, 10, 262], yawn: [10, 14, 264] };
 export function mouth(kind: Mouth, seed: number, p: Palette): string[] {
-  if (kind === 'o') return [shape(wobble(ellipse(200, 258, 5, 6, 16), seed, 0.3), p.paper)];
-  const [w, top, bottom] = kind === 'open' ? [24, 250, 282] : [17, 250, 290];
-  const rim = outline([[200 - w, top], [200, top - 2], [200 + w, top], [200 + w * 0.7, bottom - 8], [200, bottom], [200 - w * 0.7, bottom - 8]]);
-  const inside = outline([[200 - w + 5, top + 3], [200, top + 1], [200 + w - 5, top + 3], [200 + w * 0.6, bottom - 11], [200, bottom - 4], [200 - w * 0.6, bottom - 11]]);
-  const fang = (x: number) => shape(outline([[x - 3.5, top + 2], [x + 3.5, top + 2], [x, top + 11]], 2), p.paper);
-  const tongue = line([[200 - w * 0.45, bottom - 9], [200, bottom - 15], [200 + w * 0.45, bottom - 9]], swell(2, 3.5), seed + 1, 0.2);
-  return [shape(wobble(rim, seed, 0.6), p.paper), shape(wobble(inside, seed + 2, 0.4), p.ink),
-    fang(200 - w + 9), fang(200 + w - 9), shape(tongue, p.paper)];
+  const [rx, ry, y] = MOUTHS[kind];
+  return [shape(wobble(ellipse(200, y, rx, ry, 20), seed, 0.4), p.paper)];
 }
 
 // Three short slanted strokes on each cheek, as in the Jiji references.

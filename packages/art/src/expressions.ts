@@ -28,6 +28,7 @@ export const EXPRESSIONS = {
   proud: { eyes: 'happy', ears: 'perk', tilt: -3, marks: ['sparkles'] },
   flustered: { eyes: 'sparkle', look: [-7, 6], blush: true, tilt: -7 },
   hmph: { eyes: 'glare', look: [-7, 2], lid: 0.55, ears: 'back', tilt: -8, marks: ['anger'] },
+  furious: { eyes: 'fury', look: [0, 0], ears: 'back', tilt: 0, marks: ['anger'] },
   annoyed: { eyes: 'flat', look: [0, 0], lid: 0.5, tilt: 2 },
   questioning: { eyes: ['open', 'glare'], look: [4, 1], lid: 0.38, tilt: 6, marks: ['question'] },
   surprised: { eyes: 'wide', mouth: 'o', ears: 'perk', tilt: 0, marks: ['exclaim'] },
