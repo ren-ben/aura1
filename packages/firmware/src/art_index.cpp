@@ -9,17 +9,22 @@ std::vector<ArtScene> parseArtIndex(const std::vector<std::string>& lines) {
     ArtScene s;
     // A malformed or truncated line is skipped, never half-used.
     if (in >> s.moment >> s.id >> s.frames >> s.size && s.frames > 0 && s.size > 0 && s.size <= 200) {
+      in >> s.env;  // optional
       out.push_back(s);
     }
   }
   return out;
 }
 
-const ArtScene* pickScene(const std::vector<ArtScene>& scenes, const std::string& moment, uint32_t roll) {
-  std::vector<const ArtScene*> matches;
+const ArtScene* pickScene(const std::vector<ArtScene>& scenes, const std::string& moment, uint32_t roll,
+                          const std::string& env) {
+  std::vector<const ArtScene*> matches, here;
   for (const auto& s : scenes) {
-    if (s.moment == moment) matches.push_back(&s);
+    if (s.moment != moment) continue;
+    matches.push_back(&s);
+    if (!env.empty() && s.env == env) here.push_back(&s);
   }
+  if (!here.empty()) return here[roll % here.size()];
   return matches.empty() ? nullptr : matches[roll % matches.size()];
 }
 
@@ -40,7 +45,7 @@ std::string screensaverMoment(const std::string& form, const std::string& date) 
 }
 
 std::string sealedMoment(int minutes) {
-  if (minutes < 5) return "sealed-short";
+  if (minutes < MIN_SESSION_MINUTES) return "sealed-short";
   if (minutes >= 360) return "sealed-marathon";
   if (minutes >= 90) return "sealed-long";
   return "sealed";

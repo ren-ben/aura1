@@ -1,5 +1,6 @@
 #pragma once
 #include <Adafruit_GFX.h>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include "art_index.h"
@@ -28,6 +29,10 @@ private:
   void drawBand(const std::string& text);
 
   std::vector<ArtScene> art_;
+  // The place (scene env) now on the glass; empty for lists and text.
+  std::string env_;
+  std::vector<std::vector<uint8_t>> watch_;
+  int watchSize_ = 0;
 
   static constexpr int PARTIALS_BEFORE_FULL = 40;
   int partials_ = 0;

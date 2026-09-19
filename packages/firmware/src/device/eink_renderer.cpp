@@ -1,4 +1,5 @@
 #include "eink_renderer.h"
+#include <algorithm>
 #include <SD_MMC.h>
 #include <SPI.h>
 #include <esp_random.h>
@@ -37,8 +38,9 @@ static void centered(Adafruit_GFX& g, int y, int size, const char* text);
 
 // The art pack: frames are read from the card into this buffer, one at a time.
 static uint8_t frameBits[200 * 200 / 8];
-// Which frame was left on the glass at power-off, so the next boot can load it
-// as the controller's previous image and wake without a full refresh.
+// Which frame was left on the glass at power-off, and the place it is set in:
+// the next boot loads it as the controller's previous image, to wake without
+// a full refresh, and wakes up in the same place.
 constexpr const char* GLASS_FILE = "/art/glass.txt";
 
 static std::string framePath(const ArtScene& s, int frame) {
@@ -67,6 +69,13 @@ static std::vector<std::string> readLines(const char* path) {
   return out;
 }
 
+static const ArtScene* findScene(const std::vector<ArtScene>& art, const std::string& id) {
+  for (const auto& s : art) {
+    if (s.id == id) return &s;
+  }
+  return nullptr;
+}
+
 static void line(int row, const std::string& text) {
   display.setCursor(MARGIN, MARGIN + row * LINE);
   display.print(text.c_str());
@@ -84,6 +93,15 @@ void EinkRenderer::begin() {
   display.init(0, false);
   GFXcanvas1 glass(display.width(), display.height());
   const auto last = readLines(GLASS_FILE);
+  if (last.size() > 1) env_ = last[1];
+  // The menu's watcher is drawn on every press: keep his frames in memory,
+  // as opening files in the art folder is slow.
+  for (const char* id : { "watch-left", "watch-up", "watch-right" }) {
+    const ArtScene* w = findScene(art_, id);
+    if (!w || !loadFrame(framePath(*w, 0), w->size)) continue;
+    watchSize_ = w->size;
+    watch_.emplace_back(frameBits, frameBits + (w->size + 7) / 8 * w->size);
+  }
   if (!last.empty() && loadFrame(last[0], 200)) {
     glass.fillScreen(GxEPD_WHITE);
     glass.drawBitmap(0, 0, frameBits, 200, 200, GxEPD_BLACK);
@@ -103,18 +121,15 @@ bool EinkRenderer::drawArt(const ArtScene& scene, int frame, int x, int y) {
   return true;
 }
 
-// A whole-screen scene for a moment; false when the pack has none.
+// A whole-screen scene for a moment; false when the pack has none. The glass
+// is then set in that scene's place.
 bool EinkRenderer::drawScene(const std::string& moment) {
   const ArtScene* scene = pickScene(art_, moment, esp_random());
-  return scene && drawArt(*scene, 0);
+  if (!scene || !drawArt(*scene, 0)) return false;
+  env_ = scene->env;
+  return true;
 }
 
-static const ArtScene* findScene(const std::vector<ArtScene>& art, const std::string& id) {
-  for (const auto& s : art) {
-    if (s.id == id) return &s;
-  }
-  return nullptr;
-}
 
 // Word wrap for the 6x8 font: whole words, at most `width` characters a line.
 static std::vector<std::string> wrap(const std::string& text, size_t width) {
@@ -136,34 +151,43 @@ static std::vector<std::string> wrap(const std::string& text, size_t width) {
   return lines;
 }
 
-// Kael'thos says the quote: a bubble across the top, his cameo below it.
+// Kael'thos says the quote: his cameo in the bottom-left corner, a bubble
+// sized to the words above him, clear of the screen edge, its tail on him.
 void EinkRenderer::drawQuote(const ViewModel& vm) {
-  constexpr int MAX_LINES = 9;
+  constexpr int EDGE = 8, PAD = 8, LINE_H = 11, MAX_CHARS = 27, MAX_LINES = 7, BOTTOM = 106;
   display.setTextSize(1);
-  auto lines = wrap(vm.quote, 30);
-  if (lines.size() > MAX_LINES) { lines.resize(MAX_LINES); lines.back() += "..."; }
-  const int bottom = 14 + static_cast<int>(lines.size()) * 11 + 10;
-  display.drawRoundRect(2, 4, 196, bottom - 4, 8, GxEPD_BLACK);
-  display.drawRoundRect(3, 5, 194, bottom - 6, 7, GxEPD_BLACK);
-  display.fillTriangle(30, bottom - 1, 48, bottom - 1, 34, bottom + 14, GxEPD_BLACK);
-  display.fillTriangle(33, bottom - 3, 45, bottom - 3, 35, bottom + 9, GxEPD_WHITE);
+  auto lines = wrap(vm.quote, MAX_CHARS);
+  if (lines.size() > MAX_LINES) {
+    lines.resize(MAX_LINES);
+    lines.back() = lines.back().substr(0, MAX_CHARS - 3) + "...";
+  }
+  size_t widest = 0;
+  for (const auto& l : lines) widest = std::max(widest, l.size());
+  const int w = std::max(48, static_cast<int>(widest) * 6 + 2 * PAD);
+  const int h = static_cast<int>(lines.size()) * LINE_H - 3 + 2 * PAD;
+  const int top = BOTTOM - h;
+  display.drawRoundRect(EDGE, top, w, h, 8, GxEPD_BLACK);
+  display.drawRoundRect(EDGE + 1, top + 1, w - 2, h - 2, 7, GxEPD_BLACK);
+  const int tx = EDGE + 20;
+  display.fillTriangle(tx, BOTTOM - 2, tx + 14, BOTTOM - 2, tx + 2, BOTTOM + 12, GxEPD_BLACK);
+  display.fillTriangle(tx + 3, BOTTOM - 3, tx + 10, BOTTOM - 3, tx + 3, BOTTOM + 6, GxEPD_WHITE);
   for (size_t i = 0; i < lines.size(); ++i) {
-    display.setCursor(12, 14 + static_cast<int>(i) * 11);
+    display.setCursor(EDGE + PAD, top + PAD + static_cast<int>(i) * LINE_H);
     display.print(lines[i].c_str());
   }
   const ArtScene* cameo = pickScene(art_, "cameo", esp_random());
-  if (cameo) drawArt(*cameo, 0, 4, 200 - cameo->size - 4);
+  if (cameo) drawArt(*cameo, 0, EDGE, 200 - cameo->size - EDGE);
   if (!vm.source.empty()) {
-    display.setCursor(84, 160);
-    display.print(("- " + vm.source).substr(0, 19).c_str());
+    display.setCursor(EDGE + 80, 150);
+    display.print(("- " + vm.source).substr(0, 17).c_str());
   }
   const std::string count = std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.items.size());
-  display.setCursor(196 - 6 * static_cast<int>(count.size()), 176);
+  display.setCursor(200 - EDGE - 6 * static_cast<int>(count.size()), 172);
   display.print(count.c_str());
 }
 
 bool EinkRenderer::play(const std::string& moment, bool fullLast) {
-  const ArtScene* scene = pickScene(art_, moment, esp_random());
+  const ArtScene* scene = pickScene(art_, moment, esp_random(), env_);
   if (!scene || !loadFrame(framePath(*scene, 0), scene->size)) return false;
   for (int i = 0; i < scene->frames; ++i) {
     const bool last = i == scene->frames - 1;
@@ -177,9 +201,10 @@ bool EinkRenderer::play(const std::string& moment, bool fullLast) {
     if (!last) delay(350);
   }
   display.powerOff();
+  env_ = scene->env;
   if (fullLast) {
     File f = SD_MMC.open(GLASS_FILE, FILE_WRITE);
-    if (f) { f.print(framePath(*scene, scene->frames - 1).c_str()); f.close(); }
+    if (f) { f.print((framePath(*scene, scene->frames - 1) + "\n" + env_).c_str()); f.close(); }
   }
   return true;
 }
@@ -192,7 +217,8 @@ void EinkRenderer::drawBand(const std::string& text) {
 }
 
 void EinkRenderer::render(const ViewModel& vm) {
-  // Kael'thos greets and says goodnight with an animation from the art pack.
+  // Kael'thos greets and says goodnight with an animation from the art pack,
+  // in the place on the glass: where he fell asleep, or the scene he was in.
   if (vm.screen == Screen::Waking && play(vm.moment.empty() ? "wake" : vm.moment, false)) return;
   if (vm.screen == Screen::Dormant && play("sleep", true)) { partials_ = 0; return; }
 
@@ -218,6 +244,7 @@ void EinkRenderer::render(const ViewModel& vm) {
     switch (vm.screen) {
       case Screen::Waking: drawWaking(); break;
       case Screen::Idle:
+        env_.clear();  // a list is no place
         if (vm.place == Place::Quotes) {
           if (vm.quote.empty()) centered(display, 90, 2, "no quotes");
           else drawQuote(vm);
@@ -237,13 +264,16 @@ void EinkRenderer::render(const ViewModel& vm) {
         const ArtScene* scene = pickScene(art_, rite ? vm.moment : sessionMoment(vm.folder), esp_random());
         if (!scene) scene = pickScene(art_, "session-axiom", esp_random());
         art = scene && drawArt(*scene, 0);
+        if (art) env_ = scene->env;
         if (art) drawBand(rite ? "THE RITE" : vm.activity); else drawRunning(vm);
         break;
       }
       case Screen::Stopped: {
         const ArtScene* scene = pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random());
         art = scene && drawArt(*scene, 0);
-        if (art) drawBand(std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
+        if (art) env_ = scene->env;
+        if (art) drawBand(vm.minutes < MIN_SESSION_MINUTES ? "too short"
+                          : std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
         else drawStopped(vm);
         break;
       }
@@ -341,10 +371,9 @@ void EinkRenderer::drawList(const ViewModel& vm) {
   }
 
   // In the menu he watches from the corner, eyes following the cursor.
-  if (vm.place == Place::Menu) {
-    const char* watch[] = { "watch-left", "watch-left", "watch-up", "watch-right" };
-    const ArtScene* w = findScene(art_, watch[vm.cursor % 4]);
-    if (w) drawArt(*w, 0, 200 - w->size, 162 - w->size);
+  if (vm.place == Place::Menu && watch_.size() == 3) {
+    const int look[] = { 0, 0, 1, 2 };
+    display.drawBitmap(200 - watchSize_, 162 - watchSize_, watch_[look[vm.cursor % 4]].data(), watchSize_, watchSize_, GxEPD_BLACK);
   }
 
   display.setTextColor(GxEPD_BLACK);

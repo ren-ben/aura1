@@ -1,6 +1,7 @@
 #include "daily.h"
 #include <cstdlib>
 #include <ArduinoJson.h>
+#include "art_index.h"
 #include "time_util.h"
 
 bool Daily::parse(const std::string& json) {
@@ -31,6 +32,8 @@ void Daily::load() {
   std::string json;
   for (const auto& line : storage_.readLines(TODAY)) json += line + "\n";
   parse(json);
+  const auto local = storage_.readLines(LAST);
+  last_ = local.empty() ? "" : local[0];
 }
 
 void Daily::replace(const std::string& json) {
@@ -68,19 +71,22 @@ bool Daily::allTodosDone() const {
 }
 
 // /last.txt holds the last session ended here and whether it completed the
-// ritual: "<endedAt> <0|1>".
+// ritual: "<endedAt> <0|1>". Kept in memory too: the menu asks for his form
+// on every press. A session under ten minutes is dropped by the server, so it
+// does not count here either.
 void Daily::sessionEnded(uint64_t endedAt, int activityId, int minutes) {
+  if (minutes < MIN_SESSION_MINUTES) return;
   const bool rite = activityId == resurrectionId_ && resurrectionId_ > 0 && minutes >= 60;
-  storage_.write(LAST, std::to_string(endedAt) + (rite ? " 1" : " 0") + "\n");
+  last_ = std::to_string(endedAt) + (rite ? " 1" : " 0");
+  storage_.write(LAST, last_ + "\n");
 }
 
 std::string Daily::form(uint64_t now) const {
   uint64_t last = lastSessionAt_;
   bool rite = false;
-  const auto local = storage_.readLines(LAST);
-  if (!local.empty()) {
-    const uint64_t here = std::strtoull(local[0].c_str(), nullptr, 10);
-    rite = local[0].size() > 2 && local[0].compare(local[0].size() - 2, 2, " 1") == 0;
+  if (!last_.empty()) {
+    const uint64_t here = std::strtoull(last_.c_str(), nullptr, 10);
+    rite = last_.size() > 2 && last_.compare(last_.size() - 2, 2, " 1") == 0;
     if (here > last) last = here;
   }
   if (serverDormant_ && !rite) return "dormant";

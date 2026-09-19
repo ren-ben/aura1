@@ -65,6 +65,7 @@ private:
   int level_ = 0;
   int resurrectionId_ = 0;
   bool serverDormant_ = false;
+  std::string last_;  // /last.txt
   uint64_t lastSessionAt_ = 0;
   std::vector<DailyItem> todos_;
   std::vector<DailyItem> habits_;
