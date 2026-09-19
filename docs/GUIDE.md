@@ -7,7 +7,7 @@ This guide covers how it works, how to set it up, what to test, and what comes n
 Other docs:
 
 - [deploy.md](deploy.md): the full Raspberry Pi and Cloudflare setup
-- [hardware-checklist.md](hardware-checklist.md): all 27 test steps
+- [hardware-checklist.md](hardware-checklist.md): all 26 test steps
 
 ## How it works
 
@@ -18,9 +18,9 @@ Other docs:
 - **Cloudflare Access** is the only way in. The device proves itself with a service token
   that works only on `/api/v1/sync`. Everything else, including the dashboard, needs your
   own login.
-- The **Raspberry Pi** runs three containers. `cloudflared` opens an outbound tunnel, so
-  no ports are open on your network. `api` stores the sessions and serves the web page.
-  `postgres` is reachable from the Pi itself only.
+- The **Raspberry Pi** runs two containers next to your existing `cloudflared` tunnel.
+  The tunnel is outbound, so no ports are open on your network. `api` stores the sessions
+  and serves the web page. Both it and `postgres` are reachable from the Pi itself only.
 
 ### On the device
 
@@ -68,16 +68,17 @@ Other docs:
 ### 1. Raspberry Pi and Cloudflare (about 30 min)
 
 Follow [deploy.md](deploy.md) in order. The order is part of the security: Access is set
-up before the tunnel goes live, so the API is never briefly public.
+up before the hostname is routed, so the API is never briefly public. AURA-1 reuses the
+tunnel already on your Pi; you do not create a new one.
 
-1. Clone the repo on the Pi and run `docker compose up -d postgres api`.
-2. Create the Cloudflare tunnel **without** a route. Put its token in `.env`.
-3. Create the `aura-1` service token and **write down its expiry date**. An expired token
+1. Clone the repo on the Pi and run `docker compose up -d`.
+2. Create the `aura-1` service token and **write down its expiry date**. An expired token
    stops syncing silently.
-4. Create the two Access apps: one for your login on every path, and one for the device
+3. Create the two Access apps: one for your login on every path, and one for the device
    token on `/api/v1/sync` only.
-5. Add the route and run `docker compose up -d` again.
-6. Run the curl checks. If an unauthenticated request gets `200`, `400` or `404`, the site
+4. Add `aura.amygdala-inc.org` to `/etc/cloudflared/config.yml`, pointing at
+   `http://127.0.0.1:3000`, create its DNS record, and restart `cloudflared`.
+5. Run the curl checks. If an unauthenticated request gets `200`, `400` or `404`, the site
    is exposed. Stop there.
 
 ### 2. Flash the device (about 15 min)
