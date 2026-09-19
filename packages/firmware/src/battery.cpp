@@ -9,6 +9,8 @@ constexpr Point CURVE[] = {
 };
 }  // namespace
 
+bool onExternalPower(int millivolts) { return millivolts >= 4250; }
+
 int batteryPercent(int millivolts) {
   if (millivolts <= CURVE[0].mv) return 0;
   for (const Point* p = CURVE + 1; p != std::end(CURVE); ++p) {

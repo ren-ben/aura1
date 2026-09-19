@@ -22,10 +22,17 @@ void test_interpolates_between_points() {
   TEST_ASSERT_EQUAL_INT(50, batteryPercent(3800));
 }
 
+void test_external_power_is_above_a_full_cell() {
+  TEST_ASSERT_FALSE(onExternalPower(4200));
+  TEST_ASSERT_TRUE(onExternalPower(4250));
+  TEST_ASSERT_TRUE(onExternalPower(4700));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_clamps_outside_the_curve);
   RUN_TEST(test_hits_the_curve_points);
   RUN_TEST(test_interpolates_between_points);
+  RUN_TEST(test_external_power_is_above_a_full_cell);
   return UNITY_END();
 }

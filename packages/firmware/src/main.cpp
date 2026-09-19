@@ -37,10 +37,17 @@ static unsigned long lastBatteryLog = 0;
 constexpr unsigned long TICK_MS = 1000;
 constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
 
-// On USB this is the charger's voltage, so it reads full.
-static void logBattery() {
+static bool pluggedIn = false;
+
+// Also redraws when USB is plugged in or out, so the battery icon's bolt
+// follows within a minute.
+static void checkBattery() {
   const int mv = readBatteryMillivolts();
-  Serial.printf("battery=%dmV %d%%\n", mv, batteryPercent(mv));
+  Serial.printf("battery=%dmV %d%%%s\n", mv, batteryPercent(mv), onExternalPower(mv) ? " usb" : "");
+  if (onExternalPower(mv) != pluggedIn) {
+    pluggedIn = !pluggedIn;
+    machine.redraw();
+  }
 }
 
 // A press abandons the sync, so the device never ignores the user while it
@@ -83,7 +90,8 @@ void setup() {
   Serial.printf("flash=%luMB psram=%luKB\n",
                 (unsigned long)(ESP.getFlashChipSize() / (1024 * 1024)),
                 (unsigned long)(ESP.getPsramSize() / 1024));
-  logBattery();
+  pluggedIn = onExternalPower(readBatteryMillivolts());
+  checkBattery();
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
   runSync();
@@ -118,7 +126,7 @@ void loop() {
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
-  if (now - lastBatteryLog >= 60000) { lastBatteryLog = now; logBattery(); }
+  if (now - lastBatteryLog >= 60000) { lastBatteryLog = now; checkBattery(); }
   // Never sync mid-session: sync sets the RTC, and moving the clock under a running
   // session can make endedAt < startedAt. Stopping triggers a sync anyway.
   if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {

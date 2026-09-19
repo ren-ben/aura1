@@ -41,7 +41,7 @@
   <text x="396" y="88" text-anchor="middle" class="p">PHASE 3</text>
   <circle cx="396" cy="110" r="9" class="node"/>
   <text x="396" y="142" text-anchor="middle" class="t">Kael'thos art</text>
-  <text x="396" y="162" text-anchor="middle" class="s">SVG rig,</text>
+  <text x="396" y="162" text-anchor="middle" class="s">SVG rig, 3D,</text>
   <text x="396" y="178" text-anchor="middle" class="s">skins, poses</text>
 
   <!-- 4 -->
@@ -55,7 +55,7 @@
   <text x="732" y="88" text-anchor="middle" class="p">PHASE 5</text>
   <circle cx="732" cy="110" r="9" class="node"/>
   <text x="732" y="142" text-anchor="middle" class="t">Dashboard</text>
-  <text x="732" y="162" text-anchor="middle" class="s">node graph,</text>
+  <text x="732" y="162" text-anchor="middle" class="s">node graph, PWA,</text>
   <text x="732" y="178" text-anchor="middle" class="s">type, motion</text>
 
   <!-- 6 -->

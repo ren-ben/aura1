@@ -137,11 +137,18 @@ contract has exactly one definition.
   screen.
 - **Phase 2** Full domain. Folder and activity CRUD, habits, quote vault, XP,
   decay, manual backfill, todos (a web widget to write the list).
-- **Phase 3** Art pipeline. SVG rig, bake script, first skins.
+- **Phase 3** Art pipeline. SVG rig, bake script, first skins. A 3D model of
+  Kael'thos derived from the rig for the web (three.js): a minimalist rotating
+  outline while the dashboard loads, and ASCII-rendered rotation art. Start by
+  extruding the rig's silhouette so 2D and 3D cannot drift; a sculpted model
+  can replace it later.
 - **Phase 4** Device complete. MENU level, TODAY (today's todos, POWER ticks
   one off; ticks sync through the existing queue), HABITS, QUOTES, screensavers,
   decay rendering.
-- **Phase 5** Dashboard proper. Node graph, design system, motion, typography.
+- **Phase 5** Dashboard proper. Node graph, design system, motion, typography,
+  and the 3D Kael'thos in the UI. The Phase 2 web is a functional prototype;
+  this phase redesigns it. Installable as a PWA (manifest, icons, service
+  worker for an offline shell) so it lives on the phone's home screen.
 - **Phase 6** Audio. Speaker signature, mic capture into the quote vault.
 
 ---

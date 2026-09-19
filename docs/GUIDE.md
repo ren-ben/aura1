@@ -37,7 +37,8 @@ Other docs:
   activity you last started. With USB plugged in it cannot cut power, so it sleeps
   instead, and POWER wakes it.
 - **SEALED** shows the duration after a stop. SUN or POWER skips it.
-- **The battery icon** (bottom right) fills in quarters. It reads full while charging.
+- **The battery icon** (bottom right) fills in quarters. On USB it shows a lightning bolt
+  instead, because the charge level cannot be read while plugged in.
 - **Between presses the device sleeps** unless a computer is attached (sleep drops the
   USB serial link). Switched off, it draws almost nothing. Serial logs `battery=` every
   minute while awake, which is how to measure drain.
@@ -143,9 +144,12 @@ in [hardware-checklist.md](hardware-checklist.md).
    habits with a 26-week heatmap, the quote vault, activity management, and stats (XP,
    levels, Kael'thos's decay state).
 4. **Phase 3, Kael'thos:** one hand-drawn SVG rig that produces every pose and skin, for
-   the device and the web. Open question for you: who draws the master, and which poses
-   and skins come first.
+   the device and the web, plus a 3D model built from it for the web: a rotating outline
+   while the page loads, and ASCII rotation art. Open question for you: who draws the
+   master, and which poses and skins come first.
 5. **Phase 4, device UI:** a MENU above the folders with TODAY (tick off today's todos),
    HABITS and QUOTES, and the real screens and screensavers in place of today's prototype.
-6. **Phase 5, dashboard:** the node-graph interface, typography, dither and motion.
+6. **Phase 5, dashboard:** the real design replacing today's functional prototype: the
+   node-graph interface, typography, dither, motion and the 3D Kael'thos. Installable on
+   the phone as an app (PWA).
 7. **Phase 6, audio:** a speaker signature, and mic capture into the quote vault.

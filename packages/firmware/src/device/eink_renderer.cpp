@@ -13,12 +13,19 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
 
-// Bottom-right corner: an outline with a nub, filled in quarters.
-static void drawBattery(int percent) {
+// Bottom-right corner: an outline with a nub, filled in quarters, or a bolt
+// while on USB (the charge level cannot be read then).
+static void drawBattery(int millivolts) {
   constexpr int X = 170, Y = 188, W = 24, H = 10;
   display.drawRect(X, Y, W, H, GxEPD_BLACK);
   display.fillRect(X + W, Y + 3, 2, H - 6, GxEPD_BLACK);
-  const int quarters = (percent + 12) / 25;
+  if (onExternalPower(millivolts)) {
+    const int cx = X + W / 2;
+    display.fillTriangle(cx + 2, Y + 1, cx - 4, Y + 6, cx + 1, Y + 5, GxEPD_BLACK);
+    display.fillTriangle(cx - 2, Y + H - 1, cx + 4, Y + 4, cx - 1, Y + 5, GxEPD_BLACK);
+    return;
+  }
+  const int quarters = (batteryPercent(millivolts) + 12) / 25;
   for (int q = 0; q < quarters; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
 }
 
@@ -57,7 +64,7 @@ void EinkRenderer::render(const ViewModel& vm) {
   }
 
   // Read at each frame: the glass only changes then anyway.
-  const int battery = batteryPercent(readBatteryMillivolts());
+  const int battery = readBatteryMillivolts();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
