@@ -127,9 +127,8 @@ in [hardware-checklist.md](hardware-checklist.md).
 - **After the clock resets** (flat battery, or long without power), the device will not
   start a session until it has synced once. Otherwise those sessions would be stored with
   the year 2000.
-- **After renaming activities in the database**, run the one-line command in
-  [deploy.md](deploy.md). Otherwise the device keeps the old names.
-- **The web page shows times in UTC** for now, so it reads 1-2 hours behind Vienna time.
+- **Rename, add or archive activities on the web page** (Activities tab). The device picks
+  the change up on its next sync. Names are capped at what its screen shows.
 - **Holding POWER to switch on is safe.** The button only counts once it has been released
   after boot, so switching on never starts a session or switches straight back off.
 
@@ -137,14 +136,12 @@ in [hardware-checklist.md](hardware-checklist.md).
 
 ![Roadmap](img/roadmap.svg)
 
-1. **Fix what the hardware test finds, then merge.** The vertical slice is then done.
-2. **Cleanup.**
-   - Upgrade Node to 22+. This removes three workarounds.
-   - Make the server bump the config version itself, so renames reach the device without
-     the manual command.
-   - Show local time on the page.
-3. **Phase 2, full features:** manage folders and activities from the web, habits and the
-   heatmap, the quote vault, XP, the decay mechanic, manual backfill, and a todo widget.
+1. **Fix what the hardware test finds.** The vertical slice is then done.
+2. **Cleanup:** upgrade Node to 22+, which removes three workarounds.
+3. **Phase 2, full features (built, on the `phase-2` branch):** the web page has tabs for
+   the log with manual backfill (half XP) and review of sessions over 6 hours, todos,
+   habits with a 26-week heatmap, the quote vault, activity management, and stats (XP,
+   levels, Kael'thos's decay state).
 4. **Phase 3, Kael'thos:** one hand-drawn SVG rig that produces every pose and skin, for
    the device and the web. Open question for you: who draws the master, and which poses
    and skins come first.

@@ -1,72 +1,100 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import { computed, onMounted, ref, type Component } from 'vue';
+import { api, type Stats } from './api';
+import LogView from './views/LogView.vue';
+import TodosView from './views/TodosView.vue';
+import HabitsView from './views/HabitsView.vue';
+import QuotesView from './views/QuotesView.vue';
+import CatalogView from './views/CatalogView.vue';
+import StatsView from './views/StatsView.vue';
 
-type Row = {
-  id: number; activity: string; folder: string;
-  startedAt: string; endedAt: string; minutes: number; source: string;
-};
+const tabs: { name: string; view: Component }[] = [
+  { name: 'Log', view: LogView },
+  { name: 'Todos', view: TodosView },
+  { name: 'Habits', view: HabitsView },
+  { name: 'Quotes', view: QuotesView },
+  { name: 'Activities', view: CatalogView },
+  { name: 'Stats', view: StatsView },
+];
+// The tab lives in the URL hash, so a reload or a link keeps it.
+const fromHash = () => (tabs.find((t) => `#${t.name.toLowerCase()}` === location.hash) ?? tabs[0]!).name;
+const activeName = ref(fromHash());
+window.addEventListener('hashchange', () => { activeName.value = fromHash(); });
+const select = (name: string) => { location.hash = name.toLowerCase(); };
+const active = computed(() => tabs.find((t) => t.name === activeName.value)!);
+const stats = ref<Stats | null>(null);
 
-const rows = ref<Row[]>([]);
-const error = ref<string | null>(null);
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/v1/sessions');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    rows.value = await response.json();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'failed';
-  }
-});
-
-const days = computed(() => {
-  const grouped = new Map<string, Row[]>();
-  for (const row of rows.value) {
-    const day = row.startedAt.slice(0, 10);
-    grouped.set(day, [...(grouped.get(day) ?? []), row]);
-  }
-  return [...grouped.entries()];
-});
-
-function duration(minutes: number): string {
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`;
+async function loadStats() {
+  stats.value = await api<Stats>('GET', '/stats');
 }
-
-function clock(iso: string): string {
-  return iso.slice(11, 16);
-}
+onMounted(loadStats);
 </script>
 
 <template>
-  <main>
+  <header>
     <h1>AURA-1</h1>
-    <p v-if="error">{{ error }}</p>
-    <p v-else-if="rows.length === 0">No sessions logged.</p>
-    <section v-for="[day, entries] in days" :key="day">
-      <h2>{{ day }}</h2>
-      <ul>
-        <li v-for="entry in entries" :key="entry.id">
-          <span>{{ entry.folder }}</span>
-          <span>{{ entry.activity }}</span>
-          <span>{{ clock(entry.startedAt) }}-{{ clock(entry.endedAt) }}</span>
-          <span>{{ duration(entry.minutes) }}</span>
-          <span v-if="entry.source === 'manual'">manual</span>
-        </li>
-      </ul>
-    </section>
+    <p v-if="stats" class="bond">
+      bond {{ stats.bond.level }}
+      <span class="muted">{{ stats.bond.xp }} / {{ stats.bond.nextLevelXp }} xp</span>
+      <span class="form">{{ stats.form }}</span>
+    </p>
+  </header>
+  <nav>
+    <button
+      v-for="tab in tabs" :key="tab.name"
+      :class="{ on: tab.name === activeName }" @click="select(tab.name)"
+    >{{ tab.name }}</button>
+  </nav>
+  <main>
+    <component :is="active.view" :stats="stats" @changed="loadStats" />
   </main>
 </template>
 
 <style>
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --bg: #121212;
+  --surface: #1a1a1a;
+  --line: #3a3833;
+  --muted: #8a8478;
+  --fg: #c5bcab;
+  --hi: #dbd5ca;
+}
+* { box-sizing: border-box; }
 body {
   margin: 0;
-  padding: 2rem;
-  background: #121212;
-  color: #C5BCAB;
-  font-family: ui-monospace, monospace;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 ui-monospace, 'Cascadia Mono', Menlo, monospace;
 }
-h1, h2 { font-weight: 400; letter-spacing: 0.1em; }
-ul { list-style: none; padding: 0; }
-li { display: flex; gap: 1.5rem; padding: 0.25rem 0; }
+#app { max-width: 56rem; margin: 0 auto; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+h1 { font-weight: 400; letter-spacing: 0.3em; color: var(--hi); margin: 0; }
+h2 { font-weight: 400; letter-spacing: 0.15em; font-size: 0.85rem; color: var(--muted); margin: 1.75rem 0 0.5rem; }
+.bond { margin: 0; }
+.muted { color: var(--muted); }
+.form { margin-left: 1rem; letter-spacing: 0.15em; text-transform: uppercase; font-size: 0.8rem; }
+button, input, select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0.35rem 0.6rem;
+}
+button { cursor: pointer; }
+button:hover { color: var(--hi); border-color: var(--muted); }
+input:focus, select:focus, button:focus-visible { outline: 1px solid var(--hi); }
+nav { display: flex; gap: 0.25rem; flex-wrap: wrap; margin: 1.25rem 0; border-bottom: 1px solid var(--line); }
+nav button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 0.5rem 0.75rem; }
+nav button.on { color: var(--hi); border-bottom-color: var(--hi); }
+.row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.3rem 0; }
+.grow { flex: 1; min-width: 8rem; }
+.icon { border: 0; background: none; padding: 0 0.4rem; color: var(--muted); }
+.tag { font-size: 0.75rem; letter-spacing: 0.1em; color: var(--muted); border: 1px solid var(--line); padding: 0 0.35rem; }
+.warn { color: var(--hi); border-color: var(--hi); }
+.error { color: var(--hi); }
+ul { list-style: none; padding: 0; margin: 0; }
+@media (max-width: 40rem) { body { padding: 1rem; } }
 </style>

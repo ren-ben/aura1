@@ -11,8 +11,8 @@ real sessions. Follow the sections and numbering in order.
 2. `docker compose up -d`. Logs show migrate, then "seeded", then "Server
    listening". `docker compose ps` shows no `postgres-test`. `ss -ltn` shows
    15433 and 13000 on `127.0.0.1` only.
-3. If you rename activities, bump `config_version` in the same step (see
-   [docs/deploy.md](deploy.md)).
+3. Rename activities on the web page's Activities tab; the device picks the
+   change up on its next sync.
 4. Create the `aura-1` service token and record its expiry. Access app 1:
    root, empty path, Allow your email. Access app 2: path `api/v1/sync`,
    Service Auth, selector Service Token `aura-1`. Never use Bypass.
@@ -69,7 +69,7 @@ real sessions. Follow the sections and numbering in order.
 ## D. Sync
 
 18. Hotspot on; stop a session. All queued sessions appear on the page with
-    durations matching the device (times are shown in UTC).
+    durations matching the device.
     `/queue.ndjson` and `/acked.ndjson` are gone. Serial shows 200. `psql`
     shows distinct uuids and correct times.
 19. Two separate boots, one session each right after boot: the uuids differ.

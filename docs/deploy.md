@@ -28,10 +28,11 @@ docker compose up -d
 `postgres-test` also only starts when named explicitly or via `pnpm db:up`,
 never on a bare `up`. `api` runs its migrations on boot, then seeds the five
 folders and their placeholder activity names if the database is still empty
-(safe to restart: it skips seeding once rows exist); rename activities
-directly in the database afterwards, no admin UI exists yet. After ANY edit
-to folders or activities, bump `config_version` in the same step, or the
-device never picks up the rename:
+(safe to restart: it skips seeding once rows exist). Manage folders and
+activities on the web page's Activities tab: every change there bumps
+`config_version`, so the device picks it up on its next sync. Only if you
+edit folders or activities directly in the database, bump it yourself in the
+same step, or the device never picks up the change:
 
 ```bash
 docker compose exec postgres psql -U aura -d aura -c "UPDATE meta SET value = value + 1 WHERE key = 'config_version';"
