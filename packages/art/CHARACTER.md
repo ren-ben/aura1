@@ -39,25 +39,30 @@ around the head. No brows.
 
 ## Scenes (the body kit and props)
 
-Full-body poses: sitting (front, back), loaf, peeking over an edge, stretching,
-reaching up, waving, lying on a book. Props, line-art: laptop, open book,
-coffee mug with steam, candle, quill and paper, desk lamp, window with moon,
-ghost, bats, pumpkin, box, dumbbell, blanket, speech bubble.
+Poses (`src/body.ts`): sit, back, wave (animated paw), loaf, peek over an
+edge, reach (both paws up, yay), hold (something against his chest). Props
+(`src/props.ts`) are line art; anything he holds gets a paper halo so it reads
+on his fur. Lore pieces: paleblood and blood moons, the hunter's tricorn,
+saw cleaver and lamps, gravestones of the dream, runes, eyes in the dark,
+tentacles, and the void (his ink as a star field). `out/scenes.png` shows the
+whole library; `src/scenes.ts` is the list.
 
 ## Moments
 
-| Moment | What he does (several variants each, chosen at random) |
+Each moment has several scenes; the device picks one at random.
+
+| Moment | Scenes |
 |---|---|
-| Power on | waves hello, stretches and yawns, pops out of a box, peeks up from the bottom edge, rubs his eyes |
-| Power off | waves goodbye, curls into a loaf and sleeps, blows out a candle, walks away tail up, falls asleep on his book |
-| Folder list | a cameo in a corner whose eyes follow the cursor |
-| Session (by folder) | AXIOM: book and coffee, laptop. WORKSHOP: laptop, soldering. HERESY: quill and candle. DREAM: reading under the moon. HUNT: tiny dumbbell, running |
-| Session sealed | proud; flustered after 90+ minutes; skeptical under 5; dizzy over 6 hours |
-| Quotes | a corner cameo "saying" the quote, face chosen by the quote's mood |
-| Todos / habits | happy nod per tick, touched when the list is done |
-| Level up | flustered with sparkles |
-| Decay | thinning: lonely at a window. Fragmenting: dithered, dissolving. Dormant: asleep, faint |
-| Time and season | morning coffee, late-night candle, 3 a.m. skeptical, full moon, Halloween haunted house with a ghost friend |
+| Power on | waves hello, yay with paws up, morning coffee, stretches out of a loaf, peeks over the edge, bursts out of a box |
+| Power off | waves goodnight, a slow blink into a loaf, blows out the candle, dims the lamp, watches the full moon, fades into the void |
+| Session (by folder) | AXIOM: book and coffee, laptop with headphones, reading. WORKSHOP: laptop, vibing. HERESY: quill and candle, runes rising. DREAM: moon window, asleep dreaming. HUNT: the hunter under a paleblood moon with cleaver or lantern |
+| Session sealed | proud or happy; flustered after 90+ minutes; annoyed under 5; dizzy over 6 hours |
+| Level up, todos done | yay with sparkles; overjoyed with hearts |
+| Neglected | furious, or sulking with his back to you |
+| Decay | thinning: lonely at the window. Fragmenting: dithered away. Dormant: a void loaf, eyes watching |
+| Lore screensavers | the hunter's dream (graves, lamps, moon), rain at the window, insight (eyes and tentacles), his true form |
+| Halloween | haunted window with the ghost friend, the halo and a pumpkin, holding a pumpkin |
+| Cameos | 13 small busts for quotes and overlays; a watcher peeking from a corner, eyes left, up, right |
 
 ## Batches
 
