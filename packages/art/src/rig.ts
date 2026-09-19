@@ -26,19 +26,24 @@ export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background:
 // The head tilts on the neck (per pose) and he looks somewhere, never dead ahead.
 const NECK: Pt = [200, 284];
 
-// The head is a pill: a superellipse, about 1.6x wider than tall, whose sides
-// curve evenly everywhere. Straight sides read as a rounded rectangle; uneven
-// rounding reads as drooping cheeks. The ears are their own triangles laid
+// The head is a bun: a superellipse domed over the whole top and flatter
+// underneath, whose sides curve evenly everywhere. Straight sides read as a
+// rounded rectangle; uneven rounding reads as drooping cheeks. It is only as
+// wide as the eyes need, so they sit close to the edges of the face. The ears are their own triangles laid
 // over the top corners, so they meet the head at a small natural bend, the
 // way a hand draws them. The right ear is a touch lower: drawn, not mirrored.
-const HEAD = superellipse(200, 220, 112, 70, 2.6);
+const HEAD = superellipse(200, 224, 102, { b: 74, n: 2.2 }, { b: 66, n: 3.4 });
 
 const outline = (pts: Pt[]) => curve([...pts, pts[0]!], 4).slice(0, -1);
+// Each ear's outer edge, tip to base; the ear outline adds the inner edge.
+const EAR_EDGES: Pt[][] = [
+  [[142, 25], [136, 34], [129, 60], [121, 100], [113, 146], [110, 190]],
+  [[260, 28], [265, 36], [272, 64], [280, 100], [287, 146], [290, 190]],
+];
 const EARS: Pt[][] = [
-  outline([[118, 226], [104, 176], [110, 130], [120, 88], [129, 54], [136, 32], [142, 24], [149, 24],
-    [154, 31], [166, 62], [178, 98], [188, 134], [197, 170]]),
-  outline([[203, 170], [212, 134], [224, 98], [236, 64], [248, 34], [253, 28], [260, 28], [265, 36],
-    [274, 64], [284, 100], [292, 140], [297, 180], [284, 226]]),
+  outline([[124, 230], ...EAR_EDGES[0]!.slice().reverse(), [149, 25],
+    [154, 32], [166, 62], [178, 98], [188, 134], [197, 170]]),
+  outline([[203, 170], [212, 134], [224, 98], [236, 64], [248, 34], [253, 28], ...EAR_EDGES[1]!, [276, 230]]),
 ];
 
 // From the neck (about half the head's width) the body flares gently and runs
@@ -52,8 +57,8 @@ const BODY = sampleCubics([
 ].join(' '), 12);
 
 // Anime eyes: taller than wide, and drawn cleaner than the rest.
-const EYES: Pt[] = [[158, 226], [242, 226]];
-const EYE_RX = 23;
+const EYES: Pt[] = [[154, 228], [246, 228]];
+const EYE_RX = 24;
 const EYE_RY = 31;
 
 // He likes you: faces are bright or content, never sullen.
@@ -90,14 +95,21 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
   return [path(white, p.paper), path(pupil, p.ink), path(wobble(cheek, seed + 2, 0.6), p.ink)];
 }
 
-// The ear openings face outward: a white stroke close to each ear's outer
-// edge, so only a thin rim of skin shows on the outside. Thin at the tip,
-// widest low down.
-const EAR_LINES: Pt[][] = [
-  [[139, 44], [135, 62], [130, 88], [124, 118], [118, 146]],
-  [[261, 46], [265, 64], [273, 100], [280, 130], [285, 154]],
-];
-const earWidth = (t: number) => 2.5 + 12 * Math.sin(Math.PI * Math.pow(t, 0.8));
+// The ear openings face outward: a white stroke that follows each ear's outer
+// edge, set in by a thin rim of skin. Thin at the tip, widest low down, and
+// stopping short of where the ear meets the head.
+const RIM = 5;
+function earOpening(edge: Pt[], inward: number): Pt[] {
+  const line = curve(edge.slice(1, -1), 6);
+  return stroke(line.map((p, i) => {
+    const a = line[Math.max(0, i - 1)]!;
+    const b = line[Math.min(line.length - 1, i + 1)]!;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const push = RIM + earWidth(i / (line.length - 1)) / 2;
+    return [p[0] + inward * ((b[1] - a[1]) / len) * -push, p[1] + inward * ((b[0] - a[0]) / len) * push] as Pt;
+  }), earWidth);
+}
+function earWidth(t: number): number { return 2.5 + 12 * Math.sin(Math.PI * Math.pow(t, 0.8)); }
 
 // Whiskers leave the cheek, arc out and droop at the tips; each one is a
 // different length and angle, tapering to a fine end.
@@ -117,8 +129,8 @@ const brush = (line: Pt[], root: number, tip: number) =>
 // Headphones after ghibli7: a band that floats over the head behind the ears,
 // with a white line along it, and big round cups with a white rim.
 function headphonesBehind(p: Palette, seed: number): string[] {
-  const band = curve([[82, 196], [74, 140], [94, 92], [148, 66], [200, 60], [252, 66], [306, 92], [326, 140], [318, 196]]);
-  const inner = curve([[94, 190], [88, 142], [104, 102], [152, 78], [200, 72], [248, 78], [296, 102], [312, 142], [306, 190]]);
+  const band = curve([[92, 196], [84, 140], [100, 92], [150, 66], [200, 60], [250, 66], [300, 92], [316, 140], [308, 196]]);
+  const inner = curve([[104, 190], [98, 142], [110, 102], [154, 78], [200, 72], [246, 78], [290, 102], [302, 142], [296, 190]]);
   return [
     path(wobble(stroke(band, () => 15), seed, 0.8), p.ink),
     path(wobble(stroke(inner, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), seed + 1, 0.5), p.paper),
@@ -135,7 +147,7 @@ function headphonesFront(p: Palette, seed: number): string[] {
       path(wobble(stroke(rim, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), s + 2, 0.4), p.paper),
     ];
   };
-  return [...cup(88, -1, seed + 3), ...cup(312, 1, seed + 6)];
+  return [...cup(98, -1, seed + 3), ...cup(302, 1, seed + 6)];
 }
 
 // Astrolabe halo: a tilted orbit behind the ears with bodies on it.
@@ -166,11 +178,11 @@ export function compose(pose: Pose, skin: Skin, p: Palette = DEVICE_PALETTE): st
       ...WHISKERS.map((w, i) => path(wobble(brush(w, 6.5, 3.2), 30 + i, 0.5), p.ink)),
       ...EARS.map((e, i) => path(wobble(e, 20 + i, 1.2), p.ink)),
       path(wobble(HEAD, 7, 1.8), p.ink),
-      ...EAR_LINES.map((l, i) => path(wobble(stroke(curve(l), earWidth), 40 + i, 0.5), p.paper)),
+      ...EAR_EDGES.map((e, i) => path(wobble(earOpening(e, i === 0 ? -1 : 1), 40 + i, 0.5), p.paper)),
       ...eye(EYES[0]!, face, 50, p),
       ...eye(EYES[1]!, face, 60, p),
       // The nose: a tiny dash level with the lower half of the eyes.
-      path(wobble(ellipse(200, 246, 6, 3, 16), 80, 0.4), p.paper),
+      path(wobble(ellipse(200, 250, 6, 3, 16), 80, 0.4), p.paper),
       ...(phones ? headphonesFront(p, 90) : []),
     ].join('')),
   ];

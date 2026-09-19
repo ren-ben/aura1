@@ -44,11 +44,17 @@ export function ellipse(cx: number, cy: number, rx: number, ry: number, steps = 
 
 // A superellipse: n = 2 is an ellipse, higher n squares it off. Around 2.5 it
 // is a pill whose sides curve evenly everywhere, with no straight runs.
-export function superellipse(cx: number, cy: number, a: number, b: number, n: number, steps = 120): Pt[] {
+// The top and bottom halves may differ: a lower n on top and a higher one
+// below gives a bun, domed over the top and flatter underneath.
+export function superellipse(
+  cx: number, cy: number, a: number,
+  top: { b: number; n: number }, bottom: { b: number; n: number }, steps = 120,
+): Pt[] {
   return Array.from({ length: steps }, (_, i) => {
     const t = (i / steps) * Math.PI * 2;
     const c = Math.cos(t);
     const s = Math.sin(t);
+    const { b, n } = s < 0 ? top : bottom;
     return [cx + a * Math.sign(c) * Math.abs(c) ** (2 / n), cy + b * Math.sign(s) * Math.abs(s) ** (2 / n)] as Pt;
   });
 }
