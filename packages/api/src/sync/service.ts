@@ -1,9 +1,10 @@
 import { eq, inArray, isNull, sql } from 'drizzle-orm';
-import type { ConfigDto, SyncRequest, SyncResponse } from '@aura/shared';
+import type { ConfigDto, SyncRequest, SyncResponse, Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import {
-  activities, folders, sessions, meta, CONFIG_VERSION_KEY,
+  activities, folders, sessions, meta, habitEntries, habits, todos, CONFIG_VERSION_KEY,
 } from '../db/schema.ts';
+import { buildToday } from './today.ts';
 
 async function configVersion(db: Db): Promise<number> {
   const [row] = await db.select().from(meta).where(eq(meta.key, CONFIG_VERSION_KEY));
@@ -28,7 +29,25 @@ export async function loadConfig(db: Db): Promise<ConfigDto> {
   };
 }
 
+// Ticks are absolute states, so applying one twice is harmless. A tick for
+// something deleted since is dropped.
+async function applyTicks(db: Db, ticks: Tick[]): Promise<void> {
+  for (const tick of ticks) {
+    if (tick.kind === 'todo') {
+      await db.update(todos)
+        .set({ doneAt: tick.done ? sql`coalesce(${todos.doneAt}, now())` : null })
+        .where(eq(todos.id, tick.id));
+    } else {
+      const [habit] = await db.select({ id: habits.id }).from(habits).where(eq(habits.id, tick.id));
+      if (!habit) continue;
+      await db.insert(habitEntries).values({ habitId: tick.id, date: tick.date, done: tick.done })
+        .onConflictDoUpdate({ target: [habitEntries.habitId, habitEntries.date], set: { done: tick.done } });
+    }
+  }
+}
+
 export async function applySync(db: Db, request: SyncRequest): Promise<SyncResponse> {
+  await applyTicks(db, request.ticks ?? []);
   const version = await configVersion(db);
   const acked: string[] = [];
   const rejected: string[] = [];
@@ -78,5 +97,6 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
     ...(stale ? { config: await loadConfig(db) } : {}),
     acked,
     rejected,
+    today: await buildToday(db),
   };
 }
