@@ -8,7 +8,7 @@
 // ~5 units wide here.
 
 import {
-  curve, ellipse, sampleCubics, stroke, toPath, wobble, type Pt,
+  curve, ellipse, sampleCubics, stroke, superellipse, toPath, wobble, type Pt,
 } from './ink.ts';
 
 export const SIZE = 400;
@@ -24,40 +24,37 @@ export type Palette = { ink: string; paper: string; background?: string };
 export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background: '#fff' };
 
 // The head tilts on the neck (per pose) and he looks somewhere, never dead ahead.
-const NECK: Pt = [200, 320];
+const NECK: Pt = [200, 300];
 
-// Proportions measured from the reference drawing (inspiration: the "?" Jiji):
-// head about 1.3x wider than crown-to-neck, sides almost straight with a
-// faint bulge, widest above the eyes (never at the cheeks, which reads fat),
-// lower corners curving in over the bottom third, a neck 45% of the head
-// width. Each ear's base spans ~42% of the head, its outer edge meets the side
-// at a ~23 degree bend, and the right ear sits a little lower: drawn, not
-// mirrored. Points are smoothed like a pen line (Catmull-Rom).
+// The head is a pill: a superellipse, about 1.3x wider than tall, whose sides
+// curve evenly everywhere. Straight sides read as a rounded rectangle; uneven
+// rounding reads as drooping cheeks. The ears are their own triangles laid
+// over the top corners, so they meet the head at a small natural bend, the
+// way a hand draws them. The right ear is a touch lower: drawn, not mirrored.
+const HEAD = superellipse(200, 232, 112, 86, 2.6);
+
 const outline = (pts: Pt[]) => curve([...pts, pts[0]!], 4).slice(0, -1);
-const HEAD = outline([
-  [147, 324], [126, 310], [108, 299], [97, 281], [89, 262], [87, 234], [86, 205], [86, 178], [88, 152],
-  [96, 120], [105, 86], [116, 58], [126, 40], [132, 31], [138, 28], [143, 30],
-  [150, 42], [159, 58], [168, 76], [175, 95], [180, 113], [183, 130], [186, 146],
-  [200, 148], [222, 146],
-  [226, 130], [230, 114], [237, 95], [244, 77], [252, 58], [260, 44], [266, 36],
-  [271, 34], [276, 36], [281, 42],
-  [290, 62], [298, 80], [304, 98], [309, 116], [313, 140], [315, 165], [316, 190], [315, 215], [316, 240],
-  [315, 262], [308, 281], [296, 299], [284, 309], [268, 318], [250, 326], [200, 334],
-]);
+const EARS: Pt[][] = [
+  outline([[118, 226], [104, 176], [110, 130], [120, 88], [129, 54], [136, 32], [142, 24], [149, 24],
+    [154, 31], [166, 62], [178, 98], [188, 134], [197, 170]]),
+  outline([[203, 170], [212, 134], [224, 98], [236, 64], [248, 34], [253, 28], [260, 28], [265, 36],
+    [274, 64], [284, 100], [292, 140], [297, 180], [284, 226]]),
+];
 
-// From the narrow neck the body flares gently and runs off the bottom edge.
+// From the neck (about half the head's width) the body flares gently and runs
+// off the bottom edge; its top hides inside the head.
 const BODY = sampleCubics([
-  'M 117 404',
-  'C 128 370, 140 340, 148 300',
-  'C 180 294, 220 294, 252 300',
-  'C 256 340, 260 370, 265 404',
-  'C 216 408, 166 408, 117 404',
+  'M 118 404',
+  'C 128 372, 140 344, 146 296',
+  'C 180 288, 220 288, 254 296',
+  'C 260 344, 272 372, 282 404',
+  'C 216 408, 166 408, 118 404',
 ].join(' '), 12);
 
 // Anime eyes: taller than wide, and drawn cleaner than the rest.
-const EYES: Pt[] = [[158, 232], [246, 232]];
-const EYE_RX = 26;
-const EYE_RY = 35;
+const EYES: Pt[] = [[156, 236], [244, 236]];
+const EYE_RX = 25;
+const EYE_RY = 33;
 
 // He likes you: faces are bright or content, never sullen.
 //   open: round eyes, pupils looking (lookX, lookY); smile lifts the lower
@@ -68,9 +65,9 @@ type Face =
   | { eyes: 'content'; tilt: number };
 const FACES: Record<Pose, Face> = {
   // Curious: wide eyes looking up and aside, head cocked.
-  idle: { eyes: 'open', lookX: 6, lookY: -8, smile: 0, tilt: -8 },
+  idle: { eyes: 'open', lookX: 6, lookY: -8, smile: 0, tilt: -5 },
   // Eyes closed, in the zone, bopping to the music.
-  focused: { eyes: 'content', tilt: 6 },
+  focused: { eyes: 'content', tilt: 4 },
 };
 
 const path = (pts: Pt[], fill: string) => `<path d="${toPath(pts)}" fill="${fill}"/>`;
@@ -97,21 +94,21 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
 // edge, so only a thin rim of skin shows on the outside. Thin at the tip,
 // widest low down.
 const EAR_LINES: Pt[][] = [
-  [[131, 58], [122, 86], [112, 114], [103, 140], [99, 150]],
-  [[278, 60], [287, 88], [296, 116], [304, 140], [307, 150]],
+  [[139, 50], [132, 78], [125, 106], [119, 136]],
+  [[260, 52], [270, 80], [277, 108], [283, 138]],
 ];
-const earWidth = (t: number) => 3 + 10 * Math.sin(Math.PI * Math.pow(t, 0.8));
+const earWidth = (t: number) => 2.5 + 6 * Math.sin(Math.PI * Math.pow(t, 0.8));
 
 // Whiskers leave the cheek, arc out and droop at the tips; each one is a
 // different length and angle, tapering to a fine end.
 // Roots sit well inside the cheek so no whisker floats off the face.
 const WHISKERS: Pt[][] = [
-  [[116, 270], [78, 263], [52, 264], [34, 273]],
-  [[118, 282], [76, 282], [48, 288], [34, 300]],
-  [[128, 294], [88, 300], [62, 312], [50, 328]],
-  [[288, 270], [326, 262], [352, 265], [368, 275]],
-  [[286, 282], [328, 283], [354, 290], [368, 303]],
-  [[276, 294], [316, 301], [340, 314], [350, 329]],
+  [[118, 262], [80, 255], [52, 256], [34, 265]],
+  [[118, 274], [76, 274], [48, 280], [34, 292]],
+  [[126, 286], [88, 292], [62, 304], [50, 320]],
+  [[282, 262], [320, 254], [348, 257], [366, 267]],
+  [[282, 274], [324, 275], [352, 282], [366, 295]],
+  [[274, 286], [312, 293], [338, 306], [350, 321]],
 ];
 
 const brush = (line: Pt[], root: number, tip: number) =>
@@ -138,7 +135,7 @@ function headphonesFront(p: Palette, seed: number): string[] {
       path(wobble(stroke(rim, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), s + 2, 0.4), p.paper),
     ];
   };
-  return [...cup(88, -1, seed + 3), ...cup(314, 1, seed + 6)];
+  return [...cup(88, -1, seed + 3), ...cup(312, 1, seed + 6)];
 }
 
 // Astrolabe halo: a tilted orbit behind the ears with bodies on it.
@@ -167,12 +164,13 @@ export function compose(pose: Pose, skin: Skin, p: Palette = DEVICE_PALETTE): st
       skin === 'halo' ? halo(p, 70).join('') : '',
       ...(phones ? headphonesBehind(p, 90) : []),
       ...WHISKERS.map((w, i) => path(wobble(brush(w, 6.5, 3.2), 30 + i, 0.5), p.ink)),
-      path(wobble(HEAD, 7, 2.4), p.ink),
+      ...EARS.map((e, i) => path(wobble(e, 20 + i, 1.2), p.ink)),
+      path(wobble(HEAD, 7, 1.8), p.ink),
       ...EAR_LINES.map((l, i) => path(wobble(stroke(curve(l), earWidth), 40 + i, 0.5), p.paper)),
       ...eye(EYES[0]!, face, 50, p),
       ...eye(EYES[1]!, face, 60, p),
       // The nose: a tiny dash level with the lower half of the eyes.
-      path(wobble(ellipse(202, 254, 6, 3, 16), 80, 0.4), p.paper),
+      path(wobble(ellipse(200, 256, 6, 3, 16), 80, 0.4), p.paper),
       ...(phones ? headphonesFront(p, 90) : []),
     ].join('')),
   ];
