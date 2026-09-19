@@ -24,23 +24,24 @@ export type Palette = { ink: string; paper: string; background?: string };
 export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background: '#fff' };
 
 // The head tilts on the neck (per pose) and he looks somewhere, never dead ahead.
-const NECK: Pt = [200, 282];
+const NECK: Pt = [200, 290];
 
-// A round head with a short flat crown between big, wide ears, after ghibli3/4 and the
-// Jiji refs. The forehead is short: the eyes sit high.
+// A tall pill of a head: near-straight sides that run on up into the ears, a
+// round U at the bottom, a small crown between the ears. The forehead is
+// short: the eyes sit high.
 const HEAD = sampleCubics([
-  'M 200 292',
-  'C 150 294, 110 280, 96 244',
-  'C 84 214, 88 176, 104 152',
-  'C 104 116, 110 76, 122 44',
-  'C 127 32, 140 30, 147 40',
-  'C 162 68, 176 102, 186 128',
-  'C 195 126, 205 126, 214 128',
-  'C 224 102, 238 68, 253 40',
-  'C 260 30, 273 32, 278 44',
-  'C 290 76, 296 116, 296 152',
-  'C 312 176, 316 214, 304 244',
-  'C 290 280, 250 294, 200 292',
+  'M 200 304',
+  'C 146 304, 102 282, 100 240',
+  'C 98 204, 100 170, 105 138',
+  'C 110 102, 117 64, 128 34',
+  'C 133 22, 146 22, 151 34',
+  'C 164 64, 178 98, 188 122',
+  'C 196 120, 204 120, 212 122',
+  'C 222 98, 236 64, 249 34',
+  'C 254 22, 267 22, 272 34',
+  'C 283 64, 290 102, 295 138',
+  'C 300 170, 302 204, 300 240',
+  'C 298 282, 254 304, 200 304',
 ].join(' '), 10);
 
 // A bell from the neck down, running off the bottom edge.
@@ -52,9 +53,10 @@ const BODY = sampleCubics([
   'C 234 404, 166 404, 100 400',
 ].join(' '), 12);
 
-const EYES: Pt[] = [[156, 210], [244, 210]];
-const EYE_RX = 34;
-const EYE_RY = 32;
+// Anime eyes: taller than wide, and drawn cleaner than the rest.
+const EYES: Pt[] = [[158, 212], [242, 212]];
+const EYE_RX = 27;
+const EYE_RY = 36;
 
 // He likes you: faces are bright or content, never sullen.
 //   open: round eyes, pupils looking (lookX, lookY); smile lifts the lower
@@ -77,8 +79,8 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
     const arc = curve([[cx - 24, cy + 2], [cx - 9, cy - 2], [cx + 9, cy - 2], [cx + 24, cy + 2]]);
     return [path(wobble(stroke(arc, (t) => 3 + 5 * Math.sin(Math.PI * t)), seed, 0.5), p.paper)];
   }
-  const white = wobble(ellipse(cx, cy, EYE_RX, EYE_RY), seed, 1.4);
-  const pupil = wobble(ellipse(cx + face.lookX, cy + face.lookY, 12, 16, 24), seed + 1, 0.6);
+  const white = wobble(ellipse(cx, cy, EYE_RX, EYE_RY, 48), seed, 0.7);
+  const pupil = wobble(ellipse(cx + face.lookX, cy + face.lookY, 11, 18, 32), seed + 1, 0.3);
   if (face.smile === 0) return [path(white, p.paper), path(pupil, p.ink)];
   // The cheek: ink over the bottom of the eye, its top edge arched upward.
   const bottom = cy + EYE_RY + 6;
@@ -93,7 +95,7 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
 // The ear openings face outward: a white stroke close to each ear's outer
 // edge, so only a thin rim of skin shows on the outside. Thin at the tip,
 // widest low down.
-const EAR_OPENING: Pt[] = [[132, 56], [128, 80], [124, 104], [120, 128], [117, 142]];
+const EAR_OPENING: Pt[] = [[132, 56], [128, 80], [124, 104], [119, 128], [114, 142]];
 const EAR_LINES: Pt[][] = [EAR_OPENING, EAR_OPENING.map(([x, y]) => [400 - x, y] as Pt)];
 const earWidth = (t: number) => 3 + 10 * Math.sin(Math.PI * Math.pow(t, 0.8));
 
@@ -167,7 +169,7 @@ export function compose(pose: Pose, skin: Skin, p: Palette = DEVICE_PALETTE): st
       ...eye(EYES[0]!, face, 50, p),
       ...eye(EYES[1]!, face, 60, p),
       // The nose: a tiny dash level with the lower half of the eyes.
-      path(wobble(ellipse(200, 226, 6, 3, 16), 80, 0.4), p.paper),
+      path(wobble(ellipse(200, 234, 6, 3, 16), 80, 0.4), p.paper),
       ...(phones ? headphonesFront(p, 90) : []),
     ].join('')),
   ];
