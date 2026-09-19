@@ -86,6 +86,13 @@ test('archived activities leave the device config but stay listed on the web', a
   assert.equal((await folders())[0]!.activities[0]!.archived, true);
 });
 
+test('a manual session under ten minutes is refused', async () => {
+  const created = await call('POST', '/sessions', {
+    activityId: 1, startedAt: '2026-09-18T08:00:00.000Z', endedAt: '2026-09-18T08:09:00.000Z',
+  });
+  assert.equal(created.statusCode, 400);
+});
+
 test('a manual session is stored as manual and can be deleted', async () => {
   const created = await call('POST', '/sessions', {
     activityId: 1, startedAt: '2026-09-18T08:00:00.000Z', endedAt: '2026-09-18T09:00:00.000Z',

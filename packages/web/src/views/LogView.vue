@@ -12,6 +12,8 @@ const emit = defineEmits<{ changed: [] }>();
 const rows = ref<Row[]>([]);
 const folders = ref<Folder[]>([]);
 const error = ref<string | null>(null);
+// Under ten minutes is a mistaken start, never logged.
+const short = ref(false);
 
 const form = ref({ activityId: 0, date: localDate(), start: '09:00', end: '10:00' });
 
@@ -49,6 +51,8 @@ async function backfill() {
   const endedAt = new Date(`${date}T${end}`);
   // An end before the start means the session ran past midnight.
   if (endedAt <= startedAt) endedAt.setDate(endedAt.getDate() + 1);
+  short.value = endedAt.getTime() - startedAt.getTime() < 10 * 60_000;
+  if (short.value) return;
   await api('POST', '/sessions', {
     activityId, startedAt: startedAt.toISOString(), endedAt: endedAt.toISOString(),
   });
@@ -83,7 +87,7 @@ async function remove(row: Row) {
     <input v-model="form.start" type="time" required>
     <input v-model="form.end" type="time" required>
     <button :disabled="!form.activityId">log</button>
-    <span class="muted">half XP</span>
+    <span class="muted">{{ short ? 'at least 10 minutes' : 'half XP' }}</span>
   </form>
 
   <p v-if="error" class="error">{{ error }}</p>

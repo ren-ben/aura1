@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gte, lte } from 'drizzle-orm';
-import { isRunaway, sessionMinutes } from '@aura/shared';
+import { isRunaway, MIN_SESSION_MINUTES, sessionMinutes } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { activities, folders, sessions } from '../db/schema.ts';
 
@@ -31,8 +31,8 @@ const manualSchema = z.object({
   activityId: z.number().int().positive(),
   startedAt: z.iso.datetime(),
   endedAt: z.iso.datetime(),
-}).refine((s) => Date.parse(s.endedAt) > Date.parse(s.startedAt), {
-  message: 'endedAt must be after startedAt',
+}).refine((s) => sessionMinutes(s.startedAt, s.endedAt) >= MIN_SESSION_MINUTES, {
+  message: `a session lasts at least ${MIN_SESSION_MINUTES} minutes`,
 });
 
 export const sessionRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {

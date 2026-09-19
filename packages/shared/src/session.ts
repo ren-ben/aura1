@@ -1,4 +1,6 @@
 export const MAX_SESSION_MINUTES = 360;
+// Anything shorter was a mistaken start: it is dropped, never logged.
+export const MIN_SESSION_MINUTES = 10;
 
 export function sessionMinutes(startedAt: string, endedAt: string): number {
   const ms = Date.parse(endedAt) - Date.parse(startedAt);

@@ -57,6 +57,14 @@ test('a batch stores its session and acks it', async () => {
   assert.equal(rows[0]?.source, 'device');
 });
 
+test('a session under ten minutes is acked but not stored', async () => {
+  const request = batch();
+  request.events[0]!.endedAt = '2026-09-17T10:09:59.000Z';
+  const response = await applySync(db, request);
+  assert.deepEqual(response.acked, ['018f3b2a-4c5d-7e8f-9a0b-1c2d3e4f5a6b']);
+  assert.equal((await db.select().from(sessions)).length, 0);
+});
+
 test('replaying the same batch three times stores one row', async () => {
   await applySync(db, batch());
   await applySync(db, batch());

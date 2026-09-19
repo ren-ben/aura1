@@ -1,5 +1,5 @@
 import { eq, inArray, isNull, sql } from 'drizzle-orm';
-import type { ConfigDto, SyncRequest, SyncResponse, Tick } from '@aura/shared';
+import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import {
   activities, folders, sessions, meta, habitEntries, habits, todos, CONFIG_VERSION_KEY,
@@ -60,7 +60,10 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
         .where(inArray(activities.id, ids))).map((r) => r.id),
     );
 
-    const storable = request.events.filter((e) => known.has(e.activityId));
+    // A session under ten minutes is acked, so the device lets it go, but
+    // never stored: it was a mistaken start.
+    const storable = request.events.filter((e) => known.has(e.activityId)
+      && sessionMinutes(e.startedAt, e.endedAt) >= MIN_SESSION_MINUTES);
     for (const event of request.events) {
       (known.has(event.activityId) ? acked : rejected).push(event.uuid);
     }
