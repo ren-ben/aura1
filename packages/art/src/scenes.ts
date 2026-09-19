@@ -4,12 +4,13 @@
 // its moment. Frames are full 400 x 400 SVGs; cameos are small busts the UI
 // lays over other screens.
 
-import { placeHead, pose, type Pose } from './body.ts';
+import { holding, placeHead, pose, type Pose } from './body.ts';
+import { marks } from './marks.ts';
 import { EXPRESSIONS, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
-  bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, ghost, lamp, laptop, moon, mug,
-  pumpkin, quill, starfield, tentacles, tricorn, windowMoon,
+  bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, ghost, graves, lamp, laptop, moon, mug,
+  heldBook, pumpkin, quill, rain, runes, scaled, starfield, tentacles, tricorn, windowMoon,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
 
@@ -118,8 +119,33 @@ export function scenes(): Scene[] {
     scene('lore-pumpkin', 'halloween', [svg(bat(80, 70, P) + bat(320, 110, P, 0.7, 112) + cat('sit', 'delighted', { skin: 'halo' })
       + pumpkin(92, 370, P))]),
 
+    // More of him: the yay, the morning mug, the long blink, the dream.
+    scene('wake-yay', 'wake', [svg(cat('sit', 'curious')), svg(cat('reach', 'delighted', {}, 1)), svg(cat('reach', 'delighted'))]),
+    scene('wake-coffee', 'wake', [svg(holding(face('sleepy'), P, scaled(mug(196, 294, P, 62), 196, 294, 1.5))), svg(holding(face('happy'), P, scaled(mug(196, 294, P, 62), 196, 294, 1.5)))]),
+    scene('sleep-blink', 'sleep', [svg(cat('sit', 'curious')), svg(cat('sit', 'content')), svg(cat('loaf', 'asleep'))]),
+    scene('sleep-lamp', 'sleep', [
+      svg(lamp(90, 250, P) + cat('sit', 'sleepy')),
+      svg(`<rect width="400" height="400" fill="url(#d25)"/>` + lamp(90, 250, P) + cat('sit', 'asleep')),
+    ]),
+    scene('axiom-reading', 'session-axiom', [svg(holding({ ...face('determined'), look: [2, 12] }, P, heldBook(200, 288, P)))]),
+    scene('hunt-lantern', 'session-hunt', [svg(`<rect width="400" height="220" fill="url(#d25)"/>` + moon(80, 70, 44, P, 'paleblood', 171)
+      + holding(face('determined'), P, scaled(lamp(200, 262, P, 162), 200, 262, 1.5)) + placeHeadWear('determined'))]),
+    scene('dream-asleep', 'session-dream', [svg(windowMoon(250, 30, 120, 130, P, 'crescent', 94) + starfield({ ...P, paper: '#000' }, 12, 201, [20, 20, 200, 150])
+      + cat('loaf', 'asleep'))]),
+    scene('heresy-runes', 'session-heresy', [svg(atDesk('content', quill(318, DESK_Y, P, 81) + book(190, DESK_Y - 4, P, 53), {}, runes(40, 150, P, 221, 4), P, [130]))]),
+    scene('levelup-yay', 'levelup', [svg(pose('reach', { ...face('delighted'), marks: ['sparkles'] }, P))]),
+    scene('todos-yay', 'todos-done', [svg(pose('reach', { ...face('overjoyed'), marks: ['hearts'] }, P))]),
+    scene('neglected-sulk', 'neglected', [svg(cat('back', 'content') + marks(['anger'], 400, P))]),
+    scene('lore-dream', 'lore', [svg(`<rect width="400" height="260" fill="url(#d25)"/>` + moon(300, 80, 56, P, 'paleblood', 172)
+      + graves(P) + lamp(70, 150, P, 163) + cat('back', 'content'))]),
+    scene('lore-rain', 'lore', [svg(windowMoon(90, 30, 220, 230, P, 'crescent', 95) + rain(P, [100, 40, 200, 210]) + cat('back', 'content'))]),
+    // His true form, glimpsed: the void where a head should be, eyes opening across it.
+    scene('lore-trueform', 'lore', [svg(`<g transform="translate(-40 -60) scale(1.2)">${bustArt({ ...face('curious'), look: [0, -4] }, VOID)}</g>`
+      + eyesInTheDark(P, 7, 183, [70, 40, 260, 130]), voidDefs(10))]),
+    scene('lore-pumpkin-hold', 'halloween', [svg(bat(70, 60, P) + bat(330, 90, P, 0.8, 113) + holding(face('delighted'), P, scaled(pumpkin(200, 282, P, 121), 200, 282, 1.3)))]),
+
     // Cameos: small busts the UI lays over other screens (quotes, lists).
-    ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy'] as ExpressionName[])
+    ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])
       .map((name) => scene(`cameo-${name}`, 'cameo', [svg(bustAt(name, [200, 395], 1.28))], 72)),
     // The watcher peeking up from a corner, eyes following the cursor.
     ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>

@@ -26,11 +26,13 @@ const box = (x: number, y: number, w: number, h: number, r = 6): Pt[] => outline
   [x + r, y], [x + w - r, y], [x + w, y + r], [x + w, y + h - r], [x + w - r, y + h], [x + r, y + h], [x, y + h - r], [x, y + r],
 ], 2);
 
-// 1-bit dither fills: at the device's half scale these are 1 px patterns.
+// 1-bit dither fills (at the device's half scale these are 1 px patterns), and
+// `halo`: a paper border around anything held in front of his black fur.
 export const DITHER = (p: Palette) => `<defs>
 <pattern id="d25" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="${p.ink}"/></pattern>
 <pattern id="d50" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="2" height="2" fill="${p.ink}"/><rect x="2" y="2" width="2" height="2" fill="${p.ink}"/></pattern>
 <pattern id="d75" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="${p.ink}"/><rect width="2" height="2" fill="${p.paper}"/></pattern>
+<filter id="halo" x="-20%" y="-20%" width="140%" height="140%"><feMorphology in="SourceAlpha" operator="dilate" radius="4" result="grown"/><feFlood flood-color="${p.paper}"/><feComposite in2="grown" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>`;
 
 export function desk(y: number, p: Palette, seed = 30): string {
@@ -211,4 +213,58 @@ export function bubble(x: number, y: number, w: number, h: number, tx: number, t
   const tailPts: Pt[] = [[cx - 12, y + h - 2], [tx, ty], [cx + 12, y + h - 2]];
   return drawn(pts, p, { seed, w: 5 }) + drawn(tailPts, p, { seed: seed + 1, w: 5 })
     + `<path d="${toPath(outline([[cx - 9, y + h - 6], [cx + 9, y + h - 6], [cx, y + h + 4]], 2))}" fill="${p.paper}"/>`;
+}
+
+// Eldritch runes floating off his work: circles, crescents, an eye, a cross.
+export function runes(x: number, y: number, p: Palette, seed = 220, count = 3): string {
+  const r = rng(seed);
+  const glyphs = [
+    (gx: number, gy: number) => inkLine(ellipse(gx, gy, 9, 9, 20).concat([[gx + 9, gy]]), p, { seed: seed + 1, w: 3 })
+      + inkLine([[gx, gy - 14], [gx, gy + 14]], p, { seed: seed + 2, w: 3 }),
+    (gx: number, gy: number) => inkLine([[gx - 8, gy - 10], [gx + 2, gy - 4], [gx + 4, gy + 6], [gx - 6, gy + 12]], p, { seed: seed + 3, w: 3 })
+      + `<path d="${toPath(ellipse(gx + 9, gy - 8, 2.5, 2.5, 8))}" fill="${p.ink}"/>`,
+    (gx: number, gy: number) => inkLine([[gx - 12, gy], [gx, gy - 7], [gx + 12, gy], [gx, gy + 7], [gx - 12, gy]], p, { seed: seed + 4, w: 3 })
+      + `<path d="${toPath(ellipse(gx, gy, 3, 4, 8))}" fill="${p.ink}"/>`,
+    (gx: number, gy: number) => inkLine([[gx - 10, gy - 10], [gx + 10, gy + 10]], p, { seed: seed + 5, w: 3 })
+      + inkLine([[gx + 10, gy - 10], [gx - 10, gy + 10]], p, { seed: seed + 6, w: 3 })
+      + inkLine([[gx, gy - 14], [gx, gy - 6]], p, { seed: seed + 7, w: 3 }),
+  ];
+  return Array.from({ length: count }, (_, i) => glyphs[Math.floor(r() * glyphs.length)]!(x + i * 30 + (r() - 0.5) * 10, y - i * 22 + (r() - 0.5) * 10)).join('');
+}
+
+// Crooked gravestones along the bottom, for the dream between hunts.
+export function graves(p: Palette, seed = 230): string {
+  const r = rng(seed);
+  return [40, 110, 300, 362].map((x, i) => {
+    const h = 44 + r() * 30;
+    const w = 26 + r() * 10;
+    const lean = (r() - 0.5) * 12;
+    const stone = outline([[x - w / 2, 400], [x - w / 2 + lean, 400 - h], [x + lean, 400 - h - 14], [x + w / 2 + lean, 400 - h], [x + w / 2, 400]], 3);
+    // Dark stones against the lighter sky, a pale cross cut into each.
+    return drawn(stone, p, { seed: seed + i, w: 5 }, p.ink)
+      + `<path d="${toPath(wobble(stroke(curve([[x + lean * 0.5, 400 - h + 2], [x + lean * 0.5, 400 - h + 24]]), () => 3.5), seed + 20 + i, 0.2))}" fill="${p.paper}"/>`
+      + `<path d="${toPath(wobble(stroke(curve([[x + lean * 0.5 - 7, 400 - h + 9], [x + lean * 0.5 + 7, 400 - h + 9]]), () => 3.5), seed + 30 + i, 0.2))}" fill="${p.paper}"/>`;
+  }).join('');
+}
+
+// Rain: short slanted strokes across an area.
+export function rain(p: Palette, area: [number, number, number, number], seed = 240, count = 40): string {
+  const r = rng(seed);
+  return Array.from({ length: count }, (_, i) => {
+    const [x, y] = [area[0] + r() * area[2], area[1] + r() * area[3]];
+    return inkLine([[x, y], [x - 5, y + 16]], p, { seed: seed + i, w: 2.5 });
+  }).join('');
+}
+
+// Scales any prop about a point, for holding things bigger than they stand.
+export function scaled(svg: string, x: number, y: number, k: number): string {
+  return `<g transform="translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})">${svg}</g>`;
+}
+
+// A book held up to read, seen from its cover, a moon sigil on the front.
+export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
+  const cover = outline([[x - 38, y - 56], [x + 38, y - 60], [x + 40, y + 2], [x - 36, y + 4]], 2);
+  return drawn(cover, p, { seed, w: 6 }) + inkLine([[x - 30, y - 56], [x - 29, y + 2]], p, { seed: seed + 1, w: 4 })
+    + `<path d="${toPath(wobble(ellipse(x + 4, y - 28, 12, 12, 24), seed + 2, 0.4))}" fill="${p.ink}"/>`
+    + `<path d="${toPath(ellipse(x + 9, y - 31, 10, 10, 24))}" fill="${p.paper}"/>`;
 }

@@ -5,7 +5,7 @@
 // long front legs, rounded haunches, a long tail. Separations between legs
 // and haunches are white line art on the fur, like everything else on him.
 
-import { curve, ellipse, outline, shape, stroke, withWeight, wobble, type Pt } from './ink.ts';
+import { curve, ellipse, outline, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
 import { head, NECK, type Palette, type Wear } from './rig.ts';
 import type { Expression } from './expressions.ts';
 
@@ -36,7 +36,45 @@ const SIT_BODY: Pt[] = [
 const SIT_NECK: Pt = [200, 180];
 const SIT_SCALE = 0.54;
 
-export type Pose = 'sit' | 'back' | 'wave' | 'loaf' | 'peek';
+export type Pose = 'sit' | 'back' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
+
+// Standing on his hind legs, both paws thrown up: yay.
+const REACH_BODY: Pt[] = [
+  [180, 168], [172, 200], [166, 236], [164, 272], [166, 304], [160, 336], [154, 366], [150, 390], [178, 392],
+  [184, 360], [196, 330], [204, 330], [216, 360], [222, 392], [250, 390], [246, 366], [240, 336], [234, 304],
+  [236, 272], [234, 236], [228, 200], [220, 168],
+];
+
+// A paw: a mitten of ink with two toe lines.
+function paw(x: number, y: number, p: Palette, seed: number, angle = 0): string {
+  const r = (angle * Math.PI) / 180;
+  const toe = (dx: number): Pt[] => [[x + dx * Math.cos(r) - 4 * Math.sin(r), y - 4 * Math.cos(r) - dx * Math.sin(r)],
+    [x + dx * Math.cos(r) + 5 * Math.sin(r), y + 5 * Math.cos(r) - dx * Math.sin(r)]];
+  return shape(wobble(ellipse(x, y, 14, 12, 24), seed, 0.7), p.ink) + whiteLine(toe(-4), p, seed + 1, 2.8) + whiteLine(toe(5), p, seed + 2, 2.8);
+}
+
+// Holding something against his chest: `held` is drawn between the arms,
+// over the body and under the paws, which grip its sides (x 170 and 230,
+// y 266). Centre the held thing on x 200 and let it rise above the paws.
+export function holding(expr: Expression, p: Palette, held: string, wear: Wear = {}): string {
+  return [
+    tail([[262, 380], [300, 378], [324, 356], [330, 322], [324, 290], [332, 264], [348, 256]], p, 5),
+    ink(SIT_BODY, p, 3),
+    whiteLine([[172, 334], [170, 360], [171, 387]], p, 11, 3.5),
+    whiteLine([[228, 334], [230, 360], [229, 387]], p, 12, 3.5),
+    whiteLine([[200, 352], [200, 389]], p, 13, 3),
+    placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
+    held ? `<g filter="url(#halo)">${held}</g>` : '',
+    // Arms and paws are outlined in paper so they read against his chest.
+    ...[[[176, 222], [170, 244], [172, 262]], [[224, 222], [230, 244], [228, 262]]].map((pts, i) => {
+      const arm = stroke(curve(pts as Pt[]), () => 15);
+      return `<path d="${toPath(wobble(arm, 31 + i, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`;
+    }),
+    ...[[170, 266, -30], [230, 266, 30]].map(([x, y, a], i) =>
+      `<path d="${toPath(wobble(ellipse(x!, y!, 15, 12, 24), 33 + i, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`
+      + paw(x!, y!, p, 36 + i * 3, a)),
+  ].join('');
+}
 
 // frame varies a pose between animation frames (the waving paw's angle).
 export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, frame = 0): string {
@@ -85,6 +123,25 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
         tail([[326, 384], [292, 396], [236, 398], [190, 394]], p, 7, 14, 10),
         placeHead(expr, p, [176, 332], 0.62, wear),
       ].join('');
+    case 'reach': {
+      // Paws up: halfway on odd frames, all the way on even ones.
+      const up = frame % 2 === 0 ? 1 : 0.55;
+      const arm = (side: number): Pt[] => [[200 + side * 26, 206], [200 + side * (40 + 26 * up), 206 - 50 * up],
+        [200 + side * (52 + 22 * up), 206 - 96 * up]];
+      const armL = arm(-1);
+      const armR = arm(1);
+      return [
+        tail([[236, 378], [274, 372], [300, 346], [306, 312], [300, 280], [310, 256], [326, 250]], p, 5),
+        ink(REACH_BODY, p, 3),
+        whiteLine([[200, 334], [200, 390]], p, 13, 3),
+        shape(wobble(stroke(curve(armL), (t) => 17 - 3 * t), 41, 0.7), p.ink),
+        shape(wobble(stroke(curve(armR), (t) => 17 - 3 * t), 42, 0.7), p.ink),
+        placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
+        paw(armL[2]![0], armL[2]![1] - 6, p, 43, -20), paw(armR[2]![0], armR[2]![1] - 6, p, 46, 20),
+      ].join('');
+    }
+    case 'hold':
+      return holding(expr, p, '', wear);
     case 'peek':
       // Only the head and two paws above an edge along the bottom.
       return [
