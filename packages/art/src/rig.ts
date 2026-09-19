@@ -48,14 +48,18 @@ const EARS: Pt[][] = [
   outline([[206, 162], [216, 126], [226, 96], [238, 62], [250, 32], [256, 24], ...EAR_EDGES[1]!, [278, 228]]),
 ];
 
-// From the neck (about half the head's width) the body flares gently and runs
-// off the bottom edge; its top hides inside the head.
+// The neck is about 45% of the head's width. Its top is tucked well inside
+// the head, so only the sides emerge from under the chin, and the head can
+// tilt without a body corner poking out. From there it flares gently and runs
+// off the bottom edge.
 const BODY = sampleCubics([
-  'M 118 404',
-  'C 128 372, 140 336, 146 278',
-  'C 180 270, 220 270, 254 278',
-  'C 260 336, 272 372, 282 404',
-  'C 216 408, 166 408, 118 404',
+  'M 116 404',
+  'C 130 372, 150 340, 154 296',
+  'C 156 270, 160 252, 166 246',
+  'C 186 240, 214 240, 234 246',
+  'C 240 252, 244 270, 246 296',
+  'C 250 340, 270 372, 284 404',
+  'C 228 408, 172 408, 116 404',
 ].join(' '), 12);
 
 // Anime eyes: taller than wide, and drawn cleaner than the rest.
