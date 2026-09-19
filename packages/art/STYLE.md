@@ -23,7 +23,7 @@ the reference beside idle and focused. Check it before showing anyone a change.
 | Whiskers | Three a side, rooted inside the cheek, arcing out and drooping; short and fine | 80% of the drawn length, tapered 5.2 to 3 |
 | Neck | ~45% of head width, top tucked well inside the head | only the sides emerge under the chin |
 | Body | Gentle flare, runs off the bottom edge (bust) | |
-| Full body | Short soft pear, the head is the star: head at 0.66 scale on a body ~1.4x the head's height, one plain silhouette | neck `(200, 246)`, floor `y 392` |
+| Full body | Short soft bell, sides sloping straight out from the chin (never a narrow neck over a round belly), the head is the star: head at 0.66 scale on a body ~1.4x the head's height, one plain silhouette | neck `(200, 246)`, floor `y 392` |
 | Pose | Head tilts 4-5 degrees; the gaze goes aside | |
 
 ## Line
@@ -82,6 +82,9 @@ Each of these was tried and rejected:
 - A tall body, or body detail: leg lines, toes, joints, arms across the
   chest. The body is one plain shape, like the mouth.
 - Any pose that hides his face (from behind, looking out of a window).
+- Gravestones (a mess at device size), dense skylines (read as a modern
+  city; Yharnam is one cathedral and a few steep gables, straight-edged).
+- A see-through moon: moons are solid discs, so what hangs behind stays behind.
 - A moon, window or dithered sky behind his head. Backdrops keep to the
   corners and edges; on busy ones he gets a paper outline.
 

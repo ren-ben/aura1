@@ -5,7 +5,7 @@
 // lays over other screens.
 //
 // Scenes live in places (env): the study, the night window, the Hunter's
-// Dream, Yharnam's rooftops, the void, Halloween, a plain room. Every place
+// Dream, Yharnam, the void, Halloween, a plain room. Every place
 // has its own goodnight and good morning, so switching off never jumps
 // somewhere else: the device plays the sleep of the place on the glass, and
 // wakes in the place it fell asleep. Nothing big sits behind his head: moons
@@ -16,8 +16,8 @@ import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
-  amygdala, bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, ghost, graves, lamp, laptop,
-  messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, skyline, tentacledMoon, tentacles,
+  amygdala, bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, flower, ghost, gothicTown, lamp, laptop,
+  messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, tentacledMoon, tentacles,
   tricorn, windowEye, windowMoon,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
@@ -95,9 +95,11 @@ function nightAndMorning(env: Env, set: (cat: string) => string): Scene[] {
 export function scenes(): Scene[] {
   // The night window, up in the corner, clear of his head.
   const nightWindow = (moonKind: 'crescent' | 'full' | 'blood' = 'crescent', seed = 94) => windowMoon(14, 20, 104, 120, P, moonKind, seed);
-  const yharnam = (seed = 260) => skyline(P, seed) + `<rect x="0" y="384" width="400" height="16" fill="#fff"/>`
-    + `<path d="${toPath(wobble(stroke([[-4, 386], [404, 386]], () => 6), 261, 0.6))}" fill="#000"/>`;
-  const hunterDream = () => graves(P) + lamp(44, 120, P, 163);
+  const ground = `<path d="${toPath(wobble(stroke([[-4, 388], [404, 388]], () => 6), 261, 0.6))}" fill="#000"/>`;
+  const yharnam = (houses = true) => gothicTown(P, 320, { houses }) + ground;
+  const flowers = () => [[34, 84, 311], [364, 70, 313]]
+    .map(([x, h, sd]) => flower(x!, 392, h!, P, sd, 1.8)).join('');
+  const hunterDream = () => lamp(44, 120, P, 163) + flowers();
   const voidEyes = (count: number, seed = 181) => eyesInTheDark(P, count, seed, [0, 0, 400, 400], [200, 240, 170]);
   // The void's night: dark dither, eyes opening in it, his star-filled form
   // lifted out of it by a paper edge.
@@ -173,23 +175,20 @@ export function scenes(): Scene[] {
     scene('decay-thinning', 'decay-thinning', [svg(nightWindow('crescent', 92) + at(cat('sit', 'lonely'), 234, 392, 0.94))], 'window'),
     ...nightAndMorning('window', (c) => nightWindow() + at(c, 234, 392, 0.94)),
 
-    // The Hunter's Dream: graves, a lamp, the messengers.
+    // The Hunter's Dream: white flowers, a lamp, the messengers.
     scene('lore-dream', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 172)
       + hunterDream() + cat('sit', 'content'))], 'dream'),
     scene('lore-messengers', 'lore', [svg(lamp(44, 120, P, 163) + cat('sit', { ...face('delighted'), look: [6, 10] })
       + messenger(66, 392, P, 281, 1.8) + messenger(360, 392, P, 284, 1.4) + messenger(110, 392, P, 287, 1.1))], 'dream'),
-    scene('hunt-lantern', 'session-hunt', [svg(moon(56, 56, 36, P, 'paleblood', 171)
-      + holding(face('determined'), P, scaled(lamp(HOLD[0], HOLD[1] - 6, P, 162), HOLD[0], HOLD[1] - 6, 1.4)) + tricornOn('determined'))], 'dream'),
     ...nightAndMorning('dream', (c) => hunterDream() + c),
 
-    // Yharnam's rooftops under the paleblood moon, and what clings to them.
-    scene('lore-yharnam', 'lore', [svg(moon(60, 62, 40, P, 'paleblood', 174) + bat(330, 50, P) + bat(290, 90, P, 0.7, 115)
+    // Yharnam's cathedral under the paleblood moon, and what clings to it.
+    scene('lore-yharnam', 'lore', [svg(moon(340, 64, 40, P, 'paleblood', 174) + bat(300, 150, P) + bat(360, 180, P, 0.7, 115)
       + yharnam() + lifted(cat('sit', 'content')))], 'yharnam'),
-    scene('lore-amygdala', 'lore', [svg(amygdala(72, 150, P, 271, 0.78) + skyline(P, 262, 'url(#d50)', [140, 400])
-      + `<rect x="0" y="384" width="400" height="16" fill="#fff"/>` + lifted(at(cat('sit', { ...face('happy'), look: [-10, -4] }), 286, 392, 0.9)))], 'yharnam'),
-    scene('hunt-yharnam', 'session-hunt', [svg(moon(340, 60, 38, P, 'paleblood', 175) + yharnam(263)
+    scene('lore-amygdala', 'lore', [svg(amygdala(64, 150, P, 271, 0.78) + yharnam(false) + lifted(at(cat('sit', { ...face('happy'), look: [-10, -4] }), 286, 392, 0.9)))], 'yharnam'),
+    scene('hunt-yharnam', 'session-hunt', [svg(moon(340, 64, 40, P, 'paleblood', 175) + yharnam()
       + lifted(cat('sit', 'determined') + tricornOn('determined') + cleaver(292, 380, P)))], 'yharnam'),
-    ...nightAndMorning('yharnam', (c) => moon(60, 62, 40, P, 'paleblood', 174) + yharnam() + lifted(c)),
+    ...nightAndMorning('yharnam', (c) => moon(340, 64, 40, P, 'paleblood', 174) + yharnam() + lifted(c)),
 
     // The void: his true form, and the eyes that open around it.
     scene('lore-insight', 'lore', [svg(dark + voidEyes(14, 182) + lifted(tentacles(P)) + voidCat('sit', 'content'), voidDefs(9))], 'void'),

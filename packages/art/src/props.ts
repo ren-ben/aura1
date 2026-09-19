@@ -157,9 +157,67 @@ export function lamp(x: number, y: number, p: Palette, seed = 160): string {
     + inkLine([[x - 20, y - 14], [x + 20, y - 14]], p, { seed: seed + 3, w: 5 });
 }
 
-// A moon disc: 'paleblood' is dithered pale, 'blood' dark with a rim.
+// A moon disc, solid so nothing shows through it. 'paleblood' is paper with a
+// dithered shadow along one side and two craters; 'blood' is dark.
 export function moon(x: number, y: number, r: number, p: Palette, kind: 'paleblood' | 'blood', seed = 170): string {
-  return `<path d="${toPath(wobble(ellipse(x, y, r, r, 64), seed, 1))}" fill="url(#${kind === 'blood' ? 'd75' : 'd25'})" stroke="${p.ink}" stroke-width="5"/>`;
+  const disc = toPath(wobble(ellipse(x, y, r, r, 64), seed, 1));
+  const rim = `<path d="${disc}" fill="none" stroke="${p.ink}" stroke-width="5"/>`;
+  if (kind === 'blood') return `<path d="${disc}" fill="${p.paper}"/><path d="${disc}" fill="url(#d75)"/>${rim}`;
+  const craters = [[0.3, -0.25, 0.16], [-0.05, 0.35, 0.11]].map(([dx, dy, cr]) =>
+    `<path d="${toPath(ellipse(x + dx! * r, y + dy! * r, cr! * r, cr! * r, 16))}" fill="none" stroke="${p.ink}" stroke-width="2.5"/>`).join('');
+  return `<clipPath id="moon${seed}"><path d="${disc}"/></clipPath>`
+    + `<path d="${disc}" fill="url(#d25)"/>`
+    + `<path d="${toPath(ellipse(x + r * 0.3, y - r * 0.12, r, r, 48))}" fill="${p.paper}" clip-path="url(#moon${seed})"/>`
+    + craters + rim;
+}
+
+// White flowers of the Hunter's Dream: a stem and one five-lobed head.
+export function flower(x: number, y: number, h: number, p: Palette, seed = 310, s = 1): string {
+  const [hx, hy] = [x + 4 * s, y - h];
+  const head: Pt[] = Array.from({ length: 40 }, (_, i) => {
+    const a = (i / 40) * Math.PI * 2;
+    const rr = 13 * s * (0.72 + 0.28 * Math.cos(5 * a));
+    return [hx + rr * Math.cos(a), hy + rr * Math.sin(a)];
+  });
+  return inkLine([[x, y], [x + 3 * s, y - h * 0.5], [hx, hy]], p, { seed, w: 3.5 })
+    + drawn(head, p, { seed: seed + 1, w: 4 })
+    + `<path d="${toPath(ellipse(hx, hy, 3.5 * s, 3.5 * s, 12))}" fill="${p.ink}"/>`;
+}
+
+// Straight-edged line art for buildings: corners stay sharp, only the
+// vertices drift a little, like a woodcut.
+function sharp(pts: Pt[], p: Palette, seed: number, fill = p.paper, w = 5): string {
+  const r = rng(seed);
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'} ${(x + (r() - 0.5) * 2).toFixed(1)} ${(y + (r() - 0.5) * 2).toFixed(1)}`).join(' ');
+  return `<path d="${d} Z" fill="${fill}" stroke="${p.ink}" stroke-width="${w}" stroke-linejoin="miter"/>`;
+}
+
+// A gothic town along the bottom: a cathedral with two needle-spired towers,
+// a rose window and pointed arches on the left, steep-gabled houses on the
+// right. The middle stays open for him.
+export function gothicTown(p: Palette, seed = 320, { houses = true } = {}): string {
+  const base = 392;
+  const arch = (cx: number, top: number, w: number, h: number) =>
+    `<path d="M ${cx - w / 2} ${top + h} L ${cx - w / 2} ${top + w * 0.6} Q ${cx - w / 2} ${top + w * 0.2} ${cx} ${top} Q ${cx + w / 2} ${top + w * 0.2} ${cx + w / 2} ${top + w * 0.6} L ${cx + w / 2} ${top + h} Z" fill="${p.ink}"/>`;
+  const tower = (x0: number, x1: number, top: number, spire: number, s: number) => {
+    const cx = (x0 + x1) / 2;
+    return sharp([[x0, base], [x0, top], [x0 - 3, top], [cx, spire], [x1 + 3, top], [x1, top], [x1, base]], p, s)
+      + inkLine([[cx, spire], [cx, spire - 16]], p, { seed: s + 1, w: 3 })
+      + inkLine([[cx - 6, spire - 10], [cx + 6, spire - 10]], p, { seed: s + 2, w: 3 })
+      + arch(cx, top + 18, 10, 26) + arch(cx, top + 60, 10, 26);
+  };
+  const cathedral = sharp([[28, base], [28, 272], [62, 236], [96, 272], [96, base]], p, seed)
+    + tower(6, 34, 222, 130, seed + 10) + tower(90, 116, 238, 158, seed + 20)
+    + `<path d="${toPath(ellipse(62, 292, 12, 12, 24))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="4"/>`
+    + `<path d="${toPath(ellipse(62, 292, 4, 4, 12))}" fill="${p.ink}"/>`
+    + arch(62, 342, 20, 50);
+  const house = (x0: number, x1: number, wall: number, peak: number, s: number) =>
+    sharp([[x0, base], [x0, wall], [(x0 + x1) / 2, peak], [x1, wall], [x1, base]], p, s)
+    + arch((x0 + x1) / 2, wall + 14, 10, 20);
+  const town = houses
+    ? house(304, 358, 322, 256, seed + 40) + house(350, 410, 338, 282, seed + 50)
+    : '';
+  return cathedral + town;
 }
 
 // Eyes opening in the dark around him: insight, the horror at the edges.
@@ -232,21 +290,6 @@ export function runes(x: number, y: number, p: Palette, seed = 220, count = 3): 
   return Array.from({ length: count }, (_, i) => glyphs[Math.floor(r() * glyphs.length)]!(x + i * 30 + (r() - 0.5) * 10, y - i * 22 + (r() - 0.5) * 10)).join('');
 }
 
-// Crooked gravestones along the bottom, for the dream between hunts.
-export function graves(p: Palette, seed = 230): string {
-  const r = rng(seed);
-  return [40, 110, 300, 362].map((x, i) => {
-    const h = 44 + r() * 30;
-    const w = 26 + r() * 10;
-    const lean = (r() - 0.5) * 12;
-    const stone = outline([[x - w / 2, 400], [x - w / 2 + lean, 400 - h], [x + lean, 400 - h - 14], [x + w / 2 + lean, 400 - h], [x + w / 2, 400]], 3);
-    // Dark stones against the lighter sky, a pale cross cut into each.
-    return drawn(stone, p, { seed: seed + i, w: 5 }, p.ink)
-      + `<path d="${toPath(wobble(stroke(curve([[x + lean * 0.5, 400 - h + 2], [x + lean * 0.5, 400 - h + 24]]), () => 3.5), seed + 20 + i, 0.2))}" fill="${p.paper}"/>`
-      + `<path d="${toPath(wobble(stroke(curve([[x + lean * 0.5 - 7, 400 - h + 9], [x + lean * 0.5 + 7, 400 - h + 9]]), () => 3.5), seed + 30 + i, 0.2))}" fill="${p.paper}"/>`;
-  }).join('');
-}
-
 // Rain: short slanted strokes across an area.
 export function rain(p: Palette, area: [number, number, number, number], seed = 240, count = 40): string {
   const r = rng(seed);
@@ -267,30 +310,6 @@ export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
   return drawn(cover, p, { seed, w: 6 }) + inkLine([[x - 30, y - 56], [x - 29, y + 2]], p, { seed: seed + 1, w: 4 })
     + `<path d="${toPath(wobble(ellipse(x + 4, y - 28, 12, 12, 24), seed + 2, 0.4))}" fill="${p.ink}"/>`
     + `<path d="${toPath(ellipse(x + 9, y - 31, 10, 10, 24))}" fill="${p.paper}"/>`;
-}
-
-// Yharnam at night: gothic roofs and needle spires along the bottom, in
-// dither so they sit in the distance and he reads in front of them. Lit
-// windows are paper slits. Only low roofs in the gap where he sits, so no
-// spire runs through his head or whiskers.
-export function skyline(p: Palette, seed = 260, fill = 'url(#d50)', gap: [number, number] = [84, 316]): string {
-  const r = rng(seed);
-  const out: string[] = [];
-  for (let x = -10; x < 410;) {
-    const w = 22 + r() * 16;
-    const inGap = x + w > gap[0] && x < gap[1];
-    const h = inGap ? 30 + r() * 30 : 100 + r() * 110;
-    const spire = h + (inGap ? 10 : 30 + r() * 50);
-    const top = 400 - h;
-    out.push(`<path d="${toPath(wobble(outline([[x, 404], [x, top + 14], [x + w * 0.5 - 4, top - 6], [x + w * 0.5, 400 - spire],
-      [x + w * 0.5 + 4, top - 6], [x + w, top + 14], [x + w, 404]], 2), seed + x, 0.5))}" fill="${fill}" stroke="${p.ink}" stroke-width="3"/>`);
-    if (!inGap && r() < 0.7) {
-      const [wx, wy] = [x + w * 0.5, top + 30 + r() * 30];
-      out.push(`<path d="${toPath(outline([[wx - 4, wy + 14], [wx - 4, wy], [wx, wy - 6], [wx + 4, wy], [wx + 4, wy + 14]], 2))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="2"/>`);
-    }
-    x += w - 4;
-  }
-  return out.join('');
 }
 
 // Amygdala, the Great One who clings to the cathedral: a long egg of a head

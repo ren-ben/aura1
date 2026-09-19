@@ -27,20 +27,23 @@ export function tail(pts: Pt[], p: Palette, seed: number, root = 16, tip = 11): 
 const outlined = (pts: Pt[], p: Palette, seed: number) =>
   `<path d="${toPath(wobble(pts, seed, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`;
 
-// Sitting, seen from the front: a short soft pear from the chin to the floor,
-// haunches rounding out low down, a small dip where the front paws meet.
+// Sitting, seen from the front: a soft bell from under the chin to the
+// floor. The sides slope straight out from the chin, with no narrow neck
+// above a round belly; the haunches only round it off low down, and the front
+// paws show as two gentle bumps along the floor.
 export const SIT_NECK: Pt = [200, 246];
 export const SIT_SCALE = 0.66;
 const SIT_BODY = sampleCubics([
-  'M 174 238',
-  'C 168 266, 160 290, 150 310',
-  'C 130 336, 122 368, 134 384',
-  'C 144 394, 172 393, 190 391',
-  'C 195 387, 205 387, 210 391',
-  'C 228 393, 256 394, 266 384',
-  'C 278 368, 270 336, 250 310',
-  'C 240 290, 232 266, 226 238',
-  'C 210 232, 190 232, 174 238',
+  'M 162 236',
+  'C 152 262, 144 292, 138 322',
+  'C 132 350, 122 372, 132 386',
+  'C 140 394, 160 392, 174 390',
+  'C 182 395, 194 395, 200 390',
+  'C 206 395, 218 395, 226 390',
+  'C 240 392, 260 394, 268 386',
+  'C 278 372, 268 350, 262 322',
+  'C 256 292, 248 262, 238 236',
+  'C 214 228, 186 228, 162 236',
 ].join(' '), 10);
 const SIT_TAIL: Pt[] = [[258, 386], [292, 386], [316, 370], [322, 342], [316, 318], [324, 300], [340, 296]];
 
