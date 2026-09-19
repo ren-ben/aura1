@@ -83,6 +83,18 @@ real sessions. Follow the sections and numbering in order.
 22. A one-hour session: the display does not fade and does not flash every
     second.
 
+## F2. Menu, today, quotes (after a sync with todos, habits and quotes on the web)
+
+F2a. From the folder list, hold SUN: the menu shows TODAY and HABITS with their
+     progress, and Kael'thos peeks from the bottom-right corner; his eyes move as
+     SUN moves the cursor.
+F2b. In TODAY, POWER ticks a todo and shows the tick at once. Ticking the last
+     one plays a celebration. With the hotspot off, tick one, then sync: the web
+     shows it done.
+F2c. In QUOTES, a quote appears in a bubble with a cameo below it; SUN moves on.
+F2d. Leave the device on the list for three minutes: a lore scene fills the
+     screen; a press returns to the list without starting anything.
+
 ## F. Idempotency under failure
 
 23. Stop a session with the hotspot off and read its uuid from the card.

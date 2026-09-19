@@ -26,12 +26,20 @@ Other docs:
 
 ![Session lifecycle](img/session-lifecycle.svg)
 
-| Button | Folder list | Inside a folder | Running |
-|---|---|---|---|
-| SUN | next folder | next activity | nothing |
-| POWER | open the folder | start a session | stop the session |
-| hold SUN | nothing | back to the folder list | nothing |
-| hold POWER | switch off | switch off | save, then switch off |
+SUN always moves, POWER always acts, holding SUN goes back up, holding POWER switches off.
+
+| Button | Menu | Folder list | Inside a folder | Today / Habits | Quotes | Running |
+|---|---|---|---|---|---|---|
+| SUN | next place | next folder | next activity | next item | next quote | nothing |
+| POWER | open it | open the folder | start a session | tick or untick | next quote | stop |
+| hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | nothing |
+| hold POWER | switch off | switch off | switch off | switch off | switch off | save, switch off |
+
+- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS and QUOTES,
+  with today's progress beside each. Kael'thos watches from the corner.
+- **Ticks work offline.** They go out with the next sync, and the web shows them after.
+- **Left alone for three minutes** he takes over the screen with a scene of his own, or
+  his decay if you have been away. Any press brings the list back without acting.
 
 - **Power-on shows WAKING, power-off shows DORMANT.** The device then reopens the
   activity you last started. With USB plugged in it cannot cut power, so it sleeps
@@ -150,16 +158,17 @@ in [hardware-checklist.md](hardware-checklist.md).
 
 1. **Fix what the hardware test finds.** The vertical slice is then done.
 2. **Cleanup:** upgrade Node to 22+, which removes three workarounds.
-3. **Phase 2, full features (built, on the `phase-2` branch):** the web page has tabs for
-   the log with manual backfill (half XP) and review of sessions over 6 hours, todos,
-   habits with a 26-week heatmap, the quote vault, activity management, and stats (XP,
-   levels, Kael'thos's decay state).
-4. **Phase 3, Kael'thos:** one hand-drawn SVG rig that produces every pose and skin, for
-   the device and the web, plus a 3D model built from it for the web: a rotating outline
-   while the page loads, and ASCII rotation art. Open question for you: who draws the
-   master, and which poses and skins come first.
-5. **Phase 4, device UI:** a MENU above the folders with TODAY (tick off today's todos),
-   HABITS and QUOTES, and the real screens and screensavers in place of today's prototype.
+3. **Phase 2, full features (done):** the web page has tabs for the log with manual
+   backfill (half XP) and review of sessions over 6 hours, todos, habits with a 26-week
+   heatmap, the quote vault, activity management, and stats (XP, levels, decay).
+4. **Phase 3, Kael'thos (done):** the locked design (`packages/art/STYLE.md`), 18
+   expressions, full-body poses, props and a 60+ scene library with animations
+   (`packages/art/CHARACTER.md`), played on the device from the SD card; on the web a
+   turning 3D outline while loading and ASCII rotation on Stats.
+5. **Phase 4, device UI (done, open item below):** the menu, TODAY, HABITS, QUOTES with
+   him saying them, celebrations, the screensaver and decay on the device. Still open:
+   the RESURRECTION ritual (a 60-minute session to wake him from dormancy); for now any
+   session wakes him.
 6. **Phase 5, dashboard:** the real design replacing today's functional prototype: the
    node-graph interface, typography, dither, motion and the 3D Kael'thos. Installable on
    the phone as an app (PWA).
