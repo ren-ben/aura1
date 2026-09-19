@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } from './rig.ts';
 import { cArray, packBits } from './bitmap.ts';
+import { pose, type Pose as BodyPose } from './body.ts';
+import { svg as frame, DEVICE_PALETTE } from './rig.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const out = resolve(root, 'out');
@@ -93,3 +95,18 @@ const faces = names.map((name, i) => {
 const sheetFaces = `<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * TILE_W}" height="${Math.ceil(names.length / COLS) * TILE_H}">`
   + `<rect width="100%" height="100%" fill="#ddd"/>${faces.join('')}</svg>`;
 writeFileSync(resolve(out, 'expressions.png'), new Resvg(sheetFaces).render().asPng());
+
+// The body kit: each pose with a fitting face, smooth beside the device render.
+const POSE_FACES: [BodyPose, keyof typeof EXPRESSIONS][] = [
+  ['sit', 'curious'], ['back', 'curious'], ['wave', 'happy'], ['loaf', 'asleep'], ['peek', 'curious'],
+];
+const poseTiles = POSE_FACES.map(([kind, face], i) => {
+  const x = (i % COLS) * TILE_W;
+  const y = Math.floor(i / COLS) * TILE_H;
+  const art = frame(pose(kind, EXPRESSIONS[face], DEVICE_PALETTE), DEVICE_PALETTE);
+  const png = (buf: Buffer) => `data:image/png;base64,${buf.toString('base64')}`;
+  return `<image x="${x}" y="${y + 30}" width="200" height="200" href="${png(render(art, 200, false).asPng())}"/>`
+    + `<image x="${x + 210}" y="${y + 30}" width="200" height="200" href="${png(render(art, 200, true).asPng())}"/>`
+    + `<text x="${x + 4}" y="${y + 22}" font-family="Consolas, monospace" font-size="20">${kind} / ${face}</text>`;
+});
+writeFileSync(resolve(out, 'poses.png'), new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * TILE_W}" height="${Math.ceil(POSE_FACES.length / COLS) * TILE_H}"><rect width="100%" height="100%" fill="#ddd"/>${poseTiles.join('')}</svg>`).render().asPng());

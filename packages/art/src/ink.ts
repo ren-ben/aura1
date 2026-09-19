@@ -85,6 +85,16 @@ export function wobble(pts: Pt[], seed: number, amp: number, closed = true): Pt[
   });
 }
 
+// Line weight for everything drawn inside withWeight(). A head drawn at half
+// size in a scene still needs whiskers the device can show, so scenes thicken
+// strokes as they shrink the art.
+let weight = 1;
+export function withWeight<T>(w: number, draw: () => T): T {
+  const saved = weight;
+  weight = w;
+  try { return draw(); } finally { weight = saved; }
+}
+
 // A brush stroke along an open polyline: width follows widthAt(t), t in 0..1.
 export function stroke(line: Pt[], widthAt: (t: number) => number): Pt[] {
   const left: Pt[] = [];
@@ -95,7 +105,7 @@ export function stroke(line: Pt[], widthAt: (t: number) => number): Pt[] {
     const tx = next[0] - prev[0];
     const ty = next[1] - prev[1];
     const len = Math.hypot(tx, ty) || 1;
-    const w = widthAt(i / (line.length - 1)) / 2;
+    const w = (widthAt(i / (line.length - 1)) * weight) / 2;
     left.push([p[0] - (ty / len) * w, p[1] + (tx / len) * w]);
     right.push([p[0] + (ty / len) * w, p[1] - (tx / len) * w]);
   });

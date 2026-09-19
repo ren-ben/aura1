@@ -133,8 +133,9 @@ function halo(p: Palette, seed: number): string[] {
 export type Wear = { skin?: Skin; headphones?: boolean };
 
 // The head in canonical coordinates, tilted about the neck. Scenes place it
-// with a transform; the bust puts it on the body as drawn.
-export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
+// with a transform; the bust puts it on the body as drawn. `back` draws it
+// from behind: ears and whiskers, no face.
+export function head(expr: Expression, p: Palette, wear: Wear = {}, opts: { back?: boolean } = {}): string {
   const eyes = Array.isArray(expr.eyes) ? expr.eyes : [expr.eyes, expr.eyes];
   const look = expr.look ?? [0, 0];
   const swing = EAR_SWING[expr.ears ?? 'up'];
@@ -144,6 +145,13 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
     outline([rotate([[122, 228]], -swing, EAR_PIVOTS[0]!)[0]!, ...edges[0]!.slice().reverse(), ...inner[0]!]),
     outline([...inner[1]!, ...edges[1]!, rotate([[278, 228]], swing, EAR_PIVOTS[1]!)[0]!]),
   ];
+  if (opts.back) {
+    return `<g transform="rotate(${expr.tilt ?? 0} ${NECK[0]} ${NECK[1]})">${[
+      ...WHISKERS.map((w, i) => shape(wobble(brush(shorten(w, 0.8), 5.2, 3), 30 + i, 0.4), p.ink)),
+      ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
+      shape(wobble(HEAD, 7, 1.8), p.ink),
+    ].join('')}</g>`;
+  }
   const parts = [
     wear.skin === 'halo' ? halo(p, 70).join('') : '',
     ...(wear.headphones ? headphonesBehind(p, 90) : []),
