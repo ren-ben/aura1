@@ -100,7 +100,7 @@ writeFileSync(resolve(out, 'expressions.png'), new Resvg(sheetFaces).render().as
 
 // The body kit: each pose with a fitting face, smooth beside the device render.
 const POSE_FACES: [BodyPose, keyof typeof EXPRESSIONS][] = [
-  ['sit', 'curious'], ['back', 'curious'], ['wave', 'happy'], ['loaf', 'asleep'], ['peek', 'curious'],
+  ['sit', 'curious'], ['wave', 'happy'], ['loaf', 'asleep'], ['peek', 'curious'],
   ['reach', 'delighted'], ['hold', 'happy'],
 ];
 const poseTiles = POSE_FACES.map(([kind, face], i) => {
@@ -116,7 +116,7 @@ writeFileSync(resolve(out, 'poses.png'), new Resvg(`<svg xmlns="http://www.w3.or
 
 // The scene library: one contact sheet for review, and the SD card pack the
 // device plays: art/<id>-<frame>.bin (1-bit, GxEPD2 layout, size x size) and
-// art/index.txt, one line per scene: moment id frames size.
+// art/index.txt, one line per scene: moment id frames size [env].
 const library = scenes();
 const sd = resolve(out, 'sd/art');
 mkdirSync(sd, { recursive: true });
@@ -126,7 +126,7 @@ for (const s of library) {
     const img = render(f, s.size, true);
     writeFileSync(resolve(sd, `${s.id}-${i}.bin`), packBits(img.pixels, s.size, s.size));
   });
-  index.push(`${s.moment} ${s.id} ${s.frames.length} ${s.size}`);
+  index.push(`${s.moment} ${s.id} ${s.frames.length} ${s.size}${s.env ? ` ${s.env}` : ''}`);
 }
 writeFileSync(resolve(sd, 'index.txt'), `${index.join('\n')}\n`);
 

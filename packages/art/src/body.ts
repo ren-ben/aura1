@@ -1,78 +1,82 @@
 // The body kit: full-body poses around the locked head. The head is drawn by
 // rig.head() in its canonical coordinates and placed on the pose's neck at a
 // smaller scale; strokes are thickened as it shrinks so the device still
-// shows them. Bodies are in between Jiji-slender and chibi: a slim chest,
-// long front legs, rounded haunches, a long tail. Separations between legs
-// and haunches are white line art on the fur, like everything else on him.
+// shows them. Bodies are short and plain, like the mouth: one soft ink
+// silhouette with no leg lines, toes or joints, and the head is the star.
+// The face always shows; there is no pose from behind.
 
-import { curve, ellipse, outline, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
+import { curve, ellipse, outline, sampleCubics, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
 import { head, NECK, type Palette, type Wear } from './rig.ts';
 import type { Expression } from './expressions.ts';
 
 // Places the head so its neck lands on `neck` at `scale`, keeping lines legible.
-export function placeHead(expr: Expression, p: Palette, neck: Pt, scale: number, wear: Wear = {}, opts: { back?: boolean } = {}): string {
+export function placeHead(expr: Expression, p: Palette, neck: Pt, scale: number, wear: Wear = {}): string {
   const [tx, ty] = [neck[0] - NECK[0] * scale, neck[1] - NECK[1] * scale];
-  const inner = withWeight(scale ** -0.7, () => head(expr, p, wear, opts));
+  const inner = withWeight(scale ** -0.7, () => head(expr, p, wear));
   return `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${scale})">${inner}</g>`;
 }
 
-const ink = (pts: Pt[], p: Palette, seed: number, amp = 1.6) => shape(wobble(outline(pts), seed, amp), p.ink);
-const whiteLine = (pts: Pt[], p: Palette, seed: number, w = 4) =>
-  shape(wobble(stroke(curve(pts), (t) => w * (0.5 + 0.5 * Math.sin(Math.PI * t))), seed, 0.4), p.paper);
+const ink = (pts: Pt[], p: Palette, seed: number, amp = 1.6) => shape(wobble(pts, seed, amp), p.ink);
 // A tail: a tapering brush stroke with a rounded end.
 export function tail(pts: Pt[], p: Palette, seed: number, root = 16, tip = 11): string {
   const end = pts[pts.length - 1]!;
   return shape(wobble(stroke(curve(pts), (t) => root + (tip - root) * t), seed, 0.8), p.ink)
     + shape(ellipse(end[0], end[1], tip / 2, tip / 2, 16), p.ink);
 }
+// A paw or arm outlined in paper, so it reads against his black chest.
+const outlined = (pts: Pt[], p: Palette, seed: number) =>
+  `<path d="${toPath(wobble(pts, seed, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`;
 
-// Sitting, seen from the front: slim chest, two front legs straight down,
-// haunches rounding out behind them, the tail curling up at his side.
-const SIT_BODY: Pt[] = [
-  [178, 168], [170, 200], [164, 232], [158, 262], [146, 286], [136, 312], [132, 342], [136, 368], [148, 386],
-  [176, 391], [224, 391], [252, 386], [264, 368], [268, 342], [264, 312], [254, 286], [242, 262], [236, 232],
-  [230, 200], [222, 168],
-];
-const SIT_NECK: Pt = [200, 180];
-const SIT_SCALE = 0.54;
+// Sitting, seen from the front: a short soft pear from the chin to the floor,
+// haunches rounding out low down, a small dip where the front paws meet.
+export const SIT_NECK: Pt = [200, 246];
+export const SIT_SCALE = 0.66;
+const SIT_BODY = sampleCubics([
+  'M 174 238',
+  'C 168 266, 160 290, 150 310',
+  'C 130 336, 122 368, 134 384',
+  'C 144 394, 172 393, 190 391',
+  'C 195 387, 205 387, 210 391',
+  'C 228 393, 256 394, 266 384',
+  'C 278 368, 270 336, 250 310',
+  'C 240 290, 232 266, 226 238',
+  'C 210 232, 190 232, 174 238',
+].join(' '), 10);
+const SIT_TAIL: Pt[] = [[258, 386], [292, 386], [316, 370], [322, 342], [316, 318], [324, 300], [340, 296]];
 
-export type Pose = 'sit' | 'back' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
+// Standing on his hind legs: the same pear, split into two stubby legs.
+const STAND_BODY = sampleCubics([
+  'M 178 238',
+  'C 170 266, 162 296, 164 324',
+  'C 166 350, 160 372, 160 390',
+  'C 170 394, 182 394, 190 390',
+  'C 192 374, 196 364, 200 364',
+  'C 204 364, 208 374, 210 390',
+  'C 218 394, 230 394, 240 390',
+  'C 240 372, 234 350, 236 324',
+  'C 238 296, 230 266, 222 238',
+  'C 208 232, 192 232, 178 238',
+].join(' '), 10);
 
-// Standing on his hind legs, both paws thrown up: yay.
-const REACH_BODY: Pt[] = [
-  [180, 168], [172, 200], [166, 236], [164, 272], [166, 304], [160, 336], [154, 366], [150, 390], [178, 392],
-  [184, 360], [196, 330], [204, 330], [216, 360], [222, 392], [250, 390], [246, 366], [240, 336], [234, 304],
-  [236, 272], [234, 236], [228, 200], [220, 168],
-];
+export type Pose = 'sit' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
 
-// A paw: a mitten of ink with two toe lines.
-function paw(x: number, y: number, p: Palette, seed: number, angle = 0): string {
-  const r = (angle * Math.PI) / 180;
-  const toe = (dx: number): Pt[] => [[x + dx * Math.cos(r) - 4 * Math.sin(r), y - 4 * Math.cos(r) - dx * Math.sin(r)],
-    [x + dx * Math.cos(r) + 5 * Math.sin(r), y + 5 * Math.cos(r) - dx * Math.sin(r)]];
-  return shape(wobble(ellipse(x, y, 14, 12, 24), seed, 0.7), p.ink) + whiteLine(toe(-4), p, seed + 1, 2.8) + whiteLine(toe(5), p, seed + 2, 2.8);
-}
+const sitting = (p: Palette) => tail(SIT_TAIL, p, 5) + ink(SIT_BODY, p, 3);
+const paw = (x: number, y: number, p: Palette, seed: number, rx = 13, ry = 11) => outlined(ellipse(x, y, rx, ry, 24), p, seed);
 
-// Holding something against his chest: `held` is drawn between the arms,
-// over the body and under the paws, which grip its sides (x 170 and 230,
-// y 266). Centre the held thing on x 200 and let it rise above the paws.
+// Where a held thing sits: against his chest, between the paws.
+export const HOLD: Pt = [200, 318];
+
+// Holding something against his chest: `held` is drawn over the body and
+// under the paws, which grip its sides. No arms: two paws say enough.
+// Centre it on HOLD.
 export function holding(expr: Expression, p: Palette, held: string, wear: Wear = {}): string {
+  const [x, y] = HOLD;
   return [
-    tail([[262, 380], [300, 378], [324, 356], [330, 322], [324, 290], [332, 264], [348, 256]], p, 5),
-    ink(SIT_BODY, p, 3),
-    whiteLine([[172, 334], [170, 360], [171, 387]], p, 11, 3.5),
-    whiteLine([[228, 334], [230, 360], [229, 387]], p, 12, 3.5),
-    whiteLine([[200, 352], [200, 389]], p, 13, 3),
+    sitting(p),
     placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
     held ? `<g filter="url(#halo)">${held}</g>` : '',
-    // Arms and paws are outlined in paper so they read against his chest.
-    ...[[[176, 222], [170, 244], [172, 262]], [[224, 222], [230, 244], [228, 262]]].map((pts, i) => {
-      const arm = stroke(curve(pts as Pt[]), () => 15);
-      return `<path d="${toPath(wobble(arm, 31 + i, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`;
-    }),
-    ...[[170, 266, -30], [230, 266, 30]].map(([x, y, a], i) =>
-      `<path d="${toPath(wobble(ellipse(x!, y!, 15, 12, 24), 33 + i, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`
-      + paw(x!, y!, p, 36 + i * 3, a)),
+    paw(x - 32, y + 2, p, 33),
+    paw(x + 32, y + 2, p, 34),
   ].join('');
 }
 
@@ -80,64 +84,38 @@ export function holding(expr: Expression, p: Palette, held: string, wear: Wear =
 export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, frame = 0): string {
   switch (kind) {
     case 'sit':
-      return [
-        tail([[262, 380], [300, 378], [324, 356], [330, 322], [324, 290], [332, 264], [348, 256]], p, 5),
-        ink(SIT_BODY, p, 3),
-        // Front legs and the line where they meet the haunches.
-        whiteLine([[172, 334], [170, 360], [171, 387]], p, 11, 3.5),
-        whiteLine([[228, 334], [230, 360], [229, 387]], p, 12, 3.5),
-        whiteLine([[200, 352], [200, 389]], p, 13, 3),
-        whiteLine([[185, 378], [185, 389]], p, 14, 3), whiteLine([[215, 378], [215, 389]], p, 15, 3),
-        placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
-      ].join('');
-    case 'back':
-      // From behind: no face, the tail wrapped around the front of his paws.
-      return [
-        ink(SIT_BODY, p, 3),
-        whiteLine([[200, 200], [202, 260], [200, 330]], p, 16, 3),
-        placeHead(expr, p, SIT_NECK, SIT_SCALE, wear, { back: true }),
-        tail([[150, 382], [190, 394], [236, 392], [266, 380], [282, 360]], p, 6, 15, 10),
-      ].join('');
+      return sitting(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'wave': {
-      // Sitting with his near paw raised beside his face.
-      const swing = frame % 2 === 0 ? 0 : 14;
-      const arm = [[228, 238], [258, 222], [280 - swing * 0.6, 196], [290 - swing, 172 + swing * 0.2]] as Pt[];
-      const [px, py] = [292 - swing, 162 + swing * 0.2];
-      return [
-        tail([[262, 380], [300, 378], [324, 356], [330, 322], [324, 290], [332, 264], [348, 256]], p, 5),
-        ink(SIT_BODY, p, 3),
-        whiteLine([[172, 334], [170, 360], [171, 387]], p, 11, 3.5),
-        whiteLine([[200, 352], [200, 389]], p, 13, 3),
-        whiteLine([[185, 378], [185, 389]], p, 14, 3),
-        shape(wobble(stroke(curve(arm), (t) => 21 - 3 * t), 8, 0.8), p.ink),
-        shape(wobble(ellipse(px, py, 14, 16, 24), 9, 0.8), p.ink),
-        whiteLine([[px - 7, py - 8], [px - 6, py + 2]], p, 17, 3), whiteLine([[px + 2, py - 10], [px + 2, py]], p, 18, 3),
-        placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
-      ].join('');
+      // His near paw raised beside his cheek, swinging between frames.
+      const swing = frame % 2 === 0 ? 0 : 12;
+      const tip: Pt = [314 - swing, 208 + swing * 0.3];
+      const arm = [[226, 282], [262, 270], [292 - swing * 0.5, 244], tip] as Pt[];
+      return sitting(p)
+        + shape(wobble(stroke(curve(arm), (t) => 20 - 4 * t), 8, 0.8), p.ink)
+        + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear)
+        + paw(tip[0], tip[1] - 6, p, 9, 13, 15);
     }
     case 'loaf':
       // Paws tucked under, a bread loaf of a cat, tail wrapped along the front.
       return [
-        ink([[124, 380], [134, 336], [170, 306], [230, 294], [290, 300], [326, 326], [336, 362],
-          [326, 388], [230, 394], [140, 392]], p, 4),
+        ink(outline([[124, 380], [134, 336], [170, 306], [230, 294], [290, 300], [326, 326], [336, 362],
+          [326, 388], [230, 394], [140, 392]]), p, 4),
         tail([[326, 384], [292, 396], [236, 398], [190, 394]], p, 7, 14, 10),
         placeHead(expr, p, [176, 332], 0.62, wear),
       ].join('');
     case 'reach': {
       // Paws up: halfway on odd frames, all the way on even ones.
       const up = frame % 2 === 0 ? 1 : 0.55;
-      const arm = (side: number): Pt[] => [[200 + side * 26, 206], [200 + side * (40 + 26 * up), 206 - 50 * up],
-        [200 + side * (52 + 22 * up), 206 - 96 * up]];
-      const armL = arm(-1);
-      const armR = arm(1);
+      const arm = (side: number): Pt[] => [[200 + side * 20, 266], [200 + side * (46 + 30 * up), 262 - 50 * up],
+        [200 + side * (70 + 26 * up), 262 - 100 * up]];
+      const [armL, armR] = [arm(-1), arm(1)];
       return [
-        tail([[236, 378], [274, 372], [300, 346], [306, 312], [300, 280], [310, 256], [326, 250]], p, 5),
-        ink(REACH_BODY, p, 3),
-        whiteLine([[200, 334], [200, 390]], p, 13, 3),
-        shape(wobble(stroke(curve(armL), (t) => 17 - 3 * t), 41, 0.7), p.ink),
-        shape(wobble(stroke(curve(armR), (t) => 17 - 3 * t), 42, 0.7), p.ink),
+        tail([[232, 380], [270, 374], [294, 350], [298, 322], [292, 300], [302, 282], [318, 278]], p, 5),
+        ink(STAND_BODY, p, 3),
+        shape(wobble(stroke(curve(armL), (t) => 18 - 4 * t), 41, 0.7), p.ink),
+        shape(wobble(stroke(curve(armR), (t) => 18 - 4 * t), 42, 0.7), p.ink),
         placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
-        paw(armL[2]![0], armL[2]![1] - 6, p, 43, -20), paw(armR[2]![0], armR[2]![1] - 6, p, 46, 20),
+        paw(armL[2]![0], armL[2]![1] - 4, p, 43), paw(armR[2]![0], armR[2]![1] - 4, p, 46),
       ].join('');
     }
     case 'hold':
@@ -150,8 +128,6 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
         shape(wobble(stroke([[-4, 342], [404, 342]], () => 6), 21, 0.8), p.ink),
         shape(wobble(ellipse(128, 336, 26, 17, 28), 22, 1), p.ink),
         shape(wobble(ellipse(272, 336, 26, 17, 28), 23, 1), p.ink),
-        whiteLine([[120, 330], [121, 344]], p, 24, 3), whiteLine([[134, 330], [134, 344]], p, 25, 3),
-        whiteLine([[266, 330], [266, 344]], p, 26, 3), whiteLine([[280, 330], [279, 344]], p, 27, 3),
       ].join('');
   }
 }

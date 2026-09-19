@@ -39,13 +39,19 @@ around the head. No brows.
 
 ## Scenes (the body kit and props)
 
-Poses (`src/body.ts`): sit, back, wave (animated paw), loaf, peek over an
+Poses (`src/body.ts`): sit, wave (animated paw), loaf, peek over an
 edge, reach (both paws up, yay), hold (something against his chest). Props
 (`src/props.ts`) are line art; anything he holds gets a paper halo so it reads
 on his fur. Lore pieces: paleblood and blood moons, the hunter's tricorn,
-saw cleaver and lamps, gravestones of the dream, runes, eyes in the dark,
-tentacles, and the void (his ink as a star field). `out/scenes.png` shows the
+saw cleaver and lamps, gravestones of the dream, messengers, Yharnam's
+spires, Amygdala on the cathedral, the moon with something hanging from it,
+the great eye at the window, runes, eyes in the dark, tentacles, and the
+void (his ink as a star field, on a dark night). `out/scenes.png` shows the
 whole library; `src/scenes.ts` is the list.
+
+Every scene is set in a place: room, desk, window, dream, yharnam, void,
+halloween. Each place has its own goodnight and good morning animation; the
+device sleeps in the place on the glass and wakes where it fell asleep.
 
 ## Moments
 
@@ -53,14 +59,14 @@ Each moment has several scenes; the device picks one at random.
 
 | Moment | Scenes |
 |---|---|
-| Power on | waves hello, yay with paws up, morning coffee, stretches out of a loaf, peeks over the edge, bursts out of a box |
-| Power off | waves goodnight, a slow blink into a loaf, blows out the candle, dims the lamp, watches the full moon, fades into the void |
-| Session (by folder) | AXIOM: book and coffee, laptop with headphones, reading. WORKSHOP: laptop, vibing. HERESY: quill and candle, runes rising. DREAM: moon window, asleep dreaming. HUNT: the hunter under a paleblood moon with cleaver or lantern |
-| Session sealed | proud or happy; flustered after 90+ minutes; annoyed under 5; dizzy over 6 hours |
+| Power on | per place: wakes from a loaf and waves (window, dream, yharnam, void, halloween), startles awake at the desk; in the room: waves hello, yay, morning coffee, stretches, peeks, bursts out of a box |
+| Power off | per place: settles into a loaf (the void's eyes close with him), dozes off over the book at the desk; in the room: waves goodnight, a slow blink |
+| Session (by folder) | AXIOM: book and coffee, laptop with headphones, reading. WORKSHOP: laptop, vibing. HERESY: quill and candle, runes rising, tentacles reading over his shoulder. DREAM: moon window, asleep dreaming. HUNT: the hunter on Yharnam's rooftops with the cleaver, or with a lantern |
+| Session sealed | proud or happy; flustered after 90+ minutes; annoyed under 10 (not logged); dizzy over 6 hours |
 | Level up, todos done | yay with sparkles; overjoyed with hearts |
-| Neglected | furious, or sulking with his back to you |
+| Neglected | furious, huffy, or furious under a rising blood moon |
 | Decay | thinning: lonely at the window. Fragmenting: dithered away. Dormant: a void loaf, eyes watching |
-| Lore screensavers | the hunter's dream (graves, lamps, moon), rain at the window, insight (eyes and tentacles), his true form |
+| Lore screensavers | the hunter's dream, the messengers, Yharnam rooftops, Amygdala, rain at the window, the eye at the window, insight (eyes and tentacles in the dark), the moon presence, his true form |
 | Halloween | haunted window with the ghost friend, the halo and a pumpkin, holding a pumpkin |
 | Cameos | 13 small busts for quotes and overlays; a watcher peeking from a corner, eyes left, up, right |
 

@@ -268,3 +268,87 @@ export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
     + `<path d="${toPath(wobble(ellipse(x + 4, y - 28, 12, 12, 24), seed + 2, 0.4))}" fill="${p.ink}"/>`
     + `<path d="${toPath(ellipse(x + 9, y - 31, 10, 10, 24))}" fill="${p.paper}"/>`;
 }
+
+// Yharnam at night: gothic roofs and needle spires along the bottom, in
+// dither so they sit in the distance and he reads in front of them. Lit
+// windows are paper slits. Only low roofs in the gap where he sits, so no
+// spire runs through his head or whiskers.
+export function skyline(p: Palette, seed = 260, fill = 'url(#d50)', gap: [number, number] = [84, 316]): string {
+  const r = rng(seed);
+  const out: string[] = [];
+  for (let x = -10; x < 410;) {
+    const w = 22 + r() * 16;
+    const inGap = x + w > gap[0] && x < gap[1];
+    const h = inGap ? 30 + r() * 30 : 100 + r() * 110;
+    const spire = h + (inGap ? 10 : 30 + r() * 50);
+    const top = 400 - h;
+    out.push(`<path d="${toPath(wobble(outline([[x, 404], [x, top + 14], [x + w * 0.5 - 4, top - 6], [x + w * 0.5, 400 - spire],
+      [x + w * 0.5 + 4, top - 6], [x + w, top + 14], [x + w, 404]], 2), seed + x, 0.5))}" fill="${fill}" stroke="${p.ink}" stroke-width="3"/>`);
+    if (!inGap && r() < 0.7) {
+      const [wx, wy] = [x + w * 0.5, top + 30 + r() * 30];
+      out.push(`<path d="${toPath(outline([[wx - 4, wy + 14], [wx - 4, wy], [wx, wy - 6], [wx + 4, wy], [wx + 4, wy + 14]], 2))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="2"/>`);
+    }
+    x += w - 4;
+  }
+  return out.join('');
+}
+
+// Amygdala, the Great One who clings to the cathedral: a long egg of a head
+// crusted with little eyes, and long thin arms bent at the elbow like a
+// spider's, gripping the spires below. Dark dither, so the black cat in
+// front never merges with it.
+export function amygdala(x: number, y: number, p: Palette, seed = 270, k = 1): string {
+  const r = rng(seed);
+  // Each arm: shoulder at the head, elbow high and out, hand down on a roof.
+  const arms = [[-1, 0], [-1, 1], [-1, 2], [1, 0], [1, 1], [1, 2]].map(([side, i]) => {
+    const sh: Pt = [x + side! * 22 * k, y + (10 + i! * 18) * k];
+    const el: Pt = [x + side! * (56 + i! * 22) * k, y + (-34 + i! * 22) * k];
+    const hand: Pt = [x + side! * (70 + i! * 30) * k, y + (70 + i! * 34) * k];
+    const fingers = [-7, 0, 7].map((dx, j) => inkLine([hand, [hand[0] + dx * k, hand[1] + 14 * k]], p, { seed: seed + 40 + i! * 3 + j, w: 3 * k })).join('');
+    return inkLine([sh, el], p, { seed: seed + i! * 2, w: 7 * k }) + inkLine([el, hand], p, { seed: seed + i! * 2 + 1, w: 5 * k }) + fingers;
+  });
+  const headShape = ellipse(x, y, 30 * k, 50 * k, 40);
+  const eyes = Array.from({ length: 11 }, () => {
+    const a = r() * Math.PI * 2;
+    const d = Math.sqrt(r()) * 0.8;
+    return `<path d="${toPath(ellipse(x + Math.cos(a) * d * 26 * k, y + Math.sin(a) * d * 44 * k, 4 * k, 5 * k, 10))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="2"/>`;
+  });
+  return arms.join('') + `<path d="${toPath(wobble(headShape, seed, 1.2))}" fill="url(#d75)" stroke="${p.ink}" stroke-width="5"/>` + eyes.join('');
+}
+
+// A messenger from the Hunter's Dream: a pale little thing rising out of the
+// ground, round bald head, hollow eyes, thin arms up. Harmless and odd.
+export function messenger(x: number, y: number, p: Palette, seed = 280, s = 1): string {
+  const body = outline([[x - 8 * s, y], [x - 6 * s, y - 20 * s], [x, y - 24 * s], [x + 6 * s, y - 20 * s], [x + 8 * s, y]], 3);
+  const headShape = ellipse(x, y - 34 * s, 13 * s, 12 * s, 20);
+  const arms = [-1, 1].map((d) => inkLine([[x + d * 6 * s, y - 16 * s], [x + d * 16 * s, y - 24 * s], [x + d * 20 * s, y - 36 * s]], p, { seed: seed + d, w: 3 * s })).join('');
+  const eyes = [-5, 5].map((dx) => `<path d="${toPath(ellipse(x + dx * s, y - 34 * s, 3 * s, 3.5 * s, 10))}" fill="${p.ink}"/>`).join('');
+  return arms + drawn(body, p, { seed, w: 4 }) + drawn(headShape, p, { seed: seed + 3, w: 4 }) + eyes
+    + inkLine([[x - 16 * s, y + 2], [x + 16 * s, y + 2]], p, { seed: seed + 5, w: 4 });
+}
+
+// A moon with something vast behind it: long tentacles hanging from its rim.
+export function tentacledMoon(x: number, y: number, rad: number, p: Palette, seed = 290): string {
+  const r = rng(seed);
+  const hanging = Array.from({ length: 5 }, (_, i) => {
+    const a = Math.PI * (0.15 + i * 0.175);
+    const [sx, sy] = [x + Math.cos(a) * rad * 0.9, y + Math.sin(a) * rad * 0.9];
+    const len = 60 + r() * 90;
+    const sway = (r() - 0.5) * 30;
+    const pts: Pt[] = [[sx, sy], [sx + sway * 0.4, sy + len * 0.4], [sx - sway * 0.3, sy + len * 0.75], [sx + sway, sy + len]];
+    return `<path d="${toPath(wobble(stroke(curve(pts), (t) => 11 * (1 - t) + 2), seed + i, 0.6))}" fill="${p.ink}"/>`;
+  });
+  return hanging.join('') + moon(x, y, rad, p, 'paleblood', seed + 9);
+}
+
+// A great eye filling a window pane: something outside is looking in.
+export function windowEye(x: number, y: number, w: number, h: number, p: Palette, seed = 300): string {
+  const [cx, cy] = [x + w / 2, y + h * 0.45];
+  const lid = outline([[cx - w * 0.42, cy], [cx, cy - h * 0.3], [cx + w * 0.42, cy], [cx, cy + h * 0.3]], 5);
+  return drawn(box(x, y, w, h, 4), p, { seed, w: 7 }, 'url(#d75)')
+    + `<path d="${toPath(wobble(lid, seed + 1, 0.8))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="4"/>`
+    + `<path d="${toPath(ellipse(cx - 4, cy, h * 0.17, h * 0.17, 28))}" fill="${p.ink}"/>`
+    + `<path d="${toPath(ellipse(cx - 4, cy, 2.5, h * 0.12, 12))}" fill="${p.paper}"/>`
+    + inkLine([[x + w / 2, y], [x + w / 2, y + h * 0.12]], p, { seed: seed + 2, w: 6 })
+    + inkLine([[x + w / 2, y + h * 0.78], [x + w / 2, y + h]], p, { seed: seed + 3, w: 6 });
+}
