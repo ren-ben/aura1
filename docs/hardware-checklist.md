@@ -34,8 +34,9 @@ real sessions. Follow the sections and numbering in order.
    with `python -m platformio device monitor -e aura1`. Record the
    `flash=`/`psram=` line. Confirm no flash-size error, no boot loop, and no
    PSRAM fatal error.
-9. The panel powers on with a full refresh showing WAKING, then the folder
-   list; no GxEPD2 "Busy Timeout".
+9. Power-on shows WAKING, then the folder list, both without the flashing
+   full refresh; no GxEPD2 "Busy Timeout". After a flash or reset (not a
+   power-off), faint ghosting of the old frame is expected until DORMANT.
 10. Holding POWER turns the board on; releasing it does not turn it off or
     start a session. No button needs holding at boot, and plugging in USB
     does not enter download mode. On the folder list, SUN moves one folder
