@@ -7,6 +7,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } from './rig.ts';
 import { cArray, packBits } from './bitmap.ts';
 import { pose, type Pose as BodyPose } from './body.ts';
+import { scenes } from './scenes.ts';
 import { svg as frame, DEVICE_PALETTE } from './rig.ts';
 
 const root = resolve(import.meta.dirname, '..');
@@ -110,3 +111,31 @@ const poseTiles = POSE_FACES.map(([kind, face], i) => {
     + `<text x="${x + 4}" y="${y + 22}" font-family="Consolas, monospace" font-size="20">${kind} / ${face}</text>`;
 });
 writeFileSync(resolve(out, 'poses.png'), new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * TILE_W}" height="${Math.ceil(POSE_FACES.length / COLS) * TILE_H}"><rect width="100%" height="100%" fill="#ddd"/>${poseTiles.join('')}</svg>`).render().asPng());
+
+// The scene library: one contact sheet for review, and the SD card pack the
+// device plays: art/<id>-<frame>.bin (1-bit, GxEPD2 layout, size x size) and
+// art/index.txt, one line per scene: moment id frames size.
+const library = scenes();
+const sd = resolve(out, 'sd/art');
+mkdirSync(sd, { recursive: true });
+const index: string[] = [];
+for (const s of library) {
+  s.frames.forEach((f, i) => {
+    const img = render(f, s.size, true);
+    writeFileSync(resolve(sd, `${s.id}-${i}.bin`), packBits(img.pixels, s.size, s.size));
+  });
+  index.push(`${s.moment} ${s.id} ${s.frames.length} ${s.size}`);
+}
+writeFileSync(resolve(sd, 'index.txt'), `${index.join('\n')}\n`);
+
+const SCENE_COLS = 6;
+const cells = library.flatMap((s) => s.frames.map((f, i) => ({ s, f, i })));
+const sceneTiles = cells.map(({ s, f, i }, n) => {
+  const x = (n % SCENE_COLS) * 210;
+  const y = Math.floor(n / SCENE_COLS) * 236;
+  const png = `data:image/png;base64,${render(f, s.size, true).asPng().toString('base64')}`;
+  return `<image x="${x}" y="${y + 30}" width="200" height="200" style="image-rendering:pixelated" href="${png}"/>`
+    + `<text x="${x + 2}" y="${y + 22}" font-family="Consolas, monospace" font-size="14">${s.id}${s.frames.length > 1 ? ` ${i + 1}/${s.frames.length}` : ''}</text>`;
+});
+writeFileSync(resolve(out, 'scenes.png'), new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" width="${SCENE_COLS * 210}" height="${Math.ceil(cells.length / SCENE_COLS) * 236}"><rect width="100%" height="100%" fill="#ccc"/>${sceneTiles.join('')}</svg>`).render().asPng());
+console.log(`scenes: ${library.length}, frames: ${cells.length} -> ${sd}`);

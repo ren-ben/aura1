@@ -176,9 +176,14 @@ export function svg(inner: string, p: Palette): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}">${bg}${inner}</svg>`;
 }
 
+// Head and shoulders in canonical coordinates, for scenes to place.
+export function bustArt(expr: Expression, p: Palette, wear: Wear = {}): string {
+  return shape(wobble(BODY, 11, 2.2), p.ink) + head(expr, p, wear);
+}
+
 // Head and shoulders, as on the device's portrait screens.
 export function bust(expr: Expression, wear: Wear = {}, p: Palette = DEVICE_PALETTE): string {
-  return svg(shape(wobble(BODY, 11, 2.2), p.ink) + head(expr, p, wear), p);
+  return svg(bustArt(expr, p, wear), p);
 }
 
 const POSE_FACES: Record<Pose, [Expression, Wear]> = {

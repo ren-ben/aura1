@@ -38,7 +38,8 @@ const SIT_SCALE = 0.54;
 
 export type Pose = 'sit' | 'back' | 'wave' | 'loaf' | 'peek';
 
-export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}): string {
+// frame varies a pose between animation frames (the waving paw's angle).
+export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, frame = 0): string {
   switch (kind) {
     case 'sit':
       return [
@@ -61,7 +62,9 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}):
       ].join('');
     case 'wave': {
       // Sitting with his near paw raised beside his face.
-      const arm = [[228, 238], [258, 222], [280, 196], [290, 172]] as Pt[];
+      const swing = frame % 2 === 0 ? 0 : 14;
+      const arm = [[228, 238], [258, 222], [280 - swing * 0.6, 196], [290 - swing, 172 + swing * 0.2]] as Pt[];
+      const [px, py] = [292 - swing, 162 + swing * 0.2];
       return [
         tail([[262, 380], [300, 378], [324, 356], [330, 322], [324, 290], [332, 264], [348, 256]], p, 5),
         ink(SIT_BODY, p, 3),
@@ -69,8 +72,8 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}):
         whiteLine([[200, 352], [200, 389]], p, 13, 3),
         whiteLine([[185, 378], [185, 389]], p, 14, 3),
         shape(wobble(stroke(curve(arm), (t) => 21 - 3 * t), 8, 0.8), p.ink),
-        shape(wobble(ellipse(292, 162, 14, 16, 24), 9, 0.8), p.ink),
-        whiteLine([[285, 154], [286, 164]], p, 17, 3), whiteLine([[294, 152], [294, 162]], p, 18, 3),
+        shape(wobble(ellipse(px, py, 14, 16, 24), 9, 0.8), p.ink),
+        whiteLine([[px - 7, py - 8], [px - 6, py + 2]], p, 17, 3), whiteLine([[px + 2, py - 10], [px + 2, py]], p, 18, 3),
         placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
       ].join('');
     }
