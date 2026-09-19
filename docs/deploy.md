@@ -3,8 +3,12 @@
 Run on the Raspberry Pi. `docker compose build` runs natively on arm64;
 both base images (`node:22-alpine`, `postgres:17-alpine`) are multi-arch.
 
-Follow the steps in order. Steps 4 and 5 create Cloudflare Access before the
-tunnel ever routes traffic to the API, so the API is never exposed
+This assumes the Pi already runs a locally-managed `cloudflared` tunnel from
+`/etc/cloudflared/config.yml`. AURA-1 adds one ingress rule to it; it does
+not need its own tunnel.
+
+Follow the steps in order. Step 3 creates Cloudflare Access before step 4
+routes the hostname to the API, so the API is never exposed
 unauthenticated, even briefly.
 
 ## 1. Clone
@@ -17,7 +21,7 @@ cd aura1
 ## 2. Bring up Postgres and the API
 
 ```bash
-docker compose up -d postgres api
+docker compose up -d
 ```
 
 `postgres` and `postgres-test` are bound to `127.0.0.1` only (not the LAN);
@@ -33,26 +37,19 @@ device never picks up the rename:
 docker compose exec postgres psql -U aura -d aura -c "UPDATE meta SET value = value + 1 WHERE key = 'config_version';"
 ```
 
-The device picks up the change on its next sync. `api` has no
-host port: it is reachable only on the compose network, by `cloudflared`.
-Check `docker compose logs api` for the "Server listening" line before
-continuing. Do not start `cloudflared` yet — it has no tunnel token and no
-Access policy exists to protect it.
+The device picks up the change on its next sync. `api` is published on
+`127.0.0.1:3000` only, where the host's `cloudflared` reaches it. Keep the
+`127.0.0.1`: Docker's port rules bypass UFW, so a bare `3000:3000` would put
+the unauthenticated API on your LAN. If another app already uses host port
+3000, change the left-hand port in `docker-compose.yml` and use that port in
+step 4.
 
-## 3. Create the Cloudflare Tunnel (do not route it yet)
+Check `docker compose logs api` for the "Server listening" line, and
+`curl -s http://127.0.0.1:3000/api/v1/sessions` for `[]`, before
+continuing. Do not touch the tunnel config yet: no Access policy exists to
+protect the API.
 
-Cloudflare Zero Trust, Networks, Tunnels: create a tunnel, but do not add the
-`aura.amygdala-inc.org` hostname route yet. Copy the tunnel token; add it to
-`.env` in the repo root (gitignored, never commit it):
-
-```
-TUNNEL_TOKEN=<tunnel token>
-```
-
-Do not run `docker compose up -d` again yet. Adding the hostname route
-before Access exists would put the unauthenticated API on the internet.
-
-## 4. Create Access applications and policies
+## 3. Create Access applications and policies
 
 Create the service token first, then the two applications on
 `aura.amygdala-inc.org`, in this order:
@@ -86,24 +83,35 @@ Create the service token first, then the two applications on
    evaluates Bypass first, so it is the one policy mistake that opens a
    path regardless of anything else configured.
 
-Optionally, on the tunnel's public hostname settings, enable "Protect with
-Access" (the exact dashboard label may differ by Cloudflare version) as
-defence in depth alongside the Access application policies.
+## 4. Route the hostname through the existing tunnel
 
-## 5. Route the tunnel and start it
+Add this rule to the `ingress:` list in `/etc/cloudflared/config.yml`.
+Rules match top to bottom, so put it above the catch-all
+`service: http_status:404` and above any wildcard such as
+`*.amygdala-inc.org`:
 
-Now add the `aura.amygdala-inc.org` hostname route on the tunnel, pointing
-to `http://api:3000`.
-
-```bash
-docker compose up -d
+```yaml
+  - hostname: aura.amygdala-inc.org
+    service: http://127.0.0.1:3000
 ```
 
-This recreates `cloudflared` with the real `TUNNEL_TOKEN` from `.env` and
-starts it for the first time. `docker compose config` prints the
-substituted token in plain text, so never paste its output anywhere.
+Check the file, create the DNS record, and restart the tunnel:
 
-## 6. Verify
+```bash
+cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate
+cloudflared tunnel --config /etc/cloudflared/config.yml ingress rule https://aura.amygdala-inc.org
+cloudflared tunnel route dns <tunnel-name> aura.amygdala-inc.org
+sudo systemctl restart cloudflared
+```
+
+`ingress rule` must print the `aura.amygdala-inc.org` rule, not a wildcard
+or the catch-all. `route dns` needs `~/.cloudflared/cert.pem` from
+`cloudflared tunnel login`. Without it, add the record by hand in the
+Cloudflare DNS dashboard instead: CNAME `aura` to
+`<tunnel-UUID>.cfargotunnel.com`, proxied. The UUID is the `tunnel:` value
+in `config.yml`.
+
+## 5. Verify
 
 Unauthenticated GET on the root, must redirect to the Cloudflare Access
 login:

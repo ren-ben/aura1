@@ -54,10 +54,10 @@
   <!-- Raspberry Pi -->
   <rect x="700" y="50" width="240" height="300" class="box"/>
   <text x="820" y="78" text-anchor="middle" class="t">Raspberry Pi</text>
-  <text x="820" y="98" text-anchor="middle" class="s">Docker compose</text>
+  <text x="820" y="98" text-anchor="middle" class="s">host tunnel + Docker compose</text>
   <rect x="720" y="115" width="200" height="55" class="inner"/>
   <text x="820" y="139" text-anchor="middle" class="k">cloudflared</text>
-  <text x="820" y="158" text-anchor="middle" class="s">outbound tunnel</text>
+  <text x="820" y="158" text-anchor="middle" class="s">shared host tunnel</text>
   <rect x="720" y="195" width="200" height="60" class="inner"/>
   <text x="820" y="220" text-anchor="middle" class="k">api (Fastify)</text>
   <text x="820" y="240" text-anchor="middle" class="s">sync, sessions, page</text>
@@ -83,5 +83,5 @@
   <line x1="820" y1="170" x2="820" y2="193" class="line" marker-end="url(#arrow)"/>
   <line x1="820" y1="255" x2="820" y2="278" class="line" marker-end="url(#arrow)"/>
 
-  <text x="480" y="376" text-anchor="middle" class="s">No ports are open on the Pi. Everything enters through Cloudflare Access.</text>
+  <text x="480" y="376" text-anchor="middle" class="s">No ports are open to the network. Everything enters through Cloudflare Access.</text>
 </svg>
