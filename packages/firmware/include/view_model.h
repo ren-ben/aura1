@@ -20,5 +20,6 @@ struct ViewModel {
   std::vector<bool> checks;        // ticked items, for the todo and habit lists
   std::string quote;
   std::string source;
+  int quotePage = 0;               // which page of a long quote
   std::string moment;              // the art pack scene for Waking, Celebrate, Screensaver
 };

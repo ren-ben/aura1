@@ -30,7 +30,7 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
 
 | Button | Menu | Folder list | Inside a folder | Today / Habits | Quotes | Running |
 |---|---|---|---|---|---|---|
-| SUN | next place | next folder | next activity | next item | next quote | nothing |
+| SUN | next place | next folder | next activity | next item | more of a long quote | nothing |
 | POWER | open it | open the folder | start a session | tick or untick | next quote | stop |
 | hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | nothing |
 | hold POWER | switch off | switch off | switch off | switch off | switch off | save, switch off |

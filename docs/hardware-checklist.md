@@ -91,7 +91,8 @@ F2a. From the folder list, hold SUN: the menu shows TODAY and HABITS with their
 F2b. In TODAY, POWER ticks a todo and shows the tick at once. Ticking the last
      one plays a celebration. With the hotspot off, tick one, then sync: the web
      shows it done.
-F2c. In QUOTES, a quote appears in a bubble with a cameo below it; SUN moves on.
+F2c. In QUOTES, a quote appears in a bubble with a cameo below it; POWER moves on.
+     A long quote shows an arrow under the bubble; SUN turns to the rest.
 F2d. Leave the device on the list for three minutes: a lore scene fills the
      screen; a press returns to the list without starting anything.
 

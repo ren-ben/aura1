@@ -1,5 +1,6 @@
 #include "session_machine.h"
 #include "art_index.h"
+#include "quote_text.h"
 #include "validate.h"
 #include <algorithm>
 #include <cstdlib>
@@ -319,10 +320,15 @@ void SessionMachine::browse(Input input) {
       }
       break;
     }
+    // SUN turns the page of a long quote, POWER moves to the next quote.
     case Place::Quotes: {
       const size_t count = daily_.quotes().size();
       if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
-      else if ((input == Input::SunShort || input == Input::PowerShort) && count) { quote_ = (quote_ + 1) % count; draw(); }
+      else if (input == Input::PowerShort && count) { quote_ = (quote_ + 1) % count; quotePage_ = 0; draw(); }
+      else if (input == Input::SunShort && count) {
+        const int pages = quotePages(daily_.quotes()[quote_].body);
+        if (pages > 1) { quotePage_ = (quotePage_ + 1) % pages; draw(); }
+      }
       break;
     }
   }
@@ -339,6 +345,7 @@ std::vector<Place> SessionMachine::menu() const {
 void SessionMachine::enter(Place place) {
   place_ = place;
   listCursor_ = 0;
+  quotePage_ = 0;
   const size_t quotes = daily_.quotes().size();
   if (place == Place::Quotes && quotes) quote_ = random_.next() % quotes;
   draw();
@@ -402,6 +409,7 @@ void SessionMachine::draw(int minutes) {
       if (quote_ < daily_.quotes().size()) {
         vm.quote = daily_.quotes()[quote_].body;
         vm.source = daily_.quotes()[quote_].source;
+        vm.quotePage = quotePage_;
       }
       break;
     case Place::Activities:

@@ -571,17 +571,37 @@ void test_power_ticks_a_habit() {
   TEST_ASSERT_EQUAL_STRING("habit 2 2026-09-19 1", m.daily().ticks()[0].c_str());
 }
 
-void test_quotes_cycle_with_sun() {
+void test_quotes_cycle_with_power() {
   TwoFolderRig rig;
   auto m = rig.machine();
   m.daily().replace(BUNDLE);
   m.begin();
   openPlace(m, 3);
   const std::string first = rig.renderer.last().quote;
-  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
   TEST_ASSERT_FALSE(first == rig.renderer.last().quote);
   m.handle(Input::SunLong);
   TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
+}
+
+void test_sun_turns_the_pages_of_a_long_quote() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  // 40 words of 4 letters: 8 lines at 27 characters, two pages.
+  std::string body;
+  for (int i = 0; i < 40; ++i) body += "word ";
+  m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
+                    "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
+  m.begin();
+  openPlace(m, 3);
+  TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
+  m.handle(Input::SunShort);
+  TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().quotePage);
+  m.handle(Input::SunShort);
+  TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);  // the next quote starts on its first page
+  TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
 }
 
 void test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it() {
@@ -682,7 +702,8 @@ int main() {
   RUN_TEST(test_the_menu_shows_todays_progress);
   RUN_TEST(test_power_ticks_a_todo_and_the_last_one_celebrates);
   RUN_TEST(test_power_ticks_a_habit);
-  RUN_TEST(test_quotes_cycle_with_sun);
+  RUN_TEST(test_quotes_cycle_with_power);
+  RUN_TEST(test_sun_turns_the_pages_of_a_long_quote);
   RUN_TEST(test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it);
   RUN_TEST(test_boot_reopens_the_last_started_activity);
   RUN_TEST(test_power_long_draws_dormant_from_idle);

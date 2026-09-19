@@ -7,6 +7,7 @@
 #include "battery.h"
 #include "battery_reader.h"
 #include "buttons.h"
+#include "quote_text.h"
 
 // SSD1681, 200x200. GxEPD2_154_D67 defaults BUSY to active HIGH, which is this panel.
 static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
@@ -130,37 +131,16 @@ bool EinkRenderer::drawScene(const std::string& moment) {
   return true;
 }
 
-
-// Word wrap for the 6x8 font: whole words, at most `width` characters a line.
-static std::vector<std::string> wrap(const std::string& text, size_t width) {
-  std::vector<std::string> lines;
-  std::string line, word;
-  const auto flush = [&]() {
-    if (word.empty()) return;
-    if (!line.empty() && line.size() + 1 + word.size() > width) { lines.push_back(line); line.clear(); }
-    while (word.size() > width) { lines.push_back(word.substr(0, width)); word = word.substr(width); }
-    line += (line.empty() ? "" : " ") + word;
-    word.clear();
-  };
-  for (char c : text) {
-    if (c == ' ' || c == '\n') flush();
-    else word += c;
-  }
-  flush();
-  if (!line.empty()) lines.push_back(line);
-  return lines;
-}
-
 // Kael'thos says the quote: his cameo in the bottom-left corner, a bubble
 // sized to the words above him, clear of the screen edge, its tail on him.
 void EinkRenderer::drawQuote(const ViewModel& vm) {
-  constexpr int EDGE = 8, PAD = 8, LINE_H = 11, MAX_CHARS = 27, MAX_LINES = 7, BOTTOM = 106;
+  constexpr int EDGE = 8, PAD = 8, LINE_H = 11, BOTTOM = 106;
   display.setTextSize(1);
-  auto lines = wrap(vm.quote, MAX_CHARS);
-  if (lines.size() > MAX_LINES) {
-    lines.resize(MAX_LINES);
-    lines.back() = lines.back().substr(0, MAX_CHARS - 3) + "...";
-  }
+  // One page of a long quote; an arrow under the bubble says SUN shows more.
+  const auto all = wrapWords(vm.quote, QUOTE_CHARS);
+  const size_t first = std::min(all.size(), static_cast<size_t>(vm.quotePage) * QUOTE_LINES);
+  const std::vector<std::string> lines(all.begin() + first, all.begin() + std::min(all.size(), first + QUOTE_LINES));
+  const bool more = first + QUOTE_LINES < all.size();
   size_t widest = 0;
   for (const auto& l : lines) widest = std::max(widest, l.size());
   const int w = std::max(48, static_cast<int>(widest) * 6 + 2 * PAD);
@@ -176,6 +156,10 @@ void EinkRenderer::drawQuote(const ViewModel& vm) {
   for (size_t i = 0; i < lines.size(); ++i) {
     display.setCursor(EDGE + PAD, top + PAD + static_cast<int>(i) * LINE_H);
     display.print(lines[i].c_str());
+  }
+  if (more) {
+    const int ax = EDGE + w - 12;
+    display.fillTriangle(ax - 5, BOTTOM + 4, ax + 5, BOTTOM + 4, ax, BOTTOM + 10, GxEPD_BLACK);
   }
   if (cameo) drawArt(*cameo, 0, EDGE, 200 - cameo->size - EDGE);
   if (!vm.source.empty()) {

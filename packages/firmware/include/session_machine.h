@@ -74,6 +74,7 @@ private:
   size_t menuCursor_ = 0;
   size_t listCursor_ = 0;
   size_t quote_ = 0;
+  int quotePage_ = 0;  // a long quote's page, turned by SUN
   uint64_t lastInput_ = 0;
   uint64_t celebrateAt_ = 0;
   std::string moment_;
