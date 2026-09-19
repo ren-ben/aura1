@@ -37,6 +37,7 @@ Other docs:
   activity you last started. With USB plugged in it cannot cut power, so it sleeps
   instead, and POWER wakes it.
 - **SEALED** shows the duration after a stop. SUN or POWER skips it.
+- **The battery icon** (bottom right) fills in quarters. It reads full while charging.
 
 - **No timer is shown while you work.** That is deliberate: you see the duration only
   when you stop.

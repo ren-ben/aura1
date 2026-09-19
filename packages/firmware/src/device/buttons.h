@@ -20,6 +20,7 @@ constexpr int PIN_SD_D0       = 40;
 constexpr int PIN_SD_CMD      = 41;
 constexpr int PIN_I2C_SDA     = 47;
 constexpr int PIN_I2C_SCL     = 48;
+constexpr int PIN_BATTERY     = 4;   // ADC1 ch3, battery through a 1:2 divider
 
 constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;

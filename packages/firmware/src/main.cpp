@@ -66,6 +66,7 @@ void setup() {
   Serial.printf("flash=%luMB psram=%luKB\n",
                 (unsigned long)(ESP.getFlashChipSize() / (1024 * 1024)),
                 (unsigned long)(ESP.getPsramSize() / 1024));
+  Serial.printf("battery=%lumV\n",(unsigned long)analogReadMilliVolts(PIN_BATTERY) * 2);
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
   runSync();

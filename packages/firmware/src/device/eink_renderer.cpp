@@ -1,6 +1,7 @@
 #include "eink_renderer.h"
 #include <SPI.h>
 #include <GxEPD2_BW.h>
+#include "battery.h"
 #include "buttons.h"
 
 // SSD1681, 200x200. GxEPD2_154_D67 defaults BUSY to active HIGH, which is this panel.
@@ -10,6 +11,22 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 // Default 6x8 font at size 2: 12x16 px per glyph, 16 glyphs per line.
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
+
+// Read at each frame: the glass only changes then anyway.
+static int readBatteryPercent() {
+  uint32_t mv = 0;
+  for (int i = 0; i < 8; ++i) mv += analogReadMilliVolts(PIN_BATTERY);
+  return batteryPercent(static_cast<int>(mv / 8 * 2));  // undo the divider
+}
+
+// Bottom-right corner: an outline with a nub, filled in quarters.
+static void drawBattery(int percent) {
+  constexpr int X = 170, Y = 188, W = 24, H = 10;
+  display.drawRect(X, Y, W, H, GxEPD_BLACK);
+  display.fillRect(X + W, Y + 3, 2, H - 6, GxEPD_BLACK);
+  const int quarters = (percent + 12) / 25;
+  for (int q = 0; q < quarters; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
+}
 
 static void line(int row, const std::string& text) {
   display.setCursor(MARGIN, MARGIN + row * LINE);
@@ -46,6 +63,7 @@ void EinkRenderer::render(const ViewModel& vm) {
     ++partials_;
   }
 
+  const int battery = readBatteryPercent();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
@@ -58,6 +76,7 @@ void EinkRenderer::render(const ViewModel& vm) {
       case Screen::Stopped: drawStopped(vm); break;
       case Screen::Dormant: drawDormant(display); break;
     }
+    if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery);
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
 }
