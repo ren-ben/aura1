@@ -49,6 +49,8 @@ export const todayDtoSchema = z.object({
   form: z.enum(FORM_STATES),
   level: z.number().int(),
   lastSessionAt: z.iso.datetime().nullable(),
+  // The ritual's activity, started from the device's menu while dormant.
+  resurrectionId: z.number().int(),
   todos: z.array(z.object({ id: z.number().int(), body: z.string(), done: z.boolean() })),
   habits: z.array(z.object({ id: z.number().int(), name: z.string(), done: z.boolean() })),
   quotes: z.array(z.object({ body: z.string(), source: z.string().nullable() })),

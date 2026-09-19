@@ -3,6 +3,7 @@ import type { TodayDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { habitEntries, habits, quotes, todos } from '../db/schema.ts';
 import { computeStats } from '../stats/compute.ts';
+import { resurrectionId } from '../db/resurrection.ts';
 
 // The user's calendar day: the device's clock is UTC, the lists are local.
 export const TIME_ZONE = process.env.AURA_TZ ?? 'Europe/Vienna';
@@ -16,6 +17,7 @@ const MAX_QUOTES = 40;
 // so a tick can be undone on the device.
 export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
   const date = localDate(now);
+  const ritual = await resurrectionId(db);
   const [todoRows, habitRows, doneRows, quoteRows, stats] = await Promise.all([
     db.select().from(todos)
       .where(and(lte(todos.dueDate, date), or(isNull(todos.doneAt), sql`${todos.doneAt} >= now() - interval '1 day'`)))
@@ -31,6 +33,7 @@ export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
     form: stats.form,
     level: stats.bond.level,
     lastSessionAt: stats.lastSessionAt,
+    resurrectionId: ritual,
     todos: todoRows
       .filter((t) => t.doneAt === null || localDate(t.doneAt) === date)
       .map((t) => ({ id: t.id, body: t.body, done: t.doneAt !== null })),

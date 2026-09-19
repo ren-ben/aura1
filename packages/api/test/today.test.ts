@@ -79,3 +79,32 @@ test('today carries quotes and how he is doing', async () => {
   assert.equal(bundle.form, 'dormant');
   assert.equal(bundle.level, 0);
 });
+
+test('the ritual activity is hidden from the catalog but offered to the device', async () => {
+  const { today: bundle } = await sync();
+  const { buildApp } = await import('../src/app.ts');
+  const app = buildApp(db, { logger: false });
+  const folders = (await app.inject({ method: 'GET', url: '/api/v1/folders' })).json() as { name: string }[];
+  await app.close();
+  assert.ok(bundle.resurrectionId > 0);
+  assert.ok(!folders.some((f) => f.name === 'VESSEL'));
+});
+
+test('dormant after 72 hours, and only a full-hour ritual wakes him', async () => {
+  const { today: first } = await sync();
+  const hours = (h: number) => new Date(Date.now() - h * 3_600_000);
+  const log = (uuid: string, activityId: number, startH: number, minutes: number) => ({
+    uuid, activityId, clockSynced: true,
+    startedAt: hours(startH).toISOString(), endedAt: new Date(hours(startH).getTime() + minutes * 60_000).toISOString(),
+  });
+  const ritual = first.resurrectionId;
+  await applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [
+    log('00000000-0000-4000-8000-000000000001', 1, 200, 60),
+    log('00000000-0000-4000-8000-000000000002', 1, 10, 30),
+  ] });
+  assert.equal((await sync()).today.form, 'dormant');
+  await applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [
+    log('00000000-0000-4000-8000-000000000003', ritual, 5, 60),
+  ] });
+  assert.equal((await sync()).today.form, 'stable');
+});

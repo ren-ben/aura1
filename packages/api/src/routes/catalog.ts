@@ -5,6 +5,7 @@ import { asc, eq, gt, lt, desc, max } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { activities, folders } from '../db/schema.ts';
 import { bumpConfigVersion } from '../db/config-version.ts';
+import { resurrectionId } from '../db/resurrection.ts';
 
 // The device shows 10 characters of a folder title and 15 of an activity.
 const folderName = z.string().trim().min(1).max(10);
@@ -27,12 +28,15 @@ export const catalogRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) =
   const r = app.withTypeProvider<ZodTypeProvider>();
   const { db } = opts;
 
+  // The ritual's system folder is not the user's to manage.
   r.get('/folders', { schema: { response: { 200: z.array(folderDto) } } }, async () => {
+    const ritual = await resurrectionId(db);
     const [folderRows, activityRows] = await Promise.all([
       db.select().from(folders).orderBy(asc(folders.sortOrder)),
       db.select().from(activities).orderBy(asc(activities.createdAt), asc(activities.id)),
     ]);
-    return folderRows.map((f) => ({
+    const system = activityRows.find((a) => a.id === ritual)?.folderId;
+    return folderRows.filter((f) => f.id !== system).map((f) => ({
       id: f.id,
       name: f.name,
       archived: f.archivedAt !== null,

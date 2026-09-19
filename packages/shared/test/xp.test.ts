@@ -40,3 +40,29 @@ test('formState decays by hours since the last session', () => {
   assert.equal(formState('2026-09-17T12:00:00.000Z', now), 'dormant');
   assert.equal(formState(null, now), 'dormant');
 });
+
+import { formFromSessions } from '../src/index.ts';
+
+const at = (h: number) => new Date(Date.UTC(2026, 8, 1) + h * 3_600_000).toISOString();
+const session = (startH: number, minutes: number, activityId = 1, source: 'device' | 'manual' = 'device') =>
+  ({ startedAt: at(startH), endedAt: at(startH + minutes / 60), activityId, source });
+
+test('formFromSessions decays by the last session when he never died', () => {
+  assert.equal(formFromSessions([session(0, 60)], 99, new Date(at(10))), 'stable');
+  assert.equal(formFromSessions([session(0, 60)], 99, new Date(at(30))), 'thinning');
+  assert.equal(formFromSessions([], 99, new Date(at(0))), 'dormant');
+});
+
+test('after 72 hours away an ordinary session does not wake him', () => {
+  const sessions = [session(0, 60), session(100, 30)];
+  assert.equal(formFromSessions(sessions, 99, new Date(at(101))), 'dormant');
+});
+
+test('the ritual wakes him, but only a full hour of it', () => {
+  assert.equal(formFromSessions([session(0, 60), session(100, 59, 99)], 99, new Date(at(102))), 'dormant');
+  assert.equal(formFromSessions([session(0, 60), session(100, 60, 99)], 99, new Date(at(102))), 'stable');
+});
+
+test('an honest backfill wakes him too', () => {
+  assert.equal(formFromSessions([session(0, 60), session(90, 45, 1, 'manual')], 99, new Date(at(100))), 'stable');
+});

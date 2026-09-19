@@ -1,7 +1,8 @@
 import { asc, eq } from 'drizzle-orm';
 import {
-  formState, isRunaway, levelForXp, sessionMinutes, sessionXp, xpForLevel, type FormState,
+  formFromSessions, isRunaway, levelForXp, sessionMinutes, sessionXp, xpForLevel, type FormState,
 } from '@aura/shared';
+import { resurrectionId } from '../db/resurrection.ts';
 import type { Db } from '../db/client.ts';
 import { activities, folders, sessions } from '../db/schema.ts';
 
@@ -23,6 +24,7 @@ function toProgress(xp: number): Progress {
 // XP is derived on read, never stored, so the curve can be retuned without
 // rewriting history. One user, so reading every session is cheap.
 export async function computeStats(db: Db, now = new Date()): Promise<Stats> {
+  const ritual = await resurrectionId(db);
   const [sessionRows, activityRows] = await Promise.all([
     db.select().from(sessions),
     db.select({ id: activities.id, name: activities.name, folder: folders.name })
@@ -51,10 +53,12 @@ export async function computeStats(db: Db, now = new Date()): Promise<Stats> {
   const lastSessionAt = last?.toISOString() ?? null;
   return {
     bond: toProgress(bondXp),
-    form: formState(lastSessionAt, now),
+    form: formFromSessions(sessionRows.map((s) => ({
+      startedAt: s.startedAt.toISOString(), endedAt: s.endedAt.toISOString(), activityId: s.activityId, source: s.source,
+    })), ritual, now),
     lastSessionAt,
     needsReview,
-    activities: activityRows.map((a) => {
+    activities: activityRows.filter((a) => a.id !== ritual).map((a) => {
       const { xp, minutes } = perActivity.get(a.id) ?? { xp: 0, minutes: 0 };
       return { ...a, minutes, ...toProgress(xp) };
     }),

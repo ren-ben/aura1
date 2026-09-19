@@ -40,3 +40,33 @@ export function formState(lastSessionEndedAt: string | null, now: Date): FormSta
   if (hours < 72) return 'fragmenting';
   return 'dormant';
 }
+
+export type FormSession = {
+  startedAt: string;
+  endedAt: string;
+  activityId: number;
+  source: SessionSource;
+};
+
+export const RESURRECTION_MINUTES = 60;
+const DEATH_MS = 72 * 3_600_000;
+
+// Decay with the resurrection rule: once 72 hours pass without a session he
+// is dormant, and ordinary sessions no longer wake him. Only the ritual (a
+// session of 60 minutes or more on the resurrection activity) or an honest
+// backfill does. Until then he stays dormant whatever else is logged.
+export function formFromSessions(sessions: FormSession[], resurrectionId: number | null, now: Date): FormState {
+  const sorted = [...sessions].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+  let last: number | null = null;
+  let dead = false;
+  for (const s of sorted) {
+    const start = Date.parse(s.startedAt);
+    const end = Date.parse(s.endedAt);
+    if (last !== null && start - last >= DEATH_MS) dead = true;
+    const rite = s.activityId === resurrectionId && (end - start) / 60_000 >= RESURRECTION_MINUTES;
+    if (dead && (rite || s.source === 'manual')) dead = false;
+    if (last === null || end > last) last = end;
+  }
+  if (last === null || dead) return 'dormant';
+  return formState(new Date(last).toISOString(), now);
+}
