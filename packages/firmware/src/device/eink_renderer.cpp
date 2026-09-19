@@ -168,14 +168,15 @@ void EinkRenderer::drawQuote(const ViewModel& vm) {
   const int top = BOTTOM - h;
   display.drawRoundRect(EDGE, top, w, h, 8, GxEPD_BLACK);
   display.drawRoundRect(EDGE + 1, top + 1, w - 2, h - 2, 7, GxEPD_BLACK);
-  const int tx = EDGE + 20;
-  display.fillTriangle(tx, BOTTOM - 2, tx + 14, BOTTOM - 2, tx + 2, BOTTOM + 12, GxEPD_BLACK);
-  display.fillTriangle(tx + 3, BOTTOM - 3, tx + 10, BOTTOM - 3, tx + 3, BOTTOM + 6, GxEPD_WHITE);
+  // The tail points straight down between his ears: the cameo's centre.
+  const ArtScene* cameo = pickScene(art_, "cameo", esp_random());
+  const int tip = EDGE + (cameo ? cameo->size / 2 : 36);
+  display.fillTriangle(tip - 8, BOTTOM - 2, tip + 6, BOTTOM - 2, tip, BOTTOM + 12, GxEPD_BLACK);
+  display.fillTriangle(tip - 5, BOTTOM - 3, tip + 3, BOTTOM - 3, tip - 1, BOTTOM + 6, GxEPD_WHITE);
   for (size_t i = 0; i < lines.size(); ++i) {
     display.setCursor(EDGE + PAD, top + PAD + static_cast<int>(i) * LINE_H);
     display.print(lines[i].c_str());
   }
-  const ArtScene* cameo = pickScene(art_, "cameo", esp_random());
   if (cameo) drawArt(*cameo, 0, EDGE, 200 - cameo->size - EDGE);
   if (!vm.source.empty()) {
     display.setCursor(EDGE + 80, 150);
