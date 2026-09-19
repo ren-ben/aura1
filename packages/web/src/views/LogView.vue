@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api, duration, localDate, type Folder } from '../api';
+import { react } from '../kaelthos/mood';
 
 type Row = {
   id: number; activityId: number; activity: string; folder: string;
@@ -52,12 +53,14 @@ async function backfill() {
     activityId, startedAt: startedAt.toISOString(), endedAt: endedAt.toISOString(),
   });
   await load();
+  react('delighted');
   emit('changed');
 }
 
 async function confirmSession(row: Row) {
   await api('POST', `/sessions/${row.id}/confirm`);
   await load();
+  react('proud');
   emit('changed');
 }
 

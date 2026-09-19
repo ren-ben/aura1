@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared packages/shared
 COPY packages/api packages/api
 COPY packages/web packages/web
+COPY packages/art/src packages/art/src
 RUN pnpm --filter @aura/web build
 
 WORKDIR /app/packages/api

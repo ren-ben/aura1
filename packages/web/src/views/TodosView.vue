@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api, localDate } from '../api';
+import { react } from '../kaelthos/mood';
 
 type Todo = { id: number; body: string; dueDate: string | null; done: boolean };
 
@@ -34,6 +35,11 @@ async function add() {
 async function toggle(todo: Todo) {
   await api('PATCH', `/todos/${todo.id}`, { done: !todo.done });
   await load();
+  const today = localDate();
+  const due = todos.value.filter((t) => t.dueDate !== null && t.dueDate <= today);
+  if (todo.done) react('questioning', 2000);
+  else if (due.length && due.every((t) => t.done)) react('overjoyed', 5000);
+  else react('happy');
 }
 
 async function remove(todo: Todo) {

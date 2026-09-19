@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { api } from '../api';
+import { react } from '../kaelthos/mood';
 
 type Quote = { id: number; body: string; source: string | null };
 
@@ -18,6 +19,7 @@ async function add() {
   body.value = '';
   source.value = '';
   await load();
+  react('overjoyed', 3000);
 }
 
 async function remove(quote: Quote) {

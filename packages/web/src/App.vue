@@ -8,6 +8,8 @@ import QuotesView from './views/QuotesView.vue';
 import CatalogView from './views/CatalogView.vue';
 import StatsView from './views/StatsView.vue';
 import KaelthosModel from './kaelthos/KaelthosModel.vue';
+import KaelthosLive from './kaelthos/KaelthosLive.vue';
+import { setForm } from './kaelthos/mood';
 
 const tabs: { name: string; view: Component }[] = [
   { name: 'Log', view: LogView },
@@ -27,6 +29,7 @@ const stats = ref<Stats | null>(null);
 
 async function loadStats() {
   stats.value = await api<Stats>('GET', '/stats');
+  setForm(stats.value.form);
 }
 
 // The first load shows him turning in the dark for at least a moment.
@@ -61,6 +64,7 @@ onMounted(async () => {
   <main>
     <component :is="active.view" :stats="stats" @changed="loadStats" />
   </main>
+  <aside class="companion"><KaelthosLive :size="150" /></aside>
 </template>
 
 <style>
@@ -110,6 +114,9 @@ nav button.on { color: var(--hi); border-bottom-color: var(--hi); }
 .error { color: var(--hi); }
 ul { list-style: none; padding: 0; margin: 0; }
 @media (max-width: 40rem) { body { padding: 1rem; } }
+.companion { position: fixed; right: 1rem; bottom: 0.5rem; z-index: 5; }
+@media (max-width: 40rem) { .companion :deep(.kaelthos) { width: 96px !important; height: 96px !important; } }
+main { padding-bottom: 9rem; }
 .loader {
   position: fixed; inset: 0; z-index: 10;
   display: flex; flex-direction: column; align-items: center; justify-content: center;

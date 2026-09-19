@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api, localDate } from '../api';
+import { react } from '../kaelthos/mood';
 
 type Habit = { id: number; name: string; done: string[] };
 
@@ -34,8 +35,10 @@ async function add() {
 }
 
 async function toggle(habit: Habit, date: string) {
-  await api('PUT', `/habits/${habit.id}/entries/${date}`, { done: !habit.done.includes(date) });
+  const done = !habit.done.includes(date);
+  await api('PUT', `/habits/${habit.id}/entries/${date}`, { done });
   await load();
+  react(done ? 'happy' : 'questioning', 2500);
 }
 
 async function archive(habit: Habit) {

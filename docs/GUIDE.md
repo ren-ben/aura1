@@ -120,6 +120,10 @@ Without the pack the device still works and shows plain text screens. Rebake and
 whenever the art changes. The look is fixed in `packages/art/STYLE.md`, his moods and
 moments in `packages/art/CHARACTER.md`.
 
+On the web he lives in the bottom-right corner, drawn live from the same rig: he
+breathes, blinks, looks around, reacts to what you tick and log, and blushes when you
+click him. His resting mood follows his decay.
+
 ### 4. Install the dashboard on your phone
 
 Open `aura.amygdala-inc.org`, log in, then install it: Safari's Share menu, *Add to Home
