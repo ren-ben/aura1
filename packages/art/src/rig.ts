@@ -24,37 +24,39 @@ export type Palette = { ink: string; paper: string; background?: string };
 export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background: '#fff' };
 
 // The head tilts on the neck (per pose) and he looks somewhere, never dead ahead.
-const NECK: Pt = [200, 296];
+const NECK: Pt = [200, 288];
 
-// The head is widest at eye level. Each ear's outer edge is one convex curve
-// from the tip down to that widest point, so the ears are huge and flow into
-// the cheeks; below the whiskers the outline narrows into the neck. There is
-// no chin: the bottom is hidden inside the body.
+// A squat head, wider than tall, widest at eye level. Each ear's outer edge
+// meets the cheek at a slight bend, as a hand would draw it, not a seamless
+// curve; the cheek bulges a little past the ear line. The neck is wide (about
+// two thirds of the head), so the head never reads tall.
 const HEAD = sampleCubics([
-  'M 152 300',
-  'C 118 290, 92 252, 90 210',
-  'C 88 160, 104 90, 124 40',
-  'C 129 28, 142 24, 148 34',
-  'C 160 64, 172 100, 180 130',
-  'C 193 128, 207 128, 220 130',
-  'C 228 100, 240 64, 252 34',
-  'C 258 24, 271 28, 276 40',
-  'C 296 90, 312 160, 310 210',
-  'C 308 252, 282 290, 248 300',
-  'C 230 306, 170 306, 152 300',
+  'M 134 292',
+  'C 104 282, 84 256, 84 222',
+  'C 84 194, 96 170, 110 150',
+  'C 114 110, 120 70, 130 38',
+  'C 134 26, 146 24, 151 34',
+  'C 164 62, 176 98, 184 132',
+  'C 195 130, 205 130, 216 132',
+  'C 224 98, 236 62, 249 34',
+  'C 254 24, 266 26, 270 38',
+  'C 280 70, 286 110, 290 150',
+  'C 304 170, 316 194, 316 222',
+  'C 316 256, 296 282, 266 292',
+  'C 230 300, 170 300, 134 292',
 ].join(' '), 10);
 
-// From the neck the body drops almost straight, flaring only a little.
+// From the wide neck the body drops almost straight, flaring only a little.
 const BODY = sampleCubics([
-  'M 108 400',
-  'C 124 356, 146 330, 152 288',
-  'C 184 280, 216 280, 248 288',
-  'C 254 330, 276 356, 292 400',
-  'C 230 404, 170 404, 108 400',
+  'M 104 400',
+  'C 120 356, 132 320, 136 280',
+  'C 180 272, 220 272, 264 280',
+  'C 268 320, 280 356, 296 400',
+  'C 230 404, 170 404, 104 400',
 ].join(' '), 12);
 
 // Anime eyes: taller than wide, and drawn cleaner than the rest.
-const EYES: Pt[] = [[160, 214], [240, 214]];
+const EYES: Pt[] = [[156, 214], [244, 214]];
 const EYE_RX = 26;
 const EYE_RY = 35;
 
@@ -95,7 +97,7 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
 // The ear openings face outward: a white stroke close to each ear's outer
 // edge, so only a thin rim of skin shows on the outside. Thin at the tip,
 // widest low down.
-const EAR_OPENING: Pt[] = [[132, 52], [122, 82], [113, 114], [107, 144], [104, 166]];
+const EAR_OPENING: Pt[] = [[133, 52], [129, 82], [124, 114], [119, 142], [117, 152]];
 const EAR_LINES: Pt[][] = [EAR_OPENING, EAR_OPENING.map(([x, y]) => [400 - x, y] as Pt)];
 const earWidth = (t: number) => 3 + 10 * Math.sin(Math.PI * Math.pow(t, 0.8));
 
@@ -135,7 +137,7 @@ function headphonesFront(p: Palette, seed: number): string[] {
       path(wobble(stroke(rim, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), s + 2, 0.4), p.paper),
     ];
   };
-  return [...cup(92, -1, seed + 3), ...cup(308, 1, seed + 6)];
+  return [...cup(88, -1, seed + 3), ...cup(312, 1, seed + 6)];
 }
 
 // Astrolabe halo: a tilted orbit behind the ears with bodies on it.
