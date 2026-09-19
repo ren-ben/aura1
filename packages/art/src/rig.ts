@@ -131,6 +131,10 @@ const WHISKERS: Pt[][] = [
   [[272, 262], [312, 269], [338, 282], [350, 297]],
 ];
 
+// Pulls a line's points toward its first point, keeping its shape.
+const shorten = (line: Pt[], k: number): Pt[] =>
+  line.map(([x, y]) => [line[0]![0] + (x - line[0]![0]) * k, line[0]![1] + (y - line[0]![1]) * k]);
+
 const brush = (line: Pt[], root: number, tip: number) =>
   stroke(curve(line), (t) => root + (tip - root) * t);
 
@@ -183,7 +187,7 @@ export function compose(pose: Pose, skin: Skin, p: Palette = DEVICE_PALETTE): st
     head([
       skin === 'halo' ? halo(p, 70).join('') : '',
       ...(phones ? headphonesBehind(p, 90) : []),
-      ...WHISKERS.map((w, i) => path(wobble(brush(w, 6.5, 3.2), 30 + i, 0.5), p.ink)),
+      ...WHISKERS.map((w, i) => path(wobble(brush(shorten(w, 0.8), 5.2, 3), 30 + i, 0.4), p.ink)),
       ...EARS.map((e, i) => path(wobble(e, 20 + i, 1.2), p.ink)),
       path(wobble(HEAD, 7, 1.8), p.ink),
       ...EAR_EDGES.map((e, i) => path(wobble(earOpening(e, i === 0 ? -1 : 1), 40 + i, 0.5), p.paper)),

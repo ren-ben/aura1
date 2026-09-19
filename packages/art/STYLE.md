@@ -20,7 +20,7 @@ the reference beside idle and focused. Check it before showing anyone a change.
 | Eyes | Taller than wide, the cleanest-drawn thing on the face | `rx 24 ry 31`, wobble 0.7, pupils `10 x 16` |
 | Eye height | Bottom of the eyes a third of the way up the head | eye centre `y 208` |
 | Nose | A tiny white dash, level with the lower half of the eyes | `6 x 3` at `y 230` |
-| Whiskers | Three a side, rooted inside the cheek, arcing out and drooping | tapered 6.5 to 3.2 |
+| Whiskers | Three a side, rooted inside the cheek, arcing out and drooping; short and fine | 80% of the drawn length, tapered 5.2 to 3 |
 | Neck | ~45% of head width, top tucked well inside the head | only the sides emerge under the chin |
 | Body | Gentle flare, runs off the bottom edge | |
 | Pose | Head tilts 4-5 degrees; the gaze goes aside | |
