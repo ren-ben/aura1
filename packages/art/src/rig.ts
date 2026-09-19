@@ -26,21 +26,21 @@ export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background:
 // The head tilts on the neck (per pose) and he looks somewhere, never dead ahead.
 const NECK: Pt = [200, 282];
 
-// A round head with a flat crown between big ears, after ghibli3/4 and the
+// A round head with a short flat crown between big, wide ears, after ghibli3/4 and the
 // Jiji refs. The forehead is short: the eyes sit high.
 const HEAD = sampleCubics([
-  'M 200 290',
-  'C 150 292, 100 268, 96 214',
-  'C 94 188, 98 168, 106 152',
-  'C 108 116, 114 74, 124 42',
-  'C 129 30, 142 28, 148 38',
-  'C 160 66, 170 100, 178 128',
-  'C 192 127, 208 127, 222 128',
-  'C 230 100, 240 66, 252 38',
-  'C 258 28, 271 30, 276 42',
-  'C 286 74, 292 116, 294 152',
-  'C 302 168, 306 188, 304 214',
-  'C 300 268, 250 292, 200 290',
+  'M 200 292',
+  'C 150 294, 110 280, 96 244',
+  'C 84 214, 88 176, 104 152',
+  'C 104 116, 110 76, 122 44',
+  'C 127 32, 140 30, 147 40',
+  'C 162 68, 176 102, 186 128',
+  'C 195 126, 205 126, 214 128',
+  'C 224 102, 238 68, 253 40',
+  'C 260 30, 273 32, 278 44',
+  'C 290 76, 296 116, 296 152',
+  'C 312 176, 316 214, 304 244',
+  'C 290 280, 250 294, 200 292',
 ].join(' '), 10);
 
 // A bell from the neck down, running off the bottom edge.
@@ -52,7 +52,7 @@ const BODY = sampleCubics([
   'C 234 404, 166 404, 100 400',
 ].join(' '), 12);
 
-const EYES: Pt[] = [[156, 208], [244, 208]];
+const EYES: Pt[] = [[156, 210], [244, 210]];
 const EYE_RX = 34;
 const EYE_RY = 32;
 
@@ -64,8 +64,8 @@ type Face =
   | { eyes: 'open'; lookX: number; lookY: number; smile: number; tilt: number }
   | { eyes: 'content'; tilt: number };
 const FACES: Record<Pose, Face> = {
-  // Bright and curious, glancing aside and up.
-  idle: { eyes: 'open', lookX: 6, lookY: -1, smile: 0.16, tilt: -8 },
+  // Curious: wide eyes looking up and aside, head cocked.
+  idle: { eyes: 'open', lookX: 6, lookY: -8, smile: 0, tilt: -12 },
   // Eyes closed, in the zone, bopping to the music.
   focused: { eyes: 'content', tilt: 6 },
 };
@@ -74,11 +74,12 @@ const path = (pts: Pt[], fill: string) => `<path d="${toPath(pts)}" fill="${fill
 
 function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
   if (face.eyes === 'content') {
-    const arc = curve([[cx - 26, cy + 6], [cx - 12, cy - 4], [cx + 12, cy - 4], [cx + 26, cy + 6]]);
+    const arc = curve([[cx - 24, cy + 2], [cx - 9, cy - 2], [cx + 9, cy - 2], [cx + 24, cy + 2]]);
     return [path(wobble(stroke(arc, (t) => 3 + 5 * Math.sin(Math.PI * t)), seed, 0.5), p.paper)];
   }
   const white = wobble(ellipse(cx, cy, EYE_RX, EYE_RY), seed, 1.4);
-  const pupil = wobble(ellipse(cx + face.lookX, cy + face.lookY, 11, 15, 24), seed + 1, 0.6);
+  const pupil = wobble(ellipse(cx + face.lookX, cy + face.lookY, 12, 16, 24), seed + 1, 0.6);
+  if (face.smile === 0) return [path(white, p.paper), path(pupil, p.ink)];
   // The cheek: ink over the bottom of the eye, its top edge arched upward.
   const bottom = cy + EYE_RY + 6;
   const edge = cy + EYE_RY - 2 * EYE_RY * face.smile;
@@ -89,21 +90,23 @@ function eye([cx, cy]: Pt, face: Face, seed: number, p: Palette): string[] {
   return [path(white, p.paper), path(pupil, p.ink), path(wobble(cheek, seed + 2, 0.6), p.ink)];
 }
 
-// A white line down the outer side of each ear: the openings face outward.
-const EAR_LINES: Pt[][] = [
-  [[137, 60], [132, 86], [129, 112], [127, 136]],
-  [[263, 60], [268, 86], [271, 112], [273, 136]],
-];
+// The ear openings face outward: a white stroke close to each ear's outer
+// edge, so only a thin rim of skin shows on the outside. Thin at the tip,
+// widest low down.
+const EAR_OPENING: Pt[] = [[132, 56], [128, 80], [124, 104], [120, 128], [117, 142]];
+const EAR_LINES: Pt[][] = [EAR_OPENING, EAR_OPENING.map(([x, y]) => [400 - x, y] as Pt)];
+const earWidth = (t: number) => 3 + 10 * Math.sin(Math.PI * Math.pow(t, 0.8));
 
 // Whiskers leave the cheek, arc out and droop at the tips; each one is a
 // different length and angle, tapering to a fine end.
+// Roots sit well inside the cheek so no whisker floats off the face.
 const WHISKERS: Pt[][] = [
-  [[110, 238], [80, 231], [52, 232], [34, 241]],
-  [[108, 250], [76, 250], [48, 256], [34, 268]],
-  [[112, 262], [84, 268], [60, 280], [48, 296]],
-  [[290, 238], [322, 230], [350, 233], [366, 243]],
-  [[292, 250], [324, 251], [350, 258], [364, 271]],
-  [[288, 262], [316, 269], [338, 282], [348, 297]],
+  [[118, 238], [80, 231], [52, 232], [34, 241]],
+  [[118, 250], [76, 250], [48, 256], [34, 268]],
+  [[128, 262], [88, 268], [62, 280], [50, 296]],
+  [[282, 238], [322, 230], [350, 233], [366, 243]],
+  [[282, 250], [324, 251], [350, 258], [364, 271]],
+  [[272, 262], [312, 269], [336, 282], [346, 297]],
 ];
 
 const brush = (line: Pt[], root: number, tip: number) =>
@@ -112,8 +115,8 @@ const brush = (line: Pt[], root: number, tip: number) =>
 // Headphones after ghibli7: a band that floats over the head behind the ears,
 // with a white line along it, and big round cups with a white rim.
 function headphonesBehind(p: Palette, seed: number): string[] {
-  const band = curve([[88, 186], [94, 128], [132, 86], [200, 72], [268, 86], [306, 128], [312, 186]]);
-  const inner = curve([[101, 176], [106, 132], [140, 98], [200, 86], [260, 98], [294, 132], [299, 176]]);
+  const band = curve([[92, 184], [96, 128], [132, 86], [200, 72], [268, 86], [304, 128], [308, 184]]);
+  const inner = curve([[104, 176], [108, 132], [140, 98], [200, 86], [260, 98], [292, 132], [296, 176]]);
   return [
     path(wobble(stroke(band, () => 15), seed, 0.8), p.ink),
     path(wobble(stroke(inner, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), seed + 1, 0.5), p.paper),
@@ -121,15 +124,16 @@ function headphonesBehind(p: Palette, seed: number): string[] {
 }
 
 function headphonesFront(p: Palette, seed: number): string[] {
+  // Seen side-on, so each cup is a tall narrow oval, not a ball.
   const cup = (cx: number, side: number, s: number) => {
-    const rim = curve([[cx + side * 8, 184], [cx + side * 20, 212], [cx + side * 8, 240]]);
+    const rim = curve([[cx + side * 3, 186], [cx + side * 9, 214], [cx + side * 3, 242]]);
     return [
-      path(wobble(ellipse(cx, 212, 36, 40), s, 1.2), p.paper),
-      path(wobble(ellipse(cx, 212, 30, 34), s + 1, 1.2), p.ink),
-      path(wobble(stroke(rim, (t) => 3 + 4 * Math.sin(Math.PI * t)), s + 2, 0.4), p.paper),
+      path(wobble(ellipse(cx, 214, 20, 41), s, 1), p.paper),
+      path(wobble(ellipse(cx, 214, 15, 36), s + 1, 1), p.ink),
+      path(wobble(stroke(rim, (t) => 2.5 + 3.5 * Math.sin(Math.PI * t)), s + 2, 0.4), p.paper),
     ];
   };
-  return [...cup(88, -1, seed + 3), ...cup(312, 1, seed + 6)];
+  return [...cup(94, -1, seed + 3), ...cup(306, 1, seed + 6)];
 }
 
 // Astrolabe halo: a tilted orbit behind the ears with bodies on it.
@@ -159,7 +163,7 @@ export function compose(pose: Pose, skin: Skin, p: Palette = DEVICE_PALETTE): st
       ...(phones ? headphonesBehind(p, 90) : []),
       ...WHISKERS.map((w, i) => path(wobble(brush(w, 6.5, 3.2), 30 + i, 0.5), p.ink)),
       path(wobble(HEAD, 7, 2.4), p.ink),
-      ...EAR_LINES.map((l, i) => path(wobble(stroke(curve(l), (t) => 3 + 4 * Math.sin(Math.PI * t)), 40 + i, 0.4), p.paper)),
+      ...EAR_LINES.map((l, i) => path(wobble(stroke(curve(l), earWidth), 40 + i, 0.5), p.paper)),
       ...eye(EYES[0]!, face, 50, p),
       ...eye(EYES[1]!, face, 60, p),
       // The nose: a tiny dash level with the lower half of the eyes.
