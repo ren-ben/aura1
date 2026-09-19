@@ -1,5 +1,7 @@
 #include "eink_renderer.h"
+#include <SD_MMC.h>
 #include <SPI.h>
+#include <esp_random.h>
 #include <GxEPD2_BW.h>
 #include "battery.h"
 #include "battery_reader.h"
@@ -13,10 +15,12 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
 
-// Bottom-right corner: an outline with a nub, filled in quarters, or a bolt
-// while on USB (the charge level cannot be read then).
-static void drawBattery(int millivolts) {
-  constexpr int X = 170, Y = 188, W = 24, H = 10;
+// Bottom-right corner (top-right over a scene): an outline with a nub, filled
+// in quarters, or a bolt while on USB (the charge level cannot be read then).
+static void drawBattery(int millivolts, bool top) {
+  constexpr int X = 170, W = 24, H = 10;
+  const int Y = top ? 4 : 188;
+  if (top) display.fillRect(X - 2, Y - 2, W + 6, H + 4, GxEPD_WHITE);
   display.drawRect(X, Y, W, H, GxEPD_BLACK);
   display.fillRect(X + W, Y + 3, 2, H - 6, GxEPD_BLACK);
   if (onExternalPower(millivolts)) {
@@ -29,6 +33,40 @@ static void drawBattery(int millivolts) {
   for (int q = 0; q < quarters; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
 }
 
+static void centered(Adafruit_GFX& g, int y, int size, const char* text);
+
+// The art pack: frames are read from the card into this buffer, one at a time.
+static uint8_t frameBits[200 * 200 / 8];
+// Which frame was left on the glass at power-off, so the next boot can load it
+// as the controller's previous image and wake without a full refresh.
+constexpr const char* GLASS_FILE = "/art/glass.txt";
+
+static std::string framePath(const ArtScene& s, int frame) {
+  return "/art/" + s.id + "-" + std::to_string(frame) + ".bin";
+}
+
+static bool loadFrame(const std::string& path, int size) {
+  File f = SD_MMC.open(path.c_str(), FILE_READ);
+  if (!f) return false;
+  const size_t want = static_cast<size_t>((size + 7) / 8) * size;
+  const bool ok = f.read(frameBits, want) == want;
+  f.close();
+  return ok;
+}
+
+static std::vector<std::string> readLines(const char* path) {
+  std::vector<std::string> out;
+  File f = SD_MMC.open(path, FILE_READ);
+  if (!f) return out;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if (line.length()) out.emplace_back(line.c_str());
+  }
+  f.close();
+  return out;
+}
+
 static void line(int row, const std::string& text) {
   display.setCursor(MARGIN, MARGIN + row * LINE);
   display.print(text.c_str());
@@ -39,19 +77,66 @@ void EinkRenderer::begin() {
   digitalWrite(PIN_PANEL_POWER, LOW);  // panel power on
   delay(10);
   SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, PIN_EPD_CS);  // not the default SPI pins
-  // Not an initial init: the glass already shows DORMANT, drawn at power-off.
+  art_ = parseArtIndex(readLines("/art/index.txt"));
+  // Not an initial init: the glass already shows the frame drawn at power-off.
   // Loading that image into the controller as the previous frame lets WAKING
   // arrive by partial refresh instead of the flashing full one.
   display.init(0, false);
   GFXcanvas1 glass(display.width(), display.height());
-  drawDormant(glass);
+  const auto last = readLines(GLASS_FILE);
+  if (!last.empty() && loadFrame(last[0], 200)) {
+    glass.fillScreen(GxEPD_WHITE);
+    glass.drawBitmap(0, 0, frameBits, 200, 200, GxEPD_BLACK);
+  } else {
+    drawDormant(glass);
+  }
   display.epd2.writeImageAgain(glass.getBuffer(), 0, 0, display.width(), display.height());
   display.setRotation(0);
   display.setTextColor(GxEPD_BLACK);
   display.setTextSize(2);
 }
 
+bool EinkRenderer::drawArt(const ArtScene& scene, int frame) {
+  if (!loadFrame(framePath(scene, frame), scene.size)) return false;
+  const int at = (200 - scene.size) / 2;
+  display.drawBitmap(at, at, frameBits, scene.size, scene.size, GxEPD_BLACK);
+  return true;
+}
+
+bool EinkRenderer::play(const std::string& moment, bool fullLast) {
+  const ArtScene* scene = pickScene(art_, moment, esp_random());
+  if (!scene || !loadFrame(framePath(*scene, 0), scene->size)) return false;
+  for (int i = 0; i < scene->frames; ++i) {
+    const bool last = i == scene->frames - 1;
+    if (last && fullLast) display.setFullWindow();
+    else display.setPartialWindow(0, 0, display.width(), display.height());
+    display.firstPage();
+    do {
+      display.fillScreen(GxEPD_WHITE);
+      drawArt(*scene, i);
+    } while (display.nextPage());
+    if (!last) delay(350);
+  }
+  display.powerOff();
+  if (fullLast) {
+    File f = SD_MMC.open(GLASS_FILE, FILE_WRITE);
+    if (f) { f.print(framePath(*scene, scene->frames - 1).c_str()); f.close(); }
+  }
+  return true;
+}
+
+// A white band along the bottom with centred text, over a scene.
+void EinkRenderer::drawBand(const std::string& text) {
+  display.fillRect(0, 180, display.width(), 20, GxEPD_WHITE);
+  display.drawLine(0, 180, display.width(), 180, GxEPD_BLACK);
+  centered(display, 183, 2, text.substr(0, 15).c_str());
+}
+
 void EinkRenderer::render(const ViewModel& vm) {
+  // Kael'thos greets and says goodnight with an animation from the art pack.
+  if (vm.screen == Screen::Waking && play("wake", false)) return;
+  if (vm.screen == Screen::Dormant && play("sleep", true)) { partials_ = 0; return; }
+
   // Partial refresh everywhere else, for no flashing. Partials leave stuck
   // pixels behind, so DORMANT always gets a full refresh: the flash comes at
   // power-off, and the next boot starts from a clean, known frame.
@@ -70,14 +155,28 @@ void EinkRenderer::render(const ViewModel& vm) {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(2);
+    bool art = false;
     switch (vm.screen) {
       case Screen::Waking: drawWaking(); break;
       case Screen::Idle: drawList(vm); break;
-      case Screen::Running: drawRunning(vm); break;
-      case Screen::Stopped: drawStopped(vm); break;
+      case Screen::Running: {
+        // His scene for this folder, or any session scene for a new folder.
+        const ArtScene* scene = pickScene(art_, sessionMoment(vm.folder), esp_random());
+        if (!scene) scene = pickScene(art_, "session-axiom", esp_random());
+        art = scene && drawArt(*scene, 0);
+        if (art) drawBand(vm.activity); else drawRunning(vm);
+        break;
+      }
+      case Screen::Stopped: {
+        const ArtScene* scene = pickScene(art_, sealedMoment(vm.minutes), esp_random());
+        art = scene && drawArt(*scene, 0);
+        if (art) drawBand(std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
+        else drawStopped(vm);
+        break;
+      }
       case Screen::Dormant: drawDormant(display); break;
     }
-    if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery);
+    if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery, art);
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
 }

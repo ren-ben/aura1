@@ -101,6 +101,17 @@ tunnel already on your Pi; you do not create a new one.
 3. Open the serial monitor:
    `python -m platformio device monitor -e aura1`
 
+### 3. Put Kael'thos on the card
+
+The device draws him from an art pack on the SD card. Build it and copy it over:
+
+1. `pnpm --filter @aura/art bake` (writes `packages/art/out/sd/art/`).
+2. Copy the `art` folder to the root of the SD card, so the card has `/art/index.txt`.
+
+Without the pack the device still works and shows plain text screens. Rebake and recopy
+whenever the art changes. The look is fixed in `packages/art/STYLE.md`, his moods and
+moments in `packages/art/CHARACTER.md`.
+
 ## What to test
 
 These eight checks cover what the software tests on the PC cannot reach. The full list is
