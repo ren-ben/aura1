@@ -9,7 +9,7 @@ import { cArray, packBits } from './bitmap.ts';
 import { pose, type Pose as BodyPose } from './body.ts';
 import { scenes } from './scenes.ts';
 import { silhouette } from './silhouette.ts';
-import { svg as frame, DEVICE_PALETTE } from './rig.ts';
+import { svg as frame, bustArt, DEVICE_PALETTE } from './rig.ts';
 
 const root = resolve(import.meta.dirname, '..');
 const out = resolve(root, 'out');
@@ -146,3 +146,20 @@ console.log(`scenes: ${library.length}, frames: ${cells.length} -> ${sd}`);
 const web = resolve(root, '../web/src/kaelthos');
 mkdirSync(web, { recursive: true });
 writeFileSync(resolve(web, 'silhouette.json'), JSON.stringify(silhouette()));
+
+// App icons for the installable dashboard: his curious face on the web's
+// off-white, never pure black. The maskable one keeps him inside the safe
+// zone Android crops to.
+const icons = resolve(root, '../web/public/icons');
+mkdirSync(icons, { recursive: true });
+const WEB = { ink: '#121212', paper: '#c5bcab', background: '#c5bcab' };
+const icon = (size: number, zoom: number) => {
+  const k = zoom;
+  const art = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><rect width="400" height="400" fill="${WEB.background}"/>`
+    + `<g transform="translate(${200 - 200 * k} ${404 - 404 * k}) scale(${k})">${bustArt(EXPRESSIONS.curious, WEB)}</g></svg>`;
+  return render(art, size, false).asPng();
+};
+writeFileSync(resolve(icons, 'icon-192.png'), icon(192, 1));
+writeFileSync(resolve(icons, 'icon-512.png'), icon(512, 1));
+writeFileSync(resolve(icons, 'maskable-512.png'), icon(512, 0.78));
+writeFileSync(resolve(icons, 'apple-touch-icon.png'), icon(180, 0.9));

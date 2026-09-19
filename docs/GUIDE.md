@@ -120,6 +120,12 @@ Without the pack the device still works and shows plain text screens. Rebake and
 whenever the art changes. The look is fixed in `packages/art/STYLE.md`, his moods and
 moments in `packages/art/CHARACTER.md`.
 
+### 4. Install the dashboard on your phone
+
+Open `aura.amygdala-inc.org`, log in, then install it: Safari's Share menu, *Add to Home
+Screen* on iPhone, or the install prompt in Chrome on Android. It opens full screen with
+Kael'thos as its icon. The shell opens offline; data needs a connection.
+
 ## What to test
 
 These eight checks cover what the software tests on the PC cannot reach. The full list is
@@ -170,6 +176,6 @@ in [hardware-checklist.md](hardware-checklist.md).
    the RESURRECTION ritual (a 60-minute session to wake him from dormancy); for now any
    session wakes him.
 6. **Phase 5, dashboard:** the real design replacing today's functional prototype: the
-   node-graph interface, typography, dither, motion and the 3D Kael'thos. Installable on
-   the phone as an app (PWA).
+   node-graph interface, typography, dither, motion and the 3D Kael'thos. (Installing it
+   on the phone already works: see step 4.)
 7. **Phase 6, audio:** a speaker signature, and mic capture into the quote vault.
