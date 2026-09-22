@@ -31,8 +31,10 @@ beforeEach(async () => {
 
 const today = localDate(new Date());
 const shift = (days: number) => localDate(new Date(Date.now() + days * 86_400_000));
-const sync = (ticks: object[] = []) =>
-  applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [], ticks: ticks as never });
+const sync = async (ticks: object[] = [], todayHash?: string) => {
+  const response = await applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [], ticks: ticks as never, todayHash });
+  return { ...response, today: response.today! };
+};
 
 test('today lists open todos due today or overdue, not later or undated ones', async () => {
   await db.insert(todos).values([
@@ -126,4 +128,15 @@ test('the utc offset follows summer time', () => {
   assert.equal(utcOffset(new Date('2026-07-01T12:00:00Z'), 'Europe/Vienna'), 120);
   assert.equal(utcOffset(new Date('2026-01-01T12:00:00Z'), 'Europe/Vienna'), 60);
   assert.equal(utcOffset(new Date('2026-01-01T12:00:00Z'), 'America/New_York'), -300);
+});
+
+test('an unchanged bundle is not sent again, a changed one is', async () => {
+  const first = await sync();
+  const again = await applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [], todayHash: first.todayHash });
+  assert.equal(again.today, undefined);
+  assert.equal(again.todayHash, first.todayHash);
+  await db.insert(todos).values({ body: 'new', dueDate: today });
+  const changed = await applySync(db, { deviceId: 'aura-1', configVersion: 1, events: [], todayHash: first.todayHash });
+  assert.equal(changed.today!.todos[0]!.body, 'new');
+  assert.notEqual(changed.todayHash, first.todayHash);
 });

@@ -1,5 +1,6 @@
 #include "sync_client.h"
 #include <algorithm>
+#include <cstdio>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -20,14 +21,32 @@ void SyncClient::start(unsigned long connectTimeoutMs) {
   WiFi.persistent(false);       // nothing to flash: the credentials are compiled in
   WiFi.setHostname(DEVICE_ID);  // shows as "aura-1" on the hotspot, not "esp32s3"
   WiFi.mode(WIFI_STA);
-  // Scan every channel and take the strongest match, not the first heard:
-  // a phone hotspot is often late to answer the first probe.
-  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   busy_ = true;
   startedAt_ = millis();
   timeout_ = connectTimeoutMs;
+  // Straight to the hotspot joined last: no scan, joined in about a second.
+  const auto saved = storage_.readLines(WIFI_FILE);
+  uint8_t bssid[6];
+  int channel = 0;
+  if (!saved.empty() && std::sscanf(saved[0].c_str(), "%d %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &channel,
+                                    &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]) == 7) {
+    direct_ = true;
+    WiFi.setScanMethod(WIFI_FAST_SCAN);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD, channel, bssid);
+  } else {
+    joinByScan();
+  }
+}
+
+// Scan every channel and take the strongest match, not the first heard: a
+// phone hotspot is often late to answer the first probe.
+void SyncClient::joinByScan() {
+  direct_ = false;
+  scanAt_ = millis();
+  WiFi.disconnect();
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 }
 
 void SyncClient::radioOff() {
@@ -43,8 +62,13 @@ void SyncClient::abort() {
 
 bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, SyncOutcome& result) {
   if (!busy_) return false;
-  if (WiFi.status() != WL_CONNECTED) {
-    if (millis() - startedAt_ < timeout_) return false;
+  const wl_status_t status = WiFi.status();
+  if (status != WL_CONNECTED) {
+    // The hotspot moved channel, or another phone: scan after all.
+    if (direct_ && millis() - startedAt_ >= DIRECT_MS) { joinByScan(); return false; }
+    // A whole scan without the hotspot in it: offline, no point waiting.
+    const bool notThere = !direct_ && status == WL_NO_SSID_AVAIL && millis() - scanAt_ >= NOT_THERE_MS;
+    if (!notThere && millis() - startedAt_ < timeout_) return false;
     // Diagnostics only: never a header, the service token, or the Wi-Fi
     // credentials, only the outcome of this attempt.
     Serial.printf("sync failed: no wifi (status %d)\n", WiFi.status());
@@ -52,6 +76,12 @@ bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, Syn
     result = SyncOutcome::NoWifi;
     return true;
   }
+  // Remember where the hotspot was, for a direct join next time.
+  char where[40];
+  const uint8_t* b = WiFi.BSSID();
+  std::snprintf(where, sizeof where, "%d %02x%02x%02x%02x%02x%02x", WiFi.channel(), b[0], b[1], b[2], b[3], b[4], b[5]);
+  const auto saved = storage_.readLines(WIFI_FILE);
+  if (saved.empty() || saved[0] != where) storage_.write(WIFI_FILE, std::string(where) + "\n");
   result = post(configVersion, carousel, setClock);
   radioOff();
   return true;
@@ -62,7 +92,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   // pending list and the JSON document both die inside this expression,
   // before TLS needs the heap.
   const auto pending = queue_.pending();
-  const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks());
+  const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks(), daily_.hash());
   if (body.empty()) return SyncOutcome::Failed;
 
   WiFiClientSecure client;
@@ -100,11 +130,12 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
     loadConfigFromSd(storage_, carousel, configVersion);
   }
   // The server applied the ticks sent with this request; its fresh bundle
-  // replaces the local one and clears them.
-  if (result.hasToday) daily_.replace(result.today);
-  Serial.printf("sync ok: sent %u, settled %u, config %s, rtc %s\n",
+  // replaces the local one and clears them. No bundle: it matched ours.
+  if (result.hasToday) daily_.replace(result.today, result.todayHash);
+  else daily_.clearTicks();
+  Serial.printf("sync ok: sent %u, settled %u, config %s, today %s, rtc %s\n",
                 (unsigned)std::min(pending.size(), MAX_SYNC_EVENTS),
-                (unsigned)result.settled.size(), result.hasConfig ? "yes" : "no",
+                (unsigned)result.settled.size(), result.hasConfig ? "yes" : "no", result.hasToday ? "new" : "same",
                 result.hasServerTime && setClock ? "yes" : "no");
   return SyncOutcome::Ok;
 }

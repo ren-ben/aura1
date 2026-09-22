@@ -35,15 +35,24 @@ void BatteryGauge::sample(int raw, bool usbHost) {
   usbHost_ = usbHost;
   // A moving average over about a minute of samples: single readings jitter.
   smooth_ = smooth_ == 0 ? raw : smooth_ + (raw - smooth_) / 4;
-  if (floor_ == 0) floor_ = peak_ = smooth_;
   if (smooth_ > fullRaw_) setFullRaw(smooth_);
 
-  if (rising_) {
-    peak_ = std::max(peak_, smooth_);
-    if (smooth_ <= peak_ - TREND_MV) { rising_ = false; floor_ = smooth_; }
-  } else {
-    floor_ = std::min(floor_, smooth_);
-    if (smooth_ >= floor_ + TREND_MV) { rising_ = true; peak_ = smooth_; }
+  window_[seen_ % window_.size()] = smooth_;
+  ++seen_;
+  if (seen_ > WINDOW) {
+    // Climbing through every quarter of the window: a jump smoothed out
+    // spans only some of them, a charge all.
+    const auto at = [&](int back) { return window_[(seen_ - 1 - back) % window_.size()]; };
+    bool climbing = true;
+    for (int q = 0; q < 4; ++q) climbing = climbing && at(q * WINDOW / 4) - at((q + 1) * WINDOW / 4) >= CLIMB_MV;
+    if (!rising_ && climbing) { rising_ = true; peak_ = smooth_; }
+    else if (rising_) {
+      peak_ = std::max(peak_, smooth_);
+      // Held flat below full: not charging after all. Flat at full: it is,
+      // the charger holding the cell there.
+      const bool stalled = smooth_ - at(WINDOW) < CLIMB_MV && percent() < 95;
+      if (smooth_ <= peak_ - UNPLUG_MV || stalled) rising_ = false;
+    }
   }
 
   // Quarters, with a margin before a step so a reading on the line does not

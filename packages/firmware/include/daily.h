@@ -28,9 +28,12 @@ public:
   explicit Daily(Storage& storage) : storage_(storage) {}
 
   void load();
-  // A fresh bundle from a sync. The server has applied every tick sent with
-  // it, so the queued ticks go.
-  void replace(const std::string& json);
+  // A fresh bundle from a sync, and the server's hash of it. The server has
+  // applied every tick sent with it, so the queued ticks go.
+  void replace(const std::string& json, const std::string& hash = "");
+  // A sync that found the bundle unchanged: the ticks sent are applied.
+  void clearTicks();
+  const std::string& hash() const { return hash_; }
 
   const std::string& date() const { return date_; }
   int level() const { return level_; }
@@ -66,13 +69,15 @@ private:
 
   static constexpr const char* TODAY = "/today.json";
   static constexpr const char* TICKS = "/ticks.ndjson";
+  static constexpr const char* HASH = "/today.hash";
   static constexpr const char* LAST = "/last.txt";
 
   Storage& storage_;
   std::string date_;
   int level_ = 0;
   int resurrectionId_ = 0;
-  int utcOffsetMinutes_ = 0;  // the server's time zone, for the user's day
+  int utcOffsetMinutes_ = 0;
+  std::string hash_;  // the server's hash of the bundle held  // the server's time zone, for the user's day
   bool serverDormant_ = false;
   std::string last_;  // /last.txt
   uint64_t lastSessionAt_ = 0;

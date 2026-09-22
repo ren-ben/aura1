@@ -63,16 +63,39 @@ void test_on_battery_the_bars_never_climb() {
   TEST_ASSERT_EQUAL_INT(bars, g.bars());
 }
 
+static void ramp(BatteryGauge& g, int from, int to, int step) {
+  for (int raw = from; raw <= to; raw += step) g.sample(raw, false);
+}
+
 void test_a_climbing_voltage_is_charging_until_it_falls() {
   BatteryGauge g;
-  feed(g, 3500, 20);
+  feed(g, 3500, 25);
   TEST_ASSERT_FALSE(g.charging());
-  feed(g, 3620, 20);  // plugged in: the charge current lifts the cell
+  ramp(g, 3500, 3620, 3);  // plugged in: the cell climbs, minute after minute
   TEST_ASSERT_TRUE(g.charging());
-  feed(g, 3860, 20);
+  ramp(g, 3620, 3860, 3);
+  feed(g, 3860, 40);        // full: held there, still plugged in
   TEST_ASSERT_TRUE(g.charging());
   TEST_ASSERT_EQUAL_INT(4, g.bars());
   feed(g, 3780, 20);  // unplugged: it drops back
+  TEST_ASSERT_FALSE(g.charging());
+}
+
+// Waking sags the cell under the display and the radio; it jumps back and
+// settles. That is not charging.
+void test_a_cell_recovering_from_a_load_is_not_charging() {
+  BatteryGauge g;
+  feed(g, 3440, 2);
+  feed(g, 3560, 60);
+  TEST_ASSERT_FALSE(g.charging());
+}
+
+void test_a_climb_that_stalls_below_full_stops_charging() {
+  BatteryGauge g;
+  feed(g, 3500, 25);
+  ramp(g, 3500, 3600, 3);
+  TEST_ASSERT_TRUE(g.charging());
+  feed(g, 3600, 40);
   TEST_ASSERT_FALSE(g.charging());
 }
 
@@ -92,6 +115,8 @@ int main() {
   RUN_TEST(test_jitter_on_a_step_does_not_flicker);
   RUN_TEST(test_on_battery_the_bars_never_climb);
   RUN_TEST(test_a_climbing_voltage_is_charging_until_it_falls);
+  RUN_TEST(test_a_cell_recovering_from_a_load_is_not_charging);
+  RUN_TEST(test_a_climb_that_stalls_below_full_stops_charging);
   RUN_TEST(test_a_computer_on_usb_is_charging);
   return UNITY_END();
 }

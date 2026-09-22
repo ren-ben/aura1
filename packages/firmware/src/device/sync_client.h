@@ -28,6 +28,13 @@ public:
 private:
   SyncOutcome post(int& configVersion, Carousel& carousel, bool setClock);
   void radioOff();
+  void joinByScan();
+
+  // The hotspot last joined, kept on the card: the next join goes straight to
+  // its channel instead of scanning them all.
+  static constexpr const char* WIFI_FILE = "/wifi.txt";  // "<channel> <bssid hex>"
+  static constexpr unsigned long DIRECT_MS = 4000;       // then scan after all
+  static constexpr unsigned long NOT_THERE_MS = 5000;    // a scan found no hotspot
 
   EventQueue& queue_;
   Clock& clock_;
@@ -36,4 +43,6 @@ private:
   bool busy_ = false;
   unsigned long startedAt_ = 0;
   unsigned long timeout_ = 0;
+  unsigned long scanAt_ = 0;  // when the scanning join began
+  bool direct_ = false;       // joining by the remembered channel
 };

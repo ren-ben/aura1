@@ -25,19 +25,17 @@ namespace {
 
 constexpr double HALF_TURN = 3.14159265358979;
 
-// Kael'thos at 16 px for the corner: melting into a spiral while he syncs,
-// sitting by a cactus in the Chrome dino's desert while offline.
+// Kael'thos at the battery's height for the corner: melting into a spiral
+// while he syncs, sitting by a cactus in the Chrome dino's desert while offline.
 const char* const SPIRAL[] = {
-  "....#.....#.....", "....##...##.....", "....#######.....", "....##.#.##.....",
-  "....##.#.##.....", ".....#####......", "......###.......", "......#####.....",
-  "..###.....##....", ".#...###...#....", ".#......#..#....", ".#..#.#.#..#....",
-  ".#..#.#.#..#....", ".#...#..#..#....", "..#...##..#.....", "...#######......",
+  ".#...#.......", ".##.##.......", ".#####.......", ".#.#.#.......",
+  "..###........", "...####......", ".##....##....", "#..###...#...",
+  "#.....#..#...", "#..#..#..#...", "#..###..#....", ".#######.....",
 };
 const char* const CACTUS[] = {
-  "................", ".#.....#........", ".##...##....#...", ".#######....#...",
-  ".#######..#.#...", ".#..#..#..#.#.#.", ".#######..###.#.", "..#####.....###.",
-  "..#####.....#...", ".#######....#...", ".#######....#...", ".########...#...",
-  ".#########..#...", "################", "................", "...#.....##.....",
+  "#.....#......", "##...##......", "#######....#.", "#..#..#....#.",
+  "#######..#.#.", ".#####...####", ".#####.....##", "#######....#.",
+  "#######....#.", "########...#.", "#############", "..#.....##...",
 };
 const char* const BOLT[] = { "....##.", "...##..", "..##...", ".######", "...##..", "..##...", ".##....", ".#....." };
 // His head alone, a seal for rules.
@@ -52,6 +50,10 @@ const char* const HAND[] = {
   "...###.......", "..#...######.", "###.........#", "#.....#######",
   "#.......#....", "#.....###....", "#......#.....", ".#######.....",
 };
+const char* const BAT[] = { "##...#.#...##", ".###.###.###.", "..#########..", "...##.#.##...", "......#......" };
+const char* const HEART[] = { ".##.##.", "#######", "#######", ".#####.", "..###..", "...#..." };
+const char* const HEART_OPEN[] = { ".##.##.", "#..#..#", "#.....#", ".#...#.", "..#.#..", "...#..." };
+const char* const HEART_DOT[] = { "##.##", "#####", "#####", ".###.", "..#.." };
 const char* const CANDLE[] = {
   "...#...", "..###..", "..###..", "...#...", "...#...", ".#####.",
   ".#####.", ".#####.", ".#####.", ".#####.", ".#####.", "#######",
@@ -192,7 +194,7 @@ int streak(const std::string& h) {
 
 // The last twelve weeks, a column a week, like a contribution graph: a full
 // dot for a day done, a speck for one missed, a ring around today.
-enum class Mark { Dot, Square };
+enum class Mark { Dot, Square, Heart };
 constexpr int GRAPH_W = 84, GRAPH_H = 49;
 void habitGraph(Canvas& c, int x, int y, const std::string& h, Mark m, uint8_t ink) {
   constexpr int DAYS = 84;
@@ -202,6 +204,7 @@ void habitGraph(Canvas& c, int x, int y, const std::string& h, Mark m, uint8_t i
     const bool on = k >= 0 && h[k] == '1';
     const int cx = x + (i / 7) * 7 + 3, cy = y + (i % 7) * 7 + 3;
     if (m == Mark::Dot) { if (on) c.fillCircle(cx, cy, 3, ink); else c.pixel(cx, cy, ink); }
+    else if (m == Mark::Heart) { if (on) c.icon(cx - 2, cy - 2, HEART_DOT, 5, ink); else c.pixel(cx, cy, ink); }
     else { if (on) c.fillRect(cx - 3, cy - 3, 6, 6, ink); else c.pixel(cx, cy, ink); }
     if (i == DAYS - 1 && !on) c.drawCircle(cx, cy, 3, ink);
   }
@@ -805,84 +808,123 @@ public:
   }
 };
 
-// ---------------------------------------------------------------- G: Hunter's Dream
-// Every item a headstone in the Dream's garden, walked past one at a time:
-// the chosen stone in the middle, carved, the next ones at the edges. He
-// peeks from behind the stone.
-class Dream : public Look {
+// ---------------------------------------------------------------- G: Carmilla
+// Victorian goth, for the vampire in him: black lace along the edges, his
+// portrait in a cameo brooch, bats about the titles, the chosen item laid in
+// a coffin, and hearts for what is done.
+class Carmilla : public Look {
 public:
-  const char* name() const override { return "DREAM"; }
-  Corner corner(const ViewModel& vm, bool scene) const override { return { !scene && vm.place == Place::Quotes ? 184 : 4, INK }; }
+  const char* name() const override { return "CARMILLA"; }
+  Corner corner(const ViewModel&, bool scene) const override { return { scene ? 4 : 13, INK }; }
 
-  static void stone(Canvas& c, int cx, int w, int h, int ground, bool big) {
-    const int x = cx - w / 2, top = ground - h, r = w / 2;
-    c.fillCircle(cx, top + r, r, INK); c.fillRect(x, top + r, w, h - r, INK);
-    c.fillCircle(cx, top + r, r - 2, PAPER); c.fillRect(x + 2, top + r, w - 4, h - r, PAPER);
-    if (big) {
-      c.drawCircle(cx, top + r, r - 5, INK); c.fillRect(x + 5, top + r, w - 10, h - r, PAPER);
-      c.vline(x + 5, top + r, h - r - 6, INK); c.vline(x + w - 6, top + r, h - r - 6, INK);
-      c.dither(x + 2, ground - 8, w - 4, 8, 1);
+  // A band of lace hanging from the top (or rising from the bottom): an ink
+  // edge, scallops pierced with holes.
+  static void lace(Canvas& c, bool top) {
+    const int edge = top ? 0 : 196, dir = top ? 1 : -1;
+    c.fillRect(0, edge, 200, 4, INK);
+    for (int x = 0; x < 200; x += 10) {
+      const int cy = top ? 3 : 196;
+      c.fillCircle(x + 5, cy, 5, INK);
+      c.pixel(x + 5, cy + dir * 2, PAPER);
+      c.pixel(x, cy + dir * 5, INK);
+    }
+    for (int x = 2; x < 200; x += 4) c.pixel(x, top ? 1 : 198, PAPER);
+  }
+  static void bats(Canvas& c, const std::string& t, int y) {
+    c.font(&Cinzel14);
+    const int w = c.width(t);
+    c.centered(t, y);
+    c.icon(100 - w / 2 - 20, y - 10, BAT, 5);
+    c.icon(100 + w / 2 + 7, y - 10, BAT, 5);
+  }
+  // His portrait in a brooch: a ring of beads round a double frame.
+  static void cameo(Canvas& c, ArtSource& art, const std::string& id, int cx, int cy) {
+    constexpr int R = 31;
+    art.draw(c, id, cx - 32, cy - 36, INK);
+    for (int y = cy - 40; y <= cy + 40; ++y) for (int x = cx - 40; x <= cx + 40; ++x) {
+      const int d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      if (d2 > R * R && d2 <= (R + 7) * (R + 7)) c.pixel(x, y, PAPER);
+    }
+    c.drawCircle(cx, cy, R, INK); c.drawCircle(cx, cy, R + 1, INK); c.drawCircle(cx, cy, R + 4, INK);
+    for (int k = 0; k < 24; ++k) {
+      const double a = k / 24.0 * HALF_TURN * 2;
+      c.fillCircle(static_cast<int>(cx + std::cos(a) * (R + 7)), static_cast<int>(cy + std::sin(a) * (R + 7)), 1, INK);
     }
   }
-  static void carve(Canvas& c, const std::string& text, int y, const std::string& sub = "") {
-    c.font(&Cinzel14);
-    const auto lines = wrap(c, upper(text), 84);
-    const int n = std::min<int>(3, static_cast<int>(lines.size()));
-    for (int i = 0; i < n; ++i) c.centered(lines[i], y + i * 18 - (n - 1) * 9);
-    if (!sub.empty()) { c.font(&Cinzel11); c.centered(fit(c, upper(sub), 84), y + 22); }
+  // A coffin on its side, head to the left, around the chosen item.
+  static void coffin(Canvas& c, int cx, int cy, int w) {
+    // Narrow at the head, widest at the shoulders, tapering to the feet.
+    const int l = cx - w / 2, r = cx + w / 2, sh = l + w / 5;
+    c.fillTriangle(l, cy - 6, sh, cy - 11, sh, cy + 11, INK);
+    c.fillTriangle(l, cy - 6, sh, cy + 11, l, cy + 6, INK);
+    c.fillTriangle(sh, cy - 11, r, cy - 7, sh, cy + 11, INK);
+    c.fillTriangle(sh, cy + 11, r, cy - 7, r, cy + 7, INK);
+    c.vline(l + 6, cy - 4, 9, PAPER); c.hline(l + 3, cy - 2, 7, PAPER);  // a cross on the lid
   }
-  static void garden(Canvas& c, ArtSource* art, const std::string& head, int cur, int n, int watchCursor, bool moon) {
-    constexpr int GROUND = 168;
-    if (moon) { c.fillCircle(30, 34, 14, INK); c.fillCircle(36, 30, 12, PAPER); }
-    c.font(&Cinzel11); c.text(upper(head), 58, 16);
-    stone(c, 16, 40, 48, GROUND, false);
-    stone(c, 184, 40, 48, GROUND, false);
-    if (art) art->draw(c, watchId(watchCursor), 68, 20, INK);
-    stone(c, 100, 104, 96, GROUND, true);
-    c.hline(0, GROUND, 200, INK); c.hline(0, GROUND + 1, 200, INK);
-    for (int gx : { 8, 44, 60, 140, 150, 176 }) { c.line(gx, GROUND - 1, gx - 2, GROUND - 5, INK); c.line(gx + 2, GROUND - 1, gx + 3, GROUND - 6, INK); }
-    if (n) { c.font(&Cinzel11); c.centered(upper(roman(cur + 1)) + "  /  " + upper(roman(n)), 188); }
+  static void items(Canvas& c, const Rows& r, int top, int visible) {
+    const int first = firstRow(std::max(r.cur, 0), visible);
+    for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
+      const int y = top + (i - first) * 22;
+      const bool sel = i == r.cur;
+      std::string label = upper(r.items[i]);
+      if (!r.values.empty()) label += "  " + upper(r.values[i]);
+      c.font(sel ? &Cinzel14 : &Cinzel11);
+      label = fit(c, label, 150);
+      const int w = c.width(label);
+      int x = 100 - w / 2;
+      if (sel) { coffin(c, 100, y - 5, w + 40); x += 8; }
+      c.text(label, x, y, sel ? PAPER : INK);
+      if (!r.checks.empty()) c.icon(12, y - 8, r.checks[i] ? HEART : HEART_OPEN, 6);
+    }
   }
 
   void page(Canvas& c, const ViewModel& vm, const Status& s, ArtSource& art) const override {
-    const int n = static_cast<int>(vm.items.size()), cur = vm.cursor;
-    if (vm.place == Place::Quotes) {
-      c.font(vm.largeText ? &Cinzel14 : &Cinzel11);
-      const int lh = vm.largeText ? 20 : 16;
-      const auto lines = wrap(c, upper(quotePage(vm)), 176);
-      for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 30 + static_cast<int>(i) * lh);
-      if (!vm.source.empty()) { c.font(&Cinzel11); c.centered(fit(c, "- " + upper(vm.source) + " -", 176), 36 + static_cast<int>(lines.size()) * lh); }
-      if (moreQuote(vm)) moreMark(c, 186, 120, INK);
-      art.draw(c, "cameo", 64, 128, INK);
-      return;
+    lace(c, true);
+    lace(c, false);
+    const Rows r = rowsOf(vm);
+    const int n = static_cast<int>(r.items.size());
+    switch (vm.place) {
+      case Place::Menu:
+        cameo(c, art, watchId(vm.cursor), 100, 52);
+        items(c, r, 112, 4);
+        gear(c, 8, 174, r.gearOn, INK);
+        return;
+      case Place::Quotes: {
+        c.font(vm.largeText ? &Cinzel14 : &Cinzel11);
+        const int lh = vm.largeText ? 20 : 16;
+        const auto lines = wrap(c, upper(quotePage(vm)), 176);
+        for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 44 + static_cast<int>(i) * lh);
+        if (!vm.source.empty()) bats(c, fit(c, upper(vm.source), 130), 52 + static_cast<int>(lines.size()) * lh);
+        if (moreQuote(vm)) moreMark(c, 186, 120, INK);
+        art.draw(c, "cameo", 64, 122, INK);
+        lace(c, false);
+        return;
+      }
+      case Place::Settings:
+        bats(c, "SETTINGS", 34);
+        items(c, r, 62, 4);
+        batteryPanel(c, 24, 150, s, &Cinzel14, &Cinzel11, INK);
+        return;
+      case Place::Habits:
+        bats(c, "HABITS " + std::to_string(done(r.checks)) + "/" + std::to_string(n), 34);
+        if (!n) break;
+        items(c, r, 62, 3);
+        habitGraph(c, 22, 128, r.history[r.cur], Mark::Heart, INK);
+        c.font(&Cinzel11); c.text("DEVOTED", 118, 146); c.font(&Cinzel14); c.text(streakText(r.history[r.cur]), 118, 164);
+        return;
+      default:
+        bats(c, upper(vm.place == Place::Todos ? "Today " + std::to_string(done(r.checks)) + "/" + std::to_string(n) : pageTitle(vm)), 34);
+        if (!n) break;
+        items(c, r, 62, 5);
+        return;
     }
-    const bool settings = vm.place == Place::Settings, habits = vm.place == Place::Habits;
-    garden(c, settings || habits ? nullptr : &art, pageTitle(vm), cur, n, cur, !settings);
-    if (!n) { carve(c, emptyNote(vm), 124); return; }
-    if (vm.place == Place::Menu && cur == vm.gear) {
-      for (int j = 0; j < 13; ++j) for (int i = 0; GEAR[j][i]; ++i)
-        if (GEAR[j][i] == '#') c.fillRect(87 + i * 2, 100 + j * 2, 2, 2, INK);
-      c.font(&Cinzel11); c.centered("SETTINGS", 146);
-    } else if (settings) {
-      carve(c, vm.items[cur], 120, vm.values[cur]);
-      batteryPanel(c, 10, 28, s, &Cinzel14, &Cinzel11, INK);
-    } else if (habits) {
-      c.font(&Cinzel11); c.centered(fit(c, upper(vm.items[cur]), 84), 104);
-      habitGraph(c, 58, 110, hist(vm, cur), Mark::Dot, INK);
-      c.font(&Cinzel14); c.centered(std::to_string(streak(hist(vm, cur))), 44);
-      c.font(&Cinzel11); c.centered("DAYS KEPT", 58);
-      if (vm.checks[cur]) c.icon(158, 156, CANDLE, 12); else c.icon(158, 156, CANDLE_OUT, 12);
-    } else {
-      carve(c, vm.items[cur], 124);
-      if (!vm.checks.empty()) c.icon(158, 156, vm.checks[cur] ? CANDLE : CANDLE_OUT, 12);
-    }
-    if (vm.place == Place::Menu) gear(c, 6, 178, false, INK);
+    c.font(&Cinzel11); c.centered(upper(emptyNote(vm)), 100);
   }
 
-  void caption(Canvas& c, const ViewModel& vm, const std::string& text) const override {
-    c.fillRect(0, 178, 200, 22, PAPER); c.hline(0, 178, 200, INK);
-    const bool epitaph = vm.screen == Screen::Stopped && vm.minutes >= 10;
-    c.font(&Cinzel14); c.centered(fit(c, upper(epitaph ? "Here lies " + text : text), 196), 195);
+  void caption(Canvas& c, const ViewModel&, const std::string& text) const override {
+    c.fillRect(0, 172, 200, 28, PAPER);
+    lace(c, false);
+    bats(c, fit(c, upper(text), 140), 188);
   }
 };
 
@@ -1063,10 +1105,10 @@ const Focus FOCUS;
 const Containment CONTAINMENT;
 const Cathedral CATHEDRAL;
 const Byrgenwerth BYRGENWERTH;
-const Dream DREAM;
+const Carmilla CARMILLA;
 const BloodMoon BLOOD_MOON;
 const Rite RITE;
-const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, &BYRGENWERTH, &DREAM, &BLOOD_MOON, &RITE };
+const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, &BYRGENWERTH, &CARMILLA, &BLOOD_MOON, &RITE };
 
 }  // namespace
 
@@ -1089,5 +1131,5 @@ void drawCorner(Canvas& c, int y, const Status& s, uint8_t ink) {
   c.fillRect(X + BW, y + 3, 2, BH - 6, ink);
   if (s.charging) c.icon(X + 8, y + 2, BOLT, 8, ink);
   else for (int q = 0; q < s.bars; ++q) c.fillRect(X + 2 + q * 5, y + 2, 4, BH - 4, ink);
-  if (s.link != Link::Online) c.icon(X - 20, y - 2, s.link == Link::Syncing ? SPIRAL : CACTUS, 16, ink);
+  if (s.link != Link::Online) c.icon(X - 17, y, s.link == Link::Syncing ? SPIRAL : CACTUS, 12, ink);
 }

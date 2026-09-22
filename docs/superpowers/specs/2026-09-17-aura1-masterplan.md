@@ -154,7 +154,7 @@ contract has exactly one definition.
   this phase redesigns it. Installable as a PWA (manifest, icons, service
   worker for an offline shell) so it lives on the phone's home screen.
 - **Phase 4c** Looks (done 2026-09-22). Nine page designs picked in
-  SETTINGS: Codex, Nodes, Focus, Containment, Cathedral, Byrgenwerth, Dream,
+  SETTINGS: Codex, Nodes, Focus, Containment, Cathedral, Byrgenwerth, Carmilla,
   Blood Moon, Rite. Settings as a gear, battery panel, habit graphs, todos
   that drop off at the user's midnight.
 - **Phase 6** Reader. Books on the SD card (EPUB converted to plain paginated

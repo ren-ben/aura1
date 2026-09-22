@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { eq, inArray, isNull, sql } from 'drizzle-orm';
 import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
@@ -94,12 +95,15 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
   }
 
   const stale = request.configVersion !== version;
+  const today = await buildToday(db);
+  const todayHash = createHash('sha1').update(JSON.stringify(today)).digest('hex').slice(0, 16);
   return {
     serverTime: new Date().toISOString(),
     configVersion: version,
     ...(stale ? { config: await loadConfig(db) } : {}),
     acked,
     rejected,
-    today: await buildToday(db),
+    todayHash,
+    ...(request.todayHash === todayHash ? {} : { today }),
   };
 }

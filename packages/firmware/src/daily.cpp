@@ -34,13 +34,21 @@ void Daily::load() {
   std::string json;
   for (const auto& line : storage_.readLines(TODAY)) json += line + "\n";
   parse(json);
+  const auto hash = storage_.readLines(HASH);
+  hash_ = hash.empty() ? "" : hash[0];
   const auto local = storage_.readLines(LAST);
   last_ = local.empty() ? "" : local[0];
 }
 
-void Daily::replace(const std::string& json) {
+void Daily::replace(const std::string& json, const std::string& hash) {
   if (!parse(json)) return;
   storage_.write(TODAY, json);
+  storage_.write(HASH, hash + "\n");
+  hash_ = hash;
+  storage_.remove(TICKS);
+}
+
+void Daily::clearTicks() {
   storage_.remove(TICKS);
 }
 

@@ -21,6 +21,8 @@ export const syncRequestSchema = z.object({
   configVersion: z.number().int().nonnegative(),
   events: z.array(sessionEndedSchema).max(200),
   ticks: z.array(tickSchema).max(200).default([]),
+  // The hash of the bundle the device holds: an unchanged bundle is not sent.
+  todayHash: z.string().max(64).optional(),
 });
 
 export const folderDtoSchema = z.object({
@@ -68,7 +70,8 @@ export const syncResponseSchema = z.object({
   config: configDtoSchema.optional(),
   acked: z.array(z.uuid()),
   rejected: z.array(z.uuid()),
-  today: todayDtoSchema,
+  todayHash: z.string(),
+  today: todayDtoSchema.optional(),
 });
 
 export type SessionEnded = z.infer<typeof sessionEndedSchema>;

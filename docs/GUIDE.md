@@ -44,7 +44,7 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
 - **Looks** change how every page is drawn, picked with POWER on LOOK and kept across
   restarts: CODEX (a grimoire page), NODES (the dashboard's network), FOCUS (one item
   large at a time), CONTAINMENT (the Amygdala Inc. terminal), CATHEDRAL (through a
-  lancet arch), BYRGENWERTH (an illuminated manuscript), DREAM (every item a headstone),
+  lancet arch), BYRGENWERTH (an illuminated manuscript), CARMILLA (Victorian goth: lace, a cameo portrait, coffins, bats and hearts),
   BLOOD MOON (night, sessions in negative) and RITE (a summoning circle). They cost no
   extra battery: every look draws once per press.
 - **Habits** show the chosen habit's last twelve weeks as a dot graph, a column a week,
