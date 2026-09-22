@@ -16,9 +16,9 @@ import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
-  amygdala, bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, flower, ghost, gothicTown, laptop,
-  messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, tentacledMoon, tentacles,
-  windowEye, windowMoon,
+  amygdala, bat, bonfire, book, bubble, candle, cleaver, containmentBox, containmentLid, deadTree, desk, DITHER, eyesInTheDark,
+  ghost, gothicTown, laptop, messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, skyEye, tentacledMoon,
+  tentacles, windowMoon,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, silhouetteParts, SIZE, type Palette, type Wear } from './rig.ts';
 
@@ -90,13 +90,14 @@ function nightAndMorning(env: Env, set: (cat: string) => string, wear: Wear = {}
 const HAT: Wear = { hat: true };
 
 export function scenes(): Scene[] {
-  // The night window, up in the corner, clear of his head.
-  const nightWindow = (moonKind: 'crescent' | 'full' | 'blood' = 'crescent', seed = 94) => windowMoon(14, 20, 104, 120, P, moonKind, seed);
+  // The night: no window, only the moon up in the corner, clear of his head.
+  const nightMoon = (kind: 'paleblood' | 'blood' = 'paleblood', seed = 173) => moon(72, 72, 36, P, kind, seed);
   const ground = `<path d="${toPath(wobble(stroke([[-4, 388], [404, 388]], () => 6), 261, 0.6))}" fill="#000"/>`;
   const yharnam = (houses = true) => gothicTown(P, 320, { houses }) + ground;
-  const flowers = () => [[34, 84, 311], [364, 70, 313]]
-    .map(([x, h, sd]) => flower(x!, 392, h!, P, sd, 1.8)).join('');
-  const hunterDream = () => flowers();
+  // The Hunter's Dream: a bonfire from the old lands to rest at, or a dead
+  // tree the messengers gather under, under the paleblood moon.
+  const dreamMoon = moon(344, 56, 34, P, 'paleblood', 172);
+  const fire = (x: number, k: number) => scaled(bonfire(x, 388, P), x, 388, k);
   const voidEyes = (count: number, seed = 181) => eyesInTheDark(P, count, seed, [0, 0, 400, 400], [200, 240, 170]);
   // The void's night: dark dither, eyes opening in it, his star-filled form
   // lifted out of it by a paper edge.
@@ -107,10 +108,12 @@ export function scenes(): Scene[] {
     // A plain room: the greetings that need no set.
     scene('wake-wave', 'wake', [svg(cat('sit', 'curious')), svg(cat('wave', 'happy')), svg(cat('wave', 'delighted', {}, 1))], 'room'),
     scene('wake-peek', 'wake', [svg(cat('peek', 'asleep')), svg(cat('peek', 'sleepy')), svg(cat('peek', 'curious'))], 'room'),
+    // Out of his containment unit: the lid shut, pushed up, thrown back.
     scene('wake-box', 'wake', [
-      svg(hideBelow(262) + cardboardBox(120, 262, 160, 120, P)),
-      svg(bustAt('curious', [200, 350], 0.7) + hideBelow(262) + cardboardBox(120, 262, 160, 120, P)),
-      svg(bustAt('delighted', [200, 290], 0.7) + hideBelow(262) + cardboardBox(120, 262, 160, 120, P)),
+      svg(containmentLid(110, 262, 180, P) + containmentBox(110, 262, 180, 126, P)),
+      svg(`<rect x="112" y="244" width="176" height="20" fill="#000"/>` + containmentLid(110, 244, 180, P)
+        + [182, 218].map((x) => `<path d="${toPath(ellipse(x, 254, 6, 4, 12))}" fill="#fff"/>`).join('') + containmentBox(110, 262, 180, 126, P)),
+      svg(containmentLid(110, 262, 180, P, 1) + bustAt('delighted', [200, 296], 0.7) + hideBelow(262) + containmentBox(110, 262, 180, 126, P)),
     ], 'room'),
     scene('wake-stretch', 'wake', [svg(cat('loaf', 'asleep')), svg(cat('loaf', 'sleepy')), svg(cat('sit', 'curious')), svg(cat('reach', 'delighted'))], 'room'),
     scene('wake-yay', 'wake', [svg(cat('sit', 'curious')), svg(cat('reach', 'delighted', {}, 1)), svg(cat('reach', 'delighted'))], 'room'),
@@ -165,25 +168,31 @@ export function scenes(): Scene[] {
     ], 'desk'),
 
     // The night window, up in the corner.
-    scene('lore-rain', 'lore', [svg(nightWindow('crescent', 95) + rain(P, [14, 20, 104, 120]) + at(cat('sit', 'content'), 230, 392, 0.94))], 'window'),
+    scene('lore-rain', 'lore', [svg(rain(P, [0, 0, 400, 380], 240, 70) + nightMoon() + at(cat('sit', 'content'), 230, 392, 0.94))], 'window'),
     // Something vast looks in at the window. He does not mind; it is family.
-    scene('lore-window-eye', 'lore', [svg(windowEye(14, 20, 110, 120, P) + at(cat('sit', { ...face('content'), look: [-8, -2] }), 234, 392, 0.94))], 'window'),
-    scene('dream-asleep', 'session-dream', [svg(nightWindow() + cat('loaf', 'asleep'))], 'window'),
-    scene('decay-thinning', 'decay-thinning', [svg(nightWindow('crescent', 92) + at(cat('sit', 'lonely'), 234, 392, 0.94))], 'window'),
-    ...nightAndMorning('window', (c) => nightWindow() + at(c, 234, 392, 0.94)),
+    scene('lore-sky-eye', 'lore', [svg(skyEye(84, 76, 130, P) + at(cat('sit', { ...face('content'), look: [-8, -4] }), 250, 392, 0.94))], 'window'),
+    scene('dream-asleep', 'session-dream', [svg(nightMoon() + cat('loaf', 'asleep'))], 'window'),
+    scene('decay-thinning', 'decay-thinning', [svg(nightMoon('paleblood', 92) + at(cat('sit', 'lonely'), 234, 392, 0.94))], 'window'),
+    ...nightAndMorning('window', (c) => nightMoon() + at(c, 234, 392, 0.94)),
 
-    // The Hunter's Dream: white flowers, the messengers, and him in the
-    // hunter's hat.
-    scene('lore-dream', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 172)
-      + hunterDream() + cat('sit', 'content', HAT))], 'dream'),
-    scene('lore-messengers', 'lore', [svg(cat('sit', { ...face('delighted'), look: [6, 10] }, HAT)
-      + messenger(66, 392, P, 281, 1.8) + messenger(360, 392, P, 284, 1.4) + messenger(110, 392, P, 287, 1.1))], 'dream'),
-    ...nightAndMorning('dream', (c) => hunterDream() + c, HAT),
+    // The Hunter's Dream. At the bonfire he rests bareheaded; under the
+    // moon alone, or with the messengers, he wears the hunter's hat.
+    scene('lore-dream', 'lore', [svg(dreamMoon + ground + cat('sit', 'content', HAT))], 'dream'),
+    scene('lore-bonfire', 'lore', [svg(dreamMoon + fire(92, 1.8) + ground + at(cat('sit', 'content'), 272, 392, 0.94))], 'dream'),
+    scene('lore-bonfire-tree', 'lore', [svg(dreamMoon + deadTree(30, 388, P, 351) + fire(114, 1.45) + ground
+      + at(cat('sit', 'content'), 276, 392, 0.94))], 'dream'),
+    scene('lore-messengers', 'lore', [svg(dreamMoon + deadTree(60, 388, P) + messenger(128, 388, P, 281, 1.9)
+      + ground + at(cat('sit', { ...face('delighted'), look: [-8, 6] }, HAT), 262, 392, 0.94))], 'dream'),
+    ...nightAndMorning('dream', (c) => dreamMoon + fire(92, 1.8) + ground + at(c, 272, 392, 0.94)),
 
     // Yharnam's cathedral under the paleblood moon, and what clings to it.
     scene('lore-yharnam', 'lore', [svg(moon(340, 64, 40, P, 'paleblood', 174) + bat(300, 150, P) + bat(360, 180, P, 0.7, 115)
       + yharnam() + lifted(cat('sit', 'content')))], 'yharnam'),
-    scene('lore-amygdala', 'lore', [svg(amygdala(64, 150, P, 271, 0.78) + yharnam(false) + lifted(at(cat('sit', { ...face('happy'), look: [-10, -4] }), 286, 392, 0.9)))], 'yharnam'),
+    // Amygdala hangs head down off the cathedral's side, arms up on its tower.
+    scene('lore-amygdala', 'lore', [svg(yharnam(false) + amygdala(156, 214, P, 271, 1.0, -24)
+      + lifted(at(cat('sit', { ...face('curious'), look: [-10, -4] }), 312, 392, 0.82)))], 'yharnam'),
+    scene('lore-cathedral', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 176) + yharnam(false)
+      + lifted(at(cat('sit', { ...face('content'), look: [-10, -6] }), 270, 392, 0.94)))], 'yharnam'),
     scene('hunt-yharnam', 'session-hunt', [svg(moon(340, 64, 40, P, 'paleblood', 175) + yharnam()
       + lifted(cat('sit', 'determined', HAT) + cleaver(292, 380, P)))], 'yharnam'),
     ...nightAndMorning('yharnam', (c) => moon(340, 64, 40, P, 'paleblood', 174) + yharnam() + lifted(c)),
@@ -222,13 +231,13 @@ export function scenes(): Scene[] {
       + [[46, 392], [354, 392]].map(([x, y], i) => candle(x!, y!, P, false, 78 + i)).join(''))], 'room'),
 
     // Halloween, the last week of October.
-    scene('lore-haunted', 'halloween', [svg(windowMoon(14, 20, 104, 120, P, 'blood', 93) + ghost(330, 150, P) + bat(350, 50, P, 0.8, 111)
+    scene('lore-haunted', 'halloween', [svg(nightMoon('blood', 93) + ghost(330, 150, P) + bat(350, 50, P, 0.8, 111)
       + at(cat('sit', 'curious'), 224, 392, 0.94))], 'halloween'),
     scene('lore-pumpkin', 'halloween', [svg(bat(60, 60, P) + bat(340, 90, P, 0.7, 112) + cat('sit', 'delighted', { skin: 'halo' })
       + pumpkin(76, 370, P))], 'halloween'),
     scene('lore-pumpkin-hold', 'halloween', [svg(bat(60, 60, P) + bat(340, 90, P, 0.8, 113)
       + holding(face('delighted'), P, scaled(pumpkin(HOLD[0], HOLD[1] + 6, P, 121), HOLD[0], HOLD[1] + 6, 1.2)))], 'halloween'),
-    ...nightAndMorning('halloween', (c) => windowMoon(14, 20, 104, 120, P, 'blood', 93) + ghost(340, 170, P, 101, 0.8) + at(c, 234, 392, 0.94)),
+    ...nightAndMorning('halloween', (c) => nightMoon('blood', 93) + ghost(340, 170, P, 101, 0.8) + at(c, 234, 392, 0.94)),
 
     // Cameos: small busts the UI lays over other screens (quotes, lists).
     ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])

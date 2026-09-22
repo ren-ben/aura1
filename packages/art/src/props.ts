@@ -4,7 +4,7 @@
 // eyes in the dark, tentacles, the hunter's tricorn, the saw cleaver,
 // the void) carry the lore: an old god who likes you, from somewhere else.
 
-import { curve, ellipse, outline, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
+import { curve, ellipse, outline, rng, rotate, stroke, toPath, wobble, type Pt } from './ink.ts';
 import type { Palette } from './face.ts';
 
 type Opts = { seed?: number; w?: number };
@@ -123,13 +123,28 @@ export function pumpkin(x: number, y: number, p: Palette, seed = 120): string {
     + inkLine([[x, y - 30], [x + 4, y - 42], [x + 10, y - 44]], p, { seed: seed + 4, w: 5 });
 }
 
-// A cardboard box, open, for him to sit in or burst out of.
-export function cardboardBox(x: number, y: number, w: number, h: number, p: Palette, seed = 130): string {
-  const front = outline([[x, y], [x + w, y], [x + w - 4, y + h], [x + 4, y + h]], 2);
-  const flapL = outline([[x, y], [x - 26, y - 22], [x - 16, y - 28], [x + 10, y - 6]], 2);
-  const flapR = outline([[x + w, y], [x + w + 26, y - 22], [x + w + 16, y - 28], [x + w - 10, y - 6]], 2);
-  return drawn(flapL, p, { seed: seed + 1 }) + drawn(flapR, p, { seed: seed + 2 }) + drawn(front, p, { seed })
-    + inkLine([[x + w * 0.3, y + h * 0.4], [x + w * 0.7, y + h * 0.4]], p, { seed: seed + 3, w: 3 });
+// The containment unit Amygdala Inc. shipped him in: a plain ink slab with
+// hard edges, a hazard band and stencilled words. Minimal and a little
+// brutal; the joke is in the label. Its lid is drawn apart, so he can come
+// up between the two.
+export function containmentBox(x: number, y: number, w: number, h: number, p: Palette): string {
+  const cx = x + w / 2;
+  const body = `<path d="M ${x} ${y} H ${x + w} V ${y + h} H ${x} Z" fill="${p.ink}" stroke="${p.paper}" stroke-width="4" paint-order="stroke"/>`;
+  const stripes = `<clipPath id="band${x}"><path d="M ${x + 8} ${y + 8} H ${x + w - 8} V ${y + 22} H ${x + 8} Z"/></clipPath>`
+    + `<g clip-path="url(#band${x})">${Array.from({ length: Math.ceil(w / 16) + 1 }, (_, i) =>
+      `<path d="M ${x + i * 16} ${y + 22} L ${x + i * 16 + 8} ${y + 22} L ${x + i * 16 + 22} ${y + 8} L ${x + i * 16 + 14} ${y + 8} Z" fill="${p.paper}"/>`).join('')}</g>`;
+  const text = (ty: number, size: number, body: string, spacing = 1) =>
+    `<text x="${cx}" y="${ty}" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="${size}" letter-spacing="${spacing}" fill="${p.paper}">${body}</text>`;
+  const bolts = [[x + 10, y + h - 10], [x + w - 10, y + h - 10]].map(([bx, by]) =>
+    `<path d="${toPath(ellipse(bx!, by!, 3.5, 3.5, 10))}" fill="${p.paper}"/>`).join('');
+  return body + stripes + text(y + h * 0.48, h * 0.2, 'FRAGILE', 3) + text(y + h * 0.66, h * 0.12, 'COSMIC ENTITY')
+    + text(y + h * 0.8, h * 0.12, 'DO NOT FEED') + bolts;
+}
+
+// The unit's heavy lid, tipping back on its hinge at the right as it is
+// pushed open: 0 shut, 1 wide.
+export function containmentLid(x: number, y: number, w: number, p: Palette, open = 0): string {
+  return `<g transform="rotate(${open * 32} ${x + w} ${y})"><path d="M ${x - 6} ${y - 14} H ${x + w + 6} V ${y} H ${x - 6} Z" fill="${p.ink}" stroke="${p.paper}" stroke-width="4" paint-order="stroke"/></g>`;
 }
 
 // The hunter's tricorn, worn over the head between the ears: a wide brim
@@ -163,18 +178,6 @@ export function moon(x: number, y: number, r: number, p: Palette, kind: 'paleblo
     + craters + rim;
 }
 
-// White flowers of the Hunter's Dream: a stem and one five-lobed head.
-export function flower(x: number, y: number, h: number, p: Palette, seed = 310, s = 1): string {
-  const [hx, hy] = [x + 4 * s, y - h];
-  const head: Pt[] = Array.from({ length: 40 }, (_, i) => {
-    const a = (i / 40) * Math.PI * 2;
-    const rr = 13 * s * (0.72 + 0.28 * Math.cos(5 * a));
-    return [hx + rr * Math.cos(a), hy + rr * Math.sin(a)];
-  });
-  return inkLine([[x, y], [x + 3 * s, y - h * 0.5], [hx, hy]], p, { seed, w: 3.5 })
-    + drawn(head, p, { seed: seed + 1, w: 4 })
-    + `<path d="${toPath(ellipse(hx, hy, 3.5 * s, 3.5 * s, 12))}" fill="${p.ink}"/>`;
-}
 
 // Buildings in his ink: solid silhouettes like his fur, with windows cut out
 // in paper. Corners stay sharp, only the vertices drift a little, like a
@@ -348,27 +351,41 @@ export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
     + `<path d="${toPath(ellipse(x + 9, y - 31, 10, 10, 24))}" fill="${p.paper}"/>`;
 }
 
-// Amygdala, the Great One who clings to the cathedral: a long egg of a head
-// crusted with little eyes, and long thin arms bent at the elbow like a
-// spider's, gripping the spires below. Dark dither, so the black cat in
-// front never merges with it.
-export function amygdala(x: number, y: number, p: Palette, seed = 270, k = 1): string {
+// Amygdala, the Great One who clings to the cathedral, in ink like the town:
+// a long lumpy cranium with no face but clusters of small eyes, six long
+// bony arms with sharp elbows and long fingers, hands gripping the spires.
+// A paper edge keeps him apart from the ink stone he clings to.
+export function amygdala(x: number, y: number, p: Palette, seed = 270, k = 1, tilt = 0): string {
   const r = rng(seed);
-  // Each arm: shoulder at the head, elbow high and out, hand down on a roof.
-  const arms = [[-1, 0], [-1, 1], [-1, 2], [1, 0], [1, 1], [1, 2]].map(([side, i]) => {
-    const sh: Pt = [x + side! * 22 * k, y + (10 + i! * 18) * k];
-    const el: Pt = [x + side! * (56 + i! * 22) * k, y + (-34 + i! * 22) * k];
-    const hand: Pt = [x + side! * (70 + i! * 30) * k, y + (70 + i! * 34) * k];
-    const fingers = [-7, 0, 7].map((dx, j) => inkLine([hand, [hand[0] + dx * k, hand[1] + 14 * k]], p, { seed: seed + 40 + i! * 3 + j, w: 3 * k })).join('');
-    return inkLine([sh, el], p, { seed: seed + i! * 2, w: 7 * k }) + inkLine([el, hand], p, { seed: seed + i! * 2 + 1, w: 5 * k }) + fingers;
+  const bone = (pts: Pt[], w: number) => stroke(curve(pts, 6), (t) => w * (1 - 0.45 * t));
+  const parts: Pt[][] = [];
+  // Arms fan out from under the head: side, how far down, how far out.
+  ([[-1, 0.2, 1], [-1, 0.9, 0.9], [-1, 1.6, 0.8], [1, 0.2, 1], [1, 0.9, 0.9], [1, 1.6, 0.8]] as const).forEach(([side, drop, reach]) => {
+    const sh: Pt = [x + side * 16 * k, y + (30 + drop * 14) * k];
+    const el: Pt = [x + side * (60 + drop * 26) * reach * k, y + (-10 + drop * 34) * k];
+    const hand: Pt = [x + side * (72 + drop * 40) * reach * k, y + (70 + drop * 52) * k];
+    parts.push(bone([sh, el], 12 * k), bone([el, hand], 9 * k));
+    for (const dx of [-8, -2, 4]) {
+      parts.push(bone([hand, [hand[0] + (dx + side * 2) * k, hand[1] + 12 * k], [hand[0] + (dx * 1.3 + side * 3) * k, hand[1] + 24 * k]], 4 * k));
+    }
   });
-  const headShape = ellipse(x, y, 30 * k, 50 * k, 40);
-  const eyes = Array.from({ length: 11 }, () => {
+  // The cranium: a long egg, lumpy along its crown.
+  parts.push(Array.from({ length: 48 }, (_, i) => {
+    const a = (i / 48) * Math.PI * 2;
+    const lump = a > Math.PI ? 1 + 0.07 * Math.sin(a * 7) : 1;
+    return [x + Math.cos(a) * 34 * k * lump, y + Math.sin(a) * 58 * k * lump] as Pt;
+  }));
+  const ink = parts.map((q) => toPath(wobble(q, seed + 7, 0.5))).join(' ');
+  const eyes = Array.from({ length: 22 }, () => {
     const a = r() * Math.PI * 2;
-    const d = Math.sqrt(r()) * 0.8;
-    return `<path d="${toPath(ellipse(x + Math.cos(a) * d * 26 * k, y + Math.sin(a) * d * 44 * k, 4 * k, 5 * k, 10))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="2"/>`;
-  });
-  return arms.join('') + `<path d="${toPath(wobble(headShape, seed, 1.2))}" fill="url(#d75)" stroke="${p.ink}" stroke-width="5"/>` + eyes.join('');
+    const d = Math.sqrt(r()) * 0.82;
+    const [cx, cy] = [x + Math.cos(a) * d * 30 * k, y + 8 * k + Math.sin(a) * d * 48 * k];
+    const e = (2 + r() * 2.2) * k;
+    return `<path d="${toPath(ellipse(cx, cy, e, e * 1.3, 10))}" fill="${p.paper}"/>`
+      + `<path d="${toPath(ellipse(cx, cy + e * 0.2, e * 0.4, e * 0.6, 8))}" fill="${p.ink}"/>`;
+  }).join('');
+  return `<g transform="rotate(${tilt} ${x} ${y})"><path d="${ink}" fill="${p.ink}" stroke="${p.paper}" stroke-width="${6 * k}" stroke-linejoin="round"/>`
+    + `<path d="${ink}" fill="${p.ink}"/>${eyes}</g>`;
 }
 
 // A messenger from the Hunter's Dream: a pale little thing rising out of the
@@ -396,14 +413,70 @@ export function tentacledMoon(x: number, y: number, rad: number, p: Palette, see
   return hanging.join('') + moon(x, y, rad, p, 'paleblood', seed + 9);
 }
 
-// A great eye filling a window pane: something outside is looking in.
-export function windowEye(x: number, y: number, w: number, h: number, p: Palette, seed = 300): string {
-  const [cx, cy] = [x + w / 2, y + h * 0.45];
-  const lid = outline([[cx - w * 0.42, cy], [cx, cy - h * 0.3], [cx + w * 0.42, cy], [cx, cy + h * 0.3]], 5);
-  return drawn(box(x, y, w, h, 4), p, { seed, w: 7 }, 'url(#d75)')
-    + `<path d="${toPath(wobble(lid, seed + 1, 0.8))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="4"/>`
-    + `<path d="${toPath(ellipse(cx - 4, cy, h * 0.17, h * 0.17, 28))}" fill="${p.ink}"/>`
-    + `<path d="${toPath(ellipse(cx - 4, cy, 2.5, h * 0.12, 12))}" fill="${p.paper}"/>`
-    + inkLine([[x + w / 2, y], [x + w / 2, y + h * 0.12]], p, { seed: seed + 2, w: 6 })
-    + inkLine([[x + w / 2, y + h * 0.78], [x + w / 2, y + h]], p, { seed: seed + 3, w: 6 });
+
+// A bonfire, as in the old lands: a coiled sword leaning in a mound of ash
+// and bones, low flames curling around its foot, a few embers rising.
+export function bonfire(x: number, y: number, p: Palette, seed = 330, lean = 10): string {
+  const r = rng(seed);
+  const mound = outline([[x - 58, y], [x - 44, y - 12], [x - 22, y - 20], [x, y - 24], [x + 24, y - 20], [x + 44, y - 12], [x + 60, y]], 3);
+  // Bones and skulls half sunk in the ash, cut out in paper.
+  const bones = [[-36, -8, 9, 3.5, -0.3], [-12, -16, 6, 5, 0], [14, -14, 10, 3, 0.4], [38, -7, 7, 3, -0.2]].map(([dx, dy, rx, ry, a]) =>
+    `<path d="${toPath(rotate(ellipse(x + dx!, y + dy!, rx!, ry!, 12), a! * 57, [x + dx!, y + dy!]))}" fill="${p.paper}"/>`).join('')
+    + `<path d="${toPath(ellipse(x - 12, y - 17, 2, 2, 8))}" fill="${p.ink}"/><path d="${toPath(ellipse(x - 8, y - 17, 2, 2, 8))}" fill="${p.ink}"/>`;
+  // The coiled sword, upright but leaning: a blade twisted along its length
+  // (the paper notches), a short guard, a grip and a round pommel.
+  const blade: Pt[] = [[x - 4, y - 14], [x - 4, y - 96], [x, y - 106], [x + 4, y - 96], [x + 4, y - 14]];
+  const twist = Array.from({ length: 7 }, (_, i) => {
+    const ty = y - 24 - i * 11;
+    return `<path d="M ${x - 4} ${ty} L ${x + 4} ${ty - 6} L ${x + 4} ${ty - 3} L ${x - 4} ${ty + 3} Z" fill="${p.paper}"/>`;
+  }).join('');
+  const hilt = `<path d="M ${x - 14} ${y - 98} L ${x + 14} ${y - 98} L ${x + 12} ${y - 92} L ${x - 12} ${y - 92} Z" fill="${p.ink}"/>`
+    + `<path d="M ${x - 3} ${y - 98} L ${x - 3} ${y - 120} L ${x + 3} ${y - 120} L ${x + 3} ${y - 98} Z" fill="${p.ink}"/>`
+    + `<path d="${toPath(ellipse(x, y - 124, 6, 6, 12))}" fill="${p.ink}"/>`;
+  const sword = `<g transform="rotate(${lean} ${x} ${y - 14})"><path d="${toPath(blade)}" fill="${p.ink}" stroke="${p.paper}" stroke-width="3" paint-order="stroke"/>${twist}${hilt}</g>`;
+  // Flames: a few tongues no higher than the sword's lower third, curling.
+  const tongue = (fx: number, h: number, curl: number, s: number) => {
+    const pts: Pt[] = [[fx - 16, y - 16], [fx - 18, y - h * 0.45], [fx - 6 + curl * 0.3, y - h * 0.8], [fx + curl, y - h],
+      [fx + 6, y - h * 0.62], [fx + 17, y - h * 0.4], [fx + 15, y - 16]];
+    return `<path d="${toPath(wobble(outline(pts, 3), s, 0.8))}" fill="${p.ink}"/>`;
+  };
+  const flames = tongue(x - 22, 50, -10, seed + 1) + tongue(x + 20, 56, 12, seed + 2) + tongue(x - 2, 72, -8, seed + 3)
+    + `<path d="${toPath(wobble(outline([[x - 12, y - 16], [x - 10, y - 38], [x - 2, y - 52], [x + 4, y - 40], [x + 10, y - 30], [x + 12, y - 16]], 3), seed + 5, 0.6))}" fill="${p.paper}"/>`;
+  const embers = Array.from({ length: 6 }, () => {
+    const [ex, ey] = [x + (r() - 0.5) * 70, y - 60 - r() * 80];
+    return `<path d="${toPath(ellipse(ex, ey, 2, 2, 8))}" fill="${p.ink}"/>`;
+  }).join('');
+  return sword + flames + `<path d="${toPath(wobble(mound, seed + 6, 1))}" fill="${p.ink}"/>` + bones + embers;
+}
+
+
+// A gnarled dead tree in ink at the edge of the dream, roots in the ground.
+export function deadTree(x: number, y: number, p: Palette, seed = 350, dir = 1): string {
+  const r = rng(seed);
+  const parts: string[] = [];
+  const branch = (from: Pt, angle: number, len: number, w: number, depth: number) => {
+    const bend = (r() - 0.5) * 0.6;
+    const mid: Pt = [from[0] + Math.cos(angle + bend) * len * 0.5, from[1] + Math.sin(angle + bend) * len * 0.5];
+    const to: Pt = [from[0] + Math.cos(angle) * len, from[1] + Math.sin(angle) * len];
+    parts.push(`<path d="${toPath(wobble(stroke(curve([from, mid, to], 6), (t) => w * (1 - 0.6 * t) + 1), seed + parts.length, 0.5))}" fill="${p.ink}"/>`);
+    if (depth > 0) {
+      branch(to, angle - 0.5 - r() * 0.3, len * 0.7, w * 0.6, depth - 1);
+      branch(to, angle + 0.4 + r() * 0.3, len * 0.65, w * 0.6, depth - 1);
+    }
+  };
+  branch([x, y], -Math.PI / 2 + dir * 0.08, 150, 26, 3);
+  parts.push(`<path d="${toPath(wobble(outline([[x - 30, y + 2], [x - 12, y - 14], [x + 12, y - 14], [x + 30, y + 2]], 3), seed, 1))}" fill="${p.ink}"/>`);
+  return parts.join('');
+}
+
+
+// A great eye open in the night sky, no window around it: something vast
+// looking down at him. Ink lids, a paper white, a slit pupil.
+export function skyEye(x: number, y: number, w: number, p: Palette, seed = 300): string {
+  const h = w * 0.42;
+  const lid = outline([[x - w / 2, y], [x - w / 4, y - h * 0.8], [x + w / 4, y - h * 0.8], [x + w / 2, y], [x + w / 4, y + h * 0.7], [x - w / 4, y + h * 0.7]], 5);
+  const lashes = [-0.3, -0.1, 0.1, 0.3].map((f, i) => inkLine([[x + w * f, y - h * 0.62], [x + w * f * 1.3, y - h * 0.95]], p, { seed: seed + 5 + i, w: 3 })).join('');
+  return `<path d="${toPath(wobble(lid, seed + 1, 0.8))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="6"/>`
+    + `<path d="${toPath(ellipse(x - 4, y + 2, h * 0.5, h * 0.5, 28))}" fill="${p.ink}"/>`
+    + `<path d="${toPath(ellipse(x - 4, y + 2, 2.5, h * 0.36, 12))}" fill="${p.paper}"/>` + lashes;
 }

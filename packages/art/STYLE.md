@@ -82,6 +82,8 @@ Each of these was tried and rejected:
 - A tall body, or body detail: leg lines, toes, joints, arms across the
   chest. The body is one plain shape, like the mouth.
 - Any pose that hides his face (from behind, looking out of a window).
+- Window frames and scattered flowers as set dressing: the night is a moon in
+  the corner, the Dream is a bonfire or a dead tree.
 - Gravestones (a mess at device size), dense skylines (read as a modern
   city; Yharnam is solid ink like his fur: one cathedral with crocketed needle spires, windows cut in paper, and a chapel spire at the edge).
 - A see-through moon: moons are solid discs, so what hangs behind stays behind.
