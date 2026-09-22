@@ -3,6 +3,7 @@
 #include "quote_text.h"
 #include "validate.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <vector>
 
@@ -94,8 +95,12 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
   : carousel_(carousel), queue_(queue), clock_(clock),
     storage_(storage), renderer_(renderer), random_(random) {}
 
+// The skins he can wear. Only Jiji so far; the others unlock with the bond.
+static const char* const SKINS[] = { "jiji" };
+
 void SessionMachine::begin() {
   daily_.load();
+  loadSettings();
   lastInput_ = clock_.nowEpochSeconds();
   screen_ = Screen::Waking;
   moment_ = wakeMoment(daily_.form(lastInput_));
@@ -326,19 +331,68 @@ void SessionMachine::browse(Input input) {
       if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort && count) { quote_ = (quote_ + 1) % count; quotePage_ = 0; draw(); }
       else if (input == Input::SunShort && count) {
-        const int pages = quotePages(daily_.quotes()[quote_].body);
+        const int pages = quotePages(daily_.quotes()[quote_].body, largeText_);
         if (pages > 1) { quotePage_ = (quotePage_ + 1) % pages; draw(); }
       }
       break;
     }
+    // SUN moves, POWER changes the line: text size, skin, or a sync now.
+    case Place::Settings:
+      if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % 4; draw(); }
+      else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort) {
+        if (listCursor_ == 0) { largeText_ = !largeText_; saveSettings(); }
+        else if (listCursor_ == 1) {
+          const size_t count = sizeof(SKINS) / sizeof(SKINS[0]);
+          size_t i = 0;
+          while (i < count && skin_ != SKINS[i]) ++i;
+          skin_ = SKINS[(i + 1) % count];
+          saveSettings();
+        } else if (listCursor_ == 2) { syncRequested_ = true; syncNote_ = "SYNCING"; }
+        draw();
+      }
+      break;
   }
+}
+
+void SessionMachine::loadSettings() {
+  const auto lines = storage_.readLines(SETTINGS);
+  if (lines.empty()) return;
+  largeText_ = lines[0].rfind("1", 0) == 0;
+  const size_t space = lines[0].find(' ');
+  if (space != std::string::npos) skin_ = lines[0].substr(space + 1);
+}
+
+void SessionMachine::saveSettings() {
+  storage_.write(SETTINGS, std::string(largeText_ ? "1 " : "0 ") + skin_ + "\n");
+}
+
+bool SessionMachine::takeSyncRequest() {
+  const bool asked = syncRequested_;
+  syncRequested_ = false;
+  return asked;
+}
+
+void SessionMachine::setSyncNote(const std::string& note) {
+  syncNote_ = note;
+  redrawSettings();
+}
+
+void SessionMachine::setBatteryNote(const std::string& note) {
+  if (note == batteryNote_) return;
+  batteryNote_ = note;
+  redrawSettings();
+}
+
+void SessionMachine::redrawSettings() {
+  if (screen_ == Screen::Idle && place_ == Place::Settings) draw();
 }
 
 // While he is dormant the menu opens with the ritual that wakes him.
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Quotes }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Quotes, Place::Settings }) places.push_back(p);
   return places;
 }
 
@@ -392,6 +446,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Activities: vm.items.push_back("ACTIVITIES"); break;
           case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
+          case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
       }
@@ -412,9 +467,18 @@ void SessionMachine::draw(int minutes) {
         vm.quotePage = quotePage_;
       }
       break;
+    case Place::Settings: {
+      std::string skin = skin_;
+      for (auto& c : skin) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+      vm.title = "SETTINGS";
+      vm.items = { largeText_ ? "TEXT LARGE" : "TEXT SMALL", "SKIN " + skin, syncNote_, batteryNote_ };
+      vm.cursor = static_cast<int>(listCursor_);
+      break;
+    }
     case Place::Activities:
       break;
   }
+  vm.largeText = largeText_;
   // Running never carries elapsed time. Design decision, not an omission.
   vm.minutes = (screen_ == Screen::Stopped) ? minutes : 0;
   renderer_.render(vm);

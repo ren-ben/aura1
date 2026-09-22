@@ -27,6 +27,12 @@ public:
   // A moment of joy (a level up, the list done): a scene held briefly.
   void celebrate(const std::string& moment);
   Daily& daily() { return daily_; }
+  // SYNC NOW in the settings asks for a sync; the main loop takes the ask
+  // and reports back with a word for the list.
+  bool takeSyncRequest();
+  void setSyncNote(const std::string& note);
+  // The battery line in the settings, e.g. "BAT 3.91V 70%".
+  void setBatteryNote(const std::string& note);
 
 private:
   void draw(int minutes = 0);
@@ -39,9 +45,13 @@ private:
   void recoverMarker();
   void browse(Input input);
   void enter(Place place);
+  void loadSettings();
+  void saveSettings();
+  void redrawSettings();
 
   static constexpr const char* MARKER = "/session.open";
   static constexpr const char* NAV = "/nav.txt";  // last started activity id
+  static constexpr const char* SETTINGS = "/settings.txt";  // "<large 0|1> <skin>"
   static constexpr uint64_t HEARTBEAT_SECONDS = 300;
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
   static constexpr uint64_t CELEBRATE_SECONDS = 5;
@@ -79,4 +89,10 @@ private:
   uint64_t celebrateAt_ = 0;
   std::string moment_;
   bool ritual_ = false;
+
+  bool largeText_ = false;
+  std::string skin_ = "jiji";
+  bool syncRequested_ = false;
+  std::string syncNote_ = "SYNC NOW";
+  std::string batteryNote_ = "BATTERY";
 };

@@ -19,7 +19,12 @@ std::vector<std::string> wrapWords(const std::string& text, size_t width) {
   return lines;
 }
 
-int quotePages(const std::string& text) {
-  const size_t lines = wrapWords(text, QUOTE_CHARS).size();
-  return lines == 0 ? 1 : static_cast<int>((lines + QUOTE_LINES - 1) / QUOTE_LINES);
+QuoteFit quoteFit(bool large) {
+  return large ? QuoteFit{ 14, 4 } : QuoteFit{ 27, 7 };
+}
+
+int quotePages(const std::string& text, bool large) {
+  const QuoteFit fit = quoteFit(large);
+  const size_t lines = wrapWords(text, fit.chars).size();
+  return lines == 0 ? 1 : static_cast<int>((lines + fit.lines - 1) / fit.lines);
 }

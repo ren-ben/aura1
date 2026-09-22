@@ -28,15 +28,18 @@ Other docs:
 
 SUN always moves, POWER always acts, holding SUN goes back up, holding POWER switches off.
 
-| Button | Menu | Folder list | Inside a folder | Today / Habits | Quotes | Running |
-|---|---|---|---|---|---|---|
-| SUN | next place | next folder | next activity | next item | more of a long quote | nothing |
-| POWER | open it | open the folder | start a session | tick or untick | next quote | stop |
-| hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | nothing |
-| hold POWER | switch off | switch off | switch off | switch off | switch off | save, switch off |
+| Button | Menu | Folder list | Inside a folder | Today / Habits | Quotes | Settings | Running |
+|---|---|---|---|---|---|---|---|
+| SUN | next place | next folder | next activity | next item | more of a long quote | next line | nothing |
+| POWER | open it | open the folder | start a session | tick or untick | next quote | change it | stop |
+| hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | back to the menu | nothing |
+| hold POWER | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, save, switch off |
 
-- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS and QUOTES,
-  with today's progress beside each. Kael'thos watches from the corner.
+- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS, QUOTES and
+  SETTINGS, with today's progress beside each. Kael'thos watches from the corner.
+- **Settings:** TEXT SMALL or LARGE (the quote bubble), SKIN (only Jiji so far),
+  SYNC NOW (then SYNCED, NO WIFI or SERVER ERROR), and the battery's voltage and charge
+  (a + while charging).
 - **Ticks work offline.** They go out with the next sync, and the web shows them after.
 - **Left alone for three minutes** he takes over the screen with a scene of his own, or
   his decay if you have been away. Any press brings the list back without acting.
@@ -45,11 +48,17 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
   activity you last started. With USB plugged in it cannot cut power, so it sleeps
   instead, and POWER wakes it.
 - **SEALED** shows the duration after a stop. SUN or POWER skips it.
-- **The battery icon** (bottom right) fills in quarters. On USB it shows a lightning bolt
-  instead, because the charge level cannot be read while plugged in.
+- **The corner** (bottom right, top right over a scene) shows the battery in quarters,
+  a bolt while it charges, and Kael'thos' head: eyes open with a call going out while it
+  syncs, dozing while it is offline. Online, only the battery shows.
+- **The battery reads low on this board** (its sense divider is loaded by the chip), so the
+  device learns what a full cell reads: the first full charge calibrates it, kept in
+  `/battery.txt` on the card. The bars only go down on battery, never flicker back up.
+  There is no charge pin, so charging shows when the voltage climbs; a computer on USB
+  counts at once, a wall charger after a minute or so.
 - **Between presses the device sleeps** unless a computer is attached (sleep drops the
-  USB serial link). Switched off, it draws almost nothing. Serial logs `battery=` every
-  minute while awake, which is how to measure drain.
+  USB serial link). Switched off, it draws almost nothing. Serial logs `battery raw=`
+  every 15 seconds while awake, which is how to measure drain.
 
 - **No timer is shown while you work.** That is deliberate: you see the duration only
   when you stop.
@@ -63,9 +72,13 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
 
 ![Sync](img/sync.svg)
 
-- **Syncs happen** when you stop a session, at boot, and every 6 hours. The 6-hourly sync
-  is skipped while a session is running. Pressing a button while it waits for Wi-Fi
-  cancels the sync, so the device never ignores you; the queue goes with the next one.
+- **Syncs happen** at boot, when you stop a session, when you switch off, from SYNC NOW,
+  and every hour. Offline it tries again after 1, 2, 4 and then every 8 minutes, so a
+  hotspot switched on later is found within minutes. Timed syncs skip a running session.
+- **The buttons work while it looks for Wi-Fi.** Only the request itself, a few seconds
+  once connected, holds them. At switch-off it waits up to 10 seconds; SUN skips it.
+- **Phone hotspots:** the chip only sees 2.4 GHz. On an iPhone turn on Maximize
+  Compatibility; on Android pick the 2.4 GHz band.
 - **Nothing is deleted from the device until the server confirms it.** A failed sync
   changes nothing.
 - **A session sent twice is still stored once.** A lost reply, a retry, or a crash

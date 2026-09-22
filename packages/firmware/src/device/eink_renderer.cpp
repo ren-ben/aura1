@@ -4,8 +4,6 @@
 #include <SPI.h>
 #include <esp_random.h>
 #include <GxEPD2_BW.h>
-#include "battery.h"
-#include "battery_reader.h"
 #include "buttons.h"
 #include "quote_text.h"
 
@@ -17,22 +15,71 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
 
-// Bottom-right corner (top-right over a scene): an outline with a nub, filled
-// in quarters, or a bolt while on USB (the charge level cannot be read then).
-static void drawBattery(int millivolts, bool top) {
+// Kael'thos' head as a tiny icon for the link: dozing while offline, eyes
+// open and calling out while he syncs. Online, the corner stays quiet.
+static const char* const CAT_ASLEEP[] = {
+  "#...........#",
+  "##.........##",
+  "###.......###",
+  "#############",
+  "#############",
+  "#############",
+  "##...###...##",
+  "#############",
+  "#############",
+  ".###########.",
+  "...#######...",
+};
+static const char* const CAT_AWAKE[] = {
+  "#...........#",
+  "##.........##",
+  "###.......###",
+  "#############",
+  "#############",
+  "###..###..###",
+  "###..###..###",
+  "#############",
+  "#############",
+  ".###########.",
+  "...#######...",
+};
+
+static void icon(const char* const rows[], int count, int x, int y) {
+  for (int r = 0; r < count; ++r) {
+    for (int c = 0; rows[r][c]; ++c) {
+      if (rows[r][c] == '#') display.drawPixel(x + c, y + r, GxEPD_BLACK);
+    }
+  }
+}
+
+// The corner: top-right over a scene, bottom-right under a list. The battery
+// is an outline with a nub, filled in quarters; a bolt beside it while it
+// charges; the cat to the left of both when syncing or offline. Each sits on
+// white so it reads over a scene.
+static void drawCorner(const Status& s, bool top) {
   constexpr int X = 170, W = 24, H = 10;
   const int Y = top ? 4 : 188;
-  if (top) display.fillRect(X - 2, Y - 2, W + 6, H + 4, GxEPD_WHITE);
+  display.fillRect(X - 2, Y - 2, W + 6, H + 4, GxEPD_WHITE);
   display.drawRect(X, Y, W, H, GxEPD_BLACK);
   display.fillRect(X + W, Y + 3, 2, H - 6, GxEPD_BLACK);
-  if (onExternalPower(millivolts)) {
-    const int cx = X + W / 2;
-    display.fillTriangle(cx + 2, Y + 1, cx - 4, Y + 6, cx + 1, Y + 5, GxEPD_BLACK);
-    display.fillTriangle(cx - 2, Y + H - 1, cx + 4, Y + 4, cx - 1, Y + 5, GxEPD_BLACK);
-    return;
+  for (int q = 0; q < s.bars; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
+  if (s.charging) {
+    constexpr int BX = 160;
+    display.fillRect(BX - 2, Y - 2, 10, H + 4, GxEPD_WHITE);
+    display.fillTriangle(BX + 5, Y, BX, Y + 6, BX + 3, Y + 6, GxEPD_BLACK);
+    display.fillTriangle(BX + 1, Y + H, BX + 6, Y + 4, BX + 3, Y + 4, GxEPD_BLACK);
   }
-  const int quarters = (batteryPercent(millivolts) + 12) / 25;
-  for (int q = 0; q < quarters; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
+  const int cx = s.charging ? 144 : 154, cy = Y - 1;
+  if (s.link == Link::Offline) {
+    display.fillRect(cx - 2, cy - 1, 17, 13, GxEPD_WHITE);
+    icon(CAT_ASLEEP, 11, cx, cy);
+  } else if (s.link == Link::Syncing) {
+    // Awake, with his call going out to the left.
+    display.fillRect(cx - 10, cy - 1, 25, 13, GxEPD_WHITE);
+    icon(CAT_AWAKE, 11, cx, cy);
+    display.drawCircleHelper(cx - 1, cy + 5, 3, 8 | 1, GxEPD_BLACK);
+    display.drawCircleHelper(cx - 1, cy + 5, 6, 8 | 1, GxEPD_BLACK);
+  }
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text);
@@ -128,23 +175,27 @@ bool EinkRenderer::drawScene(const std::string& moment) {
   const ArtScene* scene = pickScene(art_, moment, esp_random());
   if (!scene || !drawArt(*scene, 0)) return false;
   env_ = scene->env;
+  sceneSize_ = scene->size;
   return true;
 }
 
 // Kael'thos says the quote: his cameo in the bottom-left corner, a bubble
 // sized to the words above him, clear of the screen edge, its tail on him.
 void EinkRenderer::drawQuote(const ViewModel& vm) {
-  constexpr int EDGE = 8, PAD = 8, LINE_H = 11, BOTTOM = 106;
-  display.setTextSize(1);
+  constexpr int EDGE = 8, PAD = 8, BOTTOM = 106;
+  // Large text doubles the 6x8 font: half the words to a line.
+  const int scale = vm.largeText ? 2 : 1;
+  const int lineH = 11 * scale - (scale - 1) * 4;
+  const QuoteFit fit = quoteFit(vm.largeText);
   // One page of a long quote; an arrow under the bubble says SUN shows more.
-  const auto all = wrapWords(vm.quote, QUOTE_CHARS);
-  const size_t first = std::min(all.size(), static_cast<size_t>(vm.quotePage) * QUOTE_LINES);
-  const std::vector<std::string> lines(all.begin() + first, all.begin() + std::min(all.size(), first + QUOTE_LINES));
-  const bool more = first + QUOTE_LINES < all.size();
+  const auto all = wrapWords(vm.quote, fit.chars);
+  const size_t first = std::min(all.size(), static_cast<size_t>(vm.quotePage) * fit.lines);
+  const std::vector<std::string> lines(all.begin() + first, all.begin() + std::min(all.size(), first + fit.lines));
+  const bool more = first + fit.lines < all.size();
   size_t widest = 0;
   for (const auto& l : lines) widest = std::max(widest, l.size());
-  const int w = std::max(48, static_cast<int>(widest) * 6 + 2 * PAD);
-  const int h = static_cast<int>(lines.size()) * LINE_H - 3 + 2 * PAD;
+  const int w = std::max(48, static_cast<int>(widest) * 6 * scale + 2 * PAD);
+  const int h = static_cast<int>(lines.size()) * lineH - 3 * scale + 2 * PAD;
   const int top = BOTTOM - h;
   display.drawRoundRect(EDGE, top, w, h, 8, GxEPD_BLACK);
   display.drawRoundRect(EDGE + 1, top + 1, w - 2, h - 2, 7, GxEPD_BLACK);
@@ -153,10 +204,12 @@ void EinkRenderer::drawQuote(const ViewModel& vm) {
   const int tip = EDGE + (cameo ? cameo->size / 2 : 36);
   display.fillTriangle(tip - 8, BOTTOM - 2, tip + 6, BOTTOM - 2, tip, BOTTOM + 12, GxEPD_BLACK);
   display.fillTriangle(tip - 5, BOTTOM - 3, tip + 3, BOTTOM - 3, tip - 1, BOTTOM + 6, GxEPD_WHITE);
+  display.setTextSize(scale);
   for (size_t i = 0; i < lines.size(); ++i) {
-    display.setCursor(EDGE + PAD, top + PAD + static_cast<int>(i) * LINE_H);
+    display.setCursor(EDGE + PAD, top + PAD + static_cast<int>(i) * lineH);
     display.print(lines[i].c_str());
   }
+  display.setTextSize(1);
   if (more) {
     const int ax = EDGE + w - 12;
     display.fillTriangle(ax - 5, BOTTOM + 4, ax + 5, BOTTOM + 4, ax, BOTTOM + 10, GxEPD_BLACK);
@@ -174,6 +227,7 @@ void EinkRenderer::drawQuote(const ViewModel& vm) {
 bool EinkRenderer::play(const std::string& moment, bool fullLast) {
   const ArtScene* scene = pickScene(art_, moment, esp_random(), env_);
   if (!scene || !loadFrame(framePath(*scene, 0), scene->size)) return false;
+  spot_ = Spot::None;
   for (int i = 0; i < scene->frames; ++i) {
     const bool last = i == scene->frames - 1;
     if (last && fullLast) display.setFullWindow();
@@ -218,14 +272,14 @@ void EinkRenderer::render(const ViewModel& vm) {
     ++partials_;
   }
 
-  // Read at each frame: the glass only changes then anyway.
-  const int battery = readBatteryMillivolts();
+  sceneSize_ = 0;
+  bool art = false;
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     display.setTextSize(2);
-    bool art = false;
+    art = false;
     switch (vm.screen) {
       case Screen::Waking: drawWaking(); break;
       case Screen::Idle:
@@ -249,14 +303,14 @@ void EinkRenderer::render(const ViewModel& vm) {
         const ArtScene* scene = pickScene(art_, rite ? vm.moment : sessionMoment(vm.folder), esp_random());
         if (!scene) scene = pickScene(art_, "session-axiom", esp_random());
         art = scene && drawArt(*scene, 0);
-        if (art) env_ = scene->env;
+        if (art) { env_ = scene->env; sceneSize_ = scene->size; }
         if (art) drawBand(rite ? "THE RITE" : vm.activity); else drawRunning(vm);
         break;
       }
       case Screen::Stopped: {
         const ArtScene* scene = pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random());
         art = scene && drawArt(*scene, 0);
-        if (art) env_ = scene->env;
+        if (art) { env_ = scene->env; sceneSize_ = scene->size; }
         if (art) drawBand(vm.minutes < MIN_SESSION_MINUTES ? "too short"
                           : std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m");
         else drawStopped(vm);
@@ -264,9 +318,35 @@ void EinkRenderer::render(const ViewModel& vm) {
       }
       case Screen::Dormant: drawDormant(display); break;
     }
-    if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawBattery(battery, art);
+    if (vm.screen != Screen::Waking && vm.screen != Screen::Dormant) drawCorner(status_, art);
   } while (display.nextPage());
   display.powerOff();  // stop driving the panel between frames, avoids fading
+  spot_ = vm.screen == Screen::Waking || vm.screen == Screen::Dormant ? Spot::None
+        : art ? Spot::Top : Spot::Bottom;
+}
+
+void EinkRenderer::setStatus(const Status& status) {
+  if (status == status_) return;
+  status_ = status;
+  if (spot_ != Spot::None) drawStatus(spot_ == Spot::Top);
+}
+
+// Only the corner, by partial refresh: the scene under it is still in
+// frameBits, so it is drawn back around the icons.
+void EinkRenderer::drawStatus(bool top) {
+  const int y = top ? 0 : 180;
+  display.setPartialWindow(128, y, 72, 20);
+  ++partials_;
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    if (top && sceneSize_) {
+      const int at = (200 - sceneSize_) / 2;
+      display.drawBitmap(at, at, frameBits, sceneSize_, sceneSize_, GxEPD_BLACK);
+    }
+    drawCorner(status_, top);
+  } while (display.nextPage());
+  display.powerOff();
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text) {
@@ -366,6 +446,7 @@ void EinkRenderer::drawList(const ViewModel& vm) {
   display.drawLine(0, 164, display.width(), 164, GxEPD_BLACK);
   display.setCursor(MARGIN, 172);
   const char* act = vm.place == Place::Todos || vm.place == Place::Habits ? "tick"
+    : vm.place == Place::Settings ? "change"
     : vm.place == Place::Activities && !vm.top ? "start" : "open";
   display.print((std::string("SUN next    POWER ") + act).c_str());
   if (vm.place != Place::Menu) {

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <algorithm>
 #include <SD_MMC.h>
 #include <Wire.h>
 #include <bootloader_random.h>
@@ -28,42 +29,92 @@ static EventQueue queue(storage);
 static EspRandom random_;
 static SessionMachine machine(carousel, queue, rtc, storage, renderer, random_);
 static SyncClient syncClient(queue, rtc, storage, machine.daily());
+static BatteryGauge gauge;
 
 static int configVersion = 0;
 static unsigned long lastTick = 0;
-static unsigned long lastSync = 0;
-static unsigned long lastBatteryLog = 0;
+static unsigned long lastBattery = 0;
+static unsigned long nextSync = 0;
+static unsigned long retryMs = 0;
+static int levelAtSync = 0;
+static bool knownAtSync = false;
+static Link linkState = Link::Syncing;
 
 constexpr unsigned long TICK_MS = 1000;
-constexpr unsigned long SYNC_INTERVAL_MS = 6UL * 60 * 60 * 1000;
+constexpr unsigned long BATTERY_MS = 15000;
+// Synced: again in an hour, for the day's todos and quotes. Offline: again
+// soon, then less often, so a hotspot switched on later is found within
+// minutes without the radio draining the battery.
+constexpr unsigned long SYNCED_MS = 60UL * 60 * 1000;
+constexpr unsigned long FIRST_RETRY_MS = 60UL * 1000;
+constexpr unsigned long MAX_RETRY_MS = 8UL * 60 * 1000;
+constexpr unsigned long POWER_OFF_CONNECT_MS = 10000;
+constexpr const char* BATTERY_FILE = "/battery.txt";  // the learned full reading
 
-static bool pluggedIn = false;
+static void showStatus() {
+  renderer.setStatus({ gauge.bars(), gauge.charging(), linkState });
+}
 
-// Also redraws when USB is plugged in or out, so the battery icon's bolt
-// follows within a minute.
 static void checkBattery() {
-  const int mv = readBatteryMillivolts();
-  Serial.printf("battery=%dmV %d%%%s\n", mv, batteryPercent(mv), onExternalPower(mv) ? " usb" : "");
-  if (onExternalPower(mv) != pluggedIn) {
-    pluggedIn = !pluggedIn;
+  const int raw = readBatteryMillivolts();
+  const int learned = gauge.fullRaw();
+  gauge.sample(raw, usbHost());
+  if (gauge.fullRaw() >= learned + 10) storage.write(BATTERY_FILE, std::to_string(gauge.fullRaw()) + "\n");
+  const int mv = gauge.millivolts();
+  char note[20];
+  snprintf(note, sizeof note, "BAT %d.%02dV %d%%%s", mv / 1000, mv % 1000 / 10, gauge.percent(),
+           gauge.charging() ? "+" : "");
+  Serial.printf("battery raw=%dmV full=%dmV -> %dmV %d%% bars=%d%s\n", raw, gauge.fullRaw(), mv,
+                gauge.percent(), gauge.bars(), gauge.charging() ? " charging" : "");
+  machine.setBatteryNote(note);
+  showStatus();
+}
+
+// Starts a sync unless one is already under way. The cat in the corner
+// opens his eyes until it ends.
+static void startSync(unsigned long connectMs = 20000) {
+  if (syncClient.busy()) return;
+  knownAtSync = !machine.daily().date().empty();
+  levelAtSync = machine.daily().level();
+  syncClient.start(connectMs);
+  linkState = Link::Syncing;
+  showStatus();
+}
+
+// A sync that pulled a new config reloaded the carousel under the machine;
+// redraw so Idle never shows a selection POWER would not start.
+static void finishSync(SyncOutcome outcome) {
+  const bool ok = outcome == SyncOutcome::Ok;
+  linkState = ok ? Link::Online : Link::Offline;
+  retryMs = ok ? 0 : retryMs ? std::min(retryMs * 2, MAX_RETRY_MS) : FIRST_RETRY_MS;
+  nextSync = millis() + (ok ? SYNCED_MS : retryMs);
+  machine.setSyncNote(ok ? "SYNCED" : outcome == SyncOutcome::NoWifi ? "NO WIFI" : "SERVER ERROR");
+  showStatus();
+  if (!ok) return;
+  // A level up is his to celebrate, but never over a running session. The
+  // first bundle ever is not a level up.
+  const Screen screen = machine.screen();
+  if (knownAtSync && machine.daily().level() > levelAtSync && (screen == Screen::Idle || screen == Screen::Stopped)) {
+    machine.celebrate("levelup");
+  } else {
     machine.redraw();
   }
 }
 
-// A press abandons the sync, so the device never ignores the user while it
-// waits for Wi-Fi. The queue is untouched and goes with the next sync.
-static bool userPressed() { return buttons.anyDown(); }
+static void pollSync() {
+  SyncOutcome outcome;
+  if (syncClient.poll(configVersion, carousel, machine.screen() != Screen::Running, outcome)) finishSync(outcome);
+}
 
-// A sync that pulled a new config reloaded the carousel under the machine;
-// redraw so Idle never shows a selection POWER would not start.
-static void runSync() {
-  const int before = configVersion;
-  const bool known = !machine.daily().date().empty();
-  const int level = machine.daily().level();
-  syncClient.run(configVersion, carousel, userPressed);
-  // A level up is his to celebrate. The first bundle ever is not a level up.
-  if (known && machine.daily().level() > level) machine.celebrate("levelup");
-  else if (configVersion != before) machine.redraw();
+// Going off: one last sync, so the dashboard has everything. It waits for
+// the hotspot a little less long than usual; SUN skips it.
+static void syncBeforePowerOff() {
+  startSync(POWER_OFF_CONNECT_MS);
+  while (syncClient.busy()) {
+    if (digitalRead(PIN_SUN_BTN) == LOW) { syncClient.abort(); break; }
+    pollSync();
+    delay(20);
+  }
 }
 
 void setup() {
@@ -94,17 +145,19 @@ void setup() {
   Serial.printf("flash=%luMB psram=%luKB\n",
                 (unsigned long)(ESP.getFlashChipSize() / (1024 * 1024)),
                 (unsigned long)(ESP.getPsramSize() / 1024));
-  pluggedIn = onExternalPower(readBatteryMillivolts());
+  const auto full = storage.readLines(BATTERY_FILE);
+  if (!full.empty()) gauge.setFullRaw(std::atoi(full[0].c_str()));
   checkBattery();
   loadConfigFromSd(storage, carousel, configVersion);
   machine.begin();
-  runSync();
+  startSync();
 }
 
 void loop() {
   Input input;
   if (buttons.poll(input)) {
     if (input == Input::PowerLong) {
+      syncBeforePowerOff();
       // Let the machine write a final heartbeat and draw DORMANT first: a
       // running session then survives power-off to the second.
       machine.handle(input);
@@ -122,28 +175,24 @@ void loop() {
       esp_deep_sleep_start();
     }
     machine.handle(input);
-    if (machine.screen() == Screen::Stopped) {
-      runSync();
-      lastSync = millis();
-    }
+    // A session just sealed, or SYNC NOW in the settings.
+    if (machine.screen() == Screen::Stopped || machine.takeSyncRequest()) startSync();
   }
+
+  if (syncClient.busy()) pollSync();
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
-  if (now - lastBatteryLog >= 60000) { lastBatteryLog = now; checkBattery(); }
-  // Never sync mid-session: sync sets the RTC, and moving the clock under a running
-  // session can make endedAt < startedAt. Stopping triggers a sync anyway.
-  if (now - lastSync >= SYNC_INTERVAL_MS && machine.screen() != Screen::Running) {
-    lastSync = now;
-    runSync();
-  }
+  // The radio sags the cell: read it only with the radio off.
+  if (now - lastBattery >= BATTERY_MS && !syncClient.busy()) { lastBattery = now; checkBattery(); }
+  // Not mid-session: that session's end syncs anyway.
+  if (static_cast<long>(now - nextSync) >= 0 && machine.screen() != Screen::Running) startSync();
 
   // Sleep until the next press or tick: a few mA instead of tens. RAM, the
   // clock and millis() all survive light sleep, so a running session carries
-  // on. Only on battery: light sleep also stops the USB port, and the serial
-  // check (!Serial) proved unreliable, leaving a plugged-in board unflashable.
-  // USB power is measured directly on the battery pin (see onExternalPower).
-  if (buttons.settled() && !onExternalPower(readBatteryMillivolts())) {
+  // on. Never while syncing, and never with a computer on the USB port: light
+  // sleep also stops the port, which leaves the board unflashable.
+  if (buttons.settled() && !syncClient.busy() && !usbHost()) {
     esp_sleep_enable_timer_wakeup(TICK_MS * 1000);
     esp_light_sleep_start();
   }

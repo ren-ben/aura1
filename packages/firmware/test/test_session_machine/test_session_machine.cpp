@@ -604,6 +604,64 @@ void test_sun_turns_the_pages_of_a_long_quote() {
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
 }
 
+void test_settings_change_text_size_and_keep_it() {
+  TwoFolderRig rig;
+  {
+    auto m = rig.machine();
+    m.begin();
+    openPlace(m, 4);
+    TEST_ASSERT_EQUAL_STRING("SETTINGS", rig.renderer.last().title.c_str());
+    TEST_ASSERT_EQUAL_STRING("TEXT SMALL", rig.renderer.last().items[0].c_str());
+    m.handle(Input::PowerShort);
+    TEST_ASSERT_EQUAL_STRING("TEXT LARGE", rig.renderer.last().items[0].c_str());
+    TEST_ASSERT_TRUE(rig.renderer.last().largeText);
+  }
+  auto again = rig.machine();
+  again.begin();
+  TEST_ASSERT_TRUE(rig.renderer.last().largeText);
+}
+
+void test_large_text_turns_more_pages() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  // 20 words of 4 letters: one page small, two large (14 characters, 4 lines).
+  std::string body;
+  for (int i = 0; i < 20; ++i) body += "word ";
+  m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
+                    "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
+  m.begin();
+  openPlace(m, 3);
+  m.handle(Input::SunShort);
+  TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
+  m.handle(Input::SunLong);
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);  // settings
+  m.handle(Input::PowerShort);  // large text
+  m.handle(Input::SunLong);
+  for (int i = 0; i < 4; ++i) m.handle(Input::SunShort);  // from settings round to quotes
+  m.handle(Input::PowerShort);
+  m.handle(Input::SunShort);
+  TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().quotePage);
+}
+
+void test_sync_now_asks_the_main_loop_and_shows_the_answer() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  TEST_ASSERT_FALSE(m.takeSyncRequest());
+  openPlace(m, 4);
+  m.handle(Input::SunShort);
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_STRING("SYNCING", rig.renderer.last().items[2].c_str());
+  TEST_ASSERT_TRUE(m.takeSyncRequest());
+  TEST_ASSERT_FALSE(m.takeSyncRequest());
+  m.setSyncNote("NO WIFI");
+  TEST_ASSERT_EQUAL_STRING("NO WIFI", rig.renderer.last().items[2].c_str());
+  m.setBatteryNote("BAT 3.91V 70%");
+  TEST_ASSERT_EQUAL_STRING("BAT 3.91V 70%", rig.renderer.last().items[3].c_str());
+}
+
 void test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it() {
   TwoFolderRig rig;
   auto m = rig.machine();
@@ -704,6 +762,9 @@ int main() {
   RUN_TEST(test_power_ticks_a_habit);
   RUN_TEST(test_quotes_cycle_with_power);
   RUN_TEST(test_sun_turns_the_pages_of_a_long_quote);
+  RUN_TEST(test_settings_change_text_size_and_keep_it);
+  RUN_TEST(test_large_text_turns_more_pages);
+  RUN_TEST(test_sync_now_asks_the_main_loop_and_shows_the_answer);
   RUN_TEST(test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it);
   RUN_TEST(test_boot_reopens_the_last_started_activity);
   RUN_TEST(test_power_long_draws_dormant_from_idle);
