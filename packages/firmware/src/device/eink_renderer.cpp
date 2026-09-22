@@ -15,15 +15,15 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
 
-// Kael'thos' head from the art pack, 24 px, for the link: eyes open with a
-// call going out while he syncs, shut while offline. Online, the corner stays
+// Kael'thos from the art pack, 24 px, for the link: melting into a spiral
+// while he syncs, sitting by a cactus while offline. Online, the corner stays
 // quiet. Kept in memory from boot; without the pack a word stands in.
 constexpr int ICON = 24;
 static std::vector<uint8_t> syncIcon, offlineIcon;
 
 // The corner: top-right over a scene, bottom-right under a list. The battery
 // is an outline with a nub, filled in quarters, or holding a bolt while it
-// charges; his head to its left when syncing or offline. Each sits on white
+// charges; his icon to its left when syncing or offline. Each sits on white
 // so it reads over a scene.
 static void drawCorner(const Status& s, bool top) {
   constexpr int X = 170, W = 24, H = 10;
@@ -43,7 +43,7 @@ static void drawCorner(const Status& s, bool top) {
   const std::vector<uint8_t>& art = syncing ? syncIcon : offlineIcon;
   constexpr int IX = 144;
   const int iy = top ? 1 : 176;
-  display.fillRect(IX - (syncing ? 10 : 2), iy, ICON + (syncing ? 12 : 4), ICON, GxEPD_WHITE);
+  display.fillRect(IX - 2, iy, ICON + 4, ICON, GxEPD_WHITE);
   if (art.empty()) {
     display.setTextSize(1);
     display.setCursor(IX, iy + 8);
@@ -51,10 +51,6 @@ static void drawCorner(const Status& s, bool top) {
     return;
   }
   display.drawBitmap(IX, iy, art.data(), ICON, ICON, GxEPD_BLACK);
-  if (syncing) {
-    display.drawCircleHelper(IX - 1, iy + 14, 3, 8 | 1, GxEPD_BLACK);
-    display.drawCircleHelper(IX - 1, iy + 14, 7, 8 | 1, GxEPD_BLACK);
-  }
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text);

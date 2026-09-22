@@ -20,7 +20,7 @@ import {
   ghost, gothicTown, laptop, messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, skyEye, tentacledMoon,
   tentacles, windowMoon, type Arm,
 } from './props.ts';
-import { bustArt, DEVICE_PALETTE, silhouetteParts, SIZE, type Palette, type Wear } from './rig.ts';
+import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
 
 export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
@@ -254,30 +254,52 @@ export function scenes(): Scene[] {
     ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
       scene(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35)
         + hideBelow(392))], undefined, 64)),
-    // The corner's link icons, 24 px: his head as one solid shape, the rig's
-    // detail being noise at this size. Eyes open while he syncs, shut while
-    // he is offline.
-    scene('status-sync', 'status', [statusIcon(false)], undefined, 24),
-    scene('status-offline', 'status', [statusIcon(true)], undefined, 24),
+    // The corner's link icons, drawn on the 24 px grid itself: the rig's
+    // detail is noise at this size. Syncing, his body pours into an Uzumaki
+    // spiral; offline, he sits by a cactus in the Chrome dino's desert,
+    // eyes shut, waiting.
+    scene('status-sync', 'status', [syncIcon()], undefined, 24),
+    scene('status-offline', 'status', [offlineIcon()], undefined, 24),
   ];
 }
 
-function statusIcon(asleep: boolean): string {
-  const { solids, eyes } = silhouetteParts();
-  const parts = solids.slice(1);  // head and ears, no shoulders
-  const all = parts.flat();
-  const [x0, x1] = [Math.min(...all.map((q) => q[0])), Math.max(...all.map((q) => q[0]))];
-  const [y0, y1] = [Math.min(...all.map((q) => q[1])), Math.max(...all.map((q) => q[1]))];
-  const side = Math.max(x1 - x0, y1 - y0);
-  const centre = (e: Pt[]): Pt => [e.reduce((t, q) => t + q[0], 0) / e.length, e.reduce((t, q) => t + q[1], 0) / e.length];
-  const face = eyes.map((e) => {
-    const [cx, cy] = centre(e);
-    return asleep
-      ? `<path d="M ${cx - 30} ${cy} Q ${cx} ${cy + 26} ${cx + 30} ${cy}" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round"/>`
-      : `<path d="${toPath(e)}" fill="#fff"/><ellipse cx="${cx}" cy="${cy + 6}" rx="11" ry="15"/>`;
-  }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(x0 + x1) / 2 - side / 2} ${y1 - side} ${side} ${side}">`
-    + `<rect x="-999" y="-999" width="9999" height="9999" fill="#fff"/>${parts.map((q) => `<path d="${toPath(q)}"/>`).join('')}${face}</svg>`;
+const icon24 = (inner: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="#fff"/>${inner}</svg>`;
+
+// His head on top, his body pouring down from it into a spiral of two and a
+// half turns, thick at the neck and thinning to a point at the centre.
+function syncIcon(): string {
+  const [cx, cy, turns, rOut, wOut] = [12, 16.5, 2.5, 7, 2.4];
+  const n = 160;
+  const pts = Array.from({ length: n + 1 }, (_, i) => {
+    const f = i / n;
+    const a = -Math.PI / 2 + f * turns * Math.PI * 2;
+    const r = rOut * (1 - f * 0.92);
+    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r, wOut * (1 - f * 0.75)] as const;
+  });
+  const body = pts.map(([x, y, w]) => `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(w / 2).toFixed(2)}" fill="#000"/>`).join('');
+  const [hx, hy, hr] = [pts[0]![0], pts[0]![1] - 1, 4.2];
+  const head = `<path d="M${hx - hr * 0.95} ${hy - hr * 0.2} L${hx - hr * 0.8} ${hy - hr * 1.75} L${hx - hr * 0.1} ${hy - hr * 0.8} Z`
+    + ` M${hx + hr * 0.95} ${hy - hr * 0.2} L${hx + hr * 0.8} ${hy - hr * 1.75} L${hx + hr * 0.1} ${hy - hr * 0.8} Z" fill="#000"/>`
+    + `<ellipse cx="${hx}" cy="${hy}" rx="${hr}" ry="${hr * 0.9}" fill="#000"/>`
+    + [hx - 1.8, hx + 1.8].map((x) => `<rect x="${x - 0.8}" y="${hy - 0.5}" width="1.6" height="2" fill="#fff"/>`).join('');
+  return icon24(body + head);
+}
+
+// Sitting by a cactus on the Chrome game's ground line, eyes shut: no
+// internet, and he is waiting it out.
+function offlineIcon(): string {
+  const x = 7;
+  const ground = `<rect x="0" y="20" width="24" height="1" fill="#000"/><rect x="3" y="19" width="2" height="1" fill="#000"/><rect x="14" y="19" width="1" height="1" fill="#000"/>`
+    + [[2, 22], [7, 23], [11, 22], [17, 23], [21, 22]].map(([gx, gy]) => `<rect x="${gx}" y="${gy}" width="${gx! % 2 ? 2 : 1}" height="1" fill="#000"/>`).join('');
+  const cx = 19;
+  const cactus = `<rect x="${cx}" y="10" width="2" height="10" fill="#000"/><rect x="${cx - 2}" y="13" width="1" height="3" fill="#000"/><rect x="${cx - 2}" y="15" width="2" height="1" fill="#000"/>`
+    + `<rect x="${cx + 3}" y="12" width="1" height="3" fill="#000"/><rect x="${cx + 2}" y="14" width="2" height="1" fill="#000"/>`;
+  const cat = `<path d="M${x - 4} 6 L${x - 3.6} 1 L${x - 1} 4 Z M${x + 4} 6 L${x + 3.6} 1 L${x + 1} 4 Z" fill="#000"/><ellipse cx="${x}" cy="6.8" rx="4.3" ry="3.8" fill="#000"/>`
+    + `<path d="M${x - 2} 10 C${x - 3} 13 ${x - 5} 17 ${x - 4.5} 20 H${x + 4.5} C${x + 5} 17 ${x + 3} 13 ${x + 2} 10 Z" fill="#000"/>`
+    + `<path d="M${x + 3.5} 19.5 C${x + 7} 19.5 ${x + 8} 17 ${x + 7} 14.5" fill="none" stroke="#000" stroke-width="1.6"/>`
+    + `<rect x="${x - 2.6}" y="7" width="1.8" height="0.8" fill="#fff"/><rect x="${x + 0.8}" y="7" width="1.8" height="0.8" fill="#fff"/>`;
+  return icon24(ground + cactus + cat);
 }
 
 export { bubble, marks };
