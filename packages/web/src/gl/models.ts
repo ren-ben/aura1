@@ -114,6 +114,48 @@ export function stars(count: number, radius: number, seed = 5, size = 0.02): THR
   return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size, sizeAttenuation: true }));
 }
 
+// Clouds of gas, drawn once into a texture; the dither pass makes them grain.
+export function nebula(seed: number, size: number): THREE.Mesh {
+  const N = 256, c = document.createElement('canvas');
+  c.width = c.height = N;
+  const g = c.getContext('2d')!, r = rng(seed);
+  g.fillStyle = '#000'; g.fillRect(0, 0, N, N);
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 220; i++) {
+    const x = r() * N, y = r() * N, rad = 12 + r() * 64;
+    const grad = g.createRadialGradient(x, y, 0, x, y, rad);
+    const a = 0.03 + r() * 0.09;
+    grad.addColorStop(0, `rgba(210,203,188,${a})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+  }
+  // Fade the edges so the sheet has no border.
+  g.globalCompositeOperation = 'destination-in';
+  const edge = g.createRadialGradient(N / 2, N / 2, N * 0.1, N / 2, N / 2, N * 0.5);
+  edge.addColorStop(0, 'rgba(0,0,0,1)'); edge.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = edge; g.fillRect(0, 0, N, N);
+  const tex = new THREE.CanvasTexture(c);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  return m;
+}
+
+// Lines between a handful of the fixed stars, the way charts join them.
+export function constellation(seed: number, radius: number): THREE.LineSegments {
+  const r = rng(seed), pts: THREE.Vector3[] = [];
+  for (let i = 0; i < 9; i++) {
+    const u = r() * 0.7 - 0.1, a = r() * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.sqrt(1 - u * u) * Math.cos(a), u, Math.sqrt(1 - u * u) * Math.sin(a)).multiplyScalar(radius));
+  }
+  const seg: THREE.Vector3[] = [];
+  for (let i = 1; i < pts.length; i++) { seg.push(pts[i - 1]!, pts[i]!); }
+  seg.push(pts[pts.length - 1]!, pts[3]!);
+  const g = new THREE.BufferGeometry().setFromPoints(seg);
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x8e877d, transparent: true, opacity: 0.5 }));
+  l.computeLineDistances?.();
+  return l;
+}
+
 export function moon(radius: number): THREE.Mesh {
   const g = new THREE.SphereGeometry(radius, 32, 24);
   const r = rng(71), p = g.attributes.position!;

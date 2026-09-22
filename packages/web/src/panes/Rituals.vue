@@ -3,6 +3,8 @@
 // weeks as moons, every habit side by side, and where new ones begin.
 import { computed, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
+import Plate from '../components/Plate.vue';
+import { bats, moonDisc, skyline, starfield } from '../gl/plate';
 import { actions, daysAgo, HABIT_DAYS, localDate, state } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -68,6 +70,20 @@ const strips = computed(() => state.habits.map((h) => {
   return { h, days, rate: days.filter(Boolean).length / 84, streak: streak(set) };
 }));
 
+// The vigil: his sky while you keep the rituals.
+const vigil = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
+  const sky = g.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, 'rgb(4,4,4)'); sky.addColorStop(1, 'rgb(34,34,34)');
+  g.fillStyle = sky; g.fillRect(0, 0, w, h);
+  starfield(g, w, h, Math.round((w * h) / 70), 41);
+  moonDisc(g, w * 0.5, h * 0.42, Math.min(w, h) * 0.22, 13);
+  bats(g, w, h * 0.9, t, 9, 55);
+  skyline(g, w, h, h, 19, Math.max(0.6, w / 360));
+};
+const records = computed(() => [...strips.value]
+  .map((s) => ({ name: s.h.name, streak: s.streak, rate: s.rate, kept: s.h.done.length }))
+  .sort((a, b) => b.streak - a.streak));
+
 const name = ref('');
 async function add() { const n = name.value.trim(); if (n && await actions.addHabit(n)) name.value = ''; }
 async function archive() {
@@ -110,6 +126,18 @@ async function archive() {
       </form>
     </Frame>
 
+    <Frame class="vigil" title="the vigil // his sky while you keep them" flush>
+      <Plate :draw="vigil" :active="active" animated :cell="3" label="The moon over the ward, bats crossing" />
+    </Frame>
+
+    <Frame class="records" title="the record of the rituals">
+      <div class="rrow head"><span class="pix">ritual</span><span class="pix">streak</span><span class="pix">kept</span><span class="pix">rate</span></div>
+      <div v-for="r in records" :key="r.name" class="rrow">
+        <span class="fell">{{ r.name }}</span><span class="tek">{{ r.streak }}</span><span>{{ r.kept }}</span><span class="note">{{ Math.round(r.rate * 100) }}%</span>
+      </div>
+      <p class="note vow">A ritual kept for its own sake is the cheapest insight there is. He notices every one.</p>
+    </Frame>
+
     <Frame class="all" title="every ritual // twelve weeks">
       <div v-for="s in strips" :key="s.h.id" class="strip" :class="{ sel: s.h.id === habit?.id }" @click="chosen = s.h.id">
         <span class="pix">{{ s.h.name }}</span>
@@ -122,7 +150,8 @@ async function archive() {
 </template>
 
 <style scoped>
-.rituals { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(280px, 330px); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "main chosen" "all all"; }
+.rituals { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 330px); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "main chosen" "vigil records" "all all"; }
 .main { grid-area: main; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .tabs { display: flex; gap: 18px; flex-wrap: wrap; font: 400 11px var(--pix); text-transform: uppercase; }
 .tabs button { color: var(--dim); }
@@ -139,6 +168,13 @@ async function archive() {
 .moons { display: flex; gap: 12px; flex-wrap: wrap; }
 .moons :deep(canvas) { width: 34px; height: 34px; }
 .chosen { grid-area: chosen; }
+.vigil { grid-area: vigil; min-height: 170px; }
+.records { grid-area: records; }
+.rrow { display: grid; grid-template-columns: 1fr 44px 44px 44px; gap: 10px; align-items: baseline; padding: 4px 0; border-bottom: 3px dotted var(--faint); }
+.rrow.head { border-bottom-color: var(--low); }
+.rrow .fell { font-size: 18px; color: var(--hi); }
+.rrow .tek { font-size: 18px; }
+.vow { margin: 12px 0 0; font-family: var(--fell); font-size: 15px; font-style: italic; }
 .big { font-size: 96px; margin-bottom: 10px; }
 .all { grid-area: all; }
 .strip { display: grid; grid-template-columns: 130px minmax(0, 1fr) 44px 36px; gap: 14px; align-items: center; padding: 4px 0; cursor: pointer; }
@@ -146,6 +182,10 @@ async function archive() {
 .strip .leds { flex-wrap: nowrap; gap: 3px; overflow: hidden; }
 .strip .leds i { width: 7px; height: 7px; }
 .strip .tek { font-size: 20px; text-align: right; }
-@media (max-aspect-ratio: 5/4) { .rituals { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "main" "chosen" "all"; } }
-@media (max-width: 860px) { .rituals { display: flex; flex-direction: column; } .strip { grid-template-columns: 80px minmax(0, 1fr) 40px 30px; } }
+@media (max-aspect-ratio: 5/4) {
+  .rituals { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "main main" "chosen records" "vigil vigil" "all all"; }
+  .vigil { min-height: 220px; }
+}
+@media (max-width: 860px) { .vigil { min-height: 200px; } .rituals { display: flex; flex-direction: column; } .strip { grid-template-columns: 80px minmax(0, 1fr) 40px 30px; } }
 </style>

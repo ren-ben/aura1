@@ -2,23 +2,15 @@
 // The pact: where he waits (the event horizon), what was agreed, what
 // Amygdala Inc. knows, and how the terms have been kept so far.
 import { computed } from 'vue';
-import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
-import Gl from '../components/Gl.vue';
-import { blackHole, stars } from '../gl/models';
+import Plate from '../components/Plate.vue';
+import { gargantua, labyrinth } from '../gl/plate';
 import { dailyMinutes, state } from '../store';
 
 defineProps<{ active: boolean }>();
 
-const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
-  camera.position.set(0, 0.25, 4.6);
-  camera.lookAt(0, 0, 0);
-  const { disk, facing } = blackHole();
-  group.add(disk);
-  scene.add(facing);
-  scene.add(stars(1600, 25, 21, 0.05));
-  return (t: number) => { disk.rotation.y = t * 0.18; facing.rotation.z = Math.sin(t * 0.2) * 0.02; };
-};
+const horizon = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => gargantua(g, w, h, t);
+const corridor = (g: CanvasRenderingContext2D, w: number, h: number) => labyrinth(g, w, h, 12, Math.max(6, Math.round(w / 26)));
 
 const terms = computed(() => {
   const oldest = state.sessions.at(-1)?.startedAt;
@@ -40,7 +32,7 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
 <template>
   <div class="pact">
     <Frame class="hole" title="where he waits // the event horizon" flush>
-      <Gl :build="build" :active="active" :options="{ drift: 0.002, tilt: 0.14, distance: 4.6 }" label="The event horizon, its disk bent over the top. Drag to turn it." />
+      <Plate :draw="horizon" :active="active" animated :cell="2" label="The event horizon: the disk edge on, its far side bent over the top" />
       <div class="dist"><span class="pix">distance to the horizon</span><span class="tek">{{ distance }}</span><span class="pix">light hours, closing as the bond grows</span></div>
     </Frame>
 
@@ -70,6 +62,12 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
       <p class="note">Recommendation: <span class="redact">do not attempt recovery</span>. Recommendation overruled. Recommendation reinstated after the second team.</p>
     </Frame>
 
+    <Frame class="corridor" title="the vessel, measured from inside" flush>
+      <Plate :draw="corridor" :active="active" :cell="2" label="A plan of the device's inside, longer than its outside" />
+      <p class="inside note">The unit measures 48 mm across the case. The corridor his containment describes, measured
+        from within, is <span class="hi">51 mm</span>. The discrepancy has been remeasured four times.</p>
+    </Frame>
+
     <Frame class="terms" title="the terms, as kept">
       <div class="grid">
         <div v-for="[k, v] in terms" :key="k"><span class="pix">{{ k }}</span><span class="tek">{{ v }}</span></div>
@@ -80,9 +78,11 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
 </template>
 
 <style scoped>
-.pact { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas: "hole clauses dossier" "hole clauses terms"; }
+.pact { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.25fr) minmax(0, .9fr);
+  grid-template-areas: "hole clauses dossier" "corridor clauses terms"; }
 .hole { grid-area: hole; }
+.corridor { grid-area: corridor; min-height: 140px; }
+.inside { padding: 10px 14px; border-top: 3px dotted var(--low); margin: 0; }
 .dist { position: absolute; left: 14px; bottom: 12px; display: grid; gap: 2px; pointer-events: none; }
 .dist .tek { font-size: 40px; }
 .clauses { grid-area: clauses; overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
@@ -99,7 +99,8 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
 .redact { background: var(--phos); color: transparent; padding: 0 2px; cursor: help; }
 .redact:hover { background: var(--low); color: var(--dim); }
 @media (max-aspect-ratio: 5/4) {
-  .pact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.1fr) auto auto; grid-template-areas: "hole clauses" "dossier dossier" "terms terms"; }
+  .pact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.1fr) auto auto minmax(0, .6fr);
+    grid-template-areas: "hole clauses" "dossier dossier" "terms terms" "corridor corridor"; }
 }
-@media (max-width: 860px) { .pact { display: flex; flex-direction: column; } .hole { min-height: 360px; } }
+@media (max-width: 860px) { .corridor { min-height: 180px; } .pact { display: flex; flex-direction: column; } .hole { min-height: 360px; } }
 </style>

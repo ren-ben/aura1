@@ -14,10 +14,18 @@ const DIRS = [
 ] as const;
 const ports = computed(() => DIRS.map((d) => ({ ...d, pane: at(here.value.c + d.dc, here.value.r + d.dr) })).filter((p) => p.pane));
 
+// Keys held down would otherwise throw the camera about: each step waits
+// its turn, and only the last one asked for survives.
+let lastStep = 0, queued = 0;
 function go(p: Pane | undefined) {
   if (!p || p === here.value) return;
-  here.value = p;
-  try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
+  const wait = Math.max(0, 150 - (performance.now() - lastStep));
+  clearTimeout(queued);
+  queued = window.setTimeout(() => {
+    lastStep = performance.now();
+    here.value = p;
+    try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
+  }, wait);
 }
 const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r + dr));
 
@@ -245,6 +253,8 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
 @media (max-width: 860px) {
   .pane { padding: 62px 14px 80px; }
   .pane > * { overflow: auto; }
+  /* Narrow panes stack and scroll; nothing is squeezed onto its neighbour. */
+  .pane > * > * { flex-shrink: 0; }
   .hud .where b { font-size: 22px; }
   .hud .mini, .hud .rec .clock, .hud .tools span { display: none; }
   .port.n, .port.s { display: none; }

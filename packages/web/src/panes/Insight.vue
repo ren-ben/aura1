@@ -46,9 +46,15 @@ const build = ({ group, camera }: { group: THREE.Group; camera: THREE.Perspectiv
 
   const near = new THREE.Vector3(0, 0.6, 2.5), far = new THREE.Vector3(0, 0, 4.1);
   const lookNear = new THREE.Vector3(0, -0.2, 0), lookFar = new THREE.Vector3(0, 0, 0);
+  // Flat, the whole span has to fit the frame, however wide it is.
+  const fit = () => {
+    const halfV = Math.tan((camera.fov * Math.PI) / 360);
+    far.z = Math.max(1.05 / halfV, 1.85 / (halfV * camera.aspect));
+  };
   const project = (x: number, y: number) => { const p = new THREE.Vector3(x, y, 0).project(camera); return [(p.x + 1) / 2, (1 - p.y) / 2]; };
   return (_t: number, dt: number) => {
     const goal = flat.value ? 1 : 0;
+    fit();
     if (progress !== goal) {
       progress = Math.max(0, Math.min(1, progress + (goal ? 1 : -1) * dt * 2.2));
       const e = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
@@ -59,10 +65,12 @@ const build = ({ group, camera }: { group: THREE.Group; camera: THREE.Perspectiv
       camera.position.lerpVectors(near, far, e);
       camera.lookAt(new THREE.Vector3().lerpVectors(lookNear, lookFar, e));
       axes.shown = e > 0.98;
-      if (axes.shown) { const [x0, y0] = project(-1.7, -0.75); const [x1, y1] = project(1.7, 0.75); Object.assign(axes, { x0, y0, x1, y1 }); }
-    } else if (progress === 0) {
-      camera.position.copy(near); camera.lookAt(lookNear);
     }
+    if (axes.shown) {
+      const [x0, y0] = project(-1.7, -0.75); const [x1, y1] = project(1.7, 0.75);
+      Object.assign(axes, { x0, y0, x1, y1 });
+    }
+    if (progress === 0) { camera.position.copy(near); camera.lookAt(lookNear); }
   };
 };
 function ready(h: SceneHandle) { handle = h; }
@@ -85,6 +93,38 @@ const weekday = computed(() => {
   m.forEach((v, i) => { out[(daysAgo(DAYS - 1 - i).getDay() + 6) % 7]! += v / 12; });
   return out;
 });
+// Each week of the twelve, as a row in the ledger.
+const ledger = computed(() => {
+  const m = minutes.value;
+  const rows = [];
+  for (let w = 11; w >= 0; w--) {
+    const slice = m.slice(m.length - (w + 1) * 7, m.length - w * 7);
+    rows.push({
+      label: daysAgo(w * 7 + 6).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }).replace('/', '.'),
+      minutes: slice.reduce((a, b) => a + b, 0),
+      days: slice.filter(Boolean).length,
+    });
+  }
+  const top = Math.max(1, ...rows.map((r) => r.minutes));
+  return rows.map((r) => ({ ...r, share: r.minutes / top }));
+});
+
+// When in the day the work happens, over twelve weeks.
+const clockOfDay = computed(() => {
+  const out = Array<number>(24).fill(0);
+  for (const s of state.sessions) {
+    let t = new Date(s.startedAt).getTime();
+    const end = new Date(s.endedAt).getTime();
+    while (t < end) {
+      const h = new Date(t).getHours(), next = Math.min(end, new Date(t).setMinutes(60, 0, 0));
+      out[h]! += (next - t) / 3_600_000;
+      t = next;
+    }
+  }
+  const top = Math.max(1, ...out);
+  return out.map((v) => ({ v, share: v / top }));
+});
+
 const byFolder = computed(() => {
   const t = new Map<string, number>();
   for (const a of state.stats?.activities ?? []) t.set(a.folder, (t.get(a.folder) ?? 0) + a.minutes);
@@ -109,6 +149,14 @@ const byFolder = computed(() => {
       <div class="stat"><span class="pix">twelve weeks</span><span class="tek">{{ duration(stats.total) }}</span></div>
       <div class="stat"><span class="pix">deepest day</span><span class="tek">{{ duration(stats.best) }}</span><span class="note">{{ stats.bestDay }}</span></div>
       <div class="stat"><span class="pix">density</span><span class="tek">{{ Math.round(density * 100) }}%</span><span class="note">of your hours in blocks over 45 minutes. unbroken time feeds him most.</span></div>
+      <Frame class="ledger" title="the ledger // week by week" scroll>
+        <div v-for="w in ledger" :key="w.label" class="wrow">
+          <span class="note">{{ w.label }}</span>
+          <span class="bar"><i :style="{ width: `${w.share * 100}%` }"></i></span>
+          <span class="tek">{{ Math.round(w.minutes / 60) }}h</span>
+          <span class="pix">{{ w.days }}/7</span>
+        </div>
+      </Frame>
     </div>
 
     <Frame class="folders" title="where it went // by folder">
@@ -116,6 +164,14 @@ const byFolder = computed(() => {
         <span class="fell">{{ x.f[0] + x.f.slice(1).toLowerCase() }}</span>
         <span class="bar"><i :style="{ width: `${x.share * 100}%` }"></i></span>
         <span class="pix">{{ Math.round(x.share * 100) }}%</span>
+      </div>
+    </Frame>
+    <Frame class="clock" title="the hours he is fed // twelve weeks, by hour of the day">
+      <div class="cl">
+        <div v-for="(h, i) in clockOfDay" :key="i" class="hr">
+          <span class="col"><i v-for="k in 12" :key="k" :class="{ on: k / 12 <= h.share }"></i></span>
+          <span v-if="i % 6 === 0" class="pix">{{ String(i).padStart(2, '0') }}</span>
+        </div>
       </div>
     </Frame>
     <Frame class="week" title="the shape of a week // average hours by weekday">
@@ -130,14 +186,27 @@ const byFolder = computed(() => {
 </template>
 
 <style scoped>
-.insight { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 320px); grid-template-rows: minmax(0, 1fr) minmax(0, .45fr);
-  grid-template-areas: "range range side" "folders week side"; }
+.insight { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(280px, 340px);
+  grid-template-rows: minmax(0, 1.3fr) minmax(0, .75fr) auto;
+  grid-template-areas: "range range side" "folders clock side" "week week side"; }
+.folders { display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .range { grid-area: range; }
 .side { grid-area: side; display: flex; flex-direction: column; }
 .stat { display: grid; gap: 3px; padding: 12px 0; border-bottom: 3px dotted var(--faint); }
 .stat .tek { font-size: clamp(30px, 3vw, 46px); }
 .folders { grid-area: folders; }
 .week { grid-area: week; }
+.clock { grid-area: clock; }
+.ledger { flex: 1; min-height: 120px; margin-top: 10px; }
+.wrow { display: grid; grid-template-columns: 44px 1fr 40px 34px; gap: 10px; align-items: center; padding: 3px 0; }
+.wrow .bar { height: 6px; background: radial-gradient(circle, var(--low) 1.2px, transparent 1.6px) 0 50% / 6px 6px repeat-x; }
+.wrow .bar i { display: block; height: 6px; background: radial-gradient(circle, var(--phos) 1.6px, transparent 2px) 0 50% / 6px 6px repeat-x; }
+.wrow .tek { font-size: 16px; text-align: right; }
+.cl { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 4px; align-items: end; height: 100%; }
+.hr { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; gap: 5px; height: 100%; }
+.hr .col { display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; width: 100%; align-items: center; }
+.hr .col i { width: 8px; flex: 1; min-height: 2px; background: var(--low); }
+.hr .col i.on { background: var(--phos); }
 .holdflat { position: absolute; left: 12px; bottom: 12px; background: var(--ground); user-select: none; -webkit-user-select: none; touch-action: none; }
 .holdflat.on { background: var(--phos); color: var(--ground); }
 .axes { position: absolute; inset: 0; pointer-events: none; font: 400 10px var(--pix); color: var(--dim); }
@@ -153,8 +222,10 @@ const byFolder = computed(() => {
 .stack i { width: 18px; height: 5px; background: var(--low); }
 .stack i.on { background: var(--phos); }
 @media (max-aspect-ratio: 5/4) {
-  .insight { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; grid-template-areas: "range range" "side side" "folders week"; }
+  .insight { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) auto minmax(0, .5fr) minmax(0, .5fr);
+    grid-template-areas: "range range" "side side" "folders clock" "week clock"; }
   .side { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .ledger { grid-column: 1 / -1; }
 }
 @media (max-width: 860px) { .insight { display: flex; flex-direction: column; } .range { min-height: 380px; } .side { display: flex; } }
 </style>

@@ -1,35 +1,53 @@
 <script setup lang="ts">
-// Kael'thos himself: the entity sitting on a ledge before the cathedral, the
-// bond, what he says today, and the chronicle of the pact so far.
+// Kael'thos himself: his own drawing, on a ledge over the cathedral ward at
+// night, the bond, what he says today, and the chronicle of the pact.
 import { computed, onMounted, ref, watch } from 'vue';
-import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
-import Gl from '../components/Gl.vue';
-import { cathedral, kaelthos, moon, stars } from '../gl/models';
+import Plate from '../components/Plate.vue';
+import art from '../gl/art.json';
+import { bats, catSprite, moonDisc, skyline, starfield } from '../gl/plate';
 import { dailyMinutes, duration, state, today } from '../store';
 import { hisWord } from '../words';
 
 defineProps<{ active: boolean }>();
 
-const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
-  camera.position.set(0, 1.05, 4.9);
-  camera.lookAt(0, 0.8, 0);
-  const cat = kaelthos();
-  group.add(cat);
-  const ledge = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.14, 1.1), new THREE.MeshStandardMaterial({ color: 0x46423c, roughness: 1 }));
-  ledge.position.y = -0.07; group.add(ledge);
-  // The cathedral far behind and dim, so he stands out against it.
-  const church = cathedral(); church.position.set(-4.2, -4.4, -14); church.scale.setScalar(1.25); group.add(church);
-  const m = moon(0.9); m.position.set(3.6, 4.2, -12); group.add(m);
-  group.add(stars(900, 26, 9, 0.05));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
-  const key = new THREE.DirectionalLight(0xffffff, 1.9); key.position.set(2, 2.5, 3); scene.add(key);
-  // Moonlight from behind: the rim that draws his outline.
-  const rim = new THREE.DirectionalLight(0xffffff, 3.2); rim.position.set(-2.5, 3, -3); scene.add(rim);
-  const rim2 = new THREE.DirectionalLight(0xffffff, 2.2); rim2.position.set(3, 1, -2.5); scene.add(rim2);
-  // He breathes.
-  return (t: number) => { cat.scale.set(1, 1 + Math.sin(t * 1.3) * 0.008, 1); cat.children.at(-2)!.rotation.y = Math.sin(t * 0.35) * 0.18; };
-};
+// His drawing, prepared once: body dark, a moonlit rim, eyes bright.
+const sprite = ref<HTMLCanvasElement | null>(null);
+catSprite(art.sitting, 420).then((c) => { sprite.value = c; });
+const look = ref({ x: 0, y: 0 });
+function parallax(e: PointerEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  look.value = { x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: ((e.clientY - r.top) / r.height - 0.5) * 2 };
+}
+
+const draw = computed(() => {
+  const cat = sprite.value;
+  const drift = look.value;
+  return (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
+    const horizon = h * 0.84;
+    const sky = g.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, 'rgb(6,6,6)'); sky.addColorStop(0.72, 'rgb(26,26,26)'); sky.addColorStop(1, 'rgb(54,54,54)');
+    g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
+    starfield(g, w, horizon, Math.round((w * h) / 90), 17, drift.x * -3, drift.y * -2);
+    moonDisc(g, w * 0.78 + drift.x * -5, h * 0.19 + drift.y * -4, Math.min(w, h) * 0.09, 7);
+    for (let k = 0; k < 3; k++) {
+      const y = h * (0.2 + k * 0.13) + Math.sin(t * 0.05 + k) * 4;
+      const band = g.createLinearGradient(0, y - 12, 0, y + 12);
+      band.addColorStop(0, 'rgba(255,255,255,0)');
+      band.addColorStop(0.5, `rgba(255,255,255,${0.05 + k * 0.02})`);
+      band.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = band; g.fillRect(0, y - 12, w, 24);
+    }
+    skyline(g, w, horizon, horizon + 2, 31, Math.max(0.8, w / 300));
+    bats(g, w, horizon * 0.8, t, 7, 23);
+    g.fillStyle = 'rgb(14,14,14)'; g.fillRect(0, horizon, w, h - horizon);
+    g.fillStyle = 'rgb(58,58,58)'; g.fillRect(0, horizon, w, 2);
+    if (cat) {
+      const size = Math.min(h * 0.95, w * 0.66);
+      g.drawImage(cat, w * 0.5 - size / 2 + drift.x * 5, horizon - size * 0.93 + drift.y * 3, size, size);
+    }
+  };
+});
 
 const bond = computed(() => state.stats?.bond);
 const into = computed(() => {
@@ -38,12 +56,9 @@ const into = computed(() => {
   const floor = 30 * b.level * b.level;
   return (b.xp - floor) / (b.nextLevelXp - floor);
 });
-const FORM: Record<string, string> = {
-  stable: 'whole', thinning: 'thinning', fragmenting: 'fragmenting', dormant: 'dormant',
-};
+const FORM: Record<string, string> = { stable: 'whole', thinning: 'thinning', fragmenting: 'fragmenting', dormant: 'dormant' };
 const word = computed(() => (state.ready ? hisWord() : ''));
 
-// The chronicle: what the last twelve weeks of the pact have been.
 const chron = computed(() => {
   const days = dailyMinutes(84);
   let silence = 0, run = 0, fedRun = 0;
@@ -76,7 +91,7 @@ function drawGraph() {
     x.fillStyle = dotted ? '#7a7468' : '#c5bcab';
     series.forEach((v, i) => {
       const px = (i / 83) * (w - 8) + 4, py = h - 6 - (v / max) * (h - 16);
-      if (dotted ? i % 2 === 0 : true) x.fillRect(px - 2, py - 2, dotted ? 3 : 5, dotted ? 3 : 5);
+      if (!dotted || i % 2 === 0) x.fillRect(px - 2, py - 2, dotted ? 3 : 5, dotted ? 3 : 5);
     });
   };
   plot(yours, true);
@@ -88,8 +103,10 @@ watch(() => state.sessions, drawGraph);
 
 <template>
   <div class="entity">
-    <Frame class="scene" title="his form // the cathedral ward, before dawn" flush>
-      <Gl :build="build" :active="active" :options="{ drift: 0.0008, tilt: 0.02, yaw: -0.25 }" label="Kael'thos sitting before the cathedral. Drag to turn him." />
+    <Frame class="scene" title="the cathedral ward, before dawn" flush>
+      <div class="plateHost" @pointermove="parallax" @pointerleave="look = { x: 0, y: 0 }">
+        <Plate :draw="draw" :active="active" animated :cell="3" label="Kael'thos on a ledge above the cathedral ward at night" />
+      </div>
     </Frame>
 
     <div class="side">
@@ -119,8 +136,9 @@ watch(() => state.sessions, drawGraph);
 </template>
 
 <style scoped>
-.entity { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "scene side" "chron chron"; }
+.entity { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "scene side" "chron chron"; }
 .scene { grid-area: scene; }
+.plateHost { flex: 1; min-height: 0; display: flex; }
 .side { grid-area: side; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .side .note { margin: -4px 0 0; max-width: 46ch; }
 .bond { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
@@ -133,12 +151,12 @@ watch(() => state.sessions, drawGraph);
 .legend i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: -1px; }
 .legend .you { background: var(--dim); }
 .legend .him { background: var(--phos); }
-.chron { grid-area: chron; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border: 3px dotted var(--low); }
+.chron { grid-area: chron; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 3px dotted var(--low); }
 .cell { display: grid; gap: 4px; padding: 12px 14px; border-right: 3px dotted var(--faint); }
 .cell:last-child { border-right: 0; }
 .cell .tek { font-size: clamp(24px, 2.4vw, 36px); }
 @media (max-aspect-ratio: 5/4) {
-  .entity { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) auto auto; grid-template-areas: "scene" "side" "chron"; }
+  .entity { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.15fr) auto auto; grid-template-areas: "scene" "side" "chron"; }
   .side { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr; }
   .side .title, .side > .note { grid-column: 1 / -1; }
   .sym { grid-row: 3; grid-column: 1 / -1; }
@@ -146,7 +164,7 @@ watch(() => state.sessions, drawGraph);
 }
 @media (max-width: 860px) {
   .entity { display: flex; flex-direction: column; }
-  .scene { min-height: 360px; }
+  .scene { min-height: 340px; }
   .side { display: flex; }
   .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

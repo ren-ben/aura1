@@ -7,14 +7,22 @@ const props = defineProps<{ build: Build; options?: Options; active: boolean; la
 const emit = defineEmits<{ ready: [SceneHandle] }>();
 const canvas = ref<HTMLCanvasElement | null>(null);
 let handle: SceneHandle | null = null;
+let timer = 0;
 
+// Started only once the pane has settled, so a quick walk past a pane never
+// pays for its scene.
+function run(on: boolean) {
+  clearTimeout(timer);
+  if (on) timer = window.setTimeout(() => handle?.start(), 320);
+  else handle?.stop();
+}
 onMounted(() => {
   handle = createScene(canvas.value!, props.build, props.options);
   emit('ready', handle);
-  if (props.active) handle.start();
+  run(props.active);
 });
-watch(() => props.active, (on) => (on ? handle?.start() : handle?.stop()));
-onBeforeUnmount(() => handle?.dispose());
+watch(() => props.active, run);
+onBeforeUnmount(() => { clearTimeout(timer); handle?.dispose(); });
 </script>
 
 <template>
