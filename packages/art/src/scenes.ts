@@ -18,7 +18,7 @@ import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
   amygdala, bat, bonfire, book, bubble, candle, cleaver, containmentBox, containmentLid, deadTree, desk, DITHER, eyesInTheDark,
   ghost, gothicTown, laptop, messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, skyEye, tentacledMoon,
-  tentacles, windowMoon,
+  tentacles, windowMoon, type Arm,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, silhouetteParts, SIZE, type Palette, type Wear } from './rig.ts';
 
@@ -88,6 +88,12 @@ function nightAndMorning(env: Env, set: (cat: string) => string, wear: Wear = {}
 }
 
 const HAT: Wear = { hat: true };
+// Amygdala's arms as he rises behind the cathedral: [shoulder, elbow, hand]
+// in head units, reaching over the towers and hooked on them.
+const AMYGDALA_BEHIND: Arm[] = [
+  [-16, 30, -52, -30, -46, 40], [-18, 44, -66, 10, -58, 76],
+  [16, 30, 52, -30, 44, 58], [18, 44, 62, 20, 50, 96],
+];
 
 export function scenes(): Scene[] {
   // The night: no window, only the moon up in the corner, clear of his head.
@@ -188,9 +194,11 @@ export function scenes(): Scene[] {
     // Yharnam's cathedral under the paleblood moon, and what clings to it.
     scene('lore-yharnam', 'lore', [svg(moon(340, 64, 40, P, 'paleblood', 174) + bat(300, 150, P) + bat(360, 180, P, 0.7, 115)
       + yharnam() + lifted(cat('sit', 'content')))], 'yharnam'),
-    // Amygdala hangs head down off the cathedral's side, arms up on its tower.
-    scene('lore-amygdala', 'lore', [svg(yharnam(false) + amygdala(156, 214, P, 271, 1.0, -24)
-      + lifted(at(cat('sit', { ...face('curious'), look: [-10, -4] }), 312, 392, 0.82)))], 'yharnam'),
+    // Amygdala rising behind the cathedral: his head between its spires,
+    // his hands hooked over the towers. The cathedral drawn a little larger.
+    scene('lore-amygdala', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 174)
+      + `<g transform="translate(0 ${392 - 392 * 1.2}) scale(1.2)">${amygdala(62, 150, P, AMYGDALA_BEHIND, { k: 0.9 }) + gothicTown(P, 320, { houses: false })}</g>`
+      + ground + lifted(at(cat('sit', { ...face('curious'), look: [-10, -6] }), 292, 392, 0.86)))], 'yharnam'),
     scene('lore-cathedral', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 176) + yharnam(false)
       + lifted(at(cat('sit', { ...face('content'), look: [-10, -6] }), 270, 392, 0.94)))], 'yharnam'),
     scene('hunt-yharnam', 'session-hunt', [svg(moon(340, 64, 40, P, 'paleblood', 175) + yharnam()

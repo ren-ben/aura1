@@ -352,23 +352,28 @@ export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
 }
 
 // Amygdala, the Great One who clings to the cathedral, in ink like the town:
-// a long lumpy cranium with no face but clusters of small eyes, six long
-// bony arms with sharp elbows and long fingers, hands gripping the spires.
+// a long lumpy cranium with no face but clusters of small eyes, and long
+// bony arms that hold on to the stone. Each arm is [shoulder, elbow, hand] in
+// head units, head up; headDown turns the whole of him over, as he hangs.
 // A paper edge keeps him apart from the ink stone he clings to.
-export function amygdala(x: number, y: number, p: Palette, seed = 270, k = 1, tilt = 0): string {
+export type Arm = [number, number, number, number, number, number];
+export function amygdala(x: number, y: number, p: Palette, arms: Arm[], { seed = 270, k = 1, headDown = false } = {}): string {
   const r = rng(seed);
   const bone = (pts: Pt[], w: number) => stroke(curve(pts, 6), (t) => w * (1 - 0.45 * t));
+  const at = (dx: number, dy: number): Pt => [x + dx * k, y + dy * k];
   const parts: Pt[][] = [];
-  // Arms fan out from under the head: side, how far down, how far out.
-  ([[-1, 0.2, 1], [-1, 0.9, 0.9], [-1, 1.6, 0.8], [1, 0.2, 1], [1, 0.9, 0.9], [1, 1.6, 0.8]] as const).forEach(([side, drop, reach]) => {
-    const sh: Pt = [x + side * 16 * k, y + (30 + drop * 14) * k];
-    const el: Pt = [x + side * (60 + drop * 26) * reach * k, y + (-10 + drop * 34) * k];
-    const hand: Pt = [x + side * (72 + drop * 40) * reach * k, y + (70 + drop * 52) * k];
+  for (const [sx, sy, ex, ey, hx, hy] of arms) {
+    const [sh, el, hand] = [at(sx, sy), at(ex, ey), at(hx, hy)];
     parts.push(bone([sh, el], 12 * k), bone([el, hand], 9 * k));
-    for (const dx of [-8, -2, 4]) {
-      parts.push(bone([hand, [hand[0] + (dx + side * 2) * k, hand[1] + 12 * k], [hand[0] + (dx * 1.3 + side * 3) * k, hand[1] + 24 * k]], 4 * k));
+    // Long fingers, curled on in the arm's direction.
+    const [dx, dy] = [hand[0] - el[0], hand[1] - el[1]];
+    const len = Math.hypot(dx, dy);
+    const [ux, uy] = [dx / len, dy / len];
+    for (const spread of [-0.5, 0, 0.5]) {
+      const [fx, fy] = [ux * Math.cos(spread) - uy * Math.sin(spread), ux * Math.sin(spread) + uy * Math.cos(spread)];
+      parts.push(bone([hand, [hand[0] + fx * 12 * k, hand[1] + fy * 12 * k], [hand[0] + (fx * 20 + ux * 4) * k, hand[1] + (fy * 20 + uy * 4) * k]], 4 * k));
     }
-  });
+  }
   // The cranium: a long egg, lumpy along its crown.
   parts.push(Array.from({ length: 48 }, (_, i) => {
     const a = (i / 48) * Math.PI * 2;
@@ -384,7 +389,7 @@ export function amygdala(x: number, y: number, p: Palette, seed = 270, k = 1, ti
     return `<path d="${toPath(ellipse(cx, cy, e, e * 1.3, 10))}" fill="${p.paper}"/>`
       + `<path d="${toPath(ellipse(cx, cy + e * 0.2, e * 0.4, e * 0.6, 8))}" fill="${p.ink}"/>`;
   }).join('');
-  return `<g transform="rotate(${tilt} ${x} ${y})"><path d="${ink}" fill="${p.ink}" stroke="${p.paper}" stroke-width="${6 * k}" stroke-linejoin="round"/>`
+  return `<g transform="rotate(${headDown ? 180 : 0} ${x} ${y})"><path d="${ink}" fill="${p.ink}" stroke="${p.paper}" stroke-width="${6 * k}" stroke-linejoin="round"/>`
     + `<path d="${ink}" fill="${p.ink}"/>${eyes}</g>`;
 }
 
