@@ -79,6 +79,25 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
   minutes, and the next boot recovers it. A session shorter than 5 minutes that is cut off
   by a power loss is dropped.
 
+### On the dashboard
+
+The dashboard is a console with one pane on screen at a time, laid out on a hidden web
+with Kael'thos at its centre.
+
+- **Moving:** the arrow keys (or a swipe) step to the next pane; its name waits at that
+  edge of the screen. Hold **the web** button, or the space bar, to see every pane at
+  once; let go over one to go there. **Search** (ctrl k or /) finds panes, todos, paths,
+  rituals, quotes and sessions.
+- **The panes:** Kael'thos (his form, the bond, his word for the day), Today (hours,
+  the list, the day in halftone, the countdown until he thins), The Paths (levels, and
+  where folders and activities are added, renamed and archived), The Log (sessions, the
+  long ones to confirm, writing one in by hand), Insight (twelve weeks as a range: hold
+  the button to lay it flat and read it), Rituals (habits: click any dot to set that
+  day), Intercept (the quotes he says on the device: write them in here), The Vessel
+  (the device as it last reported, and its looks: send one and it wears it at the next
+  sync), The Orrery, The Pact, and four sealed rooms for the phases to come.
+- **Everything 3D turns** when dragged, and runs only while its pane is on screen.
+
 ### Sync
 
 ![Sync](img/sync.svg)
@@ -181,7 +200,7 @@ in [hardware-checklist.md](hardware-checklist.md).
 - **After the clock resets** (flat battery, or long without power), the device will not
   start a session until it has synced once. Otherwise those sessions would be stored with
   the year 2000.
-- **Rename, add or archive activities on the web page** (Activities tab). The device picks
+- **Rename, add or archive activities on the dashboard** (The Paths). The device picks
   the change up on its next sync. Names are capped at what its screen shows.
 - **Holding POWER to switch on is safe.** The button only counts once it has been released
   after boot, so switching on never starts a session or switches straight back off.

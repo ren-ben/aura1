@@ -1,0 +1,164 @@
+// Everything the console shows, from the API. When the API cannot be reached
+// (the published demo), the same calls run against sample data in memory.
+import { computed, reactive } from 'vue';
+import { demoApi } from './sample';
+
+export type Progress = { xp: number; level: number; nextLevelXp: number };
+export type Form = 'stable' | 'thinning' | 'fragmenting' | 'dormant';
+export type Stats = {
+  bond: Progress;
+  form: Form;
+  lastSessionAt: string | null;
+  needsReview: number;
+  activities: (Progress & { id: number; name: string; folder: string; minutes: number })[];
+};
+export type Folder = { id: number; name: string; archived: boolean; activities: { id: number; name: string; archived: boolean }[] };
+export type Session = {
+  id: number; activityId: number; activity: string; folder: string;
+  startedAt: string; endedAt: string; minutes: number; source: 'device' | 'manual'; needsReview: boolean;
+};
+export type Todo = { id: number; body: string; dueDate: string | null; done: boolean };
+export type Habit = { id: number; name: string; done: string[] };
+export type Quote = { id: number; body: string; source: string | null };
+export type Device = {
+  lastSyncAt: string | null; battery: number | null; millivolts: number | null;
+  charging: boolean | null; look: string | null; pendingLook: string | null;
+};
+
+export const HABIT_DAYS = 182;
+
+export const state = reactive({
+  ready: false,
+  demo: false,
+  error: '' as string,
+  stats: null as Stats | null,
+  folders: [] as Folder[],
+  sessions: [] as Session[],
+  todos: [] as Todo[],
+  habits: [] as Habit[],
+  quotes: [] as Quote[],
+  device: null as Device | null,
+});
+
+export function localDate(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+export function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(Math.round(minutes % 60)).padStart(2, '0')}`;
+}
+
+export function duration(minutes: number): string {
+  return `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, '0')}m`;
+}
+
+async function call<T = void>(method: string, path: string, body?: unknown): Promise<T> {
+  if (state.demo) return demoApi(method, path, body) as T;
+  const response = await fetch(`/api/v1${path}`, {
+    method,
+    ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  });
+  if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}`);
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+const habitsPath = () => `/habits?from=${localDate(daysAgo(HABIT_DAYS - 1))}&to=${localDate()}`;
+const sessionsPath = () => `/sessions?from=${daysAgo(7 * 12).toISOString()}`;
+
+export async function load(): Promise<void> {
+  const all = () => Promise.all([
+    call<Stats>('GET', '/stats'), call<Folder[]>('GET', '/folders'), call<Session[]>('GET', sessionsPath()),
+    call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
+    call<Device>('GET', '/device'),
+  ]);
+  let got;
+  try {
+    if (import.meta.env.VITE_DEMO) throw new Error('demo');
+    got = await all();
+  } catch {
+    state.demo = true;
+    got = await all();
+  }
+  [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device] = got;
+  state.ready = true;
+}
+
+// Every change goes to the API, then the affected lists come back fresh.
+async function act(method: string, path: string, body: unknown, reload: (() => Promise<void>)[]): Promise<boolean> {
+  state.error = '';
+  try {
+    await call(method, path, body);
+    await Promise.all(reload.map((r) => r()));
+    return true;
+  } catch (e) {
+    state.error = e instanceof Error ? e.message : 'failed';
+    return false;
+  }
+}
+const reStats = async () => { state.stats = await call<Stats>('GET', '/stats'); };
+const reFolders = async () => { state.folders = await call<Folder[]>('GET', '/folders'); };
+const reSessions = async () => { state.sessions = await call<Session[]>('GET', sessionsPath()); };
+const reTodos = async () => { state.todos = await call<Todo[]>('GET', '/todos'); };
+const reHabits = async () => { state.habits = await call<Habit[]>('GET', habitsPath()); };
+const reQuotes = async () => { state.quotes = await call<Quote[]>('GET', '/quotes'); };
+const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
+
+export const actions = {
+  addTodo: (body: string, dueDate: string | null) => act('POST', '/todos', { body, dueDate }, [reTodos]),
+  toggleTodo: (t: Todo) => act('PATCH', `/todos/${t.id}`, { done: !t.done }, [reTodos]),
+  removeTodo: (t: Todo) => act('DELETE', `/todos/${t.id}`, undefined, [reTodos]),
+  addHabit: (name: string) => act('POST', '/habits', { name }, [reHabits]),
+  archiveHabit: (h: Habit) => act('PATCH', `/habits/${h.id}`, { archived: true }, [reHabits]),
+  setHabit: (h: Habit, date: string, done: boolean) => act('PUT', `/habits/${h.id}/entries/${date}`, { done }, [reHabits]),
+  addQuote: (body: string, source: string | null) => act('POST', '/quotes', { body, source }, [reQuotes]),
+  removeQuote: (q: Quote) => act('DELETE', `/quotes/${q.id}`, undefined, [reQuotes]),
+  addSession: (activityId: number, startedAt: Date, endedAt: Date) =>
+    act('POST', '/sessions', { activityId, startedAt: startedAt.toISOString(), endedAt: endedAt.toISOString() }, [reSessions, reStats]),
+  confirmSession: (s: Session) => act('POST', `/sessions/${s.id}/confirm`, undefined, [reSessions, reStats]),
+  removeSession: (s: Session) => act('DELETE', `/sessions/${s.id}`, undefined, [reSessions, reStats]),
+  addFolder: (name: string) => act('POST', '/folders', { name }, [reFolders, reStats]),
+  renameFolder: (id: number, name: string) => act('PATCH', `/folders/${id}`, { name }, [reFolders, reStats]),
+  archiveFolder: (id: number, archived: boolean) => act('PATCH', `/folders/${id}`, { archived }, [reFolders, reStats]),
+  addActivity: (folderId: number, name: string) => act('POST', '/activities', { folderId, name }, [reFolders, reStats]),
+  renameActivity: (id: number, name: string) => act('PATCH', `/activities/${id}`, { name }, [reFolders, reStats]),
+  archiveActivity: (id: number, archived: boolean) => act('PATCH', `/activities/${id}`, { archived }, [reFolders, reStats]),
+  setLook: (look: string) => act('PUT', '/device/look', { look }, [reDevice]),
+};
+
+// Hours per local day, the last n days, oldest first.
+export function dailyMinutes(days: number): number[] {
+  const out = Array<number>(days).fill(0);
+  const start = daysAgo(days - 1).getTime();
+  for (const s of state.sessions) {
+    const i = Math.floor((new Date(s.startedAt).getTime() - start) / 86_400_000);
+    if (i >= 0 && i < days) out[i]! += s.minutes;
+  }
+  return out;
+}
+
+export const today = computed(() => {
+  const start = daysAgo(0).getTime();
+  const sessions = state.sessions.filter((s) => new Date(s.startedAt).getTime() >= start);
+  return { sessions, minutes: sessions.reduce((a, s) => a + s.minutes, 0) };
+});
+
+export const todayTodos = computed(() => {
+  const d = localDate();
+  return state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d);
+});
+
+// Share of hours in blocks over 45 minutes: unbroken time feeds him most.
+export const density = computed(() => {
+  const all = state.sessions.reduce((a, s) => a + s.minutes, 0);
+  const deep = state.sessions.filter((s) => s.minutes >= 45).reduce((a, s) => a + s.minutes, 0);
+  return all ? deep / all : 0;
+});

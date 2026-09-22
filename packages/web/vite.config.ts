@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import { fileURLToPath } from 'node:url';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 
-export default defineConfig({
-  plugins: [vue()],
-  // The Kael'thos rig is plain TypeScript, drawn live in the browser from the
-  // same source as the device's art.
-  resolve: { alias: { '@aura/art': fileURLToPath(new URL('../art/src', import.meta.url)) } },
+// `vite build --mode demo` makes one self-contained page on sample data,
+// for showing the console without the API.
+export default defineConfig(({ mode }) => ({
+  plugins: [vue(), ...(mode === 'demo' ? [viteSingleFile()] : [])],
   server: { proxy: { '/api': 'http://localhost:3000' } },
-});
+  build: mode === 'demo' ? { outDir: 'dist-demo', assetsInlineLimit: 100_000_000 } : {},
+}));
