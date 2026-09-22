@@ -161,6 +161,17 @@ void test_today_is_returned_when_present() {
   TEST_ASSERT_TRUE(r.today.find("2026-09-19") != std::string::npos);
 }
 
+void test_request_carries_the_status_and_response_a_look() {
+  DeviceStatus status{ 70, 3912, true, "CODEX" };
+  JsonDocument doc;
+  TEST_ASSERT_FALSE(deserializeJson(doc, buildRequest("aura-1", 1, {}, {}, "", &status)));
+  TEST_ASSERT_EQUAL_INT(70, doc["status"]["battery"].as<int>());
+  TEST_ASSERT_TRUE(doc["status"]["charging"].as<bool>());
+  TEST_ASSERT_EQUAL_STRING("CODEX", doc["status"]["look"].as<const char*>());
+  const SyncResult r = parseResponse("{\"acked\":[],\"rejected\":[],\"look\":\"CARMILLA\"}");
+  TEST_ASSERT_EQUAL_STRING("CARMILLA", r.look.c_str());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_request_has_the_exact_wire_shape);
@@ -174,5 +185,6 @@ int main() {
   RUN_TEST(test_unparseable_config_is_not_ok);
   RUN_TEST(test_request_carries_ticks_and_skips_malformed_ones);
   RUN_TEST(test_today_is_returned_when_present);
+  RUN_TEST(test_request_carries_the_status_and_response_a_look);
   return UNITY_END();
 }

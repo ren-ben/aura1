@@ -23,6 +23,13 @@ export const syncRequestSchema = z.object({
   ticks: z.array(tickSchema).max(200).default([]),
   // The hash of the bundle the device holds: an unchanged bundle is not sent.
   todayHash: z.string().max(64).optional(),
+  // How the device is: its battery and the look on its glass.
+  status: z.object({
+    battery: z.number().int().min(0).max(100),
+    millivolts: z.number().int().min(0).max(6000),
+    charging: z.boolean(),
+    look: z.string().max(20),
+  }).optional(),
 });
 
 export const folderDtoSchema = z.object({
@@ -72,6 +79,8 @@ export const syncResponseSchema = z.object({
   rejected: z.array(z.uuid()),
   todayHash: z.string(),
   today: todayDtoSchema.optional(),
+  // A look chosen on the web, for the device to take on.
+  look: z.string().optional(),
 });
 
 export type SessionEnded = z.infer<typeof sessionEndedSchema>;

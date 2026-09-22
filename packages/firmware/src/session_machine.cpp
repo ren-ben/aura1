@@ -382,6 +382,17 @@ void SessionMachine::setSyncNote(const std::string& note) {
   redrawSettings();
 }
 
+void SessionMachine::setLook(const std::string& name) {
+  for (int i = 0; i < lookCount(); ++i) {
+    if (name != look(i).name() || i == look_) continue;
+    look_ = i;
+    saveSettings();
+    if (screen_ == Screen::Idle) draw();
+  }
+}
+
+const char* SessionMachine::lookName() const { return look(look_).name(); }
+
 void SessionMachine::batteryChanged() {
   redrawSettings();
 }

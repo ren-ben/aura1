@@ -33,6 +33,9 @@ public:
   void setSyncNote(const std::string& note);
   // The battery reading moved: the settings show it.
   void batteryChanged();
+  // The look by name, as chosen on the web; unknown names change nothing.
+  void setLook(const std::string& name);
+  const char* lookName() const;
 
 private:
   void draw(int minutes = 0);

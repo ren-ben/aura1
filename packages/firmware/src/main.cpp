@@ -74,6 +74,7 @@ static void startSync(unsigned long connectMs = 20000) {
   if (syncClient.busy()) return;
   knownAtSync = !machine.daily().date().empty();
   levelAtSync = machine.daily().level();
+  syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName() });
   syncClient.start(connectMs);
   linkState = Link::Syncing;
   showStatus();
@@ -89,6 +90,8 @@ static void finishSync(SyncOutcome outcome) {
   machine.setSyncNote(ok ? "SYNCED" : outcome == SyncOutcome::NoWifi ? "NO WIFI" : "SERVER ERROR");
   showStatus();
   if (!ok) return;
+  const std::string look = syncClient.takeLook();
+  if (!look.empty()) machine.setLook(look);
   // A level up is his to celebrate, but never over a running session. The
   // first bundle ever is not a level up.
   const Screen screen = machine.screen();

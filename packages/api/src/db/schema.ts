@@ -65,3 +65,15 @@ export const meta = pgTable('meta', {
 });
 
 export const CONFIG_VERSION_KEY = 'config_version';
+
+// The one device, as it last reported itself; and a look chosen on the web
+// that it takes on at its next sync.
+export const device = pgTable('device', {
+  id: integer('id').primaryKey(),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  battery: integer('battery'),
+  millivolts: integer('millivolts'),
+  charging: boolean('charging'),
+  look: text('look'),
+  pendingLook: text('pending_look'),
+});

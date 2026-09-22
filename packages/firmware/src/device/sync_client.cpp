@@ -92,7 +92,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   // pending list and the JSON document both die inside this expression,
   // before TLS needs the heap.
   const auto pending = queue_.pending();
-  const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks(), daily_.hash());
+  const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks(), daily_.hash(), &status_);
   if (body.empty()) return SyncOutcome::Failed;
 
   WiFiClientSecure client;
@@ -123,6 +123,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   }
 
   queue_.prune(result.settled);
+  look_ = result.look;
   // Never set the RTC from an unparseable time: every later session would carry it.
   if (result.hasServerTime && setClock) clock_.setEpochSeconds(result.serverTime);
   if (result.hasConfig) {

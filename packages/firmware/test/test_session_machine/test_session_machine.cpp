@@ -782,6 +782,22 @@ void test_an_ordinary_session_does_not_offer_the_ritual_when_awake() {
   TEST_ASSERT_EQUAL_STRING("ACTIVITIES", rig.renderer.last().items[0].c_str());
 }
 
+void test_a_look_from_the_web_is_worn_and_kept() {
+  TwoFolderRig rig;
+  {
+    auto m = rig.machine();
+    m.begin();
+    m.setLook("CARMILLA");
+    TEST_ASSERT_EQUAL_STRING("CARMILLA", m.lookName());
+    TEST_ASSERT_EQUAL_STRING("CARMILLA", look(rig.renderer.last().look).name());
+    m.setLook("NOT A LOOK");
+    TEST_ASSERT_EQUAL_STRING("CARMILLA", m.lookName());
+  }
+  auto again = rig.machine();
+  again.begin();
+  TEST_ASSERT_EQUAL_STRING("CARMILLA", again.lookName());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles);
@@ -799,6 +815,7 @@ int main() {
   RUN_TEST(test_sync_now_asks_the_main_loop_and_shows_the_answer);
   RUN_TEST(test_the_look_changes_in_settings_and_is_kept);
   RUN_TEST(test_the_menu_marks_settings_as_its_gear);
+  RUN_TEST(test_a_look_from_the_web_is_worn_and_kept);
   RUN_TEST(test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it);
   RUN_TEST(test_boot_reopens_the_last_started_activity);
   RUN_TEST(test_power_long_draws_dormant_from_idle);

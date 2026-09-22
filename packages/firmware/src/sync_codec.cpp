@@ -8,7 +8,8 @@
 std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<QueuedEvent>& pending,
                          const std::vector<std::string>& ticks,
-                         const std::string& todayHash) {
+                         const std::string& todayHash,
+                         const DeviceStatus* status) {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["configVersion"] = configVersion;
@@ -38,6 +39,13 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     tick["done"] = done == 1;
   }
   if (!todayHash.empty()) doc["todayHash"] = todayHash;
+  if (status) {
+    JsonObject s = doc["status"].to<JsonObject>();
+    s["battery"] = status->battery;
+    s["millivolts"] = status->millivolts;
+    s["charging"] = status->charging;
+    s["look"] = status->look;
+  }
   if (doc.overflowed()) return "";
   std::string body;
   serializeJson(doc, body);
@@ -72,6 +80,7 @@ SyncResult parseResponse(const std::string& body) {
     serializeJson(doc["config"], result.config);
   }
   result.todayHash = doc["todayHash"] | "";
+  result.look = doc["look"] | "";
   if (doc["today"].is<JsonObjectConst>()) {
     result.hasToday = true;
     serializeJson(doc["today"], result.today);

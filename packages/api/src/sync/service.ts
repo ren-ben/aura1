@@ -3,7 +3,7 @@ import { eq, inArray, isNull, sql } from 'drizzle-orm';
 import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import {
-  activities, folders, sessions, meta, habitEntries, habits, todos, CONFIG_VERSION_KEY,
+  activities, folders, sessions, meta, habitEntries, habits, todos, device, CONFIG_VERSION_KEY,
 } from '../db/schema.ts';
 import { buildToday } from './today.ts';
 
@@ -45,6 +45,20 @@ async function applyTicks(db: Db, ticks: Tick[]): Promise<void> {
         .onConflictDoUpdate({ target: [habitEntries.habitId, habitEntries.date], set: { done: tick.done } });
     }
   }
+}
+
+// Notes the sync and how the device reported itself. A look chosen on the web
+// goes out once; the device then reports it as its own.
+async function recordDevice(db: Db, status: SyncRequest['status']): Promise<string | null> {
+  const [row] = await db.select().from(device).where(eq(device.id, 1));
+  const pending = row?.pendingLook ?? null;
+  const values = {
+    lastSyncAt: new Date(),
+    ...(status ?? {}),
+    ...(pending && status?.look !== pending ? {} : { pendingLook: null }),
+  };
+  await db.insert(device).values({ id: 1, ...values }).onConflictDoUpdate({ target: device.id, set: values });
+  return pending && status?.look !== pending ? pending : null;
 }
 
 export async function applySync(db: Db, request: SyncRequest): Promise<SyncResponse> {
@@ -95,6 +109,7 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
   }
 
   const stale = request.configVersion !== version;
+  const look = await recordDevice(db, request.status);
   const today = await buildToday(db);
   const todayHash = createHash('sha1').update(JSON.stringify(today)).digest('hex').slice(0, 16);
   return {
@@ -105,5 +120,6 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
     rejected,
     todayHash,
     ...(request.todayHash === todayHash ? {} : { today }),
+    ...(look ? { look } : {}),
   };
 }

@@ -5,6 +5,7 @@
 #include "daily.h"
 #include "ports.h"
 #include "queue.h"
+#include "sync_codec.h"
 
 enum class SyncOutcome { Ok, NoWifi, Failed };
 
@@ -24,6 +25,10 @@ public:
   // could end it before it started.
   bool poll(int& configVersion, Carousel& carousel, bool setClock, SyncOutcome& result);
   void abort();
+  // How the device is, sent with the next sync.
+  void setStatus(const DeviceStatus& status) { status_ = status; }
+  // A look the last sync brought from the web, once.
+  std::string takeLook() { std::string l = look_; look_.clear(); return l; }
 
 private:
   SyncOutcome post(int& configVersion, Carousel& carousel, bool setClock);
@@ -45,4 +50,6 @@ private:
   unsigned long timeout_ = 0;
   unsigned long scanAt_ = 0;  // when the scanning join began
   bool direct_ = false;       // joining by the remembered channel
+  DeviceStatus status_;
+  std::string look_;
 };

@@ -9,6 +9,7 @@ import { todoRoutes } from './routes/todos.ts';
 import { habitRoutes } from './routes/habits.ts';
 import { quoteRoutes } from './routes/quotes.ts';
 import { statsRoutes } from './routes/stats.ts';
+import { deviceRoutes } from './routes/device.ts';
 
 export function buildApp(
   db: Db,
@@ -25,6 +26,7 @@ export function buildApp(
   app.register(habitRoutes, { db, prefix: '/api/v1' });
   app.register(quoteRoutes, { db, prefix: '/api/v1' });
   app.register(statsRoutes, { db, prefix: '/api/v1' });
+  app.register(deviceRoutes, { db, prefix: '/api/v1' });
 
   if (opts.webRoot) {
     app.register(fastifyStatic, { root: opts.webRoot });
