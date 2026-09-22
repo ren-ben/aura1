@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include "session_machine.h"
+#include "looks.h"
 #include "../fake_storage.h"
 #include "../fake_clock.h"
 #include "../fake_renderer.h"
@@ -611,9 +612,10 @@ void test_settings_change_text_size_and_keep_it() {
     m.begin();
     openPlace(m, 4);
     TEST_ASSERT_EQUAL_STRING("SETTINGS", rig.renderer.last().title.c_str());
-    TEST_ASSERT_EQUAL_STRING("TEXT SMALL", rig.renderer.last().items[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("TEXT", rig.renderer.last().items[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("SMALL", rig.renderer.last().values[0].c_str());
     m.handle(Input::PowerShort);
-    TEST_ASSERT_EQUAL_STRING("TEXT LARGE", rig.renderer.last().items[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("LARGE", rig.renderer.last().values[0].c_str());
     TEST_ASSERT_TRUE(rig.renderer.last().largeText);
   }
   auto again = rig.machine();
@@ -650,16 +652,41 @@ void test_sync_now_asks_the_main_loop_and_shows_the_answer() {
   m.begin();
   TEST_ASSERT_FALSE(m.takeSyncRequest());
   openPlace(m, 4);
-  m.handle(Input::SunShort);
-  m.handle(Input::SunShort);
+  for (int i = 0; i < 3; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
-  TEST_ASSERT_EQUAL_STRING("SYNCING", rig.renderer.last().items[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("SYNCING", rig.renderer.last().values[3].c_str());
   TEST_ASSERT_TRUE(m.takeSyncRequest());
   TEST_ASSERT_FALSE(m.takeSyncRequest());
   m.setSyncNote("NO WIFI");
-  TEST_ASSERT_EQUAL_STRING("NO WIFI", rig.renderer.last().items[2].c_str());
-  m.setBatteryNote("BAT 3.91V 70%");
-  TEST_ASSERT_EQUAL_STRING("BAT 3.91V 70%", rig.renderer.last().items[3].c_str());
+  TEST_ASSERT_EQUAL_STRING("NO WIFI", rig.renderer.last().values[3].c_str());
+}
+
+void test_the_look_changes_in_settings_and_is_kept() {
+  TwoFolderRig rig;
+  {
+    auto m = rig.machine();
+    m.begin();
+    TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().look);
+    openPlace(m, 4);
+    m.handle(Input::SunShort);
+    m.handle(Input::PowerShort);
+    m.handle(Input::PowerShort);
+    TEST_ASSERT_EQUAL_INT(2, rig.renderer.last().look);
+    TEST_ASSERT_EQUAL_STRING(look(2).name(), rig.renderer.last().values[1].c_str());
+  }
+  auto again = rig.machine();
+  again.begin();
+  TEST_ASSERT_EQUAL_INT(2, rig.renderer.last().look);
+}
+
+void test_the_menu_marks_settings_as_its_gear() {
+  TwoFolderRig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::SunLong);
+  const ViewModel& vm = rig.renderer.last();
+  TEST_ASSERT_TRUE(vm.place == Place::Menu);
+  TEST_ASSERT_EQUAL_STRING("SETTINGS", vm.items[vm.gear].c_str());
 }
 
 void test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it() {
@@ -765,6 +792,8 @@ int main() {
   RUN_TEST(test_settings_change_text_size_and_keep_it);
   RUN_TEST(test_large_text_turns_more_pages);
   RUN_TEST(test_sync_now_asks_the_main_loop_and_shows_the_answer);
+  RUN_TEST(test_the_look_changes_in_settings_and_is_kept);
+  RUN_TEST(test_the_menu_marks_settings_as_its_gear);
   RUN_TEST(test_left_alone_he_takes_the_screen_and_a_press_only_wakes_it);
   RUN_TEST(test_boot_reopens_the_last_started_activity);
   RUN_TEST(test_power_long_draws_dormant_from_idle);

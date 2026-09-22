@@ -14,6 +14,8 @@ struct DailyItem {
   int id = 0;
   std::string text;
   bool done = false;
+  // Habits: the last days, oldest first, '1' where done; today is the last.
+  std::string history;
 };
 
 struct DailyQuote {
@@ -43,6 +45,12 @@ public:
   bool toggleHabit(size_t i);
   bool allTodosDone() const;
 
+  // At the user's midnight, before the next sync brings the new day: the
+  // todos done go, the habits open again and their graphs move on a day.
+  // True when the day turned.
+  bool rollover(uint64_t now);
+  static constexpr size_t HISTORY_DAYS = 84;
+
   // "stable", "thinning", "fragmenting" or "dormant", from the hours since
   // his last session: the server's, or one ended here since. Once the server
   // has him dormant, only the ritual completed here wakes him before the
@@ -64,6 +72,7 @@ private:
   std::string date_;
   int level_ = 0;
   int resurrectionId_ = 0;
+  int utcOffsetMinutes_ = 0;  // the server's time zone, for the user's day
   bool serverDormant_ = false;
   std::string last_;  // /last.txt
   uint64_t lastSessionAt_ = 0;

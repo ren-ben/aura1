@@ -35,11 +35,22 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
 | hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | back to the menu | nothing |
 | hold POWER | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, save, switch off |
 
-- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS, QUOTES and
-  SETTINGS, with today's progress beside each. Kael'thos watches from the corner.
-- **Settings:** TEXT SMALL or LARGE (the quote bubble), SKIN (only Jiji so far),
-  SYNC NOW (then SYNCED, NO WIFI or SERVER ERROR), and the battery's voltage and charge
-  (a + while charging).
+- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS and QUOTES,
+  with today's progress beside each, and a gear for the settings: SUN steps onto it
+  last. Kael'thos watches from the page.
+- **Settings:** TEXT (small or large quotes), LOOK, SKIN (only Jiji so far) and SYNC
+  (POWER syncs now; then SYNCED, NO WIFI or SERVER ERROR). Below them the battery: a
+  gauge, its percent, the voltage, and whether it is charging.
+- **Looks** change how every page is drawn, picked with POWER on LOOK and kept across
+  restarts: CODEX (a grimoire page), NODES (the dashboard's network), FOCUS (one item
+  large at a time), CONTAINMENT (the Amygdala Inc. terminal), CATHEDRAL (through a
+  lancet arch), BYRGENWERTH (an illuminated manuscript), DREAM (every item a headstone),
+  BLOOD MOON (night, sessions in negative) and RITE (a summoning circle). They cost no
+  extra battery: every look draws once per press.
+- **Habits** show the chosen habit's last twelve weeks as a dot graph, a column a week,
+  and its streak.
+- **At midnight** (the server's time zone) todos you finished drop off and habits open
+  for the new day, even before the next sync.
 - **Ticks work offline.** They go out with the next sync, and the web shows them after.
 - **Left alone for three minutes** he takes over the screen with a scene of his own, or
   his decay if you have been away. Any press brings the list back without acting.
@@ -48,9 +59,9 @@ SUN always moves, POWER always acts, holding SUN goes back up, holding POWER swi
   activity you last started. With USB plugged in it cannot cut power, so it sleeps
   instead, and POWER wakes it.
 - **SEALED** shows the duration after a stop. SUN or POWER skips it.
-- **The corner** (bottom right, top right over a scene) shows the battery in quarters,
-  a bolt while it charges, and Kael'thos' head: eyes open with a call going out while it
-  syncs, dozing while it is offline. Online, only the battery shows.
+- **The corner** (where each look puts it) shows the battery in quarters, a bolt while it
+  charges, and Kael'thos at its side: melting into a spiral while it syncs, sitting by a
+  cactus while it is offline. Online, only the battery shows.
 - **The battery reads low on this board** (its sense divider is loaded by the chip), so the
   device learns what a full cell reads: the first full charge calibrates it, kept in
   `/battery.txt` on the card. The bars only go down on battery, never flicker back up.

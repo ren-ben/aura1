@@ -11,7 +11,9 @@ run(['build', '-q', '-t', 'aura-fw-test', '-f', resolve(fw, 'test.Dockerfile'), 
 run([
   'run', '--rm',
   '-v', `${fw}:/fw`,
+  // The art pack, for test_looks to draw Kael'thos into its pages.
+  '-v', `${resolve(fw, '../art/out/sd/art')}:/art:ro`,
   '-v', 'aura-pio:/root/.platformio',
   'aura-fw-test',
-  'pio', 'test', '-e', 'native', ...process.argv.slice(2),
+  'sh', '-c', `mkdir -p .pio/looks && pio test -e native ${process.argv.slice(2).join(' ')}`,
 ]);

@@ -18,6 +18,11 @@ struct ViewModel {
   int minutes = 0;
   Place place = Place::Activities;
   std::vector<bool> checks;        // ticked items, for the todo and habit lists
+  std::vector<std::string> values; // the settings' current values, beside items
+  // Each habit's last days, oldest first, '1' where it was done: its graph.
+  std::vector<std::string> history;
+  int gear = -1;                   // the menu item drawn as the settings gear
+  int look = 0;                    // the look setting: how every page is drawn
   std::string quote;
   std::string source;
   int quotePage = 0;               // which page of a long quote

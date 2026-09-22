@@ -1,5 +1,6 @@
 #include "session_machine.h"
 #include "art_index.h"
+#include "looks.h"
 #include "quote_text.h"
 #include "validate.h"
 #include <algorithm>
@@ -11,7 +12,7 @@
 // fake in tests. Never seed from the clock: two sessions ending in the same second
 // would get the same id, and the server silently keeps only the first.
 std::string uuidV4(Random& random) {
-  static const char* HEX = "0123456789abcdef";
+  static const char* HEX_DIGITS = "0123456789abcdef";
   uint8_t bytes[16];
   for (int i = 0; i < 16; i += 4) {
     const uint32_t r = random.next();
@@ -26,8 +27,8 @@ std::string uuidV4(Random& random) {
   out.reserve(36);
   for (int i = 0; i < 16; ++i) {
     if (i == 4 || i == 6 || i == 8 || i == 10) out += '-';
-    out += HEX[bytes[i] >> 4];
-    out += HEX[bytes[i] & 0x0F];
+    out += HEX_DIGITS[bytes[i] >> 4];
+    out += HEX_DIGITS[bytes[i] & 0x0F];
   }
   return out;
 }
@@ -226,6 +227,8 @@ void SessionMachine::handle(Input input) {
 
   const uint64_t now = clock_.nowEpochSeconds();
   if (input != Input::Tick) lastInput_ = now;
+  // Past midnight the day's lists move on; an open list shows it at once.
+  if (daily_.rollover(now) && input == Input::Tick && screen_ == Screen::Idle) draw();
 
   switch (screen_) {
     case Screen::Idle:
@@ -336,19 +339,20 @@ void SessionMachine::browse(Input input) {
       }
       break;
     }
-    // SUN moves, POWER changes the line: text size, skin, or a sync now.
+    // SUN moves, POWER changes the line: text size, look, skin, or a sync now.
     case Place::Settings:
       if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % 4; draw(); }
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort) {
         if (listCursor_ == 0) { largeText_ = !largeText_; saveSettings(); }
-        else if (listCursor_ == 1) {
+        else if (listCursor_ == 1) { look_ = (look_ + 1) % lookCount(); saveSettings(); }
+        else if (listCursor_ == 2) {
           const size_t count = sizeof(SKINS) / sizeof(SKINS[0]);
           size_t i = 0;
           while (i < count && skin_ != SKINS[i]) ++i;
           skin_ = SKINS[(i + 1) % count];
           saveSettings();
-        } else if (listCursor_ == 2) { syncRequested_ = true; syncNote_ = "SYNCING"; }
+        } else if (listCursor_ == 3) { syncRequested_ = true; syncNote_ = "SYNCING"; }
         draw();
       }
       break;
@@ -361,10 +365,11 @@ void SessionMachine::loadSettings() {
   largeText_ = lines[0].rfind("1", 0) == 0;
   const size_t space = lines[0].find(' ');
   if (space != std::string::npos) skin_ = lines[0].substr(space + 1);
+  if (lines.size() > 1) look_ = lookIndex(lines[1]);
 }
 
 void SessionMachine::saveSettings() {
-  storage_.write(SETTINGS, std::string(largeText_ ? "1 " : "0 ") + skin_ + "\n");
+  storage_.write(SETTINGS, std::string(largeText_ ? "1 " : "0 ") + skin_ + "\n" + look(look_).name() + "\n");
 }
 
 bool SessionMachine::takeSyncRequest() {
@@ -378,9 +383,7 @@ void SessionMachine::setSyncNote(const std::string& note) {
   redrawSettings();
 }
 
-void SessionMachine::setBatteryNote(const std::string& note) {
-  if (note == batteryNote_) return;
-  batteryNote_ = note;
+void SessionMachine::batteryChanged() {
   redrawSettings();
 }
 
@@ -433,7 +436,9 @@ void SessionMachine::draw(int minutes) {
     for (const auto& i : items) {
       vm.items.push_back(i.text);
       vm.checks.push_back(i.done);
+      vm.history.push_back(i.history);
     }
+    if (listCursor_ >= items.size()) listCursor_ = 0;
     vm.cursor = static_cast<int>(listCursor_);
   };
   switch (place_) {
@@ -441,6 +446,7 @@ void SessionMachine::draw(int minutes) {
       vm.title = "AURA-1";
       vm.items.clear();
       for (Place p : menu()) {
+        if (p == Place::Settings) vm.gear = static_cast<int>(vm.items.size());
         switch (p) {
           case Place::Resurrect: vm.items.push_back("RESURRECT"); break;
           case Place::Activities: vm.items.push_back("ACTIVITIES"); break;
@@ -471,7 +477,8 @@ void SessionMachine::draw(int minutes) {
       std::string skin = skin_;
       for (auto& c : skin) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
       vm.title = "SETTINGS";
-      vm.items = { largeText_ ? "TEXT LARGE" : "TEXT SMALL", "SKIN " + skin, syncNote_, batteryNote_ };
+      vm.items = { "TEXT", "LOOK", "SKIN", "SYNC" };
+      vm.values = { largeText_ ? "LARGE" : "SMALL", look(look_).name(), skin, syncNote_ };
       vm.cursor = static_cast<int>(listCursor_);
       break;
     }
@@ -479,6 +486,7 @@ void SessionMachine::draw(int minutes) {
       break;
   }
   vm.largeText = largeText_;
+  vm.look = look_;
   // Running never carries elapsed time. Design decision, not an omission.
   vm.minutes = (screen_ == Screen::Stopped) ? minutes : 0;
   renderer_.render(vm);

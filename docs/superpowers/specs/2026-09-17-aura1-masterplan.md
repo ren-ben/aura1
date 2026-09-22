@@ -153,7 +153,24 @@ contract has exactly one definition.
   and the 3D Kael'thos in the UI. The Phase 2 web is a functional prototype;
   this phase redesigns it. Installable as a PWA (manifest, icons, service
   worker for an offline shell) so it lives on the phone's home screen.
-- **Phase 6** Audio. Speaker signature, mic capture into the quote vault.
+- **Phase 4c** Looks (done 2026-09-22). Nine page designs picked in
+  SETTINGS: Codex, Nodes, Focus, Containment, Cathedral, Byrgenwerth, Dream,
+  Blood Moon, Rite. Settings as a gear, battery panel, habit graphs, todos
+  that drop off at the user's midnight.
+- **Phase 6** Reader. Books on the SD card (EPUB converted to plain paginated
+  text on the server, pushed by sync), read page by page; Kael'thos reading
+  in the lower-right corner. Chapter jump, progress saved per book. A
+  highlight saves the whole page on the glass; on the web the exact passage
+  is picked from it and notes added. Battery: e-ink draws only on a page
+  turn, so reading costs about what the lists do.
+- **Phase 7** Companion. Conversations with Kael'thos through an LLM
+  (OpenRouter), in character: he speaks, the user answers yes or no with the
+  two buttons. Roleplay, wisdom, company, motivation. The server holds the
+  key, the persona and the history; the device sends only the answer and
+  gets his next line. Wi-Fi only for each exchange, off between.
+- **Phase 8** Mood tracker. Details to come.
+- **Phase 9** Workout tracker, weights and cardio/runs. Details to come.
+- Dropped: audio (speaker signature, mic capture).
 
 ---
 

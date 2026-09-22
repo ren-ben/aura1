@@ -52,22 +52,20 @@ constexpr unsigned long POWER_OFF_CONNECT_MS = 10000;
 constexpr const char* BATTERY_FILE = "/battery.txt";  // the learned full reading
 
 static void showStatus() {
-  renderer.setStatus({ gauge.bars(), gauge.charging(), linkState });
+  renderer.setStatus({ gauge.bars(), gauge.charging(), linkState, gauge.percent(), gauge.millivolts() });
 }
 
 static void checkBattery() {
   const int raw = readBatteryMillivolts();
   const int learned = gauge.fullRaw();
+  const int before = gauge.percent();
+  const bool wasCharging = gauge.charging();
   gauge.sample(raw, usbHost());
   if (gauge.fullRaw() >= learned + 10) storage.write(BATTERY_FILE, std::to_string(gauge.fullRaw()) + "\n");
-  const int mv = gauge.millivolts();
-  char note[20];
-  snprintf(note, sizeof note, "BAT %d.%02dV %d%%%s", mv / 1000, mv % 1000 / 10, gauge.percent(),
-           gauge.charging() ? "+" : "");
-  Serial.printf("battery raw=%dmV full=%dmV -> %dmV %d%% bars=%d%s\n", raw, gauge.fullRaw(), mv,
+  Serial.printf("battery raw=%dmV full=%dmV -> %dmV %d%% bars=%d%s\n", raw, gauge.fullRaw(), gauge.millivolts(),
                 gauge.percent(), gauge.bars(), gauge.charging() ? " charging" : "");
-  machine.setBatteryNote(note);
   showStatus();
+  if (gauge.percent() != before || gauge.charging() != wasCharging) machine.batteryChanged();
 }
 
 // Starts a sync unless one is already under way. The cat in the corner

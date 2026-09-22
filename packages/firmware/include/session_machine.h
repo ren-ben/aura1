@@ -31,8 +31,8 @@ public:
   // and reports back with a word for the list.
   bool takeSyncRequest();
   void setSyncNote(const std::string& note);
-  // The battery line in the settings, e.g. "BAT 3.91V 70%".
-  void setBatteryNote(const std::string& note);
+  // The battery reading moved: the settings show it.
+  void batteryChanged();
 
 private:
   void draw(int minutes = 0);
@@ -51,7 +51,7 @@ private:
 
   static constexpr const char* MARKER = "/session.open";
   static constexpr const char* NAV = "/nav.txt";  // last started activity id
-  static constexpr const char* SETTINGS = "/settings.txt";  // "<large 0|1> <skin>"
+  static constexpr const char* SETTINGS = "/settings.txt";  // "<large 0|1> <skin>", then the look name
   static constexpr uint64_t HEARTBEAT_SECONDS = 300;
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
   static constexpr uint64_t CELEBRATE_SECONDS = 5;
@@ -93,6 +93,6 @@ private:
   bool largeText_ = false;
   std::string skin_ = "jiji";
   bool syncRequested_ = false;
-  std::string syncNote_ = "SYNC NOW";
-  std::string batteryNote_ = "BATTERY";
+  int look_ = 0;
+  std::string syncNote_ = "NOW";
 };

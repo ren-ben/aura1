@@ -1,4 +1,5 @@
 #include "daily.h"
+#include <algorithm>
 #include <cstdlib>
 #include <ArduinoJson.h>
 #include "art_index.h"
@@ -10,6 +11,7 @@ bool Daily::parse(const std::string& json) {
   date_ = doc["date"].as<std::string>();
   level_ = doc["level"] | 0;
   resurrectionId_ = doc["resurrectionId"] | 0;
+  utcOffsetMinutes_ = doc["utcOffset"] | 0;
   serverDormant_ = std::string(doc["form"] | "") == "dormant";
   lastSessionAt_ = 0;
   fromIso8601(doc["lastSessionAt"] | "", lastSessionAt_);
@@ -20,7 +22,7 @@ bool Daily::parse(const std::string& json) {
     todos_.push_back({ t["id"] | 0, t["body"] | "", t["done"] | false });
   }
   for (JsonObjectConst h : doc["habits"].as<JsonArrayConst>()) {
-    habits_.push_back({ h["id"] | 0, h["name"] | "", h["done"] | false });
+    habits_.push_back({ h["id"] | 0, h["name"] | "", h["done"] | false, h["history"] | "" });
   }
   for (JsonObjectConst q : doc["quotes"].as<JsonArrayConst>()) {
     quotes_.push_back({ q["body"] | "", q["source"] | "" });
@@ -59,6 +61,34 @@ bool Daily::toggleHabit(size_t i) {
   DailyItem& h = habits_[i];
   if (!queueTick("habit " + std::to_string(h.id) + " " + date_ + (h.done ? " 0" : " 1"))) return false;
   h.done = !h.done;
+  if (h.history.empty()) h.history = "0";
+  h.history.back() = h.done ? '1' : '0';
+  return true;
+}
+
+static std::string isoDate(const Civil& c) {
+  const auto two = [](unsigned v) { return std::string(v < 10 ? "0" : "") + std::to_string(v); };
+  return std::to_string(c.year) + "-" + two(c.month) + "-" + two(c.day);
+}
+
+bool Daily::rollover(uint64_t now) {
+  if (date_.size() != 10) return false;
+  const int64_t local = static_cast<int64_t>(now) + utcOffsetMinutes_ * 60;
+  if (local <= 0) return false;
+  const std::string today = isoDate(epochToCivil(static_cast<uint64_t>(local)));
+  if (today <= date_) return false;
+  const uint64_t from = civilToEpoch(std::atoi(date_.substr(0, 4).c_str()), std::atoi(date_.substr(5, 2).c_str()),
+                                     std::atoi(date_.substr(8, 2).c_str()), 0, 0, 0);
+  const uint64_t to = civilToEpoch(std::atoi(today.substr(0, 4).c_str()), std::atoi(today.substr(5, 2).c_str()),
+                                   std::atoi(today.substr(8, 2).c_str()), 0, 0, 0);
+  const size_t days = std::min<uint64_t>(HISTORY_DAYS, (to - from) / 86400);
+  todos_.erase(std::remove_if(todos_.begin(), todos_.end(), [](const DailyItem& t) { return t.done; }), todos_.end());
+  for (auto& h : habits_) {
+    h.done = false;
+    h.history += std::string(days, '0');
+    if (h.history.size() > HISTORY_DAYS) h.history.erase(0, h.history.size() - HISTORY_DAYS);
+  }
+  date_ = today;
   return true;
 }
 
