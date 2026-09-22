@@ -44,15 +44,21 @@ export const configDtoSchema = z.object({
 
 // What the device shows away from the web: today's lists, quotes to say,
 // and how Kael'thos is doing.
+export const HABIT_DAYS = 84;
+
 export const todayDtoSchema = z.object({
   date: z.iso.date(),
+  // Minutes east of UTC in the user's time zone, so the device knows when
+  // the day turns.
+  utcOffset: z.number().int(),
   form: z.enum(FORM_STATES),
   level: z.number().int(),
   lastSessionAt: z.iso.datetime().nullable(),
   // The ritual's activity, started from the device's menu while dormant.
   resurrectionId: z.number().int(),
   todos: z.array(z.object({ id: z.number().int(), body: z.string(), done: z.boolean() })),
-  habits: z.array(z.object({ id: z.number().int(), name: z.string(), done: z.boolean() })),
+  // history: the last HABIT_DAYS days, oldest first, '1' where done; today last.
+  habits: z.array(z.object({ id: z.number().int(), name: z.string(), done: z.boolean(), history: z.string() })),
   quotes: z.array(z.object({ body: z.string(), source: z.string().nullable() })),
 });
 

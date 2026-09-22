@@ -6,7 +6,7 @@ import { createDb, type Db } from '../src/db/client.ts';
 import { seed } from '../src/db/seed.ts';
 import { habitEntries, habits, quotes, todos } from '../src/db/schema.ts';
 import { applySync } from '../src/sync/service.ts';
-import { localDate } from '../src/sync/today.ts';
+import { localDate, utcOffset } from '../src/sync/today.ts';
 
 const url = process.env.TEST_DATABASE_URL
   ?? 'postgres://aura:aura@localhost:15434/aura_test';
@@ -67,7 +67,8 @@ test('a habit tick marks today, and an unknown habit is ignored', async () => {
     { kind: 'habit', id: habit!.id, date: today, done: true },
     { kind: 'habit', id: 999, date: today, done: true },
   ]);
-  assert.deepEqual(bundle.habits, [{ id: habit!.id, name: 'read', done: true }]);
+  assert.deepEqual(bundle.habits.map(({ history, ...h }) => ({ ...h, last: history.slice(-2), days: history.length })),
+    [{ id: habit!.id, name: 'read', done: true, last: '01', days: 84 }]);
   const entries = await db.select().from(habitEntries);
   assert.equal(entries.length, 1);
 });
@@ -107,4 +108,22 @@ test('dormant after 72 hours, and only a full-hour ritual wakes him', async () =
     log('00000000-0000-4000-8000-000000000003', ritual, 5, 60),
   ] });
   assert.equal((await sync()).today.form, 'stable');
+});
+
+test('habit history marks the days done, oldest first', async () => {
+  const [habit] = await db.insert(habits).values({ name: 'run', sortOrder: 0 }).returning();
+  await db.insert(habitEntries).values([
+    { habitId: habit!.id, date: shift(-2), done: true },
+    { habitId: habit!.id, date: shift(-1), done: false },
+    { habitId: habit!.id, date: shift(-200), done: true },
+  ]);
+  const { today: bundle } = await sync();
+  assert.equal(bundle.habits[0]!.history.slice(-3), '100');
+  assert.equal(bundle.habits[0]!.history.replace(/0/g, ''), '1');
+});
+
+test('the utc offset follows summer time', () => {
+  assert.equal(utcOffset(new Date('2026-07-01T12:00:00Z'), 'Europe/Vienna'), 120);
+  assert.equal(utcOffset(new Date('2026-01-01T12:00:00Z'), 'Europe/Vienna'), 60);
+  assert.equal(utcOffset(new Date('2026-01-01T12:00:00Z'), 'America/New_York'), -300);
 });
