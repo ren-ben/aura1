@@ -100,7 +100,7 @@ writeFileSync(resolve(out, 'expressions.png'), new Resvg(sheetFaces).render().as
 
 // The body kit: each pose with a fitting face, smooth beside the device render.
 const POSE_FACES: [BodyPose, keyof typeof EXPRESSIONS][] = [
-  ['sit', 'curious'], ['wave', 'happy'], ['loaf', 'asleep'], ['peek', 'curious'],
+  ['sit', 'curious'], ['front', 'content'], ['wave', 'happy'], ['loaf', 'asleep'], ['peek', 'curious'],
   ['reach', 'delighted'], ['hold', 'happy'],
 ];
 const poseTiles = POSE_FACES.map(([kind, face], i) => {

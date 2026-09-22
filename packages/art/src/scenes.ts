@@ -16,16 +16,16 @@ import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
-  amygdala, bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, flower, ghost, gothicTown, lamp, laptop,
+  amygdala, bat, book, bubble, candle, cardboardBox, cleaver, desk, DITHER, eyesInTheDark, flower, ghost, gothicTown, laptop,
   messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, tentacledMoon, tentacles,
-  tricorn, windowEye, windowMoon,
+  windowEye, windowMoon,
 } from './props.ts';
-import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
+import { bustArt, DEVICE_PALETTE, silhouetteParts, SIZE, type Palette, type Wear } from './rig.ts';
 
 export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
   | 'sealed' | 'sealed-long' | 'sealed-short' | 'sealed-marathon' | 'levelup' | 'todos-done' | 'neglected'
-  | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch'
+  | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch' | 'status'
   | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected';
 
 export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween';
@@ -77,20 +77,17 @@ const hideBelow = (y: number) => `<rect x="0" y="${y}" width="400" height="${400
 
 const scene = (id: string, moment: Moment, frames: string[], env?: Env, size = 200): Scene => ({ id, moment, size, frames, env });
 
-// The hunter's tricorn over a sitting head.
-function tricornOn(f: Face, neck: Pt = SIT_NECK, k = SIT_SCALE): string {
-  return `<g transform="translate(${(neck[0] - 200 * k).toFixed(1)} ${(neck[1] - 286 * k).toFixed(1)}) scale(${k}) rotate(${face(f).tilt ?? 0} 200 286)">${tricorn(P)}</g>`;
-}
-
 // A place's goodnight and good morning: he settles from sitting into a
 // sleeping loaf, and wakes the same way back, ending with a wave.
-function nightAndMorning(env: Env, set: (cat: string) => string): Scene[] {
-  const s = (kind: Pose, f: Face, frame = 0) => svg(set(cat(kind, f, {}, frame)));
+function nightAndMorning(env: Env, set: (cat: string) => string, wear: Wear = {}): Scene[] {
+  const s = (kind: Pose, f: Face, frame = 0) => svg(set(cat(kind, f, wear, frame)));
   return [
     scene(`sleep-${env}`, 'sleep', [s('sit', 'content'), s('sit', 'sleepy'), s('loaf', 'asleep')], env),
     scene(`wake-${env}`, 'wake', [s('loaf', 'asleep'), s('sit', 'sleepy'), s('wave', 'happy'), s('wave', 'delighted', 1)], env),
   ];
 }
+
+const HAT: Wear = { hat: true };
 
 export function scenes(): Scene[] {
   // The night window, up in the corner, clear of his head.
@@ -99,7 +96,7 @@ export function scenes(): Scene[] {
   const yharnam = (houses = true) => gothicTown(P, 320, { houses }) + ground;
   const flowers = () => [[34, 84, 311], [364, 70, 313]]
     .map(([x, h, sd]) => flower(x!, 392, h!, P, sd, 1.8)).join('');
-  const hunterDream = () => lamp(44, 120, P, 163) + flowers();
+  const hunterDream = () => flowers();
   const voidEyes = (count: number, seed = 181) => eyesInTheDark(P, count, seed, [0, 0, 400, 400], [200, 240, 170]);
   // The void's night: dark dither, eyes opening in it, his star-filled form
   // lifted out of it by a paper edge.
@@ -123,20 +120,20 @@ export function scenes(): Scene[] {
       svg(holding(face('happy'), P, scaled(mug(HOLD[0], HOLD[1] + 16, P, 62), HOLD[0], HOLD[1] + 16, 1.5))),
     ], 'room'),
     scene('sleep-wave', 'sleep', [svg(cat('wave', 'happy')), svg(cat('sit', 'sleepy')), svg(cat('loaf', 'asleep'))], 'room'),
-    scene('sleep-blink', 'sleep', [svg(cat('sit', 'curious')), svg(cat('sit', 'content')), svg(cat('loaf', 'asleep'))], 'room'),
+    scene('sleep-blink', 'sleep', [svg(cat('front', 'curious')), svg(cat('front', 'content')), svg(cat('loaf', 'asleep'))], 'room'),
 
     // A session sealed: proud, or a comment on how it went.
     scene('sealed-proud', 'sealed', [svg(cat('sit', 'proud'))], 'room'),
-    scene('sealed-happy', 'sealed', [svg(cat('sit', 'happy'))], 'room'),
+    scene('sealed-happy', 'sealed', [svg(cat('front', 'happy'))], 'room'),
     scene('sealed-long', 'sealed-long', [svg(cat('sit', 'flustered'))], 'room'),
     scene('sealed-short', 'sealed-short', [svg(cat('sit', 'annoyed'))], 'room'),
-    scene('sealed-marathon', 'sealed-marathon', [svg(cat('sit', 'dizzy'))], 'room'),
+    scene('sealed-marathon', 'sealed-marathon', [svg(cat('front', 'dizzy'))], 'room'),
     scene('levelup', 'levelup', [svg(cat('wave', withMarks('delighted', ['sparkles'])))], 'room'),
     scene('levelup-yay', 'levelup', [svg(cat('reach', withMarks('delighted', ['sparkles'])))], 'room'),
     scene('levelup-insight', 'levelup', [svg(dark + voidEyes(12, 185) + voidCat('reach', 'overjoyed'), voidDefs(13))], 'void'),
-    scene('todos-done', 'todos-done', [svg(cat('sit', 'overjoyed'))], 'room'),
+    scene('todos-done', 'todos-done', [svg(cat('front', 'overjoyed'))], 'room'),
     scene('todos-yay', 'todos-done', [svg(cat('reach', withMarks('overjoyed', ['hearts'])))], 'room'),
-    scene('neglected', 'neglected', [svg(cat('sit', 'furious'))], 'room'),
+    scene('neglected', 'neglected', [svg(cat('front', 'furious'))], 'room'),
     scene('neglected-hmph', 'neglected', [svg(cat('sit', withMarks('hmph', ['anger'])))], 'room'),
     // Left too long, the blood moon rises over him.
     scene('neglected-bloodmoon', 'neglected', [svg(moon(340, 64, 44, P, 'blood', 173) + bat(60, 60, P) + bat(110, 110, P, 0.7, 114)
@@ -175,19 +172,20 @@ export function scenes(): Scene[] {
     scene('decay-thinning', 'decay-thinning', [svg(nightWindow('crescent', 92) + at(cat('sit', 'lonely'), 234, 392, 0.94))], 'window'),
     ...nightAndMorning('window', (c) => nightWindow() + at(c, 234, 392, 0.94)),
 
-    // The Hunter's Dream: white flowers, a lamp, the messengers.
+    // The Hunter's Dream: white flowers, the messengers, and him in the
+    // hunter's hat.
     scene('lore-dream', 'lore', [svg(moon(344, 56, 34, P, 'paleblood', 172)
-      + hunterDream() + cat('sit', 'content'))], 'dream'),
-    scene('lore-messengers', 'lore', [svg(lamp(44, 120, P, 163) + cat('sit', { ...face('delighted'), look: [6, 10] })
+      + hunterDream() + cat('sit', 'content', HAT))], 'dream'),
+    scene('lore-messengers', 'lore', [svg(cat('sit', { ...face('delighted'), look: [6, 10] }, HAT)
       + messenger(66, 392, P, 281, 1.8) + messenger(360, 392, P, 284, 1.4) + messenger(110, 392, P, 287, 1.1))], 'dream'),
-    ...nightAndMorning('dream', (c) => hunterDream() + c),
+    ...nightAndMorning('dream', (c) => hunterDream() + c, HAT),
 
     // Yharnam's cathedral under the paleblood moon, and what clings to it.
     scene('lore-yharnam', 'lore', [svg(moon(340, 64, 40, P, 'paleblood', 174) + bat(300, 150, P) + bat(360, 180, P, 0.7, 115)
       + yharnam() + lifted(cat('sit', 'content')))], 'yharnam'),
     scene('lore-amygdala', 'lore', [svg(amygdala(64, 150, P, 271, 0.78) + yharnam(false) + lifted(at(cat('sit', { ...face('happy'), look: [-10, -4] }), 286, 392, 0.9)))], 'yharnam'),
     scene('hunt-yharnam', 'session-hunt', [svg(moon(340, 64, 40, P, 'paleblood', 175) + yharnam()
-      + lifted(cat('sit', 'determined') + tricornOn('determined') + cleaver(292, 380, P)))], 'yharnam'),
+      + lifted(cat('sit', 'determined', HAT) + cleaver(292, 380, P)))], 'yharnam'),
     ...nightAndMorning('yharnam', (c) => moon(340, 64, 40, P, 'paleblood', 174) + yharnam() + lifted(c)),
 
     // The void: his true form, and the eyes that open around it.
@@ -197,7 +195,7 @@ export function scenes(): Scene[] {
     // The moon is not a moon: something hangs from it.
     scene('lore-moon-presence', 'lore', [svg(dark + lifted(tentacledMoon(66, 60, 40, P)) + eyesInTheDark(P, 5, 186, [270, 20, 120, 160])
       + at(voidCat('sit', { ...face('content'), look: [-8, -6] }), 240, 392, 0.94), voidDefs(12))], 'void'),
-    scene('decay-fragmenting', 'decay-fragmenting', [svg(voidEyes(6, 187) + cat('sit', 'lonely', {}, 0, { ...P, ink: 'url(#d50)' }))], 'void'),
+    scene('decay-fragmenting', 'decay-fragmenting', [svg(voidEyes(6, 187) + cat('front', 'lonely', {}, 0, { ...P, ink: 'url(#d50)' }))], 'void'),
     scene('decay-dormant', 'decay-dormant', [svg(dark + voidCat('loaf', 'asleep') + eyesInTheDark(P, 5, 181, [0, 0, 400, 200]), voidDefs(8))], 'void'),
     // Goodnight in the void: the eyes close with him; good morning, they open.
     scene('sleep-void', 'sleep', [
@@ -218,7 +216,7 @@ export function scenes(): Scene[] {
       + cat('loaf', 'asleep', {}, 0, VOID)
       + [[80, 396], [370, 396], [40, 262], [372, 262]].map(([x, y], i) => candle(x!, y!, P, i < lit, 72 + i)).join(''),
       voidDefs(11))], 'void')),
-    scene('resurrected-back', 'resurrected', [svg(cat('sit', withMarks('overjoyed', ['sparkles']))
+    scene('resurrected-back', 'resurrected', [svg(cat('front', withMarks('overjoyed', ['sparkles']))
       + [[46, 392], [354, 392]].map(([x, y], i) => candle(x!, y!, P, false, 76 + i)).join(''))], 'room'),
     scene('resurrected-yay', 'resurrected', [svg(cat('reach', withMarks('delighted', ['sparkles']))
       + [[46, 392], [354, 392]].map(([x, y], i) => candle(x!, y!, P, false, 78 + i)).join(''))], 'room'),
@@ -239,7 +237,30 @@ export function scenes(): Scene[] {
     ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
       scene(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35)
         + hideBelow(392))], undefined, 64)),
+    // The corner's link icons, 24 px: his head as one solid shape, the rig's
+    // detail being noise at this size. Eyes open while he syncs, shut while
+    // he is offline.
+    scene('status-sync', 'status', [statusIcon(false)], undefined, 24),
+    scene('status-offline', 'status', [statusIcon(true)], undefined, 24),
   ];
+}
+
+function statusIcon(asleep: boolean): string {
+  const { solids, eyes } = silhouetteParts();
+  const parts = solids.slice(1);  // head and ears, no shoulders
+  const all = parts.flat();
+  const [x0, x1] = [Math.min(...all.map((q) => q[0])), Math.max(...all.map((q) => q[0]))];
+  const [y0, y1] = [Math.min(...all.map((q) => q[1])), Math.max(...all.map((q) => q[1]))];
+  const side = Math.max(x1 - x0, y1 - y0);
+  const centre = (e: Pt[]): Pt => [e.reduce((t, q) => t + q[0], 0) / e.length, e.reduce((t, q) => t + q[1], 0) / e.length];
+  const face = eyes.map((e) => {
+    const [cx, cy] = centre(e);
+    return asleep
+      ? `<path d="M ${cx - 30} ${cy} Q ${cx} ${cy + 26} ${cx + 30} ${cy}" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round"/>`
+      : `<path d="${toPath(e)}" fill="#fff"/><ellipse cx="${cx}" cy="${cy + 6}" rx="11" ry="15"/>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(x0 + x1) / 2 - side / 2} ${y1 - side} ${side} ${side}">`
+    + `<rect x="-999" y="-999" width="9999" height="9999" fill="#fff"/>${parts.map((q) => `<path d="${toPath(q)}"/>`).join('')}${face}</svg>`;
 }
 
 export { bubble, marks };

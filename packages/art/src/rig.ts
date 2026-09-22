@@ -130,7 +130,8 @@ function halo(p: Palette, seed: number): string[] {
   return [shape(ring, p.ink), ...orbs, shape(wobble(star, seed + 9, 0.5), p.ink)];
 }
 
-export type Wear = { skin?: Skin; headphones?: boolean };
+// hat: the hunter's tricorn, for the Hunter's Dream and the hunt.
+export type Wear = { skin?: Skin; headphones?: boolean; hat?: boolean };
 
 // The head in canonical coordinates, tilted about the neck. Scenes place it
 // with a transform; the bust puts it on the body as drawn.

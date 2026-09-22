@@ -7,13 +7,16 @@
 
 import { curve, ellipse, outline, sampleCubics, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
 import { head, NECK, type Palette, type Wear } from './rig.ts';
+import { tricorn } from './props.ts';
 import type { Expression } from './expressions.ts';
 
 // Places the head so its neck lands on `neck` at `scale`, keeping lines legible.
 export function placeHead(expr: Expression, p: Palette, neck: Pt, scale: number, wear: Wear = {}): string {
   const [tx, ty] = [neck[0] - NECK[0] * scale, neck[1] - NECK[1] * scale];
   const inner = withWeight(scale ** -0.7, () => head(expr, p, wear));
-  return `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${scale})">${inner}</g>`;
+  // The hat tips with his head, as tricorn() is drawn upright between the ears.
+  const hat = wear.hat ? `<g transform="rotate(${expr.tilt ?? 0} ${NECK[0]} ${NECK[1]})">${tricorn(p)}</g>` : '';
+  return `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${scale})">${inner}${hat}</g>`;
 }
 
 const ink = (pts: Pt[], p: Palette, seed: number, amp = 1.6) => shape(wobble(pts, seed, amp), p.ink);
@@ -27,25 +30,37 @@ export function tail(pts: Pt[], p: Palette, seed: number, root = 16, tip = 11): 
 const outlined = (pts: Pt[], p: Palette, seed: number) =>
   `<path d="${toPath(wobble(pts, seed, 0.6))}" fill="${p.ink}" stroke="${p.paper}" stroke-width="5" paint-order="stroke"/>`;
 
-// Sitting, seen from the front: a soft bell from under the chin to the
-// floor. The sides slope straight out from the chin, with no narrow neck
-// above a round belly; the haunches only round it off low down, and the front
-// paws show as two gentle bumps along the floor.
+// Sitting, two ways, both with a slim neck like Jiji's: most often turned a
+// little (a straight chest down to the near front paw, the haunch rounding
+// out toward the tail, one paper line between leg and haunch), sometimes
+// square to us (a slim bell). The tail is drawn first, its root tucked inside
+// the haunch, so it always grows out of him.
 export const SIT_NECK: Pt = [200, 246];
 export const SIT_SCALE = 0.66;
-const SIT_BODY = sampleCubics([
-  'M 162 236',
-  'C 152 262, 144 292, 138 322',
-  'C 132 350, 122 372, 132 386',
-  'C 140 394, 160 392, 174 390',
-  'C 182 395, 194 395, 200 390',
-  'C 206 395, 218 395, 226 390',
-  'C 240 392, 260 394, 268 386',
-  'C 278 372, 268 350, 262 322',
-  'C 256 292, 248 262, 238 236',
-  'C 214 228, 186 228, 162 236',
+const TURNED_BODY = sampleCubics([
+  'M 186 236',
+  'C 182 270, 176 310, 174 350',
+  'C 172 372, 170 386, 178 391',
+  'C 190 395, 204 393, 208 387',
+  'C 218 393, 256 395, 270 386',
+  'C 284 372, 280 334, 256 314',
+  'C 238 298, 230 268, 224 236',
+  'C 212 231, 198 231, 186 236',
 ].join(' '), 10);
-const SIT_TAIL: Pt[] = [[258, 386], [292, 386], [316, 370], [322, 342], [316, 318], [324, 300], [340, 296]];
+const TURNED_TAIL: Pt[] = [[246, 382], [288, 388], [314, 372], [322, 344], [316, 318], [324, 300], [340, 296]];
+const TURNED_LEG: Pt[] = [[210, 389], [212, 362], [220, 336]];
+const FRONT_BODY = sampleCubics([
+  'M 178 236',
+  'C 172 262, 162 300, 154 330',
+  'C 146 360, 140 378, 148 388',
+  'C 158 394, 176 392, 186 390',
+  'C 192 394, 208 394, 214 390',
+  'C 224 392, 242 394, 252 388',
+  'C 260 378, 254 360, 246 330',
+  'C 238 300, 228 262, 222 236',
+  'C 210 232, 190 232, 178 236',
+].join(' '), 10);
+const FRONT_TAIL: Pt[] = [[226, 382], [262, 390], [298, 382], [318, 360], [320, 334], [314, 314], [322, 298], [338, 294]];
 
 // Standing on his hind legs: the same pear, split into two stubby legs.
 const STAND_BODY = sampleCubics([
@@ -61,21 +76,23 @@ const STAND_BODY = sampleCubics([
   'C 208 232, 192 232, 178 238',
 ].join(' '), 10);
 
-export type Pose = 'sit' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
+export type Pose = 'sit' | 'front' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
 
-const sitting = (p: Palette) => tail(SIT_TAIL, p, 5) + ink(SIT_BODY, p, 3);
+const paperLine = (pts: Pt[], p: Palette, seed: number) => shape(wobble(stroke(curve(pts), () => 4), seed, 0.4), p.paper);
+const sitting = (p: Palette) => tail(TURNED_TAIL, p, 5) + ink(TURNED_BODY, p, 3) + paperLine(TURNED_LEG, p, 9);
+const sittingFront = (p: Palette) => tail(FRONT_TAIL, p, 5) + ink(FRONT_BODY, p, 3);
 const paw = (x: number, y: number, p: Palette, seed: number, rx = 13, ry = 11) => outlined(ellipse(x, y, rx, ry, 24), p, seed);
 
 // Where a held thing sits: against his chest, between the paws.
 export const HOLD: Pt = [200, 318];
 
-// Holding something against his chest: `held` is drawn over the body and
+// Holding something against his chest, square to us: `held` is drawn over the body and
 // under the paws, which grip its sides. No arms: two paws say enough.
 // Centre it on HOLD.
 export function holding(expr: Expression, p: Palette, held: string, wear: Wear = {}): string {
   const [x, y] = HOLD;
   return [
-    sitting(p),
+    sittingFront(p),
     placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
     held ? `<g filter="url(#halo)">${held}</g>` : '',
     paw(x - 32, y + 2, p, 33),
@@ -88,6 +105,8 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
   switch (kind) {
     case 'sit':
       return sitting(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
+    case 'front':
+      return sittingFront(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'wave': {
       // His near paw raised beside his cheek, swinging between frames.
       const swing = frame % 2 === 0 ? 0 : 12;

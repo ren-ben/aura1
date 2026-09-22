@@ -1,7 +1,7 @@
 // Props and set dressing for scenes, in the same hand as the cat: paper fill
 // with a wobbling ink outline, so they read against his black fur. Dark props
 // in front of him get a paper halo. The cosmic and Bloodborne pieces (moons,
-// eyes in the dark, tentacles, the hunter's tricorn, the saw cleaver, lamps,
+// eyes in the dark, tentacles, the hunter's tricorn, the saw cleaver,
 // the void) carry the lore: an old god who likes you, from somewhere else.
 
 import { curve, ellipse, outline, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
@@ -149,14 +149,6 @@ export function cleaver(x: number, y: number, p: Palette, seed = 150): string {
   return drawn(blade, p, { seed, w: 5 }) + teeth + inkLine([[x + 4, y - 28], [x + 3, y + 10]], p, { seed: seed + 9, w: 8 });
 }
 
-// A hanging lamp, like the ones he lights between dreams.
-export function lamp(x: number, y: number, p: Palette, seed = 160): string {
-  const glass = outline([[x - 14, y - 12], [x + 14, y - 12], [x + 18, y + 16], [x - 18, y + 16]], 3);
-  return inkLine([[x, y - 60], [x, y - 12]], p, { seed, w: 3 }) + drawn(glass, p, { seed: seed + 1 })
-    + `<path d="${toPath(wobble(outline([[x, y - 6], [x + 5, y + 4], [x, y + 11], [x - 5, y + 4]]), seed + 2, 0.3))}" fill="${p.ink}"/>`
-    + inkLine([[x - 20, y - 14], [x + 20, y - 14]], p, { seed: seed + 3, w: 5 });
-}
-
 // A moon disc, solid so nothing shows through it. 'paleblood' is paper with a
 // dithered shadow along one side and two craters; 'blood' is dark.
 export function moon(x: number, y: number, r: number, p: Palette, kind: 'paleblood' | 'blood', seed = 170): string {
@@ -184,38 +176,82 @@ export function flower(x: number, y: number, h: number, p: Palette, seed = 310, 
     + `<path d="${toPath(ellipse(hx, hy, 3.5 * s, 3.5 * s, 12))}" fill="${p.ink}"/>`;
 }
 
-// Straight-edged line art for buildings: corners stay sharp, only the
-// vertices drift a little, like a woodcut.
-function sharp(pts: Pt[], p: Palette, seed: number, fill = p.paper, w = 5): string {
+// Buildings in his ink: solid silhouettes like his fur, with windows cut out
+// in paper. Corners stay sharp, only the vertices drift a little, like a
+// woodcut.
+function solid(pts: Pt[], p: Palette, seed: number, fill = p.ink): string {
   const r = rng(seed);
-  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'} ${(x + (r() - 0.5) * 2).toFixed(1)} ${(y + (r() - 0.5) * 2).toFixed(1)}`).join(' ');
-  return `<path d="${d} Z" fill="${fill}" stroke="${p.ink}" stroke-width="${w}" stroke-linejoin="miter"/>`;
+  const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'} ${(x + (r() - 0.5) * 1.6).toFixed(1)} ${(y + (r() - 0.5) * 1.6).toFixed(1)}`).join(' ');
+  return `<path d="${d} Z" fill="${fill}"/>`;
 }
 
-// A gothic town along the bottom: a cathedral with two needle-spired towers,
-// a rose window and pointed arches on the left, steep-gabled houses on the
-// right. The middle stays open for him.
+// A needle spire from (x0..x1, base) up to `tip`, with crockets: little
+// hooks jutting from its edges on the way up.
+function spire(x0: number, x1: number, base: number, tip: number, p: Palette, seed: number): string {
+  const cx = (x0 + x1) / 2;
+  const n = Math.max(2, Math.floor((base - tip) / 22));
+  const left: Pt[] = [];
+  const right: Pt[] = [];
+  for (let i = 0; i < n; ++i) {
+    const t = i / n;
+    const y = base - (base - tip) * t;
+    const half = ((x1 - x0) / 2) * (1 - t);
+    const t2 = (i + 0.5) / n;
+    const y2 = base - (base - tip) * t2;
+    const half2 = ((x1 - x0) / 2) * (1 - t2);
+    left.push([cx - half, y], [cx - half2 - 5, y2 + 4], [cx - half2, y2]);
+    right.push([cx + half, y], [cx + half2 + 5, y2 + 4], [cx + half2, y2]);
+  }
+  return solid([...left, [cx, tip], ...right.reverse()], p, seed)
+    + inkLine([[cx, tip + 2], [cx, tip - 14]], p, { seed: seed + 1, w: 3 })
+    + inkLine([[cx - 5, tip - 8], [cx + 5, tip - 8]], p, { seed: seed + 2, w: 3 });
+}
+
+// A pinnacle: a thin spike on a post, for tower corners and buttresses.
+const pinnacle = (x: number, y: number, h: number, p: Palette, seed: number) =>
+  solid([[x - 4, y], [x - 4, y - h * 0.4], [x, y - h], [x + 4, y - h * 0.4], [x + 4, y]], p, seed);
+
+// A pointed (lancet) window cut in paper.
+const lancet = (cx: number, top: number, w: number, h: number, p: Palette) =>
+  `<path d="M ${cx - w / 2} ${top + h} L ${cx - w / 2} ${top + w * 0.7} Q ${cx - w / 2} ${top + w * 0.15} ${cx} ${top} Q ${cx + w / 2} ${top + w * 0.15} ${cx + w / 2} ${top + w * 0.7} L ${cx + w / 2} ${top + h} Z" fill="${p.paper}"/>`;
+
+// A gothic town along the bottom, all in ink: a cathedral on the left with
+// two crocketed needle spires, pinnacles, a flying buttress, a rose window
+// and a pointed portal; a chapel spire at the right edge, clear of his tail
+// and under the moon. The middle stays open for him.
 export function gothicTown(p: Palette, seed = 320, { houses = true } = {}): string {
-  const base = 392;
-  const arch = (cx: number, top: number, w: number, h: number) =>
-    `<path d="M ${cx - w / 2} ${top + h} L ${cx - w / 2} ${top + w * 0.6} Q ${cx - w / 2} ${top + w * 0.2} ${cx} ${top} Q ${cx + w / 2} ${top + w * 0.2} ${cx + w / 2} ${top + w * 0.6} L ${cx + w / 2} ${top + h} Z" fill="${p.ink}"/>`;
-  const tower = (x0: number, x1: number, top: number, spire: number, s: number) => {
+  const base = 396;
+  const tower = (x0: number, x1: number, top: number, tip: number, s: number) => {
     const cx = (x0 + x1) / 2;
-    return sharp([[x0, base], [x0, top], [x0 - 3, top], [cx, spire], [x1 + 3, top], [x1, top], [x1, base]], p, s)
-      + inkLine([[cx, spire], [cx, spire - 16]], p, { seed: s + 1, w: 3 })
-      + inkLine([[cx - 6, spire - 10], [cx + 6, spire - 10]], p, { seed: s + 2, w: 3 })
-      + arch(cx, top + 18, 10, 26) + arch(cx, top + 60, 10, 26);
+    return solid([[x0, base], [x0, top], [x1, top], [x1, base]], p, s)
+      + spire(x0 + 2, x1 - 2, top, tip, p, s + 1)
+      + pinnacle(x0 + 1, top, 22, p, s + 2) + pinnacle(x1 - 1, top, 22, p, s + 3)
+      + lancet(cx, top + 16, 9, 30, p) + lancet(cx, top + 64, 9, 30, p);
   };
-  const cathedral = sharp([[28, base], [28, 272], [62, 236], [96, 272], [96, base]], p, seed)
-    + tower(6, 34, 222, 130, seed + 10) + tower(90, 116, 238, 158, seed + 20)
-    + `<path d="${toPath(ellipse(62, 292, 12, 12, 24))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="4"/>`
-    + `<path d="${toPath(ellipse(62, 292, 4, 4, 12))}" fill="${p.ink}"/>`
-    + arch(62, 342, 20, 50);
-  const house = (x0: number, x1: number, wall: number, peak: number, s: number) =>
-    sharp([[x0, base], [x0, wall], [(x0 + x1) / 2, peak], [x1, wall], [x1, base]], p, s)
-    + arch((x0 + x1) / 2, wall + 14, 10, 20);
+  const rose = (cx: number, cy: number, r: number) =>
+    `<path d="${toPath(ellipse(cx, cy, r, r, 28))}" fill="${p.paper}"/>`
+    + Array.from({ length: 4 }, (_, i) => {
+      const a = (i / 4) * Math.PI;
+      return inkLine([[cx - r * Math.cos(a), cy - r * Math.sin(a)], [cx + r * Math.cos(a), cy + r * Math.sin(a)]], p, { seed: seed + 60 + i, w: 3 });
+    }).join('')
+    + `<path d="${toPath(ellipse(cx, cy, 4, 4, 12))}" fill="${p.ink}"/>`;
+  const buttress = solid([[112, 300], [132, 320], [140, 348], [140, base], [132, base], [130, 352], [120, 326], [112, 318]], p, seed + 70)
+    + pinnacle(136, 350, 34, p, seed + 71);
+  const cathedral = solid([[30, base], [30, 268], [62, 226], [94, 268], [94, base]], p, seed)
+    + pinnacle(62, 230, 26, p, seed + 5)
+    + tower(4, 36, 214, 86, seed + 10) + tower(88, 116, 236, 128, seed + 20)
+    + buttress
+    + rose(62, 292, 14)
+    + lancet(62, 336, 22, 60, p);
+  const house = (x0: number, x1: number, wall: number, peak: number, s: number) => {
+    const cx = (x0 + x1) / 2;
+    return solid([[x0, base], [x0, wall], [cx, peak], [x1, wall], [x1, base]], p, s)
+      + pinnacle(cx, peak + 4, 18, p, s + 1)
+      + lancet(cx - 9, wall + 12, 8, 22, p) + lancet(cx + 9, wall + 12, 8, 22, p);
+  };
   const town = houses
-    ? house(304, 358, 322, 256, seed + 40) + house(350, 410, 338, 282, seed + 50)
+    ? solid([[362, base], [362, 262], [394, 262], [394, base]], p, seed + 45)
+      + spire(364, 392, 262, 160, p, seed + 46) + lancet(378, 284, 9, 28, p) + house(390, 424, 330, 290, seed + 50)
     : '';
   return cathedral + town;
 }

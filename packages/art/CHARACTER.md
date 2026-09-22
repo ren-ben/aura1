@@ -39,12 +39,14 @@ around the head. No brows.
 
 ## Scenes (the body kit and props)
 
-Poses (`src/body.ts`): sit, wave (animated paw), loaf, peek over an
-edge, reach (both paws up, yay), hold (something against his chest). Props
+Poses (`src/body.ts`): sit (turned a little, the usual), front (square to
+us, for variety), wave (animated paw), loaf, peek over an edge, reach (both
+paws up, yay), hold (something against his chest). The hunter's tricorn is
+worn (`wear.hat`) in the Hunter's Dream and on the hunt. Props
 (`src/props.ts`) are line art; anything he holds gets a paper halo so it reads
 on his fur. Lore pieces: paleblood and blood moons, the hunter's tricorn,
-saw cleaver and lamps, the dream's white flowers, messengers, Yharnam's
-cathedral and gables, Amygdala on the cathedral, the moon with something hanging from it,
+saw cleaver, the dream's white flowers, messengers, Yharnam's cathedral
+and chapel in solid ink, Amygdala on the cathedral, the moon with something hanging from it,
 the great eye at the window, runes, eyes in the dark, tentacles, and the
 void (his ink as a star field, on a dark night). `out/scenes.png` shows the
 whole library; `src/scenes.ts` is the list.

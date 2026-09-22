@@ -15,70 +15,45 @@ static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
 constexpr int LINE = 20;
 constexpr int MARGIN = 4;
 
-// Kael'thos' head as a tiny icon for the link: dozing while offline, eyes
-// open and calling out while he syncs. Online, the corner stays quiet.
-static const char* const CAT_ASLEEP[] = {
-  "#...........#",
-  "##.........##",
-  "###.......###",
-  "#############",
-  "#############",
-  "#############",
-  "##...###...##",
-  "#############",
-  "#############",
-  ".###########.",
-  "...#######...",
-};
-static const char* const CAT_AWAKE[] = {
-  "#...........#",
-  "##.........##",
-  "###.......###",
-  "#############",
-  "#############",
-  "###..###..###",
-  "###..###..###",
-  "#############",
-  "#############",
-  ".###########.",
-  "...#######...",
-};
-
-static void icon(const char* const rows[], int count, int x, int y) {
-  for (int r = 0; r < count; ++r) {
-    for (int c = 0; rows[r][c]; ++c) {
-      if (rows[r][c] == '#') display.drawPixel(x + c, y + r, GxEPD_BLACK);
-    }
-  }
-}
+// Kael'thos' head from the art pack, 24 px, for the link: eyes open with a
+// call going out while he syncs, shut while offline. Online, the corner stays
+// quiet. Kept in memory from boot; without the pack a word stands in.
+constexpr int ICON = 24;
+static std::vector<uint8_t> syncIcon, offlineIcon;
 
 // The corner: top-right over a scene, bottom-right under a list. The battery
-// is an outline with a nub, filled in quarters; a bolt beside it while it
-// charges; the cat to the left of both when syncing or offline. Each sits on
-// white so it reads over a scene.
+// is an outline with a nub, filled in quarters, or holding a bolt while it
+// charges; his head to its left when syncing or offline. Each sits on white
+// so it reads over a scene.
 static void drawCorner(const Status& s, bool top) {
   constexpr int X = 170, W = 24, H = 10;
   const int Y = top ? 4 : 188;
   display.fillRect(X - 2, Y - 2, W + 6, H + 4, GxEPD_WHITE);
   display.drawRect(X, Y, W, H, GxEPD_BLACK);
   display.fillRect(X + W, Y + 3, 2, H - 6, GxEPD_BLACK);
-  for (int q = 0; q < s.bars; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
   if (s.charging) {
-    constexpr int BX = 160;
-    display.fillRect(BX - 2, Y - 2, 10, H + 4, GxEPD_WHITE);
-    display.fillTriangle(BX + 5, Y, BX, Y + 6, BX + 3, Y + 6, GxEPD_BLACK);
-    display.fillTriangle(BX + 1, Y + H, BX + 6, Y + 4, BX + 3, Y + 4, GxEPD_BLACK);
+    const int cx = X + W / 2;
+    display.fillTriangle(cx + 2, Y + 1, cx - 4, Y + 6, cx + 1, Y + 5, GxEPD_BLACK);
+    display.fillTriangle(cx - 2, Y + H - 1, cx + 4, Y + 4, cx - 1, Y + 5, GxEPD_BLACK);
+  } else {
+    for (int q = 0; q < s.bars; ++q) display.fillRect(X + 2 + q * 5, Y + 2, 4, H - 4, GxEPD_BLACK);
   }
-  const int cx = s.charging ? 144 : 154, cy = Y - 1;
-  if (s.link == Link::Offline) {
-    display.fillRect(cx - 2, cy - 1, 17, 13, GxEPD_WHITE);
-    icon(CAT_ASLEEP, 11, cx, cy);
-  } else if (s.link == Link::Syncing) {
-    // Awake, with his call going out to the left.
-    display.fillRect(cx - 10, cy - 1, 25, 13, GxEPD_WHITE);
-    icon(CAT_AWAKE, 11, cx, cy);
-    display.drawCircleHelper(cx - 1, cy + 5, 3, 8 | 1, GxEPD_BLACK);
-    display.drawCircleHelper(cx - 1, cy + 5, 6, 8 | 1, GxEPD_BLACK);
+  if (s.link == Link::Online) return;
+  const bool syncing = s.link == Link::Syncing;
+  const std::vector<uint8_t>& art = syncing ? syncIcon : offlineIcon;
+  constexpr int IX = 144;
+  const int iy = top ? 1 : 176;
+  display.fillRect(IX - (syncing ? 10 : 2), iy, ICON + (syncing ? 12 : 4), ICON, GxEPD_WHITE);
+  if (art.empty()) {
+    display.setTextSize(1);
+    display.setCursor(IX, iy + 8);
+    display.print(syncing ? "..." : "off");
+    return;
+  }
+  display.drawBitmap(IX, iy, art.data(), ICON, ICON, GxEPD_BLACK);
+  if (syncing) {
+    display.drawCircleHelper(IX - 1, iy + 14, 3, 8 | 1, GxEPD_BLACK);
+    display.drawCircleHelper(IX - 1, iy + 14, 7, 8 | 1, GxEPD_BLACK);
   }
 }
 
@@ -150,6 +125,10 @@ void EinkRenderer::begin() {
     watchSize_ = w->size;
     watch_.emplace_back(frameBits, frameBits + (w->size + 7) / 8 * w->size);
   }
+  for (auto [id, icon] : { std::pair{ "status-sync", &syncIcon }, std::pair{ "status-offline", &offlineIcon } }) {
+    const ArtScene* w = findScene(art_, id);
+    if (w && w->size == ICON && loadFrame(framePath(*w, 0), ICON)) icon->assign(frameBits, frameBits + (ICON + 7) / 8 * ICON);
+  }
   if (!last.empty() && loadFrame(last[0], 200)) {
     glass.fillScreen(GxEPD_WHITE);
     glass.drawBitmap(0, 0, frameBits, 200, 200, GxEPD_BLACK);
@@ -220,7 +199,7 @@ void EinkRenderer::drawQuote(const ViewModel& vm) {
     display.print(("- " + vm.source).substr(0, 17).c_str());
   }
   const std::string count = std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.items.size());
-  display.setCursor(200 - EDGE - 6 * static_cast<int>(count.size()), 172);
+  display.setCursor(200 - EDGE - 6 * static_cast<int>(count.size()), 162);
   display.print(count.c_str());
 }
 
@@ -334,8 +313,8 @@ void EinkRenderer::setStatus(const Status& status) {
 // Only the corner, by partial refresh: the scene under it is still in
 // frameBits, so it is drawn back around the icons.
 void EinkRenderer::drawStatus(bool top) {
-  const int y = top ? 0 : 180;
-  display.setPartialWindow(128, y, 72, 20);
+  const int y = top ? 0 : 176;
+  display.setPartialWindow(136, y, 64, top ? 26 : 24);
   ++partials_;
   display.firstPage();
   do {
@@ -448,7 +427,8 @@ void EinkRenderer::drawList(const ViewModel& vm) {
   const char* act = vm.place == Place::Todos || vm.place == Place::Habits ? "tick"
     : vm.place == Place::Settings ? "change"
     : vm.place == Place::Activities && !vm.top ? "start" : "open";
-  display.print((std::string("SUN next    POWER ") + act).c_str());
+  // Short enough to end left of the corner, which redraws on its own.
+  display.print((std::string("SUN next  POWER ") + act).c_str());
   if (vm.place != Place::Menu) {
     display.setCursor(MARGIN, 186);
     display.print("hold SUN    back");

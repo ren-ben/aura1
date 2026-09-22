@@ -145,6 +145,10 @@ contract has exactly one definition.
 - **Phase 4** Device complete. MENU level, TODAY (today's todos, POWER ticks
   one off; ticks sync through the existing queue), HABITS, QUOTES, screensavers,
   decay rendering.
+- **Phase 4b** Skins as places. Bloodborne (Yharnam, the Hunter's Dream, the
+  hunter's hat, paleblood moon) moves out of the default look into a skin
+  picked in SETTINGS. A Halloween skin (pumpkins, bats, ghosts) for October.
+  The default stays the plain lofi study.
 - **Phase 5** Dashboard proper. Node graph, design system, motion, typography,
   and the 3D Kael'thos in the UI. The Phase 2 web is a functional prototype;
   this phase redesigns it. Installable as a PWA (manifest, icons, service
