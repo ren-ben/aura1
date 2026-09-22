@@ -48,5 +48,5 @@ AURA-1 is a custom time-tracking hardware artifact (ESP32-S3 + 1.54" E-Ink, 200x
 * **Progression & Systems:**
   * Global XP: Overall bond level with Kael'thos.
   * Discipline XP: Per-activity tracking (Astral Mechanics, Weaving the Veil, Deep Gnosis, Alchemical Code).
-  * Cosmetic Unlocks: Aesthetic skins (Default Jiji, Halloween Pumpkin-head, Astrolabe Halo, Inverted Blood Moon) and UI themes.
+  * Customization: skins chosen freely, never gated by level (Default Jiji, Halloween Pumpkin-head, Astrolabe Halo, Inverted Blood Moon) and UI themes.
   * Features: Habit heatmap node, timeblocking calendar node, and manual log entry (penalized to 50% XP yield).
