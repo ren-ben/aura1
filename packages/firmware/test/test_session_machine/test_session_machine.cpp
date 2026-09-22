@@ -588,16 +588,20 @@ void test_quotes_cycle_with_power() {
 void test_sun_turns_the_pages_of_a_long_quote() {
   TwoFolderRig rig;
   auto m = rig.machine();
-  // 40 words of 4 letters: 8 lines at 27 characters, two pages.
+  // 40 words: more than one page in the default look, however it sets them.
   std::string body;
   for (int i = 0; i < 40; ++i) body += "word ";
+  const int pages = quotePageCount(look(0), body, false);
+  TEST_ASSERT_TRUE(pages > 1);
   m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
                     "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
   m.begin();
   openPlace(m, 3);
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
-  m.handle(Input::SunShort);
-  TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().quotePage);
+  for (int p = 1; p < pages; ++p) {
+    m.handle(Input::SunShort);
+    TEST_ASSERT_EQUAL_INT(p, rig.renderer.last().quotePage);
+  }
   m.handle(Input::SunShort);
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
   m.handle(Input::SunShort);
@@ -626,9 +630,10 @@ void test_settings_change_text_size_and_keep_it() {
 void test_large_text_turns_more_pages() {
   TwoFolderRig rig;
   auto m = rig.machine();
-  // 20 words of 4 letters: one page small, two large (14 characters, 4 lines).
+  // A quote that fits one page small and takes two large.
   std::string body;
-  for (int i = 0; i < 20; ++i) body += "word ";
+  for (int i = 0; i < 40 && quotePageCount(look(0), body + "word ", false) == 1; ++i) body += "word ";
+  TEST_ASSERT_TRUE(quotePageCount(look(0), body, true) > 1);
   m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
                     "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
   m.begin();

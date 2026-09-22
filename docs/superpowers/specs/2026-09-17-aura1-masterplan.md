@@ -82,7 +82,7 @@ until confirmed on the web. One threshold, not two. This covers forgetting to
 press stop.
 
 - Activity level `L`: reached at cumulative XP `>= 30 * L^2`.
-- Bond XP: sum of all session XP. Bond levels gate skins.
+- Bond XP: sum of all session XP. Skins are free customization, never gated by level.
 
 ### Decay
 

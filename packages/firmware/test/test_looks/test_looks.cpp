@@ -77,6 +77,10 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
   quote.quote = "Talent hits a target no one else can hit. Genius hits a target no one else can see.";
   quote.source = "Schopenhauer";
   out.push_back({ "7quote", quote });
+  quote.quote = "The struggle itself toward the heights is enough to fill a man's heart. One must imagine Sisyphus happy, "
+                "for he knows the whole extent of his wretched condition, and it is what he thinks of during his descent.";
+  quote.source = "Albert Camus";
+  out.push_back({ "7quotelong", quote });
   return out;
 }
 

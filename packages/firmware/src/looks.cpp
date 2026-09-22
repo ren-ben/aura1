@@ -3,7 +3,7 @@
 #include <cctype>
 #include <cmath>
 #include <vector>
-#include "quote_text.h"
+#include "fonts/FreeSerifBold12pt7b.h"
 #include "fonts/Cinzel11.h"
 #include "fonts/Cinzel14.h"
 #include "fonts/Fell13.h"
@@ -161,18 +161,24 @@ std::string emptyNote(const ViewModel& vm) {
 
 int done(const std::vector<bool>& checks) { return static_cast<int>(std::count(checks.begin(), checks.end(), true)); }
 
-// The words of the quote's current page, as the session machine counts pages.
-std::string quotePage(const ViewModel& vm) {
-  const QuoteFit f = quoteFit(vm.largeText);
-  const auto lines = wrapWords(vm.quote, f.chars);
-  std::string out;
-  for (size_t i = static_cast<size_t>(vm.quotePage) * f.lines; i < lines.size() && i < (vm.quotePage + 1) * f.lines; ++i)
-    out += (out.empty() ? "" : " ") + lines[i];
-  return out;
+// The whole quote wrapped as the look sets it.
+std::vector<std::string> quoteWrap(const QuoteBox& b, const std::string& text) {
+  static Canvas measure;  // only its font is used, to measure words
+  measure.font(b.font, b.size);
+  return wrap(measure, b.upper ? upper(text) : text, b.width);
 }
 
-bool moreQuote(const ViewModel& vm) {
-  return vm.quotePage + 1 < quotePages(vm.quote, vm.largeText);
+// The lines of the quote's current page in a look.
+std::vector<std::string> quoteLines(const Look& look, const ViewModel& vm, const std::string& text) {
+  const QuoteBox b = look.quoteBox(vm.largeText);
+  const auto all = quoteWrap(b, text);
+  const size_t first = std::min(all.size(), static_cast<size_t>(vm.quotePage) * b.lines);
+  return { all.begin() + first, all.begin() + std::min(all.size(), first + b.lines) };
+}
+
+bool moreQuote(const Look& look, const ViewModel& vm, const std::string& text) {
+  const QuoteBox b = look.quoteBox(vm.largeText);
+  return static_cast<size_t>(vm.quotePage + 1) * b.lines < quoteWrap(b, text).size();
 }
 
 void moreMark(Canvas& c, int x, int y, uint8_t ink) { c.fillTriangle(x - 4, y, x + 4, y, x, y + 5, ink); }
@@ -254,6 +260,9 @@ void small(Canvas& c, const std::string& s, int x, int y, uint8_t ink) { c.font(
 class Codex : public Look {
 public:
   const char* name() const override { return "CODEX"; }
+  QuoteBox quoteBox(bool large) const override {
+    return large ? QuoteBox{ &FreeSerifBold12pt7b, 1, 172, 3 } : QuoteBox{ &FreeSerifItalic9pt7b, 1, 172, 4 };
+  }
   Corner corner(const ViewModel&, bool) const override { return { 4, INK }; }
 
   static void rule(Canvas& c, int y) {
@@ -297,12 +306,14 @@ public:
         gear(c, 6, 5, r.gearOn, INK);
         return;
       case Place::Quotes: {
-        c.font(vm.largeText ? &FreeSerifBold9pt7b : &FreeSerifItalic9pt7b);
-        const auto lines = wrap(c, quotePage(vm), 172);
-        for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 40 + static_cast<int>(i) * 19);
-        const int end = 40 + static_cast<int>(lines.size()) * 19 + 6;
+        const QuoteBox b = quoteBox(vm.largeText);
+        const int lh = vm.largeText ? 24 : 19;
+        const auto lines = quoteLines(*this, vm, vm.quote);
+        c.font(b.font);
+        for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 40 + static_cast<int>(i) * lh);
+        const int end = 40 + static_cast<int>(lines.size() - 1) * lh + 24;
         if (!vm.source.empty()) { c.font(&FreeSerif9pt7b); c.right(fit(c, "- " + vm.source, 172), 186, end); }
-        if (moreQuote(vm)) moreMark(c, 186, 120, INK);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 18, 120, INK);
         art.draw(c, "cameo", 64, 128, INK);
         return;
       }
@@ -341,6 +352,7 @@ public:
 class Nodes : public Look {
 public:
   const char* name() const override { return "NODES"; }
+  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ nullptr, 2, 166, 3 } : QuoteBox{ nullptr, 1, 166, 5 }; }
   Corner corner(const ViewModel& vm, bool scene) const override {
     return { scene || vm.place == Place::Menu || vm.place == Place::Quotes ? 4 : 184, INK };
   }
@@ -392,14 +404,14 @@ public:
         crumb(c, path + " " + std::to_string(vm.cursor + 1) + "/" + std::to_string(vm.items.size()));
         c.font(nullptr, vm.largeText ? 2 : 1);
         const int lh = vm.largeText ? 18 : 11;
-        const auto lines = wrap(c, quotePage(vm), 166);
+        const auto lines = quoteLines(*this, vm, vm.quote);
         const int h = static_cast<int>(lines.size()) * lh + 12;
         c.drawRoundRect(10, 28, 180, h, 6, INK); c.drawRoundRect(11, 29, 178, h - 2, 5, INK);
         for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 18, 35 + static_cast<int>(i) * lh);
         c.fillTriangle(36, 28 + h - 2, 50, 28 + h - 2, 40, 28 + h + 12, INK);
         c.fillTriangle(39, 28 + h - 3, 47, 28 + h - 3, 41, 28 + h + 6, PAPER);
         if (!vm.source.empty()) small(c, fit(c, "- " + upper(vm.source), 110), 84, 28 + h + 8, INK);
-        if (moreQuote(vm)) moreMark(c, 180, 28 + h + 4, INK);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 180, 28 + h + 4, INK);
         art.draw(c, "cameo", 8, 124, INK);
         return;
       }
@@ -440,6 +452,9 @@ public:
 class Focus : public Look {
 public:
   const char* name() const override { return "FOCUS"; }
+  QuoteBox quoteBox(bool large) const override {
+    return large ? QuoteBox{ &FreeSansBold12pt7b, 1, 184, 3 } : QuoteBox{ &FreeSans9pt7b, 1, 184, 4 };
+  }
   Corner corner(const ViewModel&, bool) const override { return { 4, INK }; }
 
   static void big(Canvas& c, const std::string& text, int y, int x0 = 0, int w = 200) {
@@ -466,12 +481,12 @@ public:
     c.font(nullptr, 1);
     if (vm.place == Place::Quotes) {
       c.centered("QUOTES", 6);
-      c.font(vm.largeText ? &FreeSansBold12pt7b : &FreeSans9pt7b);
+      c.font(quoteBox(vm.largeText).font);
       const int lh = vm.largeText ? 24 : 18;
-      const auto lines = wrap(c, quotePage(vm), 184);
+      const auto lines = quoteLines(*this, vm, vm.quote);
       for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 36 + static_cast<int>(i) * lh);
       if (!vm.source.empty()) { c.font(nullptr, 1); c.centered(fit(c, upper(vm.source), 180), 36 + static_cast<int>(lines.size()) * lh); }
-      if (moreQuote(vm)) moreMark(c, 186, 124, INK);
+      if (moreQuote(*this, vm, vm.quote)) moreMark(c, 186, 124, INK);
       art.draw(c, "watch-up", 68, 136, INK);
       return;
     }
@@ -524,6 +539,9 @@ public:
 class Containment : public Look {
 public:
   const char* name() const override { return "CONTAINMENT"; }
+  QuoteBox quoteBox(bool large) const override {
+    return large ? QuoteBox{ nullptr, 2, 188, 4, true } : QuoteBox{ nullptr, 1, 188, 7, true };
+  }
   Corner corner(const ViewModel&, bool scene) const override { return scene ? Corner{ 2, INK } : Corner{ 3, PAPER }; }
 
   static void mast(Canvas& c) {
@@ -576,10 +594,10 @@ public:
         small(c, num(vm.cursor) + "/" + num(static_cast<int>(vm.items.size()) - 1), 164, 34, INK);
         c.font(nullptr, vm.largeText ? 2 : 1);
         const int lh = vm.largeText ? 18 : 11;
-        const auto lines = wrap(c, upper(quotePage(vm)), 188);
+        const auto lines = quoteLines(*this, vm, vm.quote);
         for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 6, 52 + static_cast<int>(i) * lh);
         if (!vm.source.empty()) small(c, fit(c, "- " + upper(vm.source), 118), 6, 56 + static_cast<int>(lines.size()) * lh, INK);
-        if (moreQuote(vm)) moreMark(c, 110, 190, INK);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 110, 190, INK);
         feed(c, art, "watch-left", 130, 134);
         return;
       }
@@ -616,6 +634,7 @@ public:
 class Cathedral : public Look {
 public:
   const char* name() const override { return "CATHEDRAL"; }
+  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ &Fraktur14, 1, 140, 3 } : QuoteBox{ &Fell13, 1, 140, 4 }; }
   Corner corner(const ViewModel&, bool scene) const override { return { 4, scene ? PAPER : INK }; }
 
   // Half the arch's opening at row y: a pointed arch springing at y 110.
@@ -673,11 +692,12 @@ public:
         gear(c, 6, 5, r.gearOn, INK);
         return;
       case Place::Quotes: {
-        c.font(vm.largeText ? &Fraktur14 : &Fell13);
-        const auto lines = wrap(c, quotePage(vm), 150);
-        for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 56 + static_cast<int>(i) * 17);
-        if (!vm.source.empty()) { c.font(&Fraktur14); c.centered(fit(c, title(vm.source), 140), 64 + static_cast<int>(lines.size()) * 17); }
-        if (moreQuote(vm)) moreMark(c, 170, 116, INK);
+        c.font(quoteBox(vm.largeText).font);
+        const int lh = vm.largeText ? 19 : 16;
+        const auto lines = quoteLines(*this, vm, vm.quote);
+        for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 54 + static_cast<int>(i) * lh);
+        if (!vm.source.empty()) { c.font(&Fraktur14); c.centered(fit(c, title(vm.source), 140), 60 + static_cast<int>(lines.size()) * lh); }
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 164, 116, INK);
         art.draw(c, "cameo", 64, 128, INK);
         return;
       }
@@ -716,6 +736,7 @@ public:
 class Byrgenwerth : public Look {
 public:
   const char* name() const override { return "BYRGENWERTH"; }
+  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ &Fraktur14, 1, 144, 5 } : QuoteBox{ &Fell13, 1, 144, 6 }; }
   Corner corner(const ViewModel&, bool scene) const override { return { scene ? 4 : 184, INK }; }
 
   static void capital(Canvas& c, char letter, int x, int y) {
@@ -763,21 +784,16 @@ public:
         gear(c, 180, 14, r.gearOn, INK);
         return;
       case Place::Quotes: {
-        const std::string q = quotePage(vm);
-        if (q.empty()) return;
-        capital(c, static_cast<char>(std::toupper(static_cast<unsigned char>(q[0]))), 8, 8);
-        c.font(vm.largeText ? &Fraktur14 : &Fell13);
+        if (vm.quote.empty()) return;
+        // The capital opens the first page; the text keeps to its right.
+        const std::string rest = vm.quote.substr(1);
+        if (vm.quotePage == 0) capital(c, static_cast<char>(std::toupper(static_cast<unsigned char>(vm.quote[0]))), 8, 8);
+        c.font(quoteBox(vm.largeText).font);
         const int lh = vm.largeText ? 19 : 16;
-        const auto beside = wrap(c, q.substr(1), 140);
-        std::string rest;
-        for (size_t i = 0; i < beside.size(); ++i) {
-          if (i < 2) c.text(beside[i], 48, 20 + static_cast<int>(i) * lh);
-          else rest += (rest.empty() ? "" : " ") + beside[i];
-        }
-        const auto lines = wrap(c, rest, 184);
-        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 8, 56 + static_cast<int>(i) * lh);
-        if (!vm.source.empty()) { c.font(&Fraktur14); c.right(fit(c, title(vm.source), 120), 192, 62 + static_cast<int>(lines.size()) * lh); }
-        if (moreQuote(vm)) moreMark(c, 110, 190, INK);
+        const auto lines = quoteLines(*this, vm, rest);
+        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 48, 20 + static_cast<int>(i) * lh);
+        if (!vm.source.empty()) { c.font(&Fraktur14); c.right(fit(c, title(vm.source), 120), 192, 26 + static_cast<int>(lines.size()) * lh); }
+        if (moreQuote(*this, vm, rest)) moreMark(c, 110, 190, INK);
         art.draw(c, "watch-left", 136, 136, INK);
         return;
       }
@@ -815,6 +831,9 @@ public:
 class Carmilla : public Look {
 public:
   const char* name() const override { return "CARMILLA"; }
+  QuoteBox quoteBox(bool large) const override {
+    return large ? QuoteBox{ &Cinzel14, 1, 176, 3, true } : QuoteBox{ &Cinzel11, 1, 176, 4, true };
+  }
   Corner corner(const ViewModel&, bool scene) const override { return { scene ? 4 : 13, INK }; }
 
   // A band of lace hanging from the top (or rising from the bottom): an ink
@@ -890,12 +909,12 @@ public:
         gear(c, 8, 174, r.gearOn, INK);
         return;
       case Place::Quotes: {
-        c.font(vm.largeText ? &Cinzel14 : &Cinzel11);
-        const int lh = vm.largeText ? 20 : 16;
-        const auto lines = wrap(c, upper(quotePage(vm)), 176);
+        c.font(quoteBox(vm.largeText).font);
+        const int lh = vm.largeText ? 18 : 14;
+        const auto lines = quoteLines(*this, vm, vm.quote);
         for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 44 + static_cast<int>(i) * lh);
         if (!vm.source.empty()) bats(c, fit(c, upper(vm.source), 130), 52 + static_cast<int>(lines.size()) * lh);
-        if (moreQuote(vm)) moreMark(c, 186, 120, INK);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 186, 120, INK);
         art.draw(c, "cameo", 64, 122, INK);
         lace(c, false);
         return;
@@ -935,6 +954,7 @@ public:
 class BloodMoon : public Look {
 public:
   const char* name() const override { return "BLOOD MOON"; }
+  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ &Pirata18, 1, 118, 5 } : QuoteBox{ &Pirata13, 1, 118, 6 }; }
   bool negative() const override { return true; }
   Corner corner(const ViewModel&, bool scene) const override { return { scene ? 4 : 184, PAPER }; }
 
@@ -981,12 +1001,12 @@ public:
         c.icon(170, 20, GEAR, 13, r.gearOn ? INK : PAPER);
         return;
       case Place::Quotes: {
-        c.font(vm.largeText ? &Pirata18 : &Pirata13);
+        c.font(quoteBox(vm.largeText).font);
         const int lh = vm.largeText ? 22 : 18;
-        const auto lines = wrap(c, quotePage(vm), 150);
+        const auto lines = quoteLines(*this, vm, vm.quote);
         for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 12, 30 + static_cast<int>(i) * lh, PAPER);
         if (!vm.source.empty()) { c.font(&Pirata18); c.text(fit(c, title(vm.source), 120), 12, 42 + static_cast<int>(lines.size()) * lh, PAPER); }
-        if (moreQuote(vm)) moreMark(c, 110, 190, PAPER);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 110, 190, PAPER);
         art.draw(c, "watch-left", 136, 136, PAPER);
         return;
       }
@@ -1020,6 +1040,7 @@ public:
 class Rite : public Look {
 public:
   const char* name() const override { return "RITE"; }
+  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ &Grenze18, 1, 176, 3 } : QuoteBox{ &Grenze13, 1, 176, 4 }; }
   Corner corner(const ViewModel&, bool) const override { return { 4, INK }; }
 
   static constexpr int CX = 100, CY = 112, R = 62;
@@ -1067,12 +1088,12 @@ public:
     std::string head = title(pageTitle(vm));
     if (vm.place == Place::Todos || vm.place == Place::Habits) head += "  " + std::to_string(done(vm.checks)) + "/" + std::to_string(n);
     if (vm.place == Place::Quotes) {
-      c.font(vm.largeText ? &Grenze18 : &Grenze13);
+      c.font(quoteBox(vm.largeText).font);
       const int lh = vm.largeText ? 22 : 18;
-      const auto lines = wrap(c, quotePage(vm), 176);
+      const auto lines = quoteLines(*this, vm, vm.quote);
       for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 30 + static_cast<int>(i) * lh);
       if (!vm.source.empty()) { c.font(&Grenze18); c.centered(fit(c, title(vm.source), 176), 40 + static_cast<int>(lines.size()) * lh); }
-      if (moreQuote(vm)) moreMark(c, 186, 124, INK);
+      if (moreQuote(*this, vm, vm.quote)) moreMark(c, 186, 124, INK);
       art.draw(c, "cameo", 64, 128, INK);
       return;
     }
@@ -1113,6 +1134,12 @@ const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, 
 }  // namespace
 
 int lookCount() { return sizeof(LOOKS) / sizeof(LOOKS[0]); }
+
+int quotePageCount(const Look& look, const std::string& text, bool large) {
+  const QuoteBox b = look.quoteBox(large);
+  const size_t lines = quoteWrap(b, text).size();
+  return lines == 0 ? 1 : static_cast<int>((lines + b.lines - 1) / b.lines);
+}
 
 const Look& look(int index) {
   const int n = lookCount();

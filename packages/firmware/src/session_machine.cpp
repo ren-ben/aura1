@@ -1,7 +1,6 @@
 #include "session_machine.h"
 #include "art_index.h"
 #include "looks.h"
-#include "quote_text.h"
 #include "validate.h"
 #include <algorithm>
 #include <cctype>
@@ -334,7 +333,7 @@ void SessionMachine::browse(Input input) {
       if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort && count) { quote_ = (quote_ + 1) % count; quotePage_ = 0; draw(); }
       else if (input == Input::SunShort && count) {
-        const int pages = quotePages(daily_.quotes()[quote_].body, largeText_);
+        const int pages = quotePageCount(look(look_), daily_.quotes()[quote_].body, largeText_);
         if (pages > 1) { quotePage_ = (quotePage_ + 1) % pages; draw(); }
       }
       break;

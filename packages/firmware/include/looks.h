@@ -16,6 +16,16 @@ public:
 
 struct Corner { int y; uint8_t ink; };
 
+// Where a look sets a quote: its font, the width of a line and how many lines
+// fit above Kael'thos. A long quote is paged to fit, measured in that font.
+struct QuoteBox {
+  const GFXfont* font;  // null: the classic font at size
+  int size;
+  int width;
+  int lines;
+  bool upper = false;   // set in capitals
+};
+
 // How every page is drawn: the menu, lists, quotes and settings, and the
 // caption over a running or sealed scene. Chosen in the settings.
 class Look {
@@ -29,7 +39,11 @@ public:
   virtual bool negative() const { return false; }
   // Where the battery and link sit, over a page or over a scene.
   virtual Corner corner(const ViewModel& vm, bool scene) const = 0;
+  virtual QuoteBox quoteBox(bool large) const = 0;
 };
+
+// How many pages a quote takes in a look, for SUN to turn through.
+int quotePageCount(const Look& look, const std::string& text, bool large);
 
 int lookCount();
 const Look& look(int index);  // wraps around
