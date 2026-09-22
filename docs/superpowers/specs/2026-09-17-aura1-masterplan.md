@@ -149,14 +149,14 @@ contract has exactly one definition.
   hunter's hat, paleblood moon) moves out of the default look into a skin
   picked in SETTINGS. A Halloween skin (pumpkins, bats, ghosts) for October.
   The default stays the plain lofi study.
-- **Phase 5** Dashboard proper. Node graph, design system, motion, typography,
-  and the 3D Kael'thos in the UI. The Phase 2 web is a functional prototype;
-  this phase redesigns it. Installable as a PWA (manifest, icons, service
-  worker for an offline shell) so it lives on the phone's home screen.
 - **Phase 4c** Looks (done 2026-09-22). Nine page designs picked in
   SETTINGS: Codex, Nodes, Focus, Containment, Cathedral, Byrgenwerth, Carmilla,
   Blood Moon, Rite. Settings as a gear, battery panel, habit graphs, todos
   that drop off at the user's midnight.
+- **Phase 5** Dashboard proper. Node graph, design system, motion, typography,
+  and the 3D Kael'thos in the UI. The Phase 2 web is a functional prototype;
+  this phase redesigns it. Installable as a PWA (manifest, icons, service
+  worker for an offline shell) so it lives on the phone's home screen.
 - **Phase 6** Reader. Books on the SD card (EPUB converted to plain paginated
   text on the server, pushed by sync), read page by page; Kael'thos reading
   in the lower-right corner. Chapter jump, progress saved per book. A

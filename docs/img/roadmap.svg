@@ -1,14 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 250" width="960" height="250" role="img" aria-label="Roadmap: six phases from the vertical slice to audio">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 250" width="960" height="250" role="img" aria-label="Roadmap: phases 1 to 4 done, phase 5 the dashboard now, then reader, companion, mood and workouts">
   <defs>
     <style>
       .h { font: 600 13px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #C5BCAB; letter-spacing: 3px; }
       .p { font: 11px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #6E6A62; letter-spacing: 1px; }
       .pNow { font: 11px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #DBD5CA; letter-spacing: 1px; }
-      .t { font: 600 13px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #DBD5CA; }
-      .s { font: 11px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #9A9385; }
-      .rail { stroke: #6E6A62; stroke-width: 1.2; }
-      .done { stroke: #C5BCAB; stroke-width: 1.2; }
-      .node { fill: #121212; stroke: #C5BCAB; stroke-width: 1.2; }
+      .t { font: 600 12px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #DBD5CA; }
+      .tDone { font: 600 12px system-ui, -apple-system, 'Segoe UI', sans-serif; fill: #6E6A62; }
+      .s { font: 10px ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; fill: #9A9385; }
+      .rail { stroke: #3A3834; stroke-width: 1.2; }
+      .done { stroke: #6E6A62; stroke-width: 1.2; }
+      .node { fill: #121212; stroke: #6E6A62; stroke-width: 1.2; }
+      .nodeDone { fill: #6E6A62; stroke: #6E6A62; stroke-width: 1.2; }
       .nodeNow { fill: #C5BCAB; stroke: #C5BCAB; stroke-width: 1.2; }
     </style>
     <pattern id="dither" width="4" height="4" patternUnits="userSpaceOnUse">
@@ -22,48 +24,52 @@
   <text x="20" y="34" class="h">ROADMAP</text>
 
   <line x1="60" y1="110" x2="900" y2="110" class="rail"/>
+  <line x1="60" y1="110" x2="480" y2="110" class="done"/>
 
-  <!-- 1 -->
-  <text x="60" y="88" text-anchor="middle" class="pNow">PHASE 1</text>
-  <circle cx="60" cy="110" r="9" class="nodeNow"/>
-  <text x="60" y="142" text-anchor="middle" class="t">Vertical slice</text>
-  <text x="60" y="162" text-anchor="middle" class="s">you are here:</text>
-  <text x="60" y="178" text-anchor="middle" class="s">hardware test</text>
+  <text x="60" y="88" text-anchor="middle" class="p">1</text>
+  <circle cx="60" cy="110" r="7" class="nodeDone"/>
+  <text x="60" y="140" text-anchor="middle" class="tDone">Slice</text>
+  <text x="60" y="158" text-anchor="middle" class="s">done</text>
 
-  <!-- 2 -->
-  <text x="228" y="88" text-anchor="middle" class="p">PHASE 2</text>
-  <circle cx="228" cy="110" r="9" class="node"/>
-  <text x="228" y="142" text-anchor="middle" class="t">Full features</text>
-  <text x="228" y="162" text-anchor="middle" class="s">habits, todos,</text>
-  <text x="228" y="178" text-anchor="middle" class="s">quotes, XP, decay</text>
+  <text x="165" y="88" text-anchor="middle" class="p">2</text>
+  <circle cx="165" cy="110" r="7" class="nodeDone"/>
+  <text x="165" y="140" text-anchor="middle" class="tDone">Features</text>
+  <text x="165" y="158" text-anchor="middle" class="s">done</text>
 
-  <!-- 3 -->
-  <text x="396" y="88" text-anchor="middle" class="p">PHASE 3</text>
-  <circle cx="396" cy="110" r="9" class="node"/>
-  <text x="396" y="142" text-anchor="middle" class="t">Kael'thos art</text>
-  <text x="396" y="162" text-anchor="middle" class="s">SVG rig, 3D,</text>
-  <text x="396" y="178" text-anchor="middle" class="s">skins, poses</text>
+  <text x="270" y="88" text-anchor="middle" class="p">3</text>
+  <circle cx="270" cy="110" r="7" class="nodeDone"/>
+  <text x="270" y="140" text-anchor="middle" class="tDone">Kael'thos</text>
+  <text x="270" y="158" text-anchor="middle" class="s">done</text>
 
-  <!-- 4 -->
-  <text x="564" y="88" text-anchor="middle" class="p">PHASE 4</text>
-  <circle cx="564" cy="110" r="9" class="node"/>
-  <text x="564" y="142" text-anchor="middle" class="t">Device UI</text>
-  <text x="564" y="162" text-anchor="middle" class="s">menu, TODAY,</text>
-  <text x="564" y="178" text-anchor="middle" class="s">screensavers</text>
+  <text x="375" y="88" text-anchor="middle" class="p">4</text>
+  <circle cx="375" cy="110" r="7" class="nodeDone"/>
+  <text x="375" y="140" text-anchor="middle" class="tDone">Device UI</text>
+  <text x="375" y="158" text-anchor="middle" class="s">done, looks</text>
 
-  <!-- 5 -->
-  <text x="732" y="88" text-anchor="middle" class="p">PHASE 5</text>
-  <circle cx="732" cy="110" r="9" class="node"/>
-  <text x="732" y="142" text-anchor="middle" class="t">Dashboard</text>
-  <text x="732" y="162" text-anchor="middle" class="s">node graph, PWA,</text>
-  <text x="732" y="178" text-anchor="middle" class="s">type, motion</text>
+  <text x="480" y="88" text-anchor="middle" class="pNow">5  NOW</text>
+  <circle cx="480" cy="110" r="10" class="nodeNow"/>
+  <text x="480" y="140" text-anchor="middle" class="t">Dashboard</text>
+  <text x="480" y="158" text-anchor="middle" class="s">the real design</text>
 
-  <!-- 6 -->
-  <text x="900" y="88" text-anchor="middle" class="p">PHASE 6</text>
-  <circle cx="900" cy="110" r="9" class="node"/>
-  <text x="900" y="142" text-anchor="middle" class="t">Audio</text>
-  <text x="900" y="162" text-anchor="middle" class="s">speaker, mic,</text>
-  <text x="900" y="178" text-anchor="middle" class="s">quote capture</text>
+  <text x="585" y="88" text-anchor="middle" class="p">6</text>
+  <circle cx="585" cy="110" r="7" class="node"/>
+  <text x="585" y="140" text-anchor="middle" class="t">Reader</text>
+  <text x="585" y="158" text-anchor="middle" class="s">books</text>
 
-  <text x="480" y="228" text-anchor="middle" class="s">Phases 3 and 5 need your design input most.</text>
+  <text x="690" y="88" text-anchor="middle" class="p">7</text>
+  <circle cx="690" cy="110" r="7" class="node"/>
+  <text x="690" y="140" text-anchor="middle" class="t">Companion</text>
+  <text x="690" y="158" text-anchor="middle" class="s">talk to him</text>
+
+  <text x="795" y="88" text-anchor="middle" class="p">8</text>
+  <circle cx="795" cy="110" r="7" class="node"/>
+  <text x="795" y="140" text-anchor="middle" class="t">Mood</text>
+  <text x="795" y="158" text-anchor="middle" class="s">details later</text>
+
+  <text x="900" y="88" text-anchor="middle" class="p">9</text>
+  <circle cx="900" cy="110" r="7" class="node"/>
+  <text x="900" y="140" text-anchor="middle" class="t">Workouts</text>
+  <text x="900" y="158" text-anchor="middle" class="s">details later</text>
+
+  <text x="480" y="222" text-anchor="middle" class="s">Hardware check of the latest firmware runs alongside phase 5.</text>
 </svg>

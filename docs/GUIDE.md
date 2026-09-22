@@ -186,24 +186,40 @@ in [hardware-checklist.md](hardware-checklist.md).
 - **Holding POWER to switch on is safe.** The button only counts once it has been released
   after boot, so switching on never starts a session or switches straight back off.
 
-## What comes next
+## Where we are
 
 ![Roadmap](img/roadmap.svg)
 
-1. **Fix what the hardware test finds.** The vertical slice is then done.
-2. **Cleanup:** upgrade Node to 22+, which removes three workarounds.
-3. **Phase 2, full features (done):** the web page has tabs for the log with manual
-   backfill (half XP) and review of sessions over 6 hours, todos, habits with a 26-week
-   heatmap, the quote vault, activity management, and stats (XP, levels, decay).
-4. **Phase 3, Kael'thos (done):** the locked design (`packages/art/STYLE.md`), 18
-   expressions, full-body poses, props and a 60+ scene library with animations
-   (`packages/art/CHARACTER.md`), played on the device from the SD card; on the web a
-   turning 3D outline while loading and ASCII rotation on Stats.
-5. **Phase 4, device UI (done, open item below):** the menu, TODAY, HABITS, QUOTES with
-   him saying them, celebrations, the screensaver and decay on the device. Still open:
-   the RESURRECTION ritual (a 60-minute session to wake him from dormancy); for now any
-   session wakes him.
-6. **Phase 5, dashboard:** the real design replacing today's functional prototype: the
-   node-graph interface, typography, dither, motion and the 3D Kael'thos. (Installing it
-   on the phone already works: see step 4.)
-7. **Phase 6, audio:** a speaker signature, and mic capture into the quote vault.
+**Done**
+
+1. **Phase 1, vertical slice:** a session from the device to the database and back.
+2. **Phase 2, full features:** the web page has tabs for the log with manual backfill
+   (half XP) and review of sessions over 6 hours, todos, habits with a 26-week heatmap,
+   the quote vault, activity management, and stats (XP, levels, decay).
+3. **Phase 3, Kael'thos:** the locked design (`packages/art/STYLE.md`), 18 expressions,
+   full-body poses, props and an 85-scene library with animations
+   (`packages/art/CHARACTER.md`), played from the SD card; on the web a turning 3D
+   outline while loading and ASCII rotation on Stats.
+4. **Phase 4, device UI:** the menu, TODAY, HABITS with twelve-week graphs, QUOTES with
+   him saying them, celebrations, the screensaver and decay, reliable sync, the status
+   corner, and nine looks picked in the settings.
+
+**Now**
+
+5. **Phase 5, dashboard:** the real design replacing today's functional prototype, from
+   the references in `inspiration/`: the node-graph interface, typography, dither,
+   motion and the 3D Kael'thos. Installing it on the phone already works (step 4).
+
+**Next**
+
+6. **Phase 6, reader:** books on the card, chapter jumps, saved progress, highlights
+   picked and annotated on the web, Kael'thos reading in the corner.
+7. **Phase 7, companion:** conversations with Kael'thos through an LLM, answered yes or
+   no with the two buttons.
+8. **Phase 8, mood tracker.** Details to come.
+9. **Phase 9, workout tracker:** weights and cardio. Details to come.
+
+**Open along the way:** the Bloodborne and Halloween skins (phase 4b, planned); check the
+latest firmware on the hardware (sync speed, the
+charging bolt, the looks); the RESURRECTION ritual (for now any session wakes him);
+upgrade Node to 22+, which removes three workarounds. Audio is dropped.
