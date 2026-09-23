@@ -193,8 +193,6 @@ void loop() {
       esp_deep_sleep_start();
     }
     machine.handle(input);
-    // The page is on the glass now, so a second SUN from here is a double.
-    if (input == Input::SunShort) buttons.armDouble();
     // A session just sealed, or SYNC NOW in the settings.
     if (machine.takeSyncRequest()) { retryMs = 0; startSync(25000, true); }
     else if (machine.screen() == Screen::Stopped) startSync();

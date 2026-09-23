@@ -24,7 +24,6 @@ constexpr int PIN_BATTERY     = 4;   // ADC1 ch3, battery through a 1:2 divider
 
 constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;
-constexpr unsigned long DOUBLE_MS = 420;  // a second SUN within this goes back up
 
 class Buttons {
 public:
@@ -41,24 +40,13 @@ public:
 
   bool poll(Input& out) {
     arm();
-    // A single press acts at once: nothing is held back to watch for a second
-    // one, because that wait is felt on every press.
-    // Two presses close together: back up the list. The window opens when the
-    // page finishes drawing, not when the press was read, because a page of
-    // e-ink takes the best part of a second and the tap that follows it comes
-    // after that, not during it.
-    if (shortAt_ && digitalRead(PIN_SUN_BTN) == LOW && !sunDown_
-        && millis() - sunEdge_ >= DEBOUNCE_MS && millis() - shortAt_ < DOUBLE_MS) {
-      shortAt_ = 0;
-      sunDown_ = true;
-      sunLong_ = true;  // whatever this press does next, it fires nothing more
-      sunAt_ = sunEdge_ = millis();
-      out = Input::SunDouble;
-      return true;
-    }
+    // SUN means one thing: the next item. A second press is the next item
+    // again, whenever it comes. Telling a deliberate second press apart from
+    // half of a double tap by time alone cannot be done on a screen that
+    // takes the best part of a second to settle, and guessing wrong moves the
+    // cursor somewhere the user did not ask for.
     Input s;
     if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, s)) {
-      shortAt_ = 0;
       out = s;
       return true;
     }
@@ -79,10 +67,6 @@ public:
   }
 
   static void powerOff() { digitalWrite(PIN_POWER_HOLD, LOW); }
-
-  // Called once the page a short SUN asked for is on the glass: from here a
-  // second press within DOUBLE_MS means "back up the list".
-  void armDouble() { shortAt_ = millis(); }
 
 private:
   // Arm POWER only once it has read HIGH for a full DEBOUNCE_MS, so the
@@ -118,7 +102,6 @@ private:
     return false;
   }
 
-  unsigned long shortAt_ = 0;  // when the page a short SUN asked for was drawn
   bool sunDown_ = false, pwrDown_ = false;
   bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;
