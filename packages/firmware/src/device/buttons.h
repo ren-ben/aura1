@@ -24,6 +24,7 @@ constexpr int PIN_BATTERY     = 4;   // ADC1 ch3, battery through a 1:2 divider
 
 constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;
+constexpr unsigned long DOUBLE_MS = 260;  // a second SUN within this goes back up
 
 class Buttons {
 public:
@@ -40,7 +41,21 @@ public:
 
   bool poll(Input& out) {
     arm();
-    if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, out)) return true;
+    Input sun;
+    if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, sun)) {
+      // A short press is held back long enough to see whether a second one
+      // follows: two together move the selection back up the list.
+      if (sun == Input::SunShort) {
+        if (held_) { held_ = false; out = Input::SunDouble; return true; }
+        held_ = true;
+        heldAt_ = millis();
+        return false;
+      }
+      held_ = false;  // a long press cancels anything waiting
+      out = sun;
+      return true;
+    }
+    if (held_ && millis() - heldAt_ >= DOUBLE_MS) { held_ = false; out = Input::SunShort; return true; }
     return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrLong_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
   }
 
@@ -53,7 +68,7 @@ public:
 
   // Nothing held and nothing half-handled: safe to sleep until the next press.
   bool settled() const {
-    return !sunDown_ && !pwrDown_
+    return !held_ && !sunDown_ && !pwrDown_
         && digitalRead(PIN_SUN_BTN) == HIGH && digitalRead(PIN_POWER_BTN) == HIGH;
   }
 
@@ -93,6 +108,8 @@ private:
     return false;
   }
 
+  bool held_ = false;         // a short SUN waiting to see if a second follows
+  unsigned long heldAt_ = 0;
   bool sunDown_ = false, pwrDown_ = false;
   bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;

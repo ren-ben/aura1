@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import { rng } from '../gl/engine';
-import { constellation, galaxy, lights, nebula, planet, stars } from '../gl/models';
+import { constellation, galaxy, lights, planet, stars } from '../gl/models';
 import { duration, state } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -48,9 +48,7 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
   });
   const far = galaxy(14000, 9, 3); far.position.set(-6, -3, -16); far.rotation.set(1.1, 0, 0.4); scene.add(far);
   scene.add(stars(1400, 30, 12, 0.06));
-  // Weather in the deep: two sheets of gas and a chart line between the stars.
-  const gas = nebula(7, 40); gas.position.set(8, 3, -24); gas.material.opacity = 0.5; scene.add(gas);
-  const gas2 = nebula(23, 30); gas2.position.set(-11, -5, -20); gas2.rotation.z = 1.1; gas2.material.opacity = 0.45; scene.add(gas2);
+  // A chart line drawn between a handful of the fixed stars.
   scene.add(constellation(31, 22));
   // Dust between the orbits, so the dark is not empty.
   const dust = new THREE.BufferGeometry();
@@ -78,8 +76,6 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
     halo.rotation.z = t * 0.2;
     far.rotation.y = t * 0.01;
     cloud.rotation.y = t * 0.02;
-    gas.material.opacity = 0.42 + Math.sin(t * 0.13) * 0.12;
-    gas2.material.opacity = 0.38 + Math.sin(t * 0.09 + 2) * 0.12;
     for (const b of bodies) {
       const a = b.phase + t * b.speed;
       b.p.position.set(Math.cos(a) * b.w.orbit, 0, Math.sin(a) * b.w.orbit);
@@ -111,8 +107,14 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
       <div class="worlds">
       <div v-for="w in sorted" :key="w.name" class="path">
         <div class="wh"><span class="fell">{{ w.name[0] + w.name.slice(1).toLowerCase() }}</span><span class="tek">{{ duration(w.minutes) }}</span></div>
-        <div class="moons"><span v-for="a in w.acts" :key="a.name" class="pix">{{ a.name }} {{ a.level }}</span></div>
-        <div class="orb"><i :style="{ width: `${w.share * 100}%` }"></i></div>
+        <div class="moons">
+          <div v-for="a in w.acts" :key="a.name" class="moon">
+            <span class="pix">{{ a.name }}</span>
+            <span class="lv"><i v-for="n in 10" :key="n" :class="{ on: n <= a.level }"></i></span>
+            <span class="note">{{ duration(a.minutes) }}</span>
+          </div>
+        </div>
+        <div class="orb" :title="`${Math.round(w.share * 100)}% of the sky`"><i :style="{ width: `${w.share * 100}%` }"></i></div>
       </div>
       </div>
       <div class="almanac">
@@ -136,7 +138,7 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 .labels { position: absolute; inset: 0; pointer-events: none; }
 .labels span { position: absolute; transform: translate(-50%, -100%); font: 400 10px var(--pix); color: var(--hi); text-transform: uppercase; text-shadow: 0 0 4px #121212; }
 .side { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; min-height: 0; }
-.worlds { display: grid; gap: 12px; align-content: start; min-height: 0; overflow: auto; }
+.worlds { display: grid; gap: 12px; align-content: stretch; min-height: 0; overflow: auto; }
 .path { border-bottom: 3px dotted var(--faint); padding-bottom: 8px; }
 .orb { height: 5px; margin-top: 6px; background: radial-gradient(circle, var(--low) 1px, transparent 1.4px) 0 50% / 5px 5px repeat-x; }
 .orb i { display: block; height: 5px; background: radial-gradient(circle, var(--phos) 1.4px, transparent 1.8px) 0 50% / 5px 5px repeat-x; }
@@ -146,7 +148,13 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 .wh { display: flex; justify-content: space-between; align-items: baseline; }
 .wh .fell { font-size: 22px; color: var(--hi); }
 .wh .tek { font-size: 20px; }
-.moons { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.path { display: grid; align-content: start; }
+.moons { display: grid; gap: 3px; margin-top: 6px; }
+.moon { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+.lv { display: flex; gap: 2px; }
+.lv i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+.lv i.on { background: var(--phos); }
+.moon .note { font-size: 12px; min-width: 52px; text-align: right; }
 @media (max-aspect-ratio: 5/4) { .orrery { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); } }
 @media (max-width: 860px) { .orrery { display: flex; flex-direction: column; } .sky { min-height: 380px; } }
 </style>

@@ -3,7 +3,10 @@
 // Amygdala Inc. knows, and how the terms have been kept so far.
 import { computed } from 'vue';
 import Frame from '../components/Frame.vue';
+import Gl from '../components/Gl.vue';
 import Plate from '../components/Plate.vue';
+import { lights, tesseract } from '../gl/models';
+import * as THREE from 'three';
 import { gargantua, labyrinth } from '../gl/plate';
 import { dailyMinutes, state } from '../store';
 
@@ -11,6 +14,17 @@ defineProps<{ active: boolean }>();
 
 const horizon = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => gargantua(g, w, h, t);
 const corridor = (g: CanvasRenderingContext2D, w: number, h: number) => labyrinth(g, w, h, 12, Math.max(6, Math.round(w / 26)));
+
+// The seal pressed into the firmware, turning. Four dimensions, badly drawn
+// in three, the way he says every drawing of him is.
+const seal = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
+  camera.position.set(0, 0.4, 3.4); camera.lookAt(0, 0, 0);
+  const { lines, update } = tesseract();
+  lines.scale.setScalar(1.9);
+  group.add(lines);
+  lights(scene, 1.1, 1.3, 0.16);
+  return (t: number) => { update(t); lines.rotation.y = t * 0.35; lines.rotation.x = Math.sin(t * 0.22) * 0.4; };
+};
 
 const terms = computed(() => {
   const oldest = state.sessions.at(-1)?.startedAt;
@@ -62,6 +76,11 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
       <p class="note">Recommendation: <span class="redact">do not attempt recovery</span>. Recommendation overruled. Recommendation reinstated after the second team.</p>
     </Frame>
 
+    <Frame class="seal" title="the seal, as pressed into the firmware" flush>
+      <Gl :build="seal" :active="active" :options="{ drift: 0.003, tilt: 0.1, distance: 3.4 }" label="The seal of the pact, turning" />
+      <p class="note inside">Stamped on every build since the breach. Amygdala Inc. did not put it there.</p>
+    </Frame>
+
     <Frame class="corridor" title="the vessel, measured from inside" flush>
       <Plate :draw="corridor" :active="active" :cell="2" label="A plan of the device's inside, longer than its outside" />
       <p class="inside note">The unit measures 48 mm across the case. The corridor his containment describes, measured
@@ -79,9 +98,11 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
 
 <style scoped>
 .pact { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.25fr) minmax(0, .9fr);
-  grid-template-areas: "hole clauses dossier" "corridor clauses terms"; }
+  grid-template-areas: "hole clauses dossier" "corridor seal terms"; }
 .hole { grid-area: hole; }
 .corridor { grid-area: corridor; min-height: 140px; }
+.seal { grid-area: seal; min-height: 150px; }
+.clauses { min-height: 0; }
 .inside { padding: 10px 14px; border-top: 3px dotted var(--low); margin: 0; }
 .dist { position: absolute; left: 14px; bottom: 12px; display: grid; gap: 2px; pointer-events: none; }
 .dist .tek { font-size: 40px; }
@@ -100,7 +121,7 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
 .redact:hover { background: var(--low); color: var(--dim); }
 @media (max-aspect-ratio: 5/4) {
   .pact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.1fr) auto auto minmax(0, .6fr);
-    grid-template-areas: "hole clauses" "dossier dossier" "terms terms" "corridor corridor"; }
+    grid-template-areas: "hole clauses" "dossier dossier" "terms terms" "corridor seal"; }
 }
 @media (max-width: 860px) { .corridor { min-height: 180px; } .pact { display: flex; flex-direction: column; } .hole { min-height: 360px; } }
 </style>

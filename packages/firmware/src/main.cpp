@@ -70,12 +70,12 @@ static void checkBattery() {
 
 // Starts a sync unless one is already under way. The cat in the corner
 // opens his eyes until it ends.
-static void startSync(unsigned long connectMs = 20000) {
+static void startSync(unsigned long connectMs = 20000, bool forceScan = false) {
   if (syncClient.busy()) return;
   knownAtSync = !machine.daily().date().empty();
   levelAtSync = machine.daily().level();
   syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName() });
-  syncClient.start(connectMs);
+  syncClient.start(connectMs, forceScan);
   linkState = Link::Syncing;
   showStatus();
 }
@@ -177,7 +177,8 @@ void loop() {
     }
     machine.handle(input);
     // A session just sealed, or SYNC NOW in the settings.
-    if (machine.screen() == Screen::Stopped || machine.takeSyncRequest()) startSync();
+    if (machine.takeSyncRequest()) { retryMs = 0; startSync(25000, true); }
+    else if (machine.screen() == Screen::Stopped) startSync();
   }
 
   if (syncClient.busy()) pollSync();

@@ -1,6 +1,7 @@
 #include "sync_client.h"
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -15,7 +16,7 @@ constexpr unsigned long HANDSHAKE_TIMEOUT_S = 20;  // library default is 120 s
 // Radio up, one POST, radio down. Every path ends with the radio off and the
 // bootloader entropy source back on: it conflicts with Wi-Fi, and outside sync
 // it keeps esp_random() truly random for session uuids.
-void SyncClient::start(unsigned long connectTimeoutMs) {
+void SyncClient::start(unsigned long connectTimeoutMs, bool forceScan) {
   if (busy_) return;
   bootloader_random_disable();
   WiFi.persistent(false);       // nothing to flash: the credentials are compiled in
@@ -25,7 +26,7 @@ void SyncClient::start(unsigned long connectTimeoutMs) {
   startedAt_ = millis();
   timeout_ = connectTimeoutMs;
   // Straight to the hotspot joined last: no scan, joined in about a second.
-  const auto saved = storage_.readLines(WIFI_FILE);
+  const auto saved = forceScan ? std::vector<std::string>{} : storage_.readLines(WIFI_FILE);
   uint8_t bssid[6];
   int channel = 0;
   if (!saved.empty() && std::sscanf(saved[0].c_str(), "%d %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &channel,
@@ -43,6 +44,10 @@ void SyncClient::start(unsigned long connectTimeoutMs) {
 void SyncClient::joinByScan() {
   direct_ = false;
   scanAt_ = millis();
+  missingAt_ = 0;
+  // The scan gets a whole budget of its own: it begins where the direct join
+  // gave up, and a phone hotspot can be slow to answer a first probe.
+  startedAt_ = scanAt_;
   WiFi.disconnect();
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
   WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
@@ -67,11 +72,18 @@ bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, Syn
     // The hotspot moved channel, or another phone: scan after all.
     if (direct_ && millis() - startedAt_ >= DIRECT_MS) { joinByScan(); return false; }
     // A whole scan without the hotspot in it: offline, no point waiting.
-    const bool notThere = !direct_ && status == WL_NO_SSID_AVAIL && millis() - scanAt_ >= NOT_THERE_MS;
+    // The status has to say so without interruption: it reads NO_SSID_AVAIL
+    // for a moment between probes even when the hotspot is there.
+    if (status != WL_NO_SSID_AVAIL) missingAt_ = 0;
+    else if (!missingAt_) missingAt_ = millis();
+    const bool notThere = !direct_ && missingAt_ && millis() - missingAt_ >= NOT_THERE_MS;
     if (!notThere && millis() - startedAt_ < timeout_) return false;
     // Diagnostics only: never a header, the service token, or the Wi-Fi
     // credentials, only the outcome of this attempt.
     Serial.printf("sync failed: no wifi (status %d)\n", WiFi.status());
+    // Forget where the hotspot was: it has moved, or it is another one, and
+    // the remembered channel would only cost the next try its first 4 s.
+    storage_.write(WIFI_FILE, "");
     radioOff();
     result = SyncOutcome::NoWifi;
     return true;

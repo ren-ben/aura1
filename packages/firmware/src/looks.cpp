@@ -1037,86 +1037,118 @@ public:
 // ---------------------------------------------------------------- I: The Rite
 // A summoning circle: the items stand around the ring, the chosen one turned
 // to the top, and he is summoned in the middle.
-class Rite : public Look {
+// The console: the device wearing the dashboard's own language. Dotted
+// frames, a strip that names each one, pixel capitals for the rows and
+// blackletter for the name of the page, the way the web reads.
+class Console : public Look {
 public:
-  const char* name() const override { return "RITE"; }
-  QuoteBox quoteBox(bool large) const override { return large ? QuoteBox{ &Grenze18, 1, 176, 3 } : QuoteBox{ &Grenze13, 1, 176, 4 }; }
+  const char* name() const override { return "CONSOLE"; }
+  QuoteBox quoteBox(bool large) const override {
+    return large ? QuoteBox{ &FreeSansBold12pt7b, 1, 164, 4 } : QuoteBox{ &FreeSans9pt7b, 1, 164, 5 };
+  }
   Corner corner(const ViewModel&, bool) const override { return { 4, INK }; }
 
-  static constexpr int CX = 100, CY = 112, R = 62;
-  static void ring(Canvas& c) {
-    c.drawCircle(CX, CY, R, INK); c.drawCircle(CX, CY, R - 3, INK); c.drawCircle(CX, CY, R - 14, INK);
-    for (int k = 0; k < 40; k += 5) {
-      const double a = k / 40.0 * HALF_TURN * 2;
-      c.line(static_cast<int>(CX + std::cos(a) * (R - 4)), static_cast<int>(CY + std::sin(a) * (R - 4)),
-             static_cast<int>(CX + std::cos(a) * (R - 12)), static_cast<int>(CY + std::sin(a) * (R - 12)), INK);
-    }
-    // A five-pointed star within, dotted.
-    for (int k = 0; k < 5; ++k) {
-      const double a0 = (k * 2 % 5) / 5.0 * HALF_TURN * 2, a1 = ((k + 1) * 2 % 5) / 5.0 * HALF_TURN * 2;
-      const double x0 = CX + std::sin(a0) * (R - 15), y0 = CY - std::cos(a0) * (R - 15);
-      const double x1 = CX + std::sin(a1) * (R - 15), y1 = CY - std::cos(a1) * (R - 15);
-      for (int t = 0; t <= 50; t += 2) c.pixel(static_cast<int>(x0 + (x1 - x0) * t / 50), static_cast<int>(y0 + (y1 - y0) * t / 50), INK);
+  static constexpr int TOP = 18;  // the status corner owns the strip above
+
+  // A dotted border, as every frame on the web has.
+  static void dotRect(Canvas& c, int x, int y, int w, int h, uint8_t ink) {
+    for (int i = 0; i < w; i += 3) { c.pixel(x + i, y, ink); c.pixel(x + i, y + h - 1, ink); }
+    for (int i = 0; i < h; i += 3) { c.pixel(x, y + i, ink); c.pixel(x + w - 1, y + i, ink); }
+  }
+  // The strip on top of a frame: what it holds, and the lamp at its end.
+  static void frame(Canvas& c, int x, int y, int w, int h, const std::string& text) {
+    dotRect(c, x, y, w, h, INK);
+    c.font(&FreeSansBold9pt7b);
+    c.text(upper(fit(c, text, w - 30)), x + 5, y + 12, INK);
+    c.fillRect(x + w - 11, y + 5, 5, 5, INK);
+    for (int i = 0; i < w; i += 3) c.pixel(x + i, y + 16, INK);
+  }
+  static void rows(Canvas& c, const Rows& r, int top, int visible) {
+    const int first = firstRow(std::max(r.cur, 0), visible);
+    for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
+      const int y = top + (i - first) * 20;
+      const bool sel = i == r.cur;
+      const uint8_t fg = sel ? PAPER : INK;
+      if (sel) c.fillRect(12, y, 176, 19, INK);
+      c.font(&FreeSansBold9pt7b);
+      int x = 17;
+      if (sel) { c.text(">", x, y + 14, fg); x += 11; }
+      if (!r.checks.empty()) {
+        c.drawRect(x, y + 5, 9, 9, fg);
+        if (r.checks[i]) c.fillRect(x + 2, y + 7, 5, 5, fg);
+        x += 15;
+      }
+      const std::string label = upper(fit(c, r.items[i], r.values.empty() ? 162 - x : 86));
+      c.text(label, x, y + 14, fg);
+      if (!r.values.empty()) { c.font(&FreeSans9pt7b); c.right(upper(fit(c, r.values[i], 84)), 181, y + 14, fg); }
     }
   }
-  // The labels around the ring, the chosen one at the top; up to eight show.
-  static void labels(Canvas& c, const ViewModel& vm) {
-    const int n = static_cast<int>(vm.items.size());
-    const int slots = std::min(n, 8);
-    for (int k = -(slots - 1) / 2; k <= slots / 2; ++k) {
-      const int i = ((vm.cursor + k) % n + n) % n;
-      const double a = static_cast<double>(k) / slots * HALF_TURN * 2 - HALF_TURN / 2;
-      const int x = static_cast<int>(CX + std::cos(a) * R), y = static_cast<int>(CY + std::sin(a) * R);
-      const bool sel = k == 0;
-      std::string text = vm.place == Place::Menu || !vm.values.empty() ? title(vm.items[i]) : vm.items[i];
-      if (!vm.values.empty()) text += " " + title(vm.values[i]);
-      if (!vm.checks.empty() && vm.checks[i]) text = "+ " + text;
-      c.font(sel ? &Grenze18 : &Grenze13);
-      text = fit(c, text, sel ? 150 : 84);
-      const bool isGear = i == vm.gear;
-      const int w = isGear ? 21 : c.width(text) + 10, h = sel ? 22 : 17;
-      const int bx = std::max(2, std::min(198 - w, x - w / 2)), by = y - h / 2;
-      c.fillRect(bx, by, w, h, sel ? INK : PAPER);
-      if (!sel) c.drawRect(bx, by, w, h, INK);
-      if (isGear) c.icon(bx + 4, by + (h - 13) / 2, GEAR, 13, sel ? PAPER : INK);
-      else c.text(text, bx + 5, by + h - 5, sel ? PAPER : INK);
-    }
+  // The plate at the foot, as the console names the pane it is showing.
+  static void nameplate(Canvas& c, const std::string& text) {
+    for (int i = 0; i < 176; i += 3) c.pixel(12 + i, 176, INK);
+    c.font(&Fraktur14); c.text(title(text), 12, 195, INK);
+    c.font(&FreeSansBold9pt7b); c.right(upper("aura-1"), 188, 193, INK);
   }
 
   void page(Canvas& c, const ViewModel& vm, const Status& s, ArtSource& art) const override {
-    const int n = static_cast<int>(vm.items.size());
-    std::string head = title(pageTitle(vm));
-    if (vm.place == Place::Todos || vm.place == Place::Habits) head += "  " + std::to_string(done(vm.checks)) + "/" + std::to_string(n);
-    if (vm.place == Place::Quotes) {
-      c.font(quoteBox(vm.largeText).font);
-      const int lh = vm.largeText ? 22 : 18;
-      const auto lines = quoteLines(*this, vm, vm.quote);
-      for (size_t i = 0; i < lines.size(); ++i) c.centered(lines[i], 30 + static_cast<int>(i) * lh);
-      if (!vm.source.empty()) { c.font(&Grenze18); c.centered(fit(c, title(vm.source), 176), 40 + static_cast<int>(lines.size()) * lh); }
-      if (moreQuote(*this, vm, vm.quote)) moreMark(c, 186, 124, INK);
-      art.draw(c, "cameo", 64, 128, INK);
-      return;
+    const Rows r = rowsOf(vm);
+    const int n = static_cast<int>(r.items.size());
+    switch (vm.place) {
+      case Place::Menu:
+        art.draw(c, watchId(vm.cursor), 70, TOP - 14, INK);
+        c.font(&FreeSansBold9pt7b); c.text(upper("unit k-01"), 12, TOP + 4, INK);
+        for (int i = 0; i < 176; i += 3) c.pixel(12 + i, TOP + 50, INK);
+        frame(c, 8, TOP + 56, 184, 96, "where to");
+        rows(c, r, TOP + 76, 3);
+        gear(c, 168, TOP - 4, r.gearOn, INK);
+        nameplate(c, "console");
+        return;
+      case Place::Quotes: {
+        const QuoteBox b = quoteBox(vm.largeText);
+        const int lh = vm.largeText ? 22 : 17;
+        const auto lines = quoteLines(*this, vm, vm.quote);
+        frame(c, 8, TOP, 184, 150, "his voice");
+        c.font(b.font);
+        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 16, TOP + 40 + static_cast<int>(i) * lh);
+        if (!vm.source.empty()) { c.font(&FreeSansBold9pt7b); c.right(upper(fit(c, vm.source, 150)), 183, TOP + 142); }
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 178, TOP + 124, INK);
+        nameplate(c, "the library");
+        return;
+      }
+      case Place::Settings:
+        frame(c, 8, TOP, 184, 100, "settings");
+        rows(c, r, TOP + 19, 4);
+        frame(c, 8, TOP + 104, 184, 46, "the cell");
+        batteryPanel(c, 20, TOP + 118, s, &FreeSansBold9pt7b, nullptr, INK, true);
+        nameplate(c, "settings");
+        return;
+      case Place::Habits:
+        frame(c, 8, TOP, 184, 62, "rituals " + std::to_string(done(r.checks)) + "/" + std::to_string(n));
+        if (!n) break;
+        rows(c, r, TOP + 20, 2);
+        frame(c, 8, TOP + 66, 184, 84, "twelve weeks");
+        habitGraph(c, 16, TOP + 90, r.history[r.cur], Mark::Dot, INK);
+        c.font(&FreeSansBold9pt7b); c.right(upper(streakText(r.history[r.cur])), 183, TOP + 144, INK);
+        nameplate(c, "rituals");
+        return;
+      default: {
+        const bool todos = vm.place == Place::Todos;
+        frame(c, 8, TOP, 184, 150,
+              todos ? "today " + std::to_string(done(r.checks)) + "/" + std::to_string(n) : pageTitle(vm));
+        if (!n) break;
+        rows(c, r, TOP + 22, 6);
+        nameplate(c, todos ? "today" : "the paths");
+        return;
+      }
     }
-    c.font(&Grenze13); c.text(head, 6, 16);
-    ring(c);
-    if (!n) { c.font(&Grenze13); c.centered(emptyNote(vm), CY + 4); return; }
-    if (vm.place == Place::Habits) {
-      c.fillCircle(CX, CY, R - 15, PAPER);
-      habitGraph(c, CX - GRAPH_W / 2, CY - 30, hist(vm, vm.cursor), Mark::Dot, INK);
-      c.font(&Grenze13); c.centered(streakText(hist(vm, vm.cursor)), CY + 36);
-    } else if (vm.place == Place::Settings) {
-      c.fillCircle(CX, CY, R - 15, PAPER);
-      batteryPanel(c, CX - 24, CY - 22, s, &Grenze18, nullptr, INK, true);
-    } else {
-      c.fillCircle(CX, CY, R - 15, PAPER);
-      art.draw(c, watchId(vm.cursor), CX - 32, CY - 36, INK);
-    }
-    labels(c, vm);
+    c.font(&FreeSans9pt7b); c.centered(emptyNote(vm), 100);
+    nameplate(c, "console");
   }
 
   void caption(Canvas& c, const ViewModel&, const std::string& text) const override {
-    c.fillRect(0, 176, 200, 24, PAPER); c.hline(0, 176, 200, INK);
-    c.font(&Grenze18); c.centered(title(text), 195);
+    c.fillRect(0, 172, 200, 28, PAPER);
+    for (int i = 0; i < 200; i += 3) c.pixel(i, 172, INK);
+    c.font(&FreeSansBold9pt7b); c.text(upper(fit(c, text, 176)), 12, 190, INK);
   }
 };
 
@@ -1128,8 +1160,8 @@ const Cathedral CATHEDRAL;
 const Byrgenwerth BYRGENWERTH;
 const Carmilla CARMILLA;
 const BloodMoon BLOOD_MOON;
-const Rite RITE;
-const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, &BYRGENWERTH, &CARMILLA, &BLOOD_MOON, &RITE };
+const Console CONSOLE;
+const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, &BYRGENWERTH, &CARMILLA, &BLOOD_MOON, &CONSOLE };
 
 }  // namespace
 

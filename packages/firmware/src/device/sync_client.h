@@ -16,7 +16,9 @@ public:
 
   // Brings the radio up and returns at once: joining the hotspot takes
   // seconds, and the buttons keep working meanwhile.
-  void start(unsigned long connectTimeoutMs = 20000);
+  // forceScan skips the remembered hotspot: what a hand-made sync does, so a
+  // hotspot that came back on another channel is found at once.
+  void start(unsigned long connectTimeoutMs = 20000, bool forceScan = false);
   bool busy() const { return busy_; }
   // Called every loop while busy. Once joined it sends exactly one request
   // (blocking for the few seconds TLS takes) and brings the radio down; then
@@ -39,7 +41,7 @@ private:
   // its channel instead of scanning them all.
   static constexpr const char* WIFI_FILE = "/wifi.txt";  // "<channel> <bssid hex>"
   static constexpr unsigned long DIRECT_MS = 4000;       // then scan after all
-  static constexpr unsigned long NOT_THERE_MS = 5000;    // a scan found no hotspot
+  static constexpr unsigned long NOT_THERE_MS = 8000;    // a scan found no hotspot
 
   EventQueue& queue_;
   Clock& clock_;
@@ -48,8 +50,9 @@ private:
   bool busy_ = false;
   unsigned long startedAt_ = 0;
   unsigned long timeout_ = 0;
-  unsigned long scanAt_ = 0;  // when the scanning join began
-  bool direct_ = false;       // joining by the remembered channel
+  unsigned long scanAt_ = 0;    // when the scanning join began
+  unsigned long missingAt_ = 0; // when the hotspot first went missing in this scan
+  bool direct_ = false;         // joining by the remembered channel
   DeviceStatus status_;
   std::string look_;
 };

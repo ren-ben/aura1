@@ -59,6 +59,12 @@ void Carousel::next() {
   else cursor_ = (cursor_ + 1) % visible_.size();
 }
 
+void Carousel::previous() {
+  if (folders_.empty()) return;
+  if (level_ == Level::Folders) selectFolder(folderIndex_ + folders_.size() - 1);
+  else if (!visible_.empty()) cursor_ = (cursor_ + visible_.size() - 1) % visible_.size();
+}
+
 void Carousel::enter() {
   if (folders_.empty()) return;
   level_ = Level::Activities;

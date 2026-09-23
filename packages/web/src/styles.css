@@ -14,6 +14,7 @@
   --goth: 'UnifrakturMaguntia', 'IM Fell English', serif;
   --fell: 'IM Fell English', Georgia, serif;
   --ease: cubic-bezier(.72, 0, .18, 1);
+  --out: cubic-bezier(.16, 1, .3, 1);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -41,22 +42,24 @@ button { background: none; border: 0; cursor: pointer; padding: 0; }
 .kv > :nth-child(odd) { color: var(--dim); }
 .rule { border-top: 3px dotted var(--low); margin: 12px 0; }
 .leds { display: flex; gap: 4px; flex-wrap: wrap; }
-.leds i { width: 8px; height: 8px; border-radius: 50%; background: var(--low); flex: none; }
+.leds i { width: 8px; height: 8px; border-radius: 50%; background: var(--low); flex: none; transition: background .45s var(--out), box-shadow .45s var(--out); }
 .leds i.on { background: var(--phos); box-shadow: 0 0 6px rgba(197, 188, 171, .45); }
 
-.btn { border: 2px solid var(--phos); padding: 7px 12px; font: 400 10.5px var(--pix); text-transform: uppercase; white-space: nowrap; }
+.btn { border: 2px solid var(--phos); padding: 7px 12px; font: 400 10.5px var(--pix); text-transform: uppercase; white-space: nowrap;
+  transition: background .3s var(--out), color .3s var(--out), border-color .3s var(--out), transform .18s var(--out); }
 .btn:hover { background: var(--phos); color: var(--ground); }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: translateY(1px) scale(.985); }
 .btn.quiet { border-color: var(--low); color: var(--dim); }
 .btn.quiet:hover { border-color: var(--phos); background: none; color: var(--hi); }
-.x { color: var(--dim); font: 400 10px var(--pix); padding: 2px 4px; }
+.x { color: var(--dim); font: 400 10px var(--pix); padding: 2px 4px; transition: color .3s var(--out); }
 .x:hover { color: var(--hi); }
-.field { background: var(--deep); border: 2px solid var(--low); padding: 8px 10px; color: var(--hi); width: 100%; min-width: 0; }
+.field { background: var(--deep); border: 2px solid var(--low); padding: 8px 10px; color: var(--hi); width: 100%; min-width: 0;
+  transition: border-color .3s var(--out), background .3s var(--out); }
 .field:focus { border-color: var(--phos); outline: none; }
 .field::placeholder { color: var(--dim); }
 label.lab { display: grid; gap: 5px; min-width: 0; }
 label.lab > span { font: 400 10.5px var(--pix); color: var(--dim); text-transform: uppercase; }
-.row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > .grow { flex: 1; min-width: 120px; }
 
 .gl { display: block; width: 100%; height: 0; flex: 1 1 auto; min-height: 0; cursor: grab; touch-action: none; }
@@ -66,4 +69,11 @@ label.lab > span { font: 400 10.5px var(--pix); color: var(--dim); text-transfor
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+}
+
+/* The console moves the way a heavy thing moves: it starts, it settles. */
+.frame { transition: border-color .4s var(--out); }
+.tek, .pix, .note { transition: color .35s var(--out); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

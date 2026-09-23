@@ -3,6 +3,7 @@
 // weeks as moons, every habit side by side, and where new ones begin.
 import { computed, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
+import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import { bats, moonDisc, skyline, starfield } from '../gl/plate';
 import { actions, daysAgo, HABIT_DAYS, localDate, state } from '../store';
@@ -98,7 +99,7 @@ async function archive() {
       <div class="tabs" role="tablist">
         <button v-for="h in state.habits" :key="h.id" role="tab" :aria-selected="h.id === habit?.id" @click="chosen = h.id">{{ h.name }}</button>
       </div>
-      <div v-if="habit" class="heat" :aria-label="`${habit.name}, the last half year, a column a week`">
+      <div v-if="habit" :key="habit.id" class="heat" :aria-label="`${habit.name}, the last half year, a column a week`">
         <div v-for="(col, w) in weeks" :key="w" class="wk">
           <button v-for="(d, i) in col" :key="i" class="dot" :class="{ on: d && done.has(d), today: d === localDate(), none: !d }"
             :disabled="!d" :aria-label="d ? `${d}: ${done.has(d) ? 'kept' : 'not kept'}` : ''" @click="toggle(d)"></button>
@@ -110,9 +111,9 @@ async function archive() {
 
     <Frame class="chosen" :title="habit ? `the chosen // ${habit.name}` : 'the chosen'">
       <div class="pix">streak</div>
-      <div class="tek big">{{ habit ? streak(done) : 0 }}</div>
+      <div class="tek big"><Num :value="habit ? streak(done) : 0" /></div>
       <div class="kv">
-        <span>longest run</span><span>{{ best }} days</span>
+        <span>longest run</span><span><Num :value="best" /> days</span>
         <span>kept</span><span>{{ habit?.done.length ?? 0 }} of {{ HABIT_DAYS }} days</span>
         <span>today</span><span>{{ done.has(localDate()) ? 'kept' : 'still open' }}</span>
       </div>
@@ -159,7 +160,11 @@ async function archive() {
 .tabs button[aria-selected="true"]::before { content: '> '; }
 .heat { display: grid; grid-template-columns: repeat(27, minmax(0, 1fr)); gap: clamp(3px, .5vw, 7px); max-width: 1000px; }
 .wk { display: grid; gap: clamp(3px, .5vw, 7px); }
-.dot { aspect-ratio: 1; border-radius: 50%; background: var(--low); }
+.dot { aspect-ratio: 1; border-radius: 50%; background: var(--low); transition: background .4s var(--out), box-shadow .4s var(--out), transform .3s var(--out); }
+.dot:not(.none):active { transform: scale(.82); }
+.heat { animation: heatin .5s var(--out) both; }
+@keyframes heatin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tabs button { transition: color .3s var(--out); }
 .dot.on { background: var(--phos); box-shadow: 0 0 5px rgba(197, 188, 171, .4); }
 .dot.today { outline: 1px solid var(--hi); outline-offset: 2px; }
 .dot.none { visibility: hidden; }
@@ -181,6 +186,7 @@ async function archive() {
 .strip.sel .pix { color: var(--hi); }
 .strip .leds { flex-wrap: nowrap; gap: 3px; overflow: hidden; }
 .strip .leds i { width: 7px; height: 7px; }
+.strip { transition: opacity .3s var(--out); }
 .strip .tek { font-size: 20px; text-align: right; }
 @media (max-aspect-ratio: 5/4) {
   .rituals { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;

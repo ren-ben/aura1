@@ -29,6 +29,7 @@ public:
   // sync that renames things does not throw the user back to the top.
   void load(std::vector<FolderEntry> folders, std::vector<ActivityEntry> activities);
   void next();
+  void previous();  // SUN twice: back up the list
   void enter();  // folder list -> that folder's activities
   void up();     // activities -> folder list, cursor stays on the folder
   // Opens the activity's folder with the cursor on it. No-op for an unknown id.

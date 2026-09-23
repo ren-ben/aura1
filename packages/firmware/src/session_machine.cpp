@@ -270,7 +270,7 @@ void SessionMachine::handle(Input input) {
       break;
 
     case Screen::Stopped:
-      if (input == Input::PowerShort || input == Input::SunShort) {
+      if (input == Input::PowerShort || input == Input::SunShort || input == Input::SunDouble) {
         screen_ = Screen::Idle;
         draw();
       } else if (input == Input::Tick) {
@@ -295,6 +295,7 @@ void SessionMachine::browse(Input input) {
       const auto places = menu();
       menuCursor_ %= places.size();
       if (input == Input::SunShort) { menuCursor_ = (menuCursor_ + 1) % places.size(); draw(); }
+      else if (input == Input::SunDouble) { menuCursor_ = (menuCursor_ + places.size() - 1) % places.size(); draw(); }
       else if (input == Input::PowerShort) {
         if (places[menuCursor_] == Place::Resurrect) startSession(daily_.resurrectionId());
         else enter(places[menuCursor_]);
@@ -305,6 +306,7 @@ void SessionMachine::browse(Input input) {
       break;
     case Place::Activities:
       if (input == Input::SunShort) { carousel_.next(); draw(); }
+      else if (input == Input::SunDouble) { carousel_.previous(); draw(); }
       else if (input == Input::SunLong) {
         if (carousel_.level() == Level::Activities) carousel_.up();
         else place_ = Place::Menu;
@@ -319,6 +321,7 @@ void SessionMachine::browse(Input input) {
       const bool todos = place_ == Place::Todos;
       const size_t count = todos ? daily_.todos().size() : daily_.habits().size();
       if (input == Input::SunShort && count) { listCursor_ = (listCursor_ + 1) % count; draw(); }
+      else if (input == Input::SunDouble && count) { listCursor_ = (listCursor_ + count - 1) % count; draw(); }
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort && count) {
         const bool ticked = todos ? daily_.toggleTodo(listCursor_) : daily_.toggleHabit(listCursor_);
@@ -335,12 +338,16 @@ void SessionMachine::browse(Input input) {
       else if (input == Input::SunShort && count) {
         const int pages = quotePageCount(look(look_), daily_.quotes()[quote_].body, largeText_);
         if (pages > 1) { quotePage_ = (quotePage_ + 1) % pages; draw(); }
+      } else if (input == Input::SunDouble && count) {
+        const int pages = quotePageCount(look(look_), daily_.quotes()[quote_].body, largeText_);
+        if (pages > 1) { quotePage_ = (quotePage_ + pages - 1) % pages; draw(); }
       }
       break;
     }
     // SUN moves, POWER changes the line: text size, look, skin, or a sync now.
     case Place::Settings:
       if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % 4; draw(); }
+      else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 3) % 4; draw(); }
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort) {
         if (listCursor_ == 0) { largeText_ = !largeText_; saveSettings(); }

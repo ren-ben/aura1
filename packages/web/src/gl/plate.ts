@@ -161,6 +161,72 @@ export function bats(g: CanvasRenderingContext2D, w: number, h: number, t: numbe
   }
 }
 
+// A church seen from the ward: nave, buttresses, a tower with a lit lancet,
+// the spire above everything. Drawn as a silhouette against the sky.
+export function church(g: CanvasRenderingContext2D, cx: number, base: number, scale: number, seed = 5): void {
+  const r = rand(seed), s = scale;
+  const dark = grey(0.02);
+  g.fillStyle = dark;
+  // Nave, with a pitched roof.
+  const nw = 54 * s, nh = 40 * s, nx = cx - nw * 0.34;
+  g.fillRect(nx, base - nh, nw, nh);
+  g.beginPath(); g.moveTo(nx - 3 * s, base - nh); g.lineTo(nx + nw * 0.45, base - nh - 15 * s); g.lineTo(nx + nw + 3 * s, base - nh); g.closePath(); g.fill();
+  // Tower and spire.
+  const tw = 20 * s, th = 92 * s, tx = cx - nw * 0.34 - tw * 0.7;
+  g.fillRect(tx, base - th, tw, th);
+  g.beginPath(); g.moveTo(tx - 4 * s, base - th); g.lineTo(tx + tw / 2, base - th - 42 * s); g.lineTo(tx + tw + 4 * s, base - th); g.closePath(); g.fill();
+  // Buttresses along the nave.
+  for (let x = nx + 10 * s; x < nx + nw; x += 16 * s) {
+    g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - nh * 0.7); g.lineTo(x + 7 * s, base); g.closePath(); g.fill();
+  }
+  // What is lit inside: the rose window, the belfry, a lancet or two.
+  g.fillStyle = grey(0.62);
+  g.beginPath(); g.arc(nx + nw * 0.45, base - nh * 0.62, 5.5 * s, 0, 7); g.fill();
+  g.fillStyle = grey(0.5);
+  g.fillRect(tx + tw * 0.3, base - th + 9 * s, tw * 0.4, 9 * s);
+  for (let k = 0; k < 4; k++) {
+    if (r() < 0.45) continue;
+    g.fillRect(nx + 8 * s + k * 13 * s, base - nh * 0.45, 3.5 * s, 11 * s);
+  }
+}
+
+// Naked trees in the wind: every branch leans with the gust, the thin ones
+// most. Nothing on them - it is always the cold end of the year here.
+export function trees(g: CanvasRenderingContext2D, w: number, base: number, t: number, count: number, seed: number, scale = 1): void {
+  const r = rand(seed);
+  const gust = Math.sin(t * 0.7) * 0.06 + Math.sin(t * 1.9 + 1.3) * 0.03;
+  for (let i = 0; i < count; i++) {
+    const x = r() * w, height = (26 + r() * 40) * scale, lean = (r() - 0.5) * 0.3;
+    const shade = 0.02 + r() * 0.05;
+    g.strokeStyle = grey(shade); g.lineCap = 'round';
+    const limb = (x0: number, y0: number, len: number, ang: number, width: number, depth: number) => {
+      const sway = gust * (4 - depth) * (1.6 / Math.max(0.6, width));
+      const a = ang + sway;
+      const x1 = x0 + Math.sin(a) * len, y1 = y0 - Math.cos(a) * len;
+      g.lineWidth = Math.max(0.7, width);
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      if (depth >= 4 || len < 3) return;
+      const n = depth === 0 ? 3 : 2;
+      for (let k = 0; k < n; k++) {
+        limb(x1, y1, len * (0.58 + r() * 0.2), a + (k - (n - 1) / 2) * (0.5 + r() * 0.35), width * 0.55, depth + 1);
+      }
+    };
+    limb(x, base, height * 0.45, lean, Math.max(1, height * 0.055), 0);
+  }
+}
+
+// Rain or ash on the wind: short strokes, all leaning the same way.
+export function drift(g: CanvasRenderingContext2D, w: number, h: number, t: number, count: number, seed: number): void {
+  const r = rand(seed);
+  for (let i = 0; i < count; i++) {
+    const speed = 18 + r() * 26, phase = r() * 90;
+    const x = ((r() * w + t * speed * 0.6 + phase) % (w + 40)) - 20;
+    const y = ((r() * h + t * speed + phase * 3) % (h + 20)) - 10;
+    g.fillStyle = grey(0.3 + r() * 0.35);
+    g.fillRect(x, y, 1, 1 + (r() < 0.3 ? 1 : 0));
+  }
+}
+
 // The event horizon: the disk edge on, its far side bent over the top and
 // under the bottom, a thin photon ring, and nothing at all in the middle.
 export function gargantua(g: CanvasRenderingContext2D, w: number, h: number, t: number): void {

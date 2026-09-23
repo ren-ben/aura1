@@ -8,7 +8,7 @@
 #include "renderer.h"
 #include "view_model.h"
 
-enum class Input { SunShort, SunLong, PowerShort, PowerLong, Tick };
+enum class Input { SunShort, SunDouble, SunLong, PowerShort, PowerLong, Tick };
 
 std::string uuidV4(Random& random);
 

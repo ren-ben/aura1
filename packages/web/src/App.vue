@@ -4,7 +4,33 @@
 // shows the whole constellation while held; ctrl k or slash searches.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { PANES, type Pane } from './panes';
-import { load, state, today } from './store';
+import { dailyMinutes, duration, load, state, today } from './store';
+
+// What a pane is worth right now, for its card on the web: a line of its own
+// figures and twelve marks of its own history.
+function preview(id: string): { stat: string; bars: number[] } {
+  const days = dailyMinutes(84);
+  const weeks = Array.from({ length: 12 }, (_, i) => days.slice(i * 7, i * 7 + 7).reduce((a, b) => a + b, 0));
+  const top = Math.max(1, ...weeks);
+  const shape = weeks.map((v) => v / top);
+  const flat = (v: number) => Array.from({ length: 12 }, () => v);
+  switch (id) {
+    case 'today': return { stat: duration(today.value.minutes), bars: today.value.sessions.length ? shape : flat(0.12) };
+    case 'insight': return { stat: `${Math.round(days.reduce((a, b) => a + b, 0) / 60)}h in twelve weeks`, bars: shape };
+    case 'rituals': {
+      const kept = state.habits.filter((h) => h.done.includes(new Date().toISOString().slice(0, 10))).length;
+      return { stat: `${kept} of ${state.habits.length} kept today`, bars: state.habits.length ? shape.map((v) => 0.35 + v * 0.65) : flat(0.2) };
+    }
+    case 'paths': return { stat: `${state.folders.length} paths open`, bars: shape };
+    case 'entity': return { stat: `bond ${state.stats?.bond.level ?? 0} // form ${state.stats?.form ?? '--'}`, bars: shape };
+    case 'orrery': return { stat: `${state.folders.length} bodies in orbit`, bars: shape.map((v) => 1 - v * 0.6) };
+    case 'vessel': return { stat: state.device ? `${state.device.battery ?? '--'}% // ${(state.device.look ?? '').toLowerCase()}` : 'no report', bars: flat(0.5) };
+    case 'pact': return { stat: `${days.filter(Boolean).length} of 84 days fed`, bars: shape };
+    case 'log': return { stat: `${state.sessions.length} sessions kept`, bars: shape };
+    case 'library': return { stat: `${state.quotes.length} of his lines`, bars: flat(0.3) };
+    default: return { stat: 'sealed until it is built', bars: flat(0.08) };
+  }
+}
 
 const here = shallowRef<Pane>(PANES.find((p) => p.id === (location.hash.replace(/^#\/?/, '') || 'kael')) ?? PANES[0]!);
 const at = (c: number, r: number) => PANES.find((p) => p.c === c && p.r === r);
@@ -152,9 +178,12 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
       <svg class="edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <line v-for="(l, i) in mapEdges" :key="i" :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" />
       </svg>
-      <div v-for="p in PANES" :key="p.id" class="card" :class="{ here: p === here, sealed: p.kind === 'sealed' }" :data-pane="p.id"
-        :style="{ gridColumn: p.c - mapBox.c0 + 1, gridRow: p.r - mapBox.r0 + 1 }">
-        <b>{{ p.name }}</b><span>{{ p.kind }}</span>
+      <div v-for="(p, i) in PANES" :key="p.id" class="card" :class="{ here: p === here, sealed: p.kind === 'sealed' }" :data-pane="p.id"
+        :style="{ gridColumn: p.c - mapBox.c0 + 1, gridRow: p.r - mapBox.r0 + 1, '--i': i }">
+        <b>{{ p.name }}</b>
+        <span>{{ p.kind }}</span>
+        <span class="bars" aria-hidden="true"><i v-for="(v, k) in preview(p.id).bars" :key="k" :style="{ '--v': v }"></i></span>
+        <span class="stat">{{ preview(p.id).stat }}</span>
       </div>
     </div>
     <p class="pix say">let go over a pane to go there</p>
@@ -181,6 +210,8 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
 
 <style>
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
+.stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 104px; z-index: 5; pointer-events: none;
+  background: linear-gradient(to top, var(--ground) 34%, rgba(18, 18, 18, .82) 62%, transparent); }
 .world { position: absolute; left: 0; top: 0; transition: transform .7s var(--ease); will-change: transform;
   transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108vh)); }
 .pane { position: absolute; width: 100vw; height: 100vh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108vh); overflow: clip;
@@ -216,13 +247,24 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
 .hud .tools svg { width: 14px; height: 14px; }
 .hud .mini { right: 0; bottom: 4px; display: flex; gap: 14px; color: var(--dim); }
 
-.map { position: fixed; inset: 0; z-index: 25; background: rgba(12, 11, 10, .94); padding: 60px clamp(16px, 5vw, 80px) 90px; }
+.map { position: fixed; inset: 0; z-index: 25; background: rgba(12, 11, 10, .72); backdrop-filter: blur(14px) saturate(.6); -webkit-backdrop-filter: blur(14px) saturate(.6);
+  padding: 60px clamp(16px, 5vw, 80px) 90px; animation: mapin .34s var(--ease) both; }
+@keyframes mapin { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; } }
 .map .sky { position: absolute; inset: 0; background: radial-gradient(1px 1px at 20% 30%, var(--phos), transparent), radial-gradient(1px 1px at 70% 60%, var(--phos), transparent), radial-gradient(1px 1px at 40% 80%, var(--dim), transparent), radial-gradient(1px 1px at 85% 20%, var(--dim), transparent); background-size: 190px 170px; opacity: .6; }
 .map .grid { position: relative; display: grid; gap: 18px; height: 100%; }
 .map .edges { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .map .edges line { stroke: var(--phos); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0 9; vector-effect: non-scaling-stroke; animation: signal 1.1s linear infinite; }
 @keyframes signal { to { stroke-dashoffset: -18; } }
-.map .card { position: relative; border: 3px dotted var(--dim); background: var(--ground); display: grid; place-content: center; text-align: center; gap: 4px; cursor: pointer; }
+.map .card { position: relative; border: 3px dotted var(--dim); background: rgba(18, 18, 18, .82); display: grid; place-content: center; align-content: center; text-align: center; gap: 6px; cursor: pointer;
+  padding: 10px; transition: border-color .32s var(--ease), transform .32s var(--ease), box-shadow .32s var(--ease), opacity .32s var(--ease);
+  animation: cardin .44s var(--ease) both; animation-delay: calc(var(--i) * 22ms); }
+@keyframes cardin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+.map .card:hover { transform: translateY(-3px); }
+.map .card .bars { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 26px; margin-top: 2px; }
+.map .card .bars i { width: 4px; height: calc(4px + var(--v) * 22px); background: var(--low); transition: height .5s var(--ease); }
+.map .card:hover .bars i, .map .card.here .bars i { background: var(--phos); }
+.map .card .stat { color: var(--phos); }
+.map .card.sealed .stat { color: var(--dim); }
 .map .card:hover, .map .card.here { border-color: var(--hi); }
 .map .card.here { box-shadow: 0 0 0 4px var(--ground), 0 0 0 7px var(--dim); }
 .map .card.sealed { opacity: .5; }
