@@ -24,18 +24,7 @@ constexpr int PIN_BATTERY     = 4;   // ADC1 ch3, battery through a 1:2 divider
 
 constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;
-constexpr unsigned long DOUBLE_MS = 340;  // a second SUN within this goes back up
-
-// SUN, watched by the hardware itself. A page of e-ink takes the best part of
-// a second to draw, and poll() is not called while it does; a press that lands
-// in there is simply not seen. The interrupt sees it, so a second press
-// counts even when it arrives over the top of a redraw. Defined in
-// sun_watch.cpp: an IRAM handler cannot be inline.
-namespace sun {
-extern volatile unsigned long lastPress;
-extern volatile bool twice;
-void pressed();
-}  // namespace sun
+constexpr unsigned long DOUBLE_MS = 420;  // a second SUN within this goes back up
 
 class Buttons {
 public:
@@ -44,7 +33,6 @@ public:
     digitalWrite(PIN_POWER_HOLD, HIGH);  // latch power on, first thing
     pinMode(PIN_POWER_BTN, INPUT_PULLUP);
     pinMode(PIN_SUN_BTN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(PIN_SUN_BTN), sun::pressed, FALLING);
     // Holding POWER is how the board turns on, so it is usually still held here.
     // Ignore POWER until it has been seen released, or that release would
     // register as a long press and switch the device straight back off.
@@ -55,11 +43,14 @@ public:
     arm();
     // A single press acts at once: nothing is held back to watch for a second
     // one, because that wait is felt on every press.
-    // Two presses close together: back up the list. The second one is taken
-    // from the interrupt, so it counts however long the last page took to draw.
-    if (sun::twice) {
-      sun::twice = false;
-      sunDown_ = digitalRead(PIN_SUN_BTN) == LOW;
+    // Two presses close together: back up the list. The window opens when the
+    // page finishes drawing, not when the press was read, because a page of
+    // e-ink takes the best part of a second and the tap that follows it comes
+    // after that, not during it.
+    if (shortAt_ && digitalRead(PIN_SUN_BTN) == LOW && !sunDown_
+        && millis() - sunEdge_ >= DEBOUNCE_MS && millis() - shortAt_ < DOUBLE_MS) {
+      shortAt_ = 0;
+      sunDown_ = true;
       sunLong_ = true;  // whatever this press does next, it fires nothing more
       sunAt_ = sunEdge_ = millis();
       out = Input::SunDouble;
@@ -67,6 +58,7 @@ public:
     }
     Input s;
     if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, s)) {
+      shortAt_ = 0;
       out = s;
       return true;
     }
@@ -87,6 +79,10 @@ public:
   }
 
   static void powerOff() { digitalWrite(PIN_POWER_HOLD, LOW); }
+
+  // Called once the page a short SUN asked for is on the glass: from here a
+  // second press within DOUBLE_MS means "back up the list".
+  void armDouble() { shortAt_ = millis(); }
 
 private:
   // Arm POWER only once it has read HIGH for a full DEBOUNCE_MS, so the
@@ -122,6 +118,7 @@ private:
     return false;
   }
 
+  unsigned long shortAt_ = 0;  // when the page a short SUN asked for was drawn
   bool sunDown_ = false, pwrDown_ = false;
   bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;
