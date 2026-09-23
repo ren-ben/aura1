@@ -172,47 +172,306 @@ function lamp(g: CanvasRenderingContext2D, x: number, base: number, h: number, i
   g.beginPath(); g.moveTo(lx - h * 0.07, ly + h * 0.09); g.lineTo(lx, ly - h * 0.07); g.lineTo(lx + h * 0.07, ly + h * 0.09); g.closePath(); g.fill();
 }
 
-// One house of the ward: tall, narrow, steep-roofed, its windows in storeys,
-// with chimneys and the odd shutter hanging open.
-function house(g: CanvasRenderingContext2D, x: number, base: number, w: number, h: number, ink: Ink, r: () => number): void {
+// A chimney stack, with its pots.
+function stack(g: CanvasRenderingContext2D, x: number, top: number, w: number, h: number, ink: Ink, r: () => number): void {
   g.fillStyle = ink.body;
-  g.fillRect(x, base - h, w, h);
-  // The lit edge, on the side the moon is.
+  g.fillRect(x, top - h, w, h + 1);
   g.fillStyle = ink.edge;
-  g.fillRect(x, base - h, 1, h);
-  g.fillRect(x, base - h, w, 1);
+  g.fillRect(x, top - h, w, Math.max(1, w * 0.22));   // the cap oversails the stack
+  g.fillRect(x - w * 0.14, top - h, w * 1.28, 1);
+  if (w > 3) for (let k = 0, n = 1 + Math.floor(r() * 2); k < n; k++) {
+    const pw = Math.max(1, w * 0.3);
+    g.fillStyle = ink.body;
+    g.fillRect(x + w * 0.12 + k * pw * 1.7, top - h - w * 0.5, pw, w * 0.5);
+  }
+}
 
-  // The roof: steep, and hipped over the front.
-  const rh = h * (0.16 + r() * 0.16);
+// Iron along a ridge: the spikes, and something on the end of it.
+function ridgeIron(g: CanvasRenderingContext2D, x0: number, x1: number, y: number, ink: Ink, r: () => number): void {
+  const span = x1 - x0;
+  if (span < 6) return;
+  const step = Math.max(2, span / (3 + Math.floor(r() * 5)));
+  g.fillStyle = ink.edge;
+  for (let x = x0 + step * 0.5; x < x1; x += step) {
+    g.fillRect(x, y - step * 0.5, 1, step * 0.5);
+    g.fillRect(x - 0.5, y - step * 0.55, 2, 1);
+  }
+}
+
+// A weathervane, or a cross, on the highest point of a roof.
+function finial(g: CanvasRenderingContext2D, x: number, y: number, s: number, ink: Ink, r: () => number): void {
+  if (s < 1.2) return;
+  g.fillStyle = ink.edge;
+  g.fillRect(x, y - s * 3.2, 1, s * 3.2);
+  if (r() < 0.5) {
+    g.fillRect(x - s * 1.1, y - s * 2.4, s * 2.4, 1);          // a cross
+  } else {
+    g.fillRect(x - s * 0.9, y - s * 2.8, s * 1.9, 1);          // and a vane
+    g.beginPath();
+    g.moveTo(x + 1, y - s * 3.2);
+    g.lineTo(x + s * 2.4, y - s * 2.6);
+    g.lineTo(x + 1, y - s * 2);
+    g.closePath(); g.fill();
+  }
+}
+
+// A turret corbelled off a corner: the bracket, the drum, and a cone on top.
+function turret(g: CanvasRenderingContext2D, x: number, top: number, w: number, h: number, ink: Ink, lit: boolean): void {
+  if (w < 2.5) return;
+  g.fillStyle = ink.body;
+  g.beginPath();                                   // the corbel it stands on
+  g.moveTo(x, top);
+  g.lineTo(x + w, top);
+  g.lineTo(x + w * 0.72, top + w * 0.9);
+  g.lineTo(x + w * 0.28, top + w * 0.9);
+  g.closePath(); g.fill();
+  g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke();
+  g.fillStyle = ink.body;
+  g.fillRect(x, top - h, w, h);
+  g.fillStyle = ink.edge;
+  g.fillRect(x, top - h, 1, h);
+  g.beginPath();                                   // the cone
+  g.moveTo(x - w * 0.22, top - h);
+  g.lineTo(x + w / 2, top - h - w * 1.7);
+  g.lineTo(x + w * 1.22, top - h);
+  g.closePath();
+  g.fillStyle = ink.body; g.fill();
+  g.strokeStyle = ink.edge; g.stroke();
+  if (lit && w > 3) lancet(g, x + w * 0.3, top - h * 0.7, w * 0.4, h * 0.42, ink, true);
+}
+
+// A dormer: a little gabled window standing out of a roof slope.
+function dormer(g: CanvasRenderingContext2D, x: number, y: number, w: number, ink: Ink, lit: boolean): void {
+  if (w < 2.5) return;
+  const h = w * 1.15;
   g.fillStyle = ink.body;
   g.beginPath();
-  g.moveTo(x - w * 0.09, base - h);
-  g.lineTo(x + w * (0.3 + r() * 0.4), base - h - rh);
-  g.lineTo(x + w * 1.09, base - h);
-  g.closePath();
-  g.fill();
+  g.moveTo(x, y);
+  g.lineTo(x, y - h * 0.6);
+  g.lineTo(x + w / 2, y - h);
+  g.lineTo(x + w, y - h * 0.6);
+  g.lineTo(x + w, y);
+  g.closePath(); g.fill();
   g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke();
+  if (w > 3.4) lancet(g, x + w * 0.28, y - h * 0.5, w * 0.44, h * 0.42, ink, lit);
+}
 
-  // Chimneys on the ridge.
-  for (let k = 0, n = r() < 0.55 ? 2 : 1; k < n; k++) {
-    const cw = Math.max(1, w * 0.12), cx = x + w * (0.2 + r() * 0.6);
-    const ch = rh * (0.6 + r() * 0.9);
-    g.fillStyle = ink.body; g.fillRect(cx, base - h - ch, cw, ch);
-    g.fillStyle = ink.edge; g.fillRect(cx, base - h - ch, cw, 1);
+// Merlons along a parapet: teeth standing on the wall head, with the sky in
+// the gaps between them. Never cut out of a band - clearing pixels here would
+// take the lit sky out with them.
+function battlement(g: CanvasRenderingContext2D, x: number, y: number, w: number, ink: Ink): void {
+  const step = Math.max(1.6, w / 5.5);
+  const mh = Math.max(1.5, step * 1.1);
+  for (let cx = x; cx < x + w - step * 0.5; cx += step * 2) {
+    const ww = Math.min(step, x + w - cx);
+    g.fillStyle = ink.body;
+    g.fillRect(cx, y - mh, ww, mh + 1);
+    g.fillStyle = ink.edge;
+    g.fillRect(cx, y - mh, ww, 1);
+  }
+  // The string course the teeth stand on.
+  g.fillStyle = ink.edge;
+  g.fillRect(x - w * 0.04, y, w * 1.08, 1);
+}
+
+// A hanging sign, or a banner: the bracket is lit, the cloth is not.
+function hanger(g: CanvasRenderingContext2D, x: number, y: number, s: number, ink: Ink, r: () => number): void {
+  if (s < 2) return;
+  g.fillStyle = ink.edge;
+  g.fillRect(x, y, s * 2.2, 1);
+  g.fillStyle = ink.body;
+  if (r() < 0.5) {
+    g.fillRect(x + s * 1.4, y, s * 0.9, s * 1.4);                 // a board
+    g.fillStyle = ink.edge; g.fillRect(x + s * 1.4, y + s * 1.4, s * 0.9, 1);
+  } else {
+    g.beginPath();                                               // a banner
+    g.moveTo(x + s * 0.6, y);
+    g.lineTo(x + s * 2.1, y);
+    g.lineTo(x + s * 2.1, y + s * 3);
+    g.lineTo(x + s * 1.35, y + s * 2.4);
+    g.lineTo(x + s * 0.6, y + s * 3);
+    g.closePath(); g.fill();
+  }
+}
+
+// One house of the ward. Five ways a house in this city ends at the top -
+// gable, crow steps, parapet, hipped roof, mansard - because a street of one
+// kind of roof is a row of boxes, and a row of boxes is what a ruler draws.
+//
+// Everything is a dark mass with light caught on the edges that face the
+// moon. The detail is all gated on how many pixels there actually are: on a
+// phone a house is six of them across and gets a roof and a window, no more.
+function house(g: CanvasRenderingContext2D, x: number, base: number, w: number, h: number, ink: Ink, r: () => number): void {
+  const kind = r();
+  const fine = w > 8;          // enough room for the ironwork and the turrets
+  const top = base - h;
+
+  // The upper floors oversail the street, the way a timbered town does.
+  const jut = fine ? w * (0.05 + r() * 0.09) : 0;
+  const waist = base - h * (0.38 + r() * 0.22);
+  const body = new Path2D();
+  body.moveTo(x, base);
+  body.lineTo(x, waist);
+  body.lineTo(x - jut, waist - h * 0.035);
+  body.lineTo(x - jut, top);
+  body.lineTo(x + w + jut, top);
+  body.lineTo(x + w + jut, waist - h * 0.035);
+  body.lineTo(x + w, waist);
+  body.lineTo(x + w, base);
+  body.closePath();
+  g.fillStyle = ink.body; g.fill(body);
+  g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke(body);
+  const lx = x - jut, rw = w + jut * 2;
+  if (jut > 0.6) {
+    // The corbel course under the overhang: a heavy lit band, which is what
+    // tells the eye there are two floors and not one tall wall.
+    g.fillStyle = ink.edge;
+    g.fillRect(lx, waist - h * 0.035, rw, Math.max(1, h * 0.012));
+  }
+
+  // The top. Whatever shape it takes, the shape is kept: the tile courses
+  // are drawn inside it afterwards, which is what stops a roof being a
+  // triangle with a line round it.
+  let ridgeY = top;
+  let roof: Path2D | null = null;
+  if (kind < 0.26) {
+    // A steep gable, turned to face the street, its bargeboards overhanging.
+    const rh = h * (0.28 + r() * 0.2);
+    const apex = x + w * (0.42 + r() * 0.16);
+    roof = new Path2D();
+    roof.moveTo(lx - w * 0.12, top);
+    roof.lineTo(apex, top - rh);
+    roof.lineTo(lx + rw + w * 0.12, top);
+    roof.closePath();
+    g.fillStyle = ink.body; g.fill(roof);
+    g.strokeStyle = ink.edge; g.stroke(roof);
+    ridgeY = top - rh;
+    finial(g, apex, ridgeY, Math.max(0.8, w * 0.07), ink, r);
+    if (fine && r() < 0.6) lancet(g, apex - w * 0.09, top - rh * 0.62, w * 0.18, rh * 0.42, ink, r() < 0.5);
+  } else if (kind < 0.46) {
+    // Crow steps, climbing to a flat head with a stack on it.
+    const steps = 3 + Math.floor(r() * 3);
+    const rh = h * (0.16 + r() * 0.14), sw = rw / (steps * 2 + 1), sh = rh / steps;
+    g.fillStyle = ink.body;
+    g.beginPath();
+    g.moveTo(lx, top);
+    for (let k = 0; k < steps; k++) { g.lineTo(lx + k * sw, top - k * sh); g.lineTo(lx + (k + 1) * sw, top - k * sh); g.lineTo(lx + (k + 1) * sw, top - (k + 1) * sh); }
+    g.lineTo(lx + rw - steps * sw, top - steps * sh);
+    for (let k = steps - 1; k >= 0; k--) { g.lineTo(lx + rw - (k + 1) * sw, top - (k + 1) * sh); g.lineTo(lx + rw - (k + 1) * sw, top - k * sh); g.lineTo(lx + rw - k * sw, top - k * sh); }
+    g.closePath(); g.fill();
+    g.strokeStyle = ink.edge; g.stroke();
+    ridgeY = top - steps * sh;
+    stack(g, x + w * 0.42, ridgeY, Math.max(1.2, w * 0.16), h * 0.1, ink, r);
+  } else if (kind < 0.64) {
+    // A parapet with its teeth, and a turret corbelled off the corner.
+    battlement(g, lx, top, rw, ink);
+    ridgeY = top - Math.max(1.5, rw * 0.1);
+    if (fine) turret(g, r() < 0.5 ? lx - w * 0.16 : lx + rw - w * 0.2, top + h * 0.12, w * 0.24, h * 0.3, ink, r() < 0.5);
+  } else if (kind < 0.84) {
+    // A hipped roof, steep, with dormers out of the slope and iron on it.
+    const rh = h * (0.2 + r() * 0.16);
+    const inset = rw * 0.2;
+    roof = new Path2D();
+    roof.moveTo(lx - w * 0.1, top);
+    roof.lineTo(lx + inset, top - rh);
+    roof.lineTo(lx + rw - inset, top - rh);
+    roof.lineTo(lx + rw + w * 0.1, top);
+    roof.closePath();
+    g.fillStyle = ink.body; g.fill(roof);
+    g.strokeStyle = ink.edge; g.stroke(roof);
+    ridgeY = top - rh;
+    ridgeIron(g, lx + inset, lx + rw - inset, ridgeY, ink, r);
+    if (fine) dormer(g, x + w * (0.18 + r() * 0.1), top, w * 0.26, ink, r() < 0.55);
+    if (fine && w > 14) dormer(g, x + w * 0.58, top, w * 0.24, ink, r() < 0.5);
+  } else {
+    // A mansard: a near-vertical lower slope, then a shallow one, and a
+    // cluster of stacks where a whole terrace shares a chimney breast.
+    const rh = h * (0.22 + r() * 0.14);
+    roof = new Path2D();
+    roof.moveTo(lx - w * 0.08, top);
+    roof.lineTo(lx + rw * 0.14, top - rh * 0.62);
+    roof.lineTo(lx + rw * 0.3, top - rh);
+    roof.lineTo(lx + rw * 0.7, top - rh);
+    roof.lineTo(lx + rw * 0.86, top - rh * 0.62);
+    roof.lineTo(lx + rw + w * 0.08, top);
+    roof.closePath();
+    g.fillStyle = ink.body; g.fill(roof);
+    g.strokeStyle = ink.edge; g.stroke(roof);
+    ridgeY = top - rh;
+    if (fine) dormer(g, x + w * 0.34, top - rh * 0.5, w * 0.3, ink, r() < 0.6);
+  }
+
+  // Tile courses, cut inside the roof so they end where it ends. A black
+  // roof with one light line round it is a shape; a black roof with the
+  // courses caught on it is a roof.
+  if (roof && fine) {
+    g.save();
+    g.clip(roof);
+    g.fillStyle = ink.edge;
+    const courses = 3 + Math.floor(r() * 3);
+    for (let k = 1; k <= courses; k++) {
+      const y = ridgeY + ((top - ridgeY) * k) / (courses + 1);
+      g.fillRect(lx - w * 0.15, y, rw + w * 0.3, 1);
+    }
+    g.restore();
+  }
+
+  // Quoins: the stones of the lit corner, alternating down it.
+  if (fine) {
+    g.fillStyle = ink.edge;
+    const block = Math.max(1.5, h * 0.035);
+    for (let y = waist; y < base - block; y += block * 2) g.fillRect(x, y, Math.max(1, w * 0.07), block);
+  }
+
+  // Against a tall one, a buttress, sloped off at the top the way they are.
+  if (fine && h > w * 3.2) {
+    const bx = r() < 0.5 ? x - w * 0.06 : x + w * 0.99;
+    const bw = Math.max(1.4, w * 0.12);
+    g.fillStyle = ink.body;
+    g.beginPath();
+    g.moveTo(bx, base);
+    g.lineTo(bx, base - h * 0.52);
+    g.lineTo(bx + bw, base - h * 0.4);
+    g.lineTo(bx + bw, base);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke();
+  }
+
+  // Stacks. They rise from the wall head through the roof, so whatever shape
+  // the roof is they come out of it rather than hanging over it.
+  for (let k = 0, n = r() < 0.5 ? 2 : 1; k < n; k++) {
+    const cw = Math.max(1, w * (0.1 + r() * 0.06));
+    stack(g, x + w * (0.18 + r() * 0.54), top, cw, (top - ridgeY) + h * (0.05 + r() * 0.09), ink, r);
   }
 
   // The storeys. Every house is lit differently; some are dark all the way up.
-  const storeys = Math.max(1, Math.floor(h / (w * 0.85)));
-  const dark = r() < 0.3;
+  const storeys = Math.max(1, Math.floor(h / (w * 0.8)));
+  const dark = r() < 0.28;
   for (let s = 0; s < storeys; s++) {
-    const y = base - h + h * 0.1 + s * (h * 0.82 / storeys);
-    const wh = Math.min(h * 0.5 / storeys, w * 0.5);
+    const y = top + h * 0.12 + s * (h * 0.78 / storeys);
+    const wh = Math.min(h * 0.46 / storeys, w * 0.55);
     if (w > 7) arcade(g, x + w * 0.12, y, w * 0.76, wh, w > 14 ? 3 : 2, ink, dark ? () => 1 : r);
-    else lancet(g, x + w * 0.3, y, w * 0.4, wh, ink, !dark && r() < 0.5);
+    else lancet(g, x + w * 0.28, y, w * 0.44, wh, ink, !dark && r() < 0.5);
+    // A hood mould over the row: one lit line, and the wall has a course.
+    if (fine && r() < 0.5) {
+      g.fillStyle = ink.edge;
+      g.fillRect(x + w * 0.06, y - wh * 0.22, w * 0.88, 1);
+    }
   }
+
+  // The door, and whatever hangs beside it.
+  if (fine) {
+    const dw = w * 0.2, dx = x + w * (0.2 + r() * 0.5);
+    g.fillStyle = ink.edge;
+    g.fillRect(dx - 0.5, base - h * 0.16, dw + 1, 1);
+    g.fillStyle = ink.body;
+    g.fillRect(dx, base - h * 0.16, dw, h * 0.16);
+    if (r() < 0.4) hanger(g, x + w * 0.05, base - h * (0.24 + r() * 0.12), Math.max(1, w * 0.07), ink, r);
+  }
+
   // A shutter, hanging off one of them.
-  if (r() < 0.25 && w > 9) {
-    const y = base - h + h * (0.2 + r() * 0.5);
+  if (r() < 0.22 && w > 9) {
+    const y = top + h * (0.2 + r() * 0.5);
     g.fillStyle = ink.body;
     g.save(); g.translate(x + w * 0.1, y); g.rotate(-0.4 + r() * 0.3);
     g.fillRect(0, 0, Math.max(1, w * 0.1), Math.max(2, h * 0.09));
@@ -280,15 +539,30 @@ export function church(g: CanvasRenderingContext2D, cx: number, base: number, sc
 }
 
 // A street of the ward, in one layer of depth. depth 0 is nearest.
-export function street(g: CanvasRenderingContext2D, w: number, base: number, seed: number, scale: number, depth: number): void {
+export function street(g: CanvasRenderingContext2D, w: number, base: number, seed: number, scale: number, depth: number, maxH = Infinity): void {
   const r = rand(seed);
   const ink = inkFor(depth);
-  let x = -6 * scale;
-  while (x < w + 6 * scale) {
+  let x = -8 * scale;
+  while (x < w + 8 * scale) {
     const hw = (7 + r() * 13) * scale;
-    const hh = (26 + r() * 46) * scale * (0.75 + 0.35 * Math.sin((x / w) * Math.PI * 1.3 + seed));
-    house(g, x, base, hw, hh, ink, r);
-    x += hw + r() * 2.5 * scale;
+    // The roofline has a long swell in it, and every so often one house is a
+    // tower: a row of the same height is a fence, not a city.
+    const swell = 0.75 + 0.35 * Math.sin((x / w) * Math.PI * 1.3 + seed);
+    const tall = r() < 0.14 ? 1.5 + r() * 0.5 : 1;
+    // Nothing is allowed to grow out of the top of the picture: a roofline
+    // with no sky over it is a wall.
+    house(g, x, base, hw, Math.min(maxH, (26 + r() * 46) * scale * swell * tall), ink, r);
+    // They lean on each other. A gap of sky at street level would be a gap
+    // between two cut-outs.
+    x += hw * (0.82 + r() * 0.16);
+  }
+  if (depth > 0.2) {
+    // The air between us and this row.
+    const haze = g.createLinearGradient(0, base - 34 * scale, 0, base);
+    haze.addColorStop(0, `rgba(255,255,255,0)`);
+    haze.addColorStop(1, `rgba(255,255,255,${0.05 + depth * 0.1})`);
+    g.fillStyle = haze;
+    g.fillRect(0, base - 34 * scale, w, 34 * scale);
   }
 }
 

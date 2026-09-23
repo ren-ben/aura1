@@ -77,21 +77,55 @@ const strips = computed(() => state.habits.map((h) => {
 const vigil = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   const sky = g.createLinearGradient(0, 0, 0, h);
   // The horizon has to be lit, or a black tower on a black sky is nothing.
-  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.55, 'rgb(6,6,6)'); sky.addColorStop(0.86, 'rgb(56,56,56)'); sky.addColorStop(1, 'rgb(160,160,160)');
+  // The light is a band, and the band sits exactly where the roofs are. Put
+  // it at the foot of the picture instead and the houses stand in front of
+  // it: black walls on a black sky, which is a pen drawing of a city.
+  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.24, 'rgb(8,8,8)'); sky.addColorStop(0.36, 'rgb(40,40,40)');
+  sky.addColorStop(0.5, 'rgb(150,150,150)'); sky.addColorStop(0.62, 'rgb(62,62,62)');
+  sky.addColorStop(0.8, 'rgb(20,20,20)'); sky.addColorStop(1, 'rgb(10,10,10)');
   g.fillStyle = sky; g.fillRect(0, 0, w, h);
   // Sized off the height so the ward holds together in a wide strip as well as
   // in a tall box: stars, the moon, a lit horizon behind the roofs, and one
   // church standing out of them.
   starfield(g, w, h * 0.7, Math.round((w * h) / 130), 41);
-  moonDisc(g, w * 0.68, h * 0.3, h * 0.2, 13);
+  // The light behind the roofs. Without it the roofline is a drawing of a
+  // roofline: outlines on black, which is a ruler and a pen, not a city.
+  const glow = g.createRadialGradient(w * 0.62, h * 0.52, h * 0.02, w * 0.62, h * 0.52, h * 0.8);
+  glow.addColorStop(0, 'rgba(255,255,255,.3)');
+  glow.addColorStop(0.5, 'rgba(255,255,255,.1)');
+  glow.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, w, h);
+  // And a bank of it lying along the roofs from edge to edge, so the houses
+  // at the ends of the street stand against something too.
+  const bank = g.createLinearGradient(0, h * 0.2, 0, h * 0.86);
+  bank.addColorStop(0, 'rgba(255,255,255,0)');
+  bank.addColorStop(0.42, 'rgba(255,255,255,.21)');
+  bank.addColorStop(0.62, 'rgba(255,255,255,.1)');
+  bank.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = bank; g.fillRect(0, h * 0.2, w, h * 0.66);
+  // The moon goes on last of the sky, over the fog rather than under it:
+  // haze laid on top of it is what turns a moon into a smudge.
+  moonDisc(g, w * 0.7, h * 0.25, h * 0.2, 13);
 
   bats(g, w, h * 0.6, t, 8, 55);
-  const scale = h / 110;
-  street(g, w, h - h * 0.08, 31, scale * 0.6, 0.85);
-  street(g, w, h - h * 0.04, 47, scale * 0.82, 0.45);
-  church(g, w * 0.3, h - h * 0.02, scale * 0.95, 5);
-  street(g, w, h + 1, 19, scale * 1.1, 0.05);
+  // Wide houses, short sky: the ward is sized off the height so the roofs
+  // land around two thirds up whatever shape this frame is, and the cathedral
+  // is sized so its spire clears them without leaving the picture.
+  const scale = h / 58;
+  street(g, w, h - h * 0.1, 31, scale * 0.6, 0.85, h * 0.56);
+  street(g, w, h - h * 0.05, 47, scale * 0.85, 0.45, h * 0.5);
+  church(g, w * 0.24, h - h * 0.02, h / 190, 5);
+  street(g, w, h + 1, 19, scale * 1.15, 0.05, h * 0.44);
+  // Lamps down the near street: the only light that is in the city rather
+  // than behind it.
   lamp(g, w * 0.08, h, h * 0.2, scale);
+  lamp(g, w * 0.46, h, h * 0.16, scale * 0.85);
+  lamp(g, w * 0.83, h, h * 0.18, scale * 0.9);
+  // The fog the street stands in.
+  const floor = g.createLinearGradient(0, h * 0.74, 0, h);
+  floor.addColorStop(0, 'rgba(255,255,255,0)');
+  floor.addColorStop(1, 'rgba(255,255,255,.14)');
+  g.fillStyle = floor; g.fillRect(0, h * 0.74, w, h * 0.26);
 };
 const records = computed(() => [...strips.value]
   .map((s) => ({ name: s.h.name, streak: s.streak, rate: s.rate, kept: s.h.done.length }))
