@@ -31,7 +31,7 @@ const rest = () => { eye.tx = 0; eye.ty = 0; };
 const opening = ref(false);
 const form = { u: 0 };
 const points = ref<{ x: number; y: number; v: number }[]>([]);
-const shape = greatOne(5200);
+const shape = greatOne(6000);
 
 const draw = computed(() => {
   const cat = sprite.value;
@@ -74,11 +74,13 @@ const draw = computed(() => {
     if (cat) {
       const size = Math.min(h * 0.95, w * 0.66);
       const cx = w * 0.62 + drift_.x * 5, cy = horizon - size * 0.45;
-      const pool = g.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * (0.62 + u * 1.6));
-      pool.addColorStop(0, `rgba(0,0,0,${0.92})`); pool.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = pool; g.beginPath(); g.arc(cx, cy, size * (0.62 + u * 1.6), 0, 7); g.fill();
+      if (u < 0.6) {
+        const pool = g.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * 0.62);
+        pool.addColorStop(0, `rgba(0,0,0,${0.92 * (1 - u / 0.6)})`); pool.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = pool; g.beginPath(); g.arc(cx, cy, size * 0.62, 0, 7); g.fill();
+      }
       // The ward goes out while he opens; the drawing fades as the points come.
-      if (u > 0.01) { g.fillStyle = `rgba(0,0,0,${0.72 * u})`; g.fillRect(0, 0, w, h); }
+      if (u > 0.01) { g.fillStyle = `rgba(0,0,0,${0.97 * u})`; g.fillRect(0, 0, w, h); }
       if (u < 0.55) {
         g.globalAlpha = 1 - u / 0.55;
         g.drawImage(cat, w * 0.62 - size / 2 + drift_.x * 5, horizon - size * 0.93 + drift_.y * 3, size, size);
@@ -98,10 +100,15 @@ function openHim(g: CanvasRenderingContext2D, w: number, h: number, t: number, u
   const spin = t * 0.35, cs = Math.cos(spin), sn = Math.sin(spin);
   const tilt = 0.32 + Math.sin(t * 0.21) * 0.06;
   const reach = size * (0.8 + ease * 0.12);
-  // The hole in the middle of him: nothing comes back out of it.
-  if (ease > 0.2) {
-    g.fillStyle = `rgba(0,0,0,${(ease - 0.2) * 1.1})`;
-    g.beginPath(); g.ellipse(cx, cy, reach * 0.38, reach * 0.38 * Math.sin(tilt) * 1.3, 0, 0, 7); g.fill();
+  // The hole in the middle of him: nothing comes back out of it, and the
+  // light near it bends round rather than crossing it.
+  if (ease > 0.15) {
+    const rad = reach * 0.2;
+    const halo = g.createRadialGradient(cx, cy, rad * 0.95, cx, cy, rad * 1.35);
+    halo.addColorStop(0, `rgba(255,255,255,${0.5 * ease})`); halo.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, rad * 1.35, 0, 7); g.fill();
+    g.fillStyle = `rgba(0,0,0,${Math.min(1, (ease - 0.15) * 1.4)})`;
+    g.beginPath(); g.arc(cx, cy, rad, 0, 7); g.fill();
   }
   for (let i = 0; i < dots.length; i++) {
     const d = dots[i]!;
@@ -118,16 +125,16 @@ function openHim(g: CanvasRenderingContext2D, w: number, h: number, t: number, u
     const py = cy + ry * reach * persp + size * 0.05 * ease;
     // Opened, he is light: the dark of the drawing is not dark any more.
     const v = d.v + (g3.v - d.v) * ease;
-    const shade = Math.min(1, (0.22 + 0.5 * persp + 0.4 * v) * Math.min(1, u * 2.2));
+    const shade = Math.min(1, (0.3 + 0.55 * persp + 0.5 * v) * Math.min(1, u * 2.2));
     if (shade < 0.06) continue;
     g.fillStyle = `rgb(${Math.round(shade * 255)},${Math.round(shade * 255)},${Math.round(shade * 255)})`;
     const s = persp > 0.95 && v > 0.75 ? 2 : 1;
     g.fillRect(px, py, s, s);
   }
-  // The horizon he keeps one foot behind.
-  g.strokeStyle = `rgba(255,255,255,${0.12 + ease * 0.3})`;
+  // The horizon he keeps one foot behind, seen edge on.
+  g.strokeStyle = `rgba(255,255,255,${0.08 + ease * 0.16})`;
   g.lineWidth = 1;
-  g.beginPath(); g.ellipse(cx, cy, reach * 0.42, reach * 0.42 * Math.sin(tilt), 0, 0, 7); g.stroke();
+  g.beginPath(); g.ellipse(cx, cy, reach * 0.62, reach * 0.62 * Math.sin(tilt) * 0.5, 0, 0, 7); g.stroke();
 }
 
 const bond = computed(() => state.stats?.bond);
@@ -259,7 +266,7 @@ watch([() => state.sessions, () => props.active], drawGraph);
   .sym { grid-row: 3; grid-column: 1 / -1; }
   .chron { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) { .side { order: -1; } .scene { min-height: 330px; } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .side { order: -1; } .scene { flex: none; height: 360px; } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .entity { display: flex; flex-direction: column; }
   .scene { min-height: 340px; }
   .side { display: flex; }

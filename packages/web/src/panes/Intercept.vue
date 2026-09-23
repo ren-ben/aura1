@@ -176,5 +176,12 @@ cite { font: 400 11px var(--pix); color: var(--dim); font-style: normal; text-tr
 @media (max-aspect-ratio: 5/4) {
   .intercept { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto minmax(0, .8fr); grid-template-areas: "script current" "write write" "vault vault"; }
 }
-@media (max-width: 860px) { .intercept { display: flex; flex-direction: column; } .script { min-height: 300px; } .vault { min-height: 300px; } }
+@media (max-width: 860px) {
+  .intercept { display: flex; flex-direction: column; }
+  .script { min-height: 300px; }
+  .vault { min-height: 300px; }
+  /* He stands out of the way of the words on a narrow roll. */
+  .win { padding: 24px 68px 24px 26px; }
+  .reader { width: 62px; height: 58px; right: 6px; bottom: 10px; }
+}
 </style>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 // The paths: every folder and activity with its level, and where they are
 // made, renamed and put away. Changes reach the device on its next sync.
+import Frame from '../components/Frame.vue';
+import Plate from '../components/Plate.vue';
+import { pilgrim } from '../gl/plate';
 import { computed, nextTick, ref } from 'vue';
 import { actions, duration, state } from '../store';
 
@@ -60,6 +63,11 @@ async function addActivity(folderId: number) {
       </div>
     </header>
 
+    <Frame class="walk" title="the long walk // whoever keeps a path walks it" flush>
+      <Plate :draw="pilgrim" :active="active" animated :cell="2" label="A hooded figure leaning into driving rain" />
+      <p class="note said">Hours are the only units that reach me. You know what the weather is.</p>
+    </Frame>
+
     <div class="grid">
       <section v-for="f in folders" :key="f.id" class="folder" :class="{ archived: f.archived }">
         <div class="fhead">
@@ -91,6 +99,8 @@ async function addActivity(folderId: number) {
 
 <style scoped>
 .paths { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.walk { flex: none; height: clamp(150px, 22vh, 260px); }
+.walk .said { position: absolute; left: 16px; bottom: 12px; margin: 0; max-width: 42ch; padding: 6px 10px; background: rgba(18, 18, 18, .78); }
 header { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }
 .meta { display: grid; gap: 8px; justify-items: end; }
 .meta .field { width: 180px; }

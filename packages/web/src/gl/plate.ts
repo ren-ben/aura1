@@ -474,40 +474,147 @@ export function sampleSprite(sprite: HTMLCanvasElement, step = 3): { x: number; 
   return out;
 }
 
-// What he is when he is not being a cat: a horizon seen at a slant, arms
-// curling off it, and eyes open along its rim. Every point of the drawing is
-// given a place here, so he can come apart into it and go back.
+// What he is when he is not being a cat.
+//
+// A dark body with nothing coming back out of it, a corona of arms reaching
+// off it - each one branching once and tapering to nothing, the way a root
+// does - filaments carried round by whatever it is falling into, and eyes
+// open in the mass of it. Every point of his drawing is given a place here,
+// so he can come apart into it and go back.
 export function greatOne(count: number, seed = 9): { x: number; y: number; z: number; v: number }[] {
-  const r = rand(seed), out = [];
-  const EYES = 7;
+  const r = rand(seed);
+  const out: { x: number; y: number; z: number; v: number }[] = [];
+  const ARMS = 14;
+
+  // The arms are laid out first, so their roots sit on the body evenly.
+  const arms = Array.from({ length: ARMS }, (_, i) => {
+    const a = (i / ARMS) * Math.PI * 2 + r() * 0.3;
+    const lift = (r() - 0.5) * 2.6;
+    return { a, lift, len: 0.42 + r() * 0.46, curl: (r() - 0.5) * 2.2, fat: 0.5 + r() * 0.7 };
+  });
+
   for (let i = 0; i < count; i++) {
     const pick = r();
-    if (pick < 0.5) {
-      // The rim itself: a narrow band, brightest of everything.
-      const a = r() * Math.PI * 2;
-      const rad = 0.43 + (r() - 0.5) * 0.045;
-      out.push({ x: Math.cos(a) * rad, y: (r() - 0.5) * 0.035, z: Math.sin(a) * rad, v: 0.82 + r() * 0.18 });
-    } else if (pick < 0.78) {
-      // Arms: they leave the rim, curl, and come back down towards it.
-      const arm = Math.floor(r() * 5), u = r();
-      const a = (arm / 5) * Math.PI * 2 + u * 1.9;
-      const rad = 0.43 + Math.sin(u * Math.PI) * 0.24;
-      const rise = Math.sin(u * Math.PI * 0.9) * 0.3;
-      out.push({ x: Math.cos(a) * rad, y: -rise + Math.sin(u * 11 + arm) * 0.018, z: Math.sin(a) * rad, v: 0.3 + (1 - u) * 0.4 });
-    } else {
-      // Eyes along the rim: a dark iris with a lit pupil in it.
-      const eye = Math.floor(r() * EYES);
-      const ea = (eye / EYES) * Math.PI * 2 + 0.4;
-      const er = 0.43, lift = -0.06 - (eye % 3) * 0.05;
-      const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * 0.055;
-      const open = rr < 0.016;
+
+    if (pick < 0.2) {
+      // The body: a shell, thickest where it is turned away from us.
+      const u = r() * 2 - 1, a = r() * Math.PI * 2;
+      const rad = 0.2 + r() * 0.05;
+      const s2 = Math.sqrt(1 - u * u);
+      out.push({ x: Math.cos(a) * s2 * rad, y: u * rad * 0.8, z: Math.sin(a) * s2 * rad, v: 0.12 + r() * 0.3 });
+
+    } else if (pick < 0.72) {
+      // An arm: out from the body, curling, thinning, and branching once.
+      const arm = arms[Math.floor(r() * ARMS)]!;
+      const u = Math.pow(r(), 0.7);
+      const branch = r() < 0.4 && u > 0.45;
+      const off = branch ? (r() - 0.5) * 0.9 * (u - 0.45) : 0;
+      const a = arm.a + arm.curl * u * u * 0.45 + off;
+      const lift = arm.lift * u * u * 0.75 + (branch ? off * 0.7 : 0);
+      const rad = 0.2 + u * arm.len;
+      // The arm has thickness, and it frays as it goes.
+      const fray = (0.055 * arm.fat) * (1 - u * 0.75);
+      const wob = Math.sin(u * 13 + arm.a * 3) * 0.02 * u;
       out.push({
-        x: Math.cos(ea) * er + Math.cos(a) * rr * 1.5,
-        y: lift + Math.sin(a) * rr,
-        z: Math.sin(ea) * er + Math.cos(a) * rr * 0.4,
-        v: open ? 1 : 0.1,
+        x: Math.cos(a) * rad + (r() - 0.5) * fray + wob,
+        y: lift + (r() - 0.5) * fray * 0.8,
+        z: Math.sin(a) * rad + (r() - 0.5) * fray,
+        v: (0.35 + (1 - u) * 0.5) * (branch ? 0.7 : 1),
+      });
+
+    } else if (pick < 0.93) {
+      // Filaments: whatever is left, drawn round the body in long threads.
+      const thread = Math.floor(r() * 9), u = r();
+      const a = (thread / 9) * Math.PI * 2 + u * 3.4;
+      const rad = 0.3 + u * 0.72;
+      const flat = 0.1 + (1 - u) * 0.12;
+      out.push({
+        x: Math.cos(a) * rad,
+        y: (r() - 0.5) * flat * 0.5 + Math.sin(a * 2) * 0.03,
+        z: Math.sin(a) * rad,
+        v: 0.18 + (1 - u) * 0.4,
+      });
+
+    } else {
+      // Eyes, open in the body and along the first reach of the arms.
+      const eye = Math.floor(r() * 9);
+      const arm = arms[eye % ARMS]!;
+      const along = 0.05 + (eye % 4) * 0.12;
+      const a = arm.a + arm.curl * along * along * 0.45;
+      const rad = 0.2 + along;
+      const cx = Math.cos(a) * rad, cy = arm.lift * along * 0.5, cz = Math.sin(a) * rad;
+      const ea = r() * Math.PI * 2, er = Math.sqrt(r()) * 0.05;
+      const open = er < 0.014;
+      out.push({
+        x: cx + Math.cos(ea) * er,
+        y: cy + Math.sin(ea) * er * 0.7,
+        z: cz + Math.cos(ea) * er * 0.4,
+        v: open ? 1 : 0.06,
       });
     }
   }
   return out;
+}
+
+// The long walk: whoever keeps a path walks it in weather like this. A hooded
+// figure leaning into driving rain, stippled rather than drawn - dense where
+// the cloth catches light, open where it does not - with the rain falling
+// across the whole plate and standing up off the ground where it lands.
+export function pilgrim(g: CanvasRenderingContext2D, w: number, h: number, t: number): void {
+  const r = rand(5);
+  const lean = 0.42;  // the rain comes in at this slope, and so does he
+
+  g.fillStyle = grey(0.02); g.fillRect(0, 0, w, h);
+
+  // The rain: long strokes, falling at speed, wrapped so it never ends.
+  const drops = Math.round((w * h) / 80);
+  for (let i = 0; i < drops; i++) {
+    const speed = 60 + r() * 90, len = 3 + r() * 9, near = r();
+    const x0 = (r() * (w + h) + t * speed * lean) % (w + h) - h * lean;
+    const y0 = (r() * h + t * speed) % (h + 20) - 10;
+    g.strokeStyle = grey(0.28 + near * 0.62);
+    g.lineWidth = near > 0.85 ? 1.6 : 1;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + len * lean, y0 + len);
+    g.stroke();
+  }
+
+  // The ground: rain standing back up off it, thickest at the bottom edge.
+  const ground = h * 0.9;
+  for (let i = 0; i < Math.round(w * 1.4); i++) {
+    const y = ground + Math.pow(r(), 0.6) * (h - ground);
+    const bright = 0.3 + ((y - ground) / (h - ground)) * 0.6;
+    g.fillStyle = grey(bright * (0.5 + r() * 0.5));
+    g.fillRect(r() * w, y, 1, 1);
+  }
+
+  // Him: a hood, a back bent into it, and the hem of a coat being pulled.
+  const cx = w * 0.5, base = ground + (h - ground) * 0.5;
+  const tall = h * 0.84, wide = tall * 0.44;
+  const sway = Math.sin(t * 0.8) * tall * 0.012;
+  const inside = (x: number, y: number) => {
+    // Body in the plate's own space: hood on top of a widening cloak.
+    const u = (y - (base - tall)) / tall;          // 0 at the crown, 1 at the hem
+    if (u < 0 || u > 1) return -1;
+    const axis = cx + sway + (0.5 - u) * tall * lean * 0.5;
+    const hood = Math.sin(Math.min(1, u / 0.26) * Math.PI * 0.5);
+    const half = u < 0.26 ? wide * 0.42 * hood : wide * (0.42 + (u - 0.26) * 0.78);
+    const d = Math.abs(x - axis) / Math.max(0.001, half);
+    return d > 1 ? -1 : d;
+  };
+  const dots = Math.round(tall * wide * 2.2);
+  for (let i = 0; i < dots; i++) {
+    const x = cx + (r() - 0.5) * wide * 3.4, y = base - tall + r() * tall;
+    const d = inside(x, y);
+    if (d < 0) continue;
+    // The cloth is lit at its edge and lost towards the middle of him.
+    const light = Math.pow(d, 1.7) * 0.95 + 0.04;
+    if (r() > light) continue;
+    g.fillStyle = grey(0.5 + light * 0.5);
+    g.fillRect(x, y, 1, 1);
+  }
+  // The dark inside the hood, and what is looking out of it.
+  g.fillStyle = grey(0);
+  g.beginPath(); g.ellipse(cx + sway, base - tall * 0.88, wide * 0.24, wide * 0.3, 0, 0, 7); g.fill();
 }

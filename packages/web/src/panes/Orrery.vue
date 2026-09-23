@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import { rng } from '../gl/engine';
-import { constellation, galaxy, lights, planet, stars } from '../gl/models';
+import { blackHole, constellation, galaxy, lights, planet, stars } from '../gl/models';
 import { duration, state } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -26,18 +26,24 @@ const sorted = computed(() => [...worlds.value].map((w) => ({ ...w, share: w.min
 const moonCount = computed(() => worlds.value.reduce((a, w) => a + w.acts.length, 0));
 const period = computed(() => Math.round(Math.pow(1.35 + (worlds.value.length - 1) * 0.62, 1.5) * 44));
 const labels = reactive<{ name: string; x: number; y: number; show: boolean }[]>([]);
+// The survey drawn over the glass: one entry per body.
+const orbits = reactive<{
+  name: string; line: string; no: string;
+  ticks: { x1: number; y1: number; x2: number; y2: number }[];
+  mark: { x: number; y: number };
+}[]>([]);
 
 const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
   camera.position.set(0, 2.6, 6.2);
   camera.lookAt(0, -0.2, 0);
-  // Kael'thos: a black star with a thin bright ring.
-  group.add(new THREE.Mesh(new THREE.SphereGeometry(0.42, 40, 30), new THREE.MeshBasicMaterial({ color: 0x000000 })));
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.012, 6, 120), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  halo.rotation.x = Math.PI / 2; group.add(halo);
+  // Kael'thos at the middle of it: the horizon itself, its disk turning, its
+  // far side bent over the top, and the photon ring round the dark.
+  const { disk, facing } = blackHole();
+  disk.scale.setScalar(0.34);
+  group.add(disk);
+  facing.scale.setScalar(0.34);
+  scene.add(facing);
   const bodies = worlds.value.map((w, i) => {
-    const orbit = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 128 }, (_, k) => new THREE.Vector3(Math.cos((k / 128) * Math.PI * 2) * w.orbit, 0, Math.sin((k / 128) * Math.PI * 2) * w.orbit))),
-      new THREE.LineDashedMaterial({ color: 0x77716a, dashSize: 0.05, gapSize: 0.08 }));
-    orbit.computeLineDistances(); group.add(orbit);
     const p = planet(w.size, 17 + i * 7, i % 2 === 0);
     group.add(p);
     const moons = w.acts.map((_, k) => {
@@ -62,18 +68,12 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
   dust.setAttribute('color', new THREE.Float32BufferAttribute(dc, 3));
   const cloud = new THREE.Points(dust, new THREE.PointsMaterial({ size: 0.035, vertexColors: true }));
   group.add(cloud);
-  // The ecliptic, ticked round like an instrument.
-  const ticks: THREE.Vector3[] = [];
-  for (let i = 0; i < 72; i++) {
-    const a = (i / 72) * Math.PI * 2, len = i % 6 === 0 ? 0.3 : 0.14;
-    ticks.push(new THREE.Vector3(Math.cos(a) * 5.1, 0, Math.sin(a) * 5.1), new THREE.Vector3(Math.cos(a) * (5.1 + len), 0, Math.sin(a) * (5.1 + len)));
-  }
-  group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ticks), new THREE.LineBasicMaterial({ color: 0x6d675f })));
   lights(scene, 1.4, 0.8, 0.12);
   const v = new THREE.Vector3();
   let frame = 0;
   return (t: number) => {
-    halo.rotation.z = t * 0.2;
+    disk.rotation.y = t * 0.16;
+    facing.rotation.z = Math.sin(t * 0.15) * 0.02;
     far.rotation.y = t * 0.01;
     cloud.rotation.y = t * 0.02;
     for (const b of bodies) {
@@ -84,10 +84,36 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
     }
     if (++frame % 3) return;
     // Names follow the planets across the glass.
-    labels.splice(0, labels.length, ...bodies.map((b) => {
+    labels.splice(0, labels.length, ...bodies.map((b, i) => {
       b.p.getWorldPosition(v); v.y += b.w.size + 0.12; v.project(camera);
       const x = (v.x + 1) / 2, y = (1 - v.y) / 2;
-      return { name: b.w.name, x, y, show: v.z < 1 && x > 0.03 && x < 0.97 && y > 0.05 && y < 0.97 };
+      return { name: `${String(i + 1).padStart(2, '0')} ${b.w.name}`, x, y, show: v.z < 1 && x > 0.03 && x < 0.97 && y > 0.05 && y < 0.97 };
+    }));
+    // Every orbit as a drawn line, with a tick every eighth of the way round
+    // and the body's own mark where it is now.
+    const screen = (x: number, z: number, y = 0) => {
+      v.set(x, y, z); v.project(camera);
+      return [((v.x + 1) / 2) * 100, ((1 - v.y) / 2) * 100] as const;
+    };
+    orbits.splice(0, orbits.length, ...bodies.map((b, i) => {
+      const pts: string[] = [], ticks: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      for (let k = 0; k <= 72; k++) {
+        const a = (k / 72) * Math.PI * 2;
+        const [sx, sy] = screen(Math.cos(a) * b.w.orbit, Math.sin(a) * b.w.orbit);
+        pts.push(`${sx.toFixed(2)},${sy.toFixed(2)}`);
+        if (k % 9 === 0 && k < 72) {
+          const [ex, ey] = screen(Math.cos(a) * (b.w.orbit + 0.16), Math.sin(a) * (b.w.orbit + 0.16));
+          ticks.push({ x1: sx, y1: sy, x2: ex, y2: ey });
+        }
+      }
+      b.p.getWorldPosition(v); v.project(camera);
+      return {
+        name: b.w.name,
+        line: pts.join(' '),
+        ticks,
+        mark: { x: ((v.x + 1) / 2) * 100, y: ((1 - v.y) / 2) * 100 },
+        no: String(i + 1).padStart(2, '0'),
+      };
     }));
   };
 };
@@ -97,6 +123,14 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
   <div class="orrery">
     <Frame class="sky" title="the paths in orbit // each folder as large as the hours it has had" flush>
       <Gl :build="build" :active="active" :options="{ drift: 0.0015, tilt: 0.05, distance: 6.2 }" label="Your folders as planets orbiting Kael'thos. Drag to turn." />
+      <svg class="survey" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <g v-for="(o, i) in orbits" :key="o.name" :style="{ '--i': i }">
+          <polyline :points="o.line" />
+          <line v-for="(tk, k) in o.ticks" :key="k" :x1="tk.x1" :y1="tk.y1" :x2="tk.x2" :y2="tk.y2" />
+          <circle :cx="o.mark.x" :cy="o.mark.y" r="1.1" class="mark" />
+          <circle :cx="o.mark.x" :cy="o.mark.y" r="2.2" class="ping" />
+        </g>
+      </svg>
       <div class="labels" aria-hidden="true">
         <span v-for="l in labels" v-show="l.show" :key="l.name" :style="{ left: `${l.x * 100}%`, top: `${l.y * 100}%` }">{{ l.name.toLowerCase() }}</span>
       </div>
@@ -135,6 +169,15 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 <style scoped>
 .orrery { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); align-items: stretch; }
 .sky { min-height: 0; height: 100%; }
+/* The survey is drawn in the plane of the glass, over everything, the way a
+   plate of an orrery is drawn over the photograph of the sky. */
+.survey { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.survey polyline { fill: none; stroke: var(--low); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-dasharray: 5 4; }
+.survey line { stroke: var(--dim); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.survey .mark { fill: var(--hi); }
+.survey .ping { fill: none; stroke: var(--phos); stroke-width: 1.2; vector-effect: non-scaling-stroke; opacity: .5;
+  animation: ping 2.6s ease-out infinite; animation-delay: calc(var(--i) * .4s); transform-box: fill-box; transform-origin: center; }
+@keyframes ping { 0% { transform: scale(.4); opacity: .7; } 70%, 100% { transform: scale(2.2); opacity: 0; } }
 .labels { position: absolute; inset: 0; pointer-events: none; }
 .labels span { position: absolute; transform: translate(-50%, -100%); font: 400 10px var(--pix); color: var(--hi); text-transform: uppercase; text-shadow: 0 0 4px #121212; }
 .side { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; min-height: 0; }
