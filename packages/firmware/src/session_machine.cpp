@@ -351,7 +351,13 @@ void SessionMachine::browse(Input input) {
     case Place::Shelf: {
       const auto& shelf = book_.shelf();
       const size_t count = shelf.size();
-      if (!count) { place_ = book_.has() ? Place::Book : Place::Menu; draw(); break; }
+      if (!count) {
+        // Nothing on it yet. The page says where books come from; either
+        // button leaves.
+        if (book_.has()) { place_ = Place::Book; draw(); }
+        else if (input == Input::SunLong || input == Input::PowerShort) { place_ = Place::Menu; draw(); }
+        break;
+      }
       if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % count; draw(); }
       else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2 * count - 2) % count; draw(); }
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
@@ -465,8 +471,10 @@ std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
   for (Place p : { Place::Activities, Place::Todos, Place::Habits }) places.push_back(p);
-  // The book is only offered when there is one on the card.
-  if (book_.has() || !book_.shelf().empty()) places.push_back(Place::Shelf);
+  // Always offered, empty or not: a menu that hides the library until a sync
+  // has been through is a menu with a missing item as far as anyone holding
+  // the device is concerned.
+  places.push_back(Place::Shelf);
   for (Place p : { Place::Quotes, Place::Settings }) places.push_back(p);
   return places;
 }
@@ -629,6 +637,11 @@ void SessionMachine::draw(int minutes) {
       vm.items.clear();
       vm.values.clear();
       vm.checks.clear();
+      if (book_.shelf().empty()) {
+        vm.items.push_back("NOTHING ON IT YET");
+        vm.values.push_back("");
+        vm.checks.push_back(false);
+      }
       for (const ShelfBook& b : book_.shelf()) {
         vm.items.push_back(b.title);
         // How far through it is, as a hundredth, beside its name.

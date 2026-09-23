@@ -175,10 +175,13 @@ void loop() {
   Input input;
   if (buttons.poll(input)) {
     if (input == Input::PowerLong) {
-      syncBeforePowerOff();
-      // Let the machine write a final heartbeat and draw DORMANT first: a
-      // running session then survives power-off to the second.
+      // Goodnight first, and only then the sync. The other way round the
+      // glass kept whatever was on it for the seconds the sync took, so
+      // there was nothing to tell you the press had taken and you could let
+      // go of the button. The machine also writes its final heartbeat here,
+      // which the sync that follows now carries with it.
       machine.handle(input);
+      syncBeforePowerOff();
       // On battery the board dies here, or at the button's release: a held
       // POWER keeps it powered in hardware.
       Buttons::powerOff();

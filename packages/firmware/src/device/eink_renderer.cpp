@@ -110,7 +110,27 @@ bool EinkRenderer::drawScene(const ArtScene* scene, bool negative) {
 }
 
 bool EinkRenderer::play(const std::string& moment, bool fullLast, bool negative) {
-  const ArtScene* scene = pickScene(art_, moment, esp_random(), env_);
+  return playScene(pickScene(art_, moment, esp_random(), env_), fullLast, negative);
+}
+
+// The still that says the button took: the first frame of the sleep with a
+// word over it, by partial refresh, before anything slow is allowed to
+// happen. Powering off syncs, and a sync is seconds; without this the glass
+// stayed as it was and there was no knowing whether to keep holding.
+bool EinkRenderer::goodnight(const ArtScene& scene, const Look& lk, const ViewModel& vm) {
+  if (!loadFrame(framePath(scene, 0), scene.size)) return false;
+  const bool negative = lk.negative();
+  base_.clear(negative ? INK : PAPER);
+  const int at = (200 - scene.size) / 2;
+  base_.bitmap(at, at, frameBits, scene.size, scene.size, negative ? PAPER : INK);
+  lk.caption(base_, vm, "LET GO");
+  cornered_ = false;
+  out_ = base_;
+  push(false);
+  return true;
+}
+
+bool EinkRenderer::playScene(const ArtScene* scene, bool fullLast, bool negative) {
   if (!scene || !loadFrame(framePath(*scene, 0), scene->size)) return false;
   cornered_ = false;
   const int at = (200 - scene->size) / 2;
@@ -159,7 +179,15 @@ void EinkRenderer::render(const ViewModel& vm) {
   // Kael'thos greets and says goodnight with an animation from the art pack,
   // in the place on the glass: where he fell asleep, or the scene he was in.
   if (vm.screen == Screen::Waking && play(vm.moment.empty() ? "wake" : vm.moment, false, lk.negative())) return;
-  if (vm.screen == Screen::Dormant && play("sleep", true, lk.negative())) { partials_ = 0; return; }
+  if (vm.screen == Screen::Dormant) {
+    // One scene for both: the still and the animation that follows it have
+    // to be the same cat going to sleep in the same place.
+    const ArtScene* s = pickScene(art_, "sleep", esp_random(), env_);
+    if (s) {
+      goodnight(*s, lk, vm);
+      if (playScene(s, true, lk.negative())) { partials_ = 0; return; }
+    }
+  }
   if (vm.screen == Screen::Waking || vm.screen == Screen::Dormant) {
     // No art pack: the prototype eye.
     cornered_ = false;

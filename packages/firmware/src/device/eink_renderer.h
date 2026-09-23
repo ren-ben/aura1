@@ -26,6 +26,9 @@ private:
   static void drawDormant(Adafruit_GFX& g);
   // Plays a scene's frames in order; the last one gets a full refresh if asked.
   bool play(const std::string& moment, bool fullLast, bool negative);
+  bool playScene(const ArtScene* scene, bool fullLast, bool negative);
+  // The first frame of the sleep, captioned: the press has taken, let go.
+  bool goodnight(const ArtScene& scene, const Look& lk, const ViewModel& vm);
   // A whole-screen scene into the canvas; false when the pack has none.
   bool drawScene(const ArtScene* scene, bool negative);
   void push(bool full);

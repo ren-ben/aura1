@@ -533,6 +533,19 @@ static void openPlace(SessionMachine& m, int index) {
   m.handle(Input::PowerShort);
 }
 
+// The same, by the name of the item rather than by how far along it sits: the
+// menu grows, and a test about quotes should not care where quotes are in it.
+template <typename Rig>
+static void openNamed(Rig& rig, SessionMachine& m, const char* label) {
+  m.handle(Input::SunLong);
+  for (int i = 0; i < 12; ++i) {
+    const ViewModel& vm = rig.renderer.last();
+    if (!vm.items.empty() && vm.items[vm.cursor].rfind(label, 0) == 0) break;
+    m.handle(Input::SunShort);
+  }
+  m.handle(Input::PowerShort);
+}
+
 void test_the_menu_shows_todays_progress() {
   TwoFolderRig rig;
   auto m = rig.machine();
@@ -577,7 +590,7 @@ void test_quotes_cycle_with_power() {
   auto m = rig.machine();
   m.daily().replace(BUNDLE);
   m.begin();
-  openPlace(m, 3);
+  openNamed(rig, m, "QUOTES");
   const std::string first = rig.renderer.last().quote;
   m.handle(Input::PowerShort);
   TEST_ASSERT_FALSE(first == rig.renderer.last().quote);
@@ -596,7 +609,7 @@ void test_sun_turns_the_pages_of_a_long_quote() {
   m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
                     "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
   m.begin();
-  openPlace(m, 3);
+  openNamed(rig, m, "QUOTES");
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
   for (int p = 1; p < pages; ++p) {
     m.handle(Input::SunShort);
@@ -614,7 +627,7 @@ void test_settings_change_text_size_and_keep_it() {
   {
     auto m = rig.machine();
     m.begin();
-    openPlace(m, 4);
+    openNamed(rig, m, "SETTINGS");
     TEST_ASSERT_EQUAL_STRING("SETTINGS", rig.renderer.last().title.c_str());
     TEST_ASSERT_EQUAL_STRING("TEXT", rig.renderer.last().items[0].c_str());
     TEST_ASSERT_EQUAL_STRING("SMALL", rig.renderer.last().values[0].c_str());
@@ -637,16 +650,12 @@ void test_large_text_turns_more_pages() {
   m.daily().replace("{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],"
                     "\"quotes\":[{\"body\":\"" + body + "\",\"source\":null}]}");
   m.begin();
-  openPlace(m, 3);
+  openNamed(rig, m, "QUOTES");
   m.handle(Input::SunShort);
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().quotePage);
-  m.handle(Input::SunLong);
-  m.handle(Input::SunShort);
-  m.handle(Input::PowerShort);  // settings
+  openNamed(rig, m, "SETTINGS");
   m.handle(Input::PowerShort);  // large text
-  m.handle(Input::SunLong);
-  for (int i = 0; i < 4; ++i) m.handle(Input::SunShort);  // from settings round to quotes
-  m.handle(Input::PowerShort);
+  openNamed(rig, m, "QUOTES");
   m.handle(Input::SunShort);
   TEST_ASSERT_EQUAL_INT(1, rig.renderer.last().quotePage);
 }
@@ -656,7 +665,7 @@ void test_sync_now_asks_the_main_loop_and_shows_the_answer() {
   auto m = rig.machine();
   m.begin();
   TEST_ASSERT_FALSE(m.takeSyncRequest());
-  openPlace(m, 4);
+  openNamed(rig, m, "SETTINGS");
   for (int i = 0; i < 3; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   TEST_ASSERT_EQUAL_STRING("SYNCING", rig.renderer.last().values[3].c_str());
@@ -672,7 +681,7 @@ void test_the_look_changes_in_settings_and_is_kept() {
     auto m = rig.machine();
     m.begin();
     TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().look);
-    openPlace(m, 4);
+    openNamed(rig, m, "SETTINGS");
     m.handle(Input::SunShort);
     m.handle(Input::PowerShort);
     m.handle(Input::PowerShort);
