@@ -476,81 +476,118 @@ export function sampleSprite(sprite: HTMLCanvasElement, step = 3): { x: number; 
 
 // What he is when he is not being a cat.
 //
-// A dark body with nothing coming back out of it, a corona of arms reaching
-// off it - each one branching once and tapering to nothing, the way a root
-// does - filaments carried round by whatever it is falling into, and eyes
-// open in the mass of it. Every point of his drawing is given a place here,
-// so he can come apart into it and go back.
+// Not an object: a figure. Everything in it lies in one plane, the way a
+// woodcut of something too large to be seen from outside would have to - torn
+// rings of grain thrown out around a hole, a vortex of limbs all wrapped the
+// same way round it, hair combed flat by whatever the hole is doing, and eyes,
+// mouths and little charted spheres opened in the mass wherever there is room.
+// Every point of his drawing is given a place in it, so he can come apart into
+// this and go back.
 export function greatOne(count: number, seed = 9): { x: number; y: number; z: number; v: number }[] {
   const r = rand(seed);
   const out: { x: number; y: number; z: number; v: number }[] = [];
-  const ARMS = 14;
+  const SWIRL = 1;   // every last thing turns the same way, or it is not a vortex
 
-  // The arms are laid out first, so their roots sit on the body evenly.
-  const arms = Array.from({ length: ARMS }, (_, i) => {
-    const a = (i / ARMS) * Math.PI * 2 + r() * 0.3;
-    const lift = (r() - 0.5) * 2.6;
-    return { a, lift, len: 0.42 + r() * 0.46, curl: (r() - 0.5) * 2.2, fat: 0.5 + r() * 0.7 };
+  // Limbs: rooted on the rim of the hole, wrapped round it, forking once and
+  // ending in a few fingers hooked back the way they came.
+  const LIMBS = 13;
+  const limbs = Array.from({ length: LIMBS }, (_, i) => ({
+    a0: (i / LIMBS) * Math.PI * 2 + (r() - 0.5) * 0.7,
+    turn: SWIRL * (0.9 + r() * 1.5),
+    len: 0.4 + Math.pow(r(), 1.1) * 0.8,
+    fat: 0.45 + r() * 0.9,
+    z: (r() - 0.5) * 0.36,
+    fork: 0.4 + r() * 0.3,
+  }));
+
+  // Eyes and mouths, open in it.
+  const eyes = Array.from({ length: 14 }, () => {
+    const a = r() * Math.PI * 2, rad = 0.26 + Math.pow(r(), 0.8) * 0.7;
+    return { x: Math.cos(a) * rad, y: Math.sin(a) * rad, z: (r() - 0.5) * 0.3, s: 0.035 + r() * 0.055, tip: r() * Math.PI };
+  });
+  const mouths = Array.from({ length: 6 }, () => {
+    const a = r() * Math.PI * 2, rad = 0.3 + r() * 0.6;
+    return { a, rad, span: 0.25 + r() * 0.4, z: (r() - 0.5) * 0.3, teeth: 7 + Math.floor(r() * 7) };
+  });
+  // Spheres hung in the grain, each with a little chart shut inside it.
+  const spheres = Array.from({ length: 6 }, () => {
+    const a = r() * Math.PI * 2, rad = 0.45 + r() * 0.6;
+    return { x: Math.cos(a) * rad, y: Math.sin(a) * rad, z: (r() - 0.5) * 0.4, s: 0.03 + r() * 0.07 };
   });
 
   for (let i = 0; i < count; i++) {
     const pick = r();
 
-    if (pick < 0.2) {
-      // The body: a shell, thickest where it is turned away from us.
-      const u = r() * 2 - 1, a = r() * Math.PI * 2;
-      const rad = 0.2 + r() * 0.05;
-      const s2 = Math.sqrt(1 - u * u);
-      out.push({ x: Math.cos(a) * s2 * rad, y: u * rad * 0.8, z: Math.sin(a) * s2 * rad, v: 0.12 + r() * 0.3 });
+    if (pick < 0.15) {
+      // The aureole: rings of grain around the hole, each torn open somewhere
+      // and not one of them a circle.
+      const k = Math.floor(r() * 7);
+      const a = r() * Math.PI * 2;
+      if (Math.sin(a * 2.3 + k * 1.7) < -0.4) continue;
+      const rad = (0.34 + k * 0.115) * (1 + 0.04 * Math.sin(a * 5 + k * 2)) + (r() - 0.5) * 0.018;
+      out.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad, z: (r() - 0.5) * 0.06, v: 0.1 + (1 - k / 7) * 0.26 });
 
-    } else if (pick < 0.72) {
-      // An arm: out from the body, curling, thinning, and branching once.
-      const arm = arms[Math.floor(r() * ARMS)]!;
+    } else if (pick < 0.66) {
+      // A limb, wound round the hole, thinning and fraying as it goes.
+      const L = limbs[Math.floor(r() * LIMBS)]!;
       const u = Math.pow(r(), 0.7);
-      const branch = r() < 0.4 && u > 0.45;
-      const off = branch ? (r() - 0.5) * 0.9 * (u - 0.45) : 0;
-      const a = arm.a + arm.curl * u * u * 0.45 + off;
-      const lift = arm.lift * u * u * 0.75 + (branch ? off * 0.7 : 0);
-      const rad = 0.2 + u * arm.len;
-      // The arm has thickness, and it frays as it goes.
-      const fray = (0.055 * arm.fat) * (1 - u * 0.75);
-      const wob = Math.sin(u * 13 + arm.a * 3) * 0.02 * u;
+      const branch = r() < 0.35 && u > L.fork;
+      const off = branch ? (u - L.fork) * (r() - 0.5) * 1.6 : 0;
+      let a = L.a0 + L.turn * Math.pow(u, 0.8) + off;
+      let rad = 0.23 + u * L.len;
+      let v = 0.5 + u * 0.42;
+      const fray = 0.085 * L.fat * Math.pow(1 - u * 0.82, 1.4);
+      if (u > 0.8) {
+        // The hand: three fingers, splayed wide and hooked back the way they
+        // came, which is the only part of a limb anyone ever looks at.
+        const f = Math.floor(r() * 3) - 1;
+        const q = (u - 0.8) * 5;
+        a += f * 0.26 * q + SWIRL * q * q * 0.42;
+        rad += q * L.len * 0.16;
+        v = 1;
+      }
       out.push({
-        x: Math.cos(a) * rad + (r() - 0.5) * fray + wob,
-        y: lift + (r() - 0.5) * fray * 0.8,
-        z: Math.sin(a) * rad + (r() - 0.5) * fray,
-        v: (0.35 + (1 - u) * 0.5) * (branch ? 0.7 : 1),
+        x: Math.cos(a) * rad + (r() - 0.5) * fray,
+        y: Math.sin(a) * rad + (r() - 0.5) * fray,
+        z: L.z * (0.35 + u * 0.8) + (r() - 0.5) * fray,
+        v: v * (branch ? 0.72 : 1),
       });
 
-    } else if (pick < 0.93) {
-      // Filaments: whatever is left, drawn round the body in long threads.
-      const thread = Math.floor(r() * 9), u = r();
-      const a = (thread / 9) * Math.PI * 2 + u * 3.4;
-      const rad = 0.3 + u * 0.72;
-      const flat = 0.1 + (1 - u) * 0.12;
-      out.push({
-        x: Math.cos(a) * rad,
-        y: (r() - 0.5) * flat * 0.5 + Math.sin(a * 2) * 0.03,
-        z: Math.sin(a) * rad,
-        v: 0.18 + (1 - u) * 0.4,
-      });
+    } else if (pick < 0.78) {
+      // Hair, combed: every strand tangent to the hole and bent the same way,
+      // the way filings lie down in a field.
+      const strand = Math.floor(r() * 90), u = Math.pow(r(), 0.8);
+      const a = (strand / 90) * Math.PI * 2 + SWIRL * (0.35 + (strand % 7) * 0.05) * u;
+      const rad = 0.24 + u * (0.34 + (strand % 11) * 0.04);
+      out.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad, z: (r() - 0.5) * 0.1, v: 0.18 + (1 - u) * 0.45 });
+
+    } else if (pick < 0.87) {
+      // An eye. The lid is bright and the iris is dim; the pupil is simply
+      // never drawn, which is what makes it a pupil.
+      const e = eyes[Math.floor(r() * eyes.length)]!;
+      const a = r() * Math.PI * 2;
+      const lid = r() < 0.62;
+      const k = lid ? 1 : 0.62;
+      const ex = Math.cos(a) * e.s * k, ey = Math.sin(a) * e.s * 0.5 * k;
+      const cs = Math.cos(e.tip), sn = Math.sin(e.tip);
+      out.push({ x: e.x + ex * cs - ey * sn, y: e.y + ex * sn + ey * cs, z: e.z, v: lid ? 1 : 0.5 });
+
+    } else if (pick < 0.94) {
+      // A mouth: a long arc with teeth standing off it.
+      const m = mouths[Math.floor(r() * mouths.length)]!;
+      const u = r();
+      const a = m.a + (u - 0.5) * m.span;
+      const tooth = r() < 0.45;
+      const rad = m.rad + (tooth ? Math.abs(Math.sin(u * m.teeth * Math.PI)) * 0.035 : 0);
+      out.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad, z: m.z, v: tooth ? 1 : 0.75 });
 
     } else {
-      // Eyes, open in the body and along the first reach of the arms.
-      const eye = Math.floor(r() * 9);
-      const arm = arms[eye % ARMS]!;
-      const along = 0.05 + (eye % 4) * 0.12;
-      const a = arm.a + arm.curl * along * along * 0.45;
-      const rad = 0.2 + along;
-      const cx = Math.cos(a) * rad, cy = arm.lift * along * 0.5, cz = Math.sin(a) * rad;
-      const ea = r() * Math.PI * 2, er = Math.sqrt(r()) * 0.05;
-      const open = er < 0.014;
-      out.push({
-        x: cx + Math.cos(ea) * er,
-        y: cy + Math.sin(ea) * er * 0.7,
-        z: cz + Math.cos(ea) * er * 0.4,
-        v: open ? 1 : 0.06,
-      });
+      // A sphere, and the few marks shut inside it.
+      const s = spheres[Math.floor(r() * spheres.length)]!;
+      const a = r() * Math.PI * 2;
+      const inside = r() < 0.3;
+      const rad = inside ? Math.sqrt(r()) * s.s * 0.8 : s.s * (0.94 + r() * 0.06);
+      out.push({ x: s.x + Math.cos(a) * rad, y: s.y + Math.sin(a) * rad * 0.96, z: s.z, v: inside ? (r() < 0.25 ? 1 : 0.1) : 0.6 });
     }
   }
   return out;

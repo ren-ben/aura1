@@ -66,11 +66,31 @@ let render: ((t: number) => void) | null = null;
 // Drawn through the plate, like every other picture on the console: in grey
 // at a coarse grid, then thresholded to the two inks. Ink on rough paper is
 // the one thing that should not be the crispest object on the page.
+// While one sentence is turning into the next, the frames it passed through
+// are still on the page behind it: three of them, drawn where it was a moment
+// ago and laid down fainter the further back they are. A shutter left open.
+const smear = document.createElement('canvas');
+const sg = smear.getContext('2d')!;
+const eased = (v: number) => (v < 0.5 ? 2 * v * v : 1 - Math.pow(-2 * v + 2, 2) / 2);
+
 const script = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   if (turn < 1) {
+    const was = eased(turn);
     turn = Math.min(1, turn + 0.022);
-    const u = turn < 0.5 ? 2 * turn * turn : 1 - Math.pow(-2 * turn + 2, 2) / 2;
+    const u = eased(turn);
     shown = mixLogo(from, to, u);
+    // How far it moved this frame is how long the smear behind it is.
+    const step = Math.max(0, u - was);
+    if (smear.width !== w || smear.height !== h) { smear.width = w; smear.height = h; }
+    for (let k = 3; k >= 1; k--) {
+      const back = u - step * k * 2.4;
+      if (back <= 0) continue;
+      sg.clearRect(0, 0, w, h);
+      drawLogo(sg, w, h, mixLogo(from, to, back), t);
+      g.globalAlpha = 0.46 / k;
+      g.drawImage(smear, 0, 0);
+      g.globalAlpha = 1;
+    }
   }
   drawLogo(g, w, h, shown, t);
 };

@@ -6,7 +6,7 @@ import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, sampleSprite, starfield, street, trees } from '../gl/plate';
+import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, rand, sampleSprite, starfield, street, trees } from '../gl/plate';
 import { dailyMinutes, duration, state, today } from '../store';
 import { hisWord } from '../words';
 
@@ -14,15 +14,17 @@ const props = defineProps<{ active: boolean }>();
 
 // His drawing, prepared once: body dark, a moonlit rim, eyes bright.
 const sprite = ref<HTMLCanvasElement | null>(null);
-catSprite(art.sitting, 420).then((c) => { sprite.value = c; points.value = sampleSprite(c, 5); });
+catSprite(art.sitting, 420).then((c) => { sprite.value = c; points.value = sampleSprite(c, 4); });
 // Where the scene is leaning, and where it is being asked to lean. It travels
 // between the two every frame, so leaving the pane eases back instead of
 // snapping flat.
 const eye = { x: 0, y: 0, tx: 0, ty: 0 };
+// He follows the cursor anywhere on the console, not only across his own
+// frame: the whole window is the surface, so the scene is already leaning by
+// the time you arrive at him.
 function parallax(e: PointerEvent) {
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  eye.tx = ((e.clientX - r.left) / r.width - 0.5) * 2;
-  eye.ty = ((e.clientY - r.top) / r.height - 0.5) * 2;
+  eye.tx = (e.clientX / Math.max(1, innerWidth) - 0.5) * 2;
+  eye.ty = (e.clientY / Math.max(1, innerHeight) - 0.5) * 2;
 }
 const rest = () => { eye.tx = 0; eye.ty = 0; };
 
@@ -31,7 +33,7 @@ const rest = () => { eye.tx = 0; eye.ty = 0; };
 const opening = ref(false);
 const form = { u: 0 };
 const points = ref<{ x: number; y: number; v: number }[]>([]);
-const shape = greatOne(6000);
+const shape = greatOne(9000);
 
 const draw = computed(() => {
   const cat = sprite.value;
@@ -92,49 +94,101 @@ const draw = computed(() => {
 });
 
 // The drawing of him, point by point, on its way to what he is: each point
-// travels from where it sits in the picture to its place in the shape, and
-// the shape turns while it gathers.
+// travels from where it sits in the picture to its place in the figure, and
+// the figure turns in its own plane while it gathers, leaning just enough to
+// have a depth.
 function openHim(g: CanvasRenderingContext2D, w: number, h: number, t: number, u: number,
                  dots: { x: number; y: number; v: number }[], size: number, cx: number, cy: number) {
   const ease = u * u * (3 - 2 * u);
-  const spin = t * 0.35, cs = Math.cos(spin), sn = Math.sin(spin);
-  const tilt = 0.32 + Math.sin(t * 0.21) * 0.06;
-  const reach = size * (0.8 + ease * 0.12);
-  // The hole in the middle of him: nothing comes back out of it, and the
-  // light near it bends round rather than crossing it.
-  if (ease > 0.15) {
-    const rad = reach * 0.2;
-    const halo = g.createRadialGradient(cx, cy, rad * 0.95, cx, cy, rad * 1.35);
-    halo.addColorStop(0, `rgba(255,255,255,${0.5 * ease})`); halo.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, rad * 1.35, 0, 7); g.fill();
-    g.fillStyle = `rgba(0,0,0,${Math.min(1, (ease - 0.15) * 1.4)})`;
-    g.beginPath(); g.arc(cx, cy, rad, 0, 7); g.fill();
+  const reach = size * (0.86 + ease * 0.16);
+  const roll = t * 0.08;
+  const cr = Math.cos(roll), sr = Math.sin(roll);
+  const lean = Math.sin(t * 0.13) * 0.26;
+  const cl = Math.cos(lean), sl = Math.sin(lean);
+  const hole = reach * 0.19;
+
+  if (ease > 0.12) {
+    const a = Math.min(1, (ease - 0.12) * 1.6);
+    // Light crowded up against the edge of it, and combed off the edge in
+    // spikes of every length.
+    const halo = g.createRadialGradient(cx, cy, hole * 0.92, cx, cy, hole * 1.7);
+    halo.addColorStop(0, `rgba(255,255,255,${0.42 * a})`);
+    halo.addColorStop(0.25, `rgba(255,255,255,${0.08 * a})`);
+    halo.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, hole * 1.7, 0, 7); g.fill();
+    const rr = rand(11);
+    g.strokeStyle = `rgba(255,255,255,${0.2 * a})`;
+    for (let k = 0; k < 90; k++) {
+      const ang = rr() * Math.PI * 2, len = hole * (0.2 + Math.pow(rr(), 2.4) * 2.6);
+      g.lineWidth = rr() < 0.2 ? 1.6 : 0.8;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(ang) * hole, cy + Math.sin(ang) * hole);
+      g.lineTo(cx + Math.cos(ang) * (hole + len), cy + Math.sin(ang) * (hole + len));
+      g.stroke();
+    }
+    // The line the light makes going past it, flattened into the plane.
+    const arm = reach * 0.62;
+    const streak = g.createLinearGradient(cx - arm, cy, cx + arm, cy);
+    streak.addColorStop(0, 'rgba(255,255,255,0)');
+    streak.addColorStop(0.35, `rgba(255,255,255,${0.26 * a})`);
+    streak.addColorStop(0.5, `rgba(255,255,255,${0.55 * a})`);
+    streak.addColorStop(0.65, `rgba(255,255,255,${0.26 * a})`);
+    streak.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = streak; g.fillRect(cx - arm, cy - 1, arm * 2, 2);
+    // The hole: nothing comes back out of it, and its edge is torn, never cut.
+    g.fillStyle = `rgba(0,0,0,${a})`;
+    g.beginPath();
+    for (let k = 0; k <= 72; k++) {
+      const ang = (k / 72) * Math.PI * 2;
+      const rad = hole * (0.97 + 0.035 * Math.sin(ang * 7 + t * 0.2) + 0.022 * Math.sin(ang * 17 - t * 0.13));
+      g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad);
+    }
+    g.closePath(); g.fill();
   }
+
   for (let i = 0; i < dots.length; i++) {
     const d = dots[i]!;
     const g3 = shape[i % shape.length]!;
-    // Out of the picture, into the shape: the points swing wide on the way.
+    // Out of the picture, into the figure: the points swing wide on the way.
     const swing = Math.sin(ease * Math.PI) * 0.13 * Math.sin(i * 1.7);
     const x3 = d.x + (g3.x - d.x) * ease + swing;
     const y3 = d.y + (g3.y - d.y) * ease;
     const z3 = (g3.z ?? 0) * ease;
-    const rx = x3 * cs - z3 * sn, rz = x3 * sn + z3 * cs;
-    const ry = y3 * Math.cos(tilt) - rz * Math.sin(tilt);
-    const persp = 1 / (1.5 - rz * 0.55);
+    // Turned in the plane first, then leant out of it.
+    const xr = x3 * cr - y3 * sr, yr = x3 * sr + y3 * cr;
+    const rx = xr * cl - z3 * sl, rz = xr * sl + z3 * cl;
+    const persp = 1 / (1.4 - rz * 0.45);
     const px = cx + rx * reach * persp;
-    const py = cy + ry * reach * persp + size * 0.05 * ease;
+    const py = cy + yr * reach * persp + size * 0.04 * ease;
     // Opened, he is light: the dark of the drawing is not dark any more.
     const v = d.v + (g3.v - d.v) * ease;
-    const shade = Math.min(1, (0.3 + 0.55 * persp + 0.5 * v) * Math.min(1, u * 2.2));
+    // Weighted on what the point is rather than where it is: at even weight
+    // every layer is equally lit and the whole thing is one grey ball.
+    const shade = Math.min(1, (0.06 + 0.3 * persp + 0.82 * v) * Math.min(1, u * 2.2));
     if (shade < 0.06) continue;
     g.fillStyle = `rgb(${Math.round(shade * 255)},${Math.round(shade * 255)},${Math.round(shade * 255)})`;
-    const s = persp > 0.95 && v > 0.75 ? 2 : 1;
+    const s = v > 0.78 ? 2 : 1;
     g.fillRect(px, py, s, s);
   }
-  // The horizon he keeps one foot behind, seen edge on.
-  g.strokeStyle = `rgba(255,255,255,${0.08 + ease * 0.16})`;
+
+  // The last ring of the aureole, drawn rather than grained.
+  g.strokeStyle = `rgba(255,255,255,${0.06 + ease * 0.13})`;
   g.lineWidth = 1;
-  g.beginPath(); g.ellipse(cx, cy, reach * 0.62, reach * 0.62 * Math.sin(tilt) * 0.5, 0, 0, 7); g.stroke();
+  g.beginPath(); g.ellipse(cx, cy, reach * 0.7, reach * 0.7 * (0.82 + Math.abs(cl) * 0.18), 0, 0, 7); g.stroke();
+
+  // And what is left of the cat: one eye, open in the hole.
+  if (ease > 0.68) {
+    const a = Math.min(1, (ease - 0.68) * 3.2);
+    const ew = hole * 0.52, eh = hole * 0.25;
+    g.fillStyle = `rgba(255,255,255,${0.92 * a})`;
+    g.beginPath();
+    g.moveTo(cx - ew, cy);
+    g.quadraticCurveTo(cx, cy - eh, cx + ew, cy);
+    g.quadraticCurveTo(cx, cy + eh, cx - ew, cy);
+    g.fill();
+    g.fillStyle = `rgba(0,0,0,${a})`;
+    g.beginPath(); g.ellipse(cx, cy, ew * 0.09, eh * 0.92, 0, 0, 7); g.fill();
+  }
 }
 
 const bond = computed(() => state.stats?.bond);
@@ -229,15 +283,23 @@ function drawGraph() {
   x.fillRect(w - 10, mid - 16, 3, 32);
 }
 let ro: ResizeObserver | null = null;
-onMounted(() => { ro = new ResizeObserver(drawGraph); if (graph.value) ro.observe(graph.value); drawGraph(); });
-onBeforeUnmount(() => ro?.disconnect());
+onMounted(() => {
+  ro = new ResizeObserver(drawGraph); if (graph.value) ro.observe(graph.value); drawGraph();
+  addEventListener('pointermove', parallax, { passive: true });
+  document.addEventListener('mouseleave', rest);
+});
+onBeforeUnmount(() => {
+  ro?.disconnect();
+  removeEventListener('pointermove', parallax);
+  document.removeEventListener('mouseleave', rest);
+});
 watch([() => state.sessions, () => props.active], drawGraph);
 </script>
 
 <template>
   <div class="entity">
     <Frame class="scene" title="the cathedral ward, before dawn" flush>
-      <div class="plateHost" @pointermove="parallax" @pointerleave="rest">
+      <div class="plateHost">
         <Plate :draw="draw" :active="active" animated :cell="2" label="Kael'thos on a ledge above the cathedral ward at night" />
         <button class="open" :class="{ held: opening }" aria-label="Hold to see what he is"
           @pointerdown.prevent="opening = true" @pointerup="opening = false" @pointerleave="opening = false"
