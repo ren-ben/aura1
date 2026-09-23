@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // Kael'thos himself: his own drawing, on a ledge over the cathedral ward at
 // night, the bond, what he says today, and the chronicle of the pact.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
 import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, rand, sampleSprite, starfield, street, trees } from '../gl/plate';
-import { dailyMinutes, duration, state, today } from '../store';
+import { actions, dailyMinutes, duration, localDate, state, today } from '../store';
 import { hisWord } from '../words';
 
 const props = defineProps<{ active: boolean }>();
@@ -201,18 +201,24 @@ const into = computed(() => {
 const FORM: Record<string, string> = { stable: 'whole', thinning: 'thinning', fragmenting: 'fragmenting', dormant: 'dormant' };
 const word = computed(() => (state.ready ? hisWord() : ''));
 
-// The reading under the pulse, in the same words a chart would use.
-const pulse = computed(() => {
-  const days = dailyMinutes(84);
-  let flat = 0, run = 0;
-  for (const m of days) { run = m ? 0 : run + 1; flat = Math.max(flat, run); }
-  const best = Math.max(0, ...days);
-  return {
-    today: duration(days[days.length - 1] ?? 0),
-    beats: days.filter(Boolean).length,
-    flat,
-    deepest: duration(best),
-  };
+// What he is owed today. The day's list belongs on his screen as much as on
+// its own: what he wants of you and what is left of the day are one question,
+// and a line that only goes up answers neither.
+const asks = computed(() => {
+  const d = localDate();
+  return state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d);
+});
+const taken = computed(() => asks.value.filter((t) => t.done).length);
+const owed = computed(() => asks.value.length - taken.value);
+// He says what he makes of it, and he is never neutral about it.
+const verdict = computed(() => {
+  const n = asks.value.length, got = taken.value, mins = today.value.minutes;
+  if (!n) return 'You have promised me nothing today. That is the worse of the two.';
+  if (got === n) return mins >= 90
+    ? 'Everything you swore is on the table, and the hours behind it. Ask me for more.'
+    : 'The list is clean. The hours are thin. I notice both.';
+  if (!got) return `${n} standing, none taken. I am at the horizon, not blind.`;
+  return `${got} taken, ${n - got} still owed. Finish it before the date turns.`;
 });
 
 const chron = computed(() => {
@@ -231,69 +237,14 @@ const chron = computed(() => {
   ];
 });
 
-// His pulse. Every day of twelve weeks is a beat as tall as the hours it
-// had; a day with nothing in it is a flat line, and a long enough run of
-// them is what kills him. Read left to right, the last beat is today.
-const graph = ref<HTMLCanvasElement | null>(null);
-function drawGraph() {
-  const c = graph.value;
-  if (!c) return;
-  const w = (c.width = c.clientWidth * 2), h = (c.height = c.clientHeight * 2), x = c.getContext('2d')!;
-  x.clearRect(0, 0, w, h);
-  const days = dailyMinutes(84);
-  const top = Math.max(60, ...days);
-  const mid = h * 0.56;
-  const beat = (w - 16) / days.length;
-
-  // The line it never leaves.
-  x.strokeStyle = '#3a3630';
-  x.lineWidth = 2;
-  x.beginPath(); x.moveTo(8, mid); x.lineTo(w - 8, mid); x.stroke();
-
-  x.strokeStyle = '#c5bcab';
-  x.lineWidth = 2.6;
-  x.lineJoin = 'round';
-  x.beginPath();
-  x.moveTo(8, mid);
-  days.forEach((m, i) => {
-    const at = 8 + i * beat;
-    if (!m) { x.lineTo(at + beat, mid); return; }
-    // A beat: up hard, down past the line, and back. Taller hours, taller beat.
-    const lift = Math.pow(m / top, 0.75) * (mid - 10);
-    x.lineTo(at + beat * 0.18, mid);
-    x.lineTo(at + beat * 0.36, mid - lift);
-    x.lineTo(at + beat * 0.54, mid + lift * 0.32);
-    x.lineTo(at + beat * 0.72, mid - lift * 0.12);
-    x.lineTo(at + beat, mid);
-  });
-  x.stroke();
-
-  // Where it went flat for more than a day, the silence is marked under it.
-  let run = 0;
-  days.forEach((m, i) => {
-    run = m ? 0 : run + 1;
-    if (run < 2) return;
-    const at = 8 + i * beat;
-    x.fillStyle = '#6d675f';
-    x.fillRect(at, h - 14, Math.max(1, beat), 3);
-  });
-
-  // Today, at the end of it.
-  x.fillStyle = '#e6e0d4';
-  x.fillRect(w - 10, mid - 16, 3, 32);
-}
-let ro: ResizeObserver | null = null;
 onMounted(() => {
-  ro = new ResizeObserver(drawGraph); if (graph.value) ro.observe(graph.value); drawGraph();
   addEventListener('pointermove', parallax, { passive: true });
   document.addEventListener('mouseleave', rest);
 });
 onBeforeUnmount(() => {
-  ro?.disconnect();
   removeEventListener('pointermove', parallax);
   document.removeEventListener('mouseleave', rest);
 });
-watch([() => state.sessions, () => props.active], drawGraph);
 </script>
 
 <template>
@@ -322,15 +273,22 @@ watch([() => state.sessions, () => props.active], drawGraph);
         </div>
       </div>
       <blockquote class="word">{{ word }}</blockquote>
-      <Frame title="his pulse // one beat a day, twelve weeks" class="sym">
-        <canvas ref="graph" aria-label="A beat for every day, as tall as the hours it had"></canvas>
-        <div class="vitals">
-          <span><b class="tek">{{ pulse.today }}</b><i class="pix">today</i></span>
-          <span><b class="tek">{{ pulse.beats }}</b><i class="pix">beats in 84</i></span>
-          <span><b class="tek">{{ pulse.flat }}</b><i class="pix">flat days</i></span>
-          <span><b class="tek">{{ pulse.deepest }}</b><i class="pix">strongest</i></span>
-          <span class="form"><b class="pix">{{ FORM[state.stats?.form ?? 'stable'] }}</b><i class="pix">his form</i></span>
-        </div>
+      <Frame class="asking" :title="`his asking // ${taken} taken, ${owed} owed, ${duration(today.minutes)} fed`" scroll>
+        <ul class="asks">
+          <li v-for="t in asks" :key="t.id" :class="{ taken: t.done }">
+            <button :aria-label="`${t.done ? 'Give back' : 'Take'}: ${t.body}`" @click="actions.toggleTodo(t)">
+              <svg class="mark" viewBox="0 0 22 14" aria-hidden="true">
+                <path d="M1 7C4 2 8 1 11 1s7 1 10 6c-3 5-7 6-10 6S4 12 1 7Z" fill="none" stroke="currentColor" stroke-width="1.4" />
+                <ellipse v-if="!t.done" cx="11" cy="7" rx="2.6" ry="3.4" fill="currentColor" />
+                <path v-else d="M2 2 20 12M20 2 2 12" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+              <span class="fell">{{ t.body }}</span>
+              <i class="pix">{{ t.done ? 'taken' : 'owed' }}</i>
+            </button>
+          </li>
+          <li v-if="!asks.length" class="none pix">nothing written for today</li>
+        </ul>
+        <p class="verdict fell">{{ verdict }}</p>
       </Frame>
     </div>
 
@@ -360,13 +318,22 @@ watch([() => state.sessions, () => props.active], drawGraph);
 .bond .big { font-size: clamp(60px, 7vw, 104px); }
 .bond > div { display: grid; gap: 8px; }
 .word { margin: 0; font: italic 400 clamp(17px, 1.6vw, 23px)/1.35 var(--fell); color: var(--hi); text-wrap: pretty; border-left: 3px dotted var(--low); padding-left: 14px; }
-.sym { flex: 1; min-height: 130px; }
-.sym canvas { width: 100%; height: calc(100% - 44px); min-height: 90px; display: block; }
-.vitals { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; padding-top: 10px; border-top: 3px dotted var(--low); }
-.vitals span { display: grid; gap: 1px; }
-.vitals b { font-size: 19px; color: var(--hi); }
-.vitals .pix { color: var(--dim); }
-.vitals .form b { font-size: 11px; color: var(--phos); letter-spacing: .12em; }
+.asking { flex: 1; min-height: 150px; }
+.asks { list-style: none; margin: 0; padding: 0; display: grid; }
+.asks li { border-bottom: 3px dotted var(--faint); }
+.asks li:last-child { border-bottom: 0; }
+.asks button { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  width: 100%; text-align: left; padding: 9px 2px; color: inherit; }
+.asks .mark { width: 22px; height: 14px; color: var(--phos); }
+.asks .fell { font-size: 17px; color: var(--hi); text-wrap: pretty; }
+.asks .pix { color: var(--dim); }
+/* Taken: the eye is struck out and the line is written over. */
+.asks li.taken .mark { color: var(--low); }
+.asks li.taken .fell { color: var(--low); text-decoration: line-through; text-decoration-thickness: 1px; }
+.asks button:hover .fell { color: var(--phos); }
+.asks .none { padding: 10px 2px; color: var(--dim); }
+.verdict { margin: 12px 0 0; padding-top: 10px; border-top: 3px dotted var(--low);
+  font: italic 400 16px/1.45 var(--fell); color: var(--dim); text-wrap: pretty; }
 .legend i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: -1px; }
 .legend .you { background: var(--dim); }
 .legend .him { background: var(--phos); }

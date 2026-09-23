@@ -52,8 +52,17 @@ const ports = computed(() => DIRS.map((d) => ({ ...d, pane: at(here.value.c + d.
 // A key pressed again before the glide ends steps on from where the glide is
 // going, not from where it started; the plane keeps its own easing, so a run
 // of presses reads as one long travel instead of a stutter.
+// A pane that stops drawing the moment it stops being the one you are on goes
+// blank while it is still sliding past. It keeps drawing until the world has
+// finished moving.
+const leaving = shallowRef<Pane | null>(null);
+let leave = 0;
+
 function go(p: Pane | undefined) {
   if (!p || p === here.value) return;
+  leaving.value = here.value;
+  clearTimeout(leave);
+  leave = window.setTimeout(() => { leaving.value = null; }, 820);
   here.value = p;
   try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
 }
@@ -223,7 +232,7 @@ onBeforeUnmount(() => {
     <div class="world" :style="{ '--c': here.c, '--r': here.r }">
       <section v-for="p in PANES" :key="p.id" class="pane" :class="{ here: p === here }"
         :style="{ '--pc': p.c, '--pr': p.r }" :aria-hidden="p !== here" :inert="p !== here">
-        <component :is="p.component" v-if="state.ready" :active="p === here && !mapping" />
+        <component :is="p.component" v-if="state.ready" :active="(p === here || p === leaving) && !mapping" />
       </section>
     </div>
   </div>
@@ -312,16 +321,21 @@ onBeforeUnmount(() => {
 
 <style>
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
-.stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 104px; z-index: 5; pointer-events: none;
-  background: linear-gradient(to top, var(--ground) 34%, rgba(18, 18, 18, .82) 62%, transparent); }
+.stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 74px; z-index: 5; pointer-events: none;
+  background: linear-gradient(to top, var(--ground) 30%, rgba(18, 18, 18, .6) 62%, transparent); }
 .world { position: absolute; left: 0; top: 0; transition: transform .7s var(--ease); will-change: transform;
   transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108vh)); }
 .pane { position: absolute; width: 100vw; height: 100vh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108vh); overflow: clip;
   background: radial-gradient(var(--faint) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--ground);
   /* The side gutters are as wide as the wires and their names, so nothing the
      console says about itself ever lands on what a pane is showing. */
-  padding: 84px clamp(16px, 7.5vw, 116px) 100px; display: flex; flex-direction: column; }
-.pane > * { flex: 1; min-height: 0; width: 100%; max-width: 1500px; margin: 0 auto; }
+  padding: 84px clamp(16px, 7.5vw, 116px) 132px; display: flex; flex-direction: column; }
+/* A pane that holds more than fits used to spill into its own bottom padding
+   and out under the keys, where the scrim finished it off. It scrolls now, so
+   the last row of any pane is always above the keys and always readable. */
+.pane > * { flex: 1; min-height: 0; width: 100%; max-width: 1500px; margin: 0 auto;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.pane > *::-webkit-scrollbar { width: 0; height: 0; }
 
 .ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 10px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 8px; }
 .ports .port:hover { color: var(--hi); }
@@ -465,9 +479,9 @@ onBeforeUnmount(() => {
 @media (max-width: 1500px) {
   .ports { display: none; }
   .hud .brand, .hud .rec, .hud .where { display: none; }
-  .pane { padding: 34px clamp(16px, 4.5vw, 64px) 96px; }
+  .pane { padding: 34px clamp(16px, 4.5vw, 64px) 104px; }
   .hud .mini { font-size: 9.5px; bottom: 2px; }
-  .stage::after { height: 104px; }
+  .stage::after { height: 72px; }
 }
 @media (max-width: 860px) {
   .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
