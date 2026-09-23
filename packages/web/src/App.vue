@@ -9,7 +9,7 @@ import { dailyMinutes, duration, load, state, today } from './store';
 // What a pane is worth right now, for its card on the web: a line of its own
 // figures and twelve marks of its own history.
 function preview(id: string): { stat: string; bars: number[] } {
-  const days = dailyMinutes(84);
+  const days = twelveWeeks();
   const weeks = Array.from({ length: 12 }, (_, i) => days.slice(i * 7, i * 7 + 7).reduce((a, b) => a + b, 0));
   const top = Math.max(1, ...weeks);
   const shape = weeks.map((v) => v / top);
@@ -30,6 +30,15 @@ function preview(id: string): { stat: string; bars: number[] } {
     case 'intercept': return { stat: `${state.quotes.length} of his lines`, bars: flat(0.3) };
     default: return { stat: 'sealed until it is built', bars: flat(0.08) };
   }
+}
+
+// Twelve weeks of minutes, worked out once for a whole pass over the cards
+// rather than twice for each of the fourteen of them.
+let weeksCache: { at: number; days: number[] } | null = null;
+function twelveWeeks(): number[] {
+  const now = Date.now();
+  if (!weeksCache || now - weeksCache.at > 4000) weeksCache = { at: now, days: dailyMinutes(84) };
+  return weeksCache.days;
 }
 
 const here = shallowRef<Pane>(PANES.find((p) => p.id === (location.hash.replace(/^#\/?/, '') || 'kael')) ?? PANES[0]!);
@@ -57,7 +66,9 @@ const lit = shallowRef<Pane | null>(null);
 // Five blobs: the first chases the finger, each of the others chases the one
 // in front. Blurred together they read as one body of liquid being dragged,
 // stretching thin when it moves and pooling back into a drop when it stops.
-const BLOBS = 5;
+// Five on a desk, three on a phone: every one of them is a blurred layer the
+// compositor carries for the whole drag.
+const BLOBS = matchMedia('(pointer: coarse), (max-width: 1500px)').matches ? 3 : 5;
 const glow = ref({ on: false, drops: Array.from({ length: BLOBS }, () => ({ x: -400, y: -400, r: 1 })) });
 let want = { x: -400, y: -400 };
 let flow = 0;
@@ -76,25 +87,33 @@ function pour() {
     moved += Math.abs(dx) + Math.abs(dy);
   }
   glow.value = { on: true, drops };
+  findLit();
   flow = moved > 1.5 ? requestAnimationFrame(pour) : 0;
 }
+// A pointer move only records where the pointer is. Hit-testing the card
+// under it, and writing the four custom properties that light it, happen once
+// a frame in pour() - a finger dragging fires far more moves than a phone can
+// composite, and doing this work per event is most of what made it crawl.
 function aim(x: number, y: number) {
   const first = !glow.value.on;
   want = { x, y };
   if (first) glow.value = { on: true, drops: glow.value.drops.map(() => ({ x, y, r: 1 })) };
   if (!flow) flow = requestAnimationFrame(pour);
+}
+function trace(e: PointerEvent) { if (mapping.value) aim(e.clientX, e.clientY); }
+
+function findLit() {
+  const { x, y } = want;
   const el = document.elementsFromPoint(x, y).find((e) => (e as HTMLElement).dataset?.pane) as HTMLElement | undefined;
   const pane = el ? PANES.find((q) => q.id === el.dataset.pane) ?? null : null;
   if (pane !== lit.value) lit.value = pane;
-  if (el) {
-    const b = el.getBoundingClientRect();
-    el.style.setProperty('--fx', `${((x - b.left) / b.width) * 100}%`);
-    el.style.setProperty('--fy', `${((y - b.top) / b.height) * 100}%`);
-    el.style.setProperty('--tx', `${((x - b.left) / b.width - 0.5) * 2}`);
-    el.style.setProperty('--ty', `${((y - b.top) / b.height - 0.5) * 2}`);
-  }
+  if (!el) return;
+  const b = el.getBoundingClientRect();
+  el.style.setProperty('--fx', `${((x - b.left) / b.width) * 100}%`);
+  el.style.setProperty('--fy', `${((y - b.top) / b.height) * 100}%`);
+  el.style.setProperty('--tx', `${((x - b.left) / b.width - 0.5) * 2}`);
+  el.style.setProperty('--ty', `${((y - b.top) / b.height - 0.5) * 2}`);
 }
-function trace(e: PointerEvent) { if (mapping.value) aim(e.clientX, e.clientY); }
 function release(e?: PointerEvent) {
   if (!mapping.value) return;
   mapping.value = false;
@@ -245,8 +264,8 @@ onBeforeUnmount(() => {
 
   <div v-if="mapping" class="map" :class="{ narrow }" aria-label="The whole web">
     <svg class="weld" aria-hidden="true">
-      <filter id="goo">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="soft" />
+      <filter id="goo" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="soft" />
         <feColorMatrix in="soft" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" result="welded" />
         <feBlend in="SourceGraphic" in2="welded" />
       </filter>
@@ -332,7 +351,7 @@ onBeforeUnmount(() => {
 .hud .tools svg { width: 14px; height: 14px; }
 .hud .mini { right: 0; bottom: 4px; display: flex; gap: 14px; color: var(--dim); }
 
-.map { position: fixed; inset: 0; z-index: 25; background: rgba(12, 11, 10, .72); backdrop-filter: blur(14px) saturate(.6); -webkit-backdrop-filter: blur(14px) saturate(.6);
+.map { position: fixed; inset: 0; z-index: 25; background: rgba(12, 11, 10, .72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   padding: 60px clamp(16px, 5vw, 80px) 90px; animation: mapin .34s var(--ease) both; }
 @keyframes mapin { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; } }
 .map .sky { position: absolute; inset: 0; background: radial-gradient(1px 1px at 20% 30%, var(--phos), transparent), radial-gradient(1px 1px at 70% 60%, var(--phos), transparent), radial-gradient(1px 1px at 40% 80%, var(--dim), transparent), radial-gradient(1px 1px at 85% 20%, var(--dim), transparent); background-size: 190px 170px; opacity: .6; }
@@ -365,6 +384,21 @@ onBeforeUnmount(() => {
   transform: scale(.4); transition: opacity .34s var(--out), transform .5s var(--out); }
 .map .card.lit::after { opacity: 1; transform: scale(1); }
 .map .card.lit b { color: #fff; text-shadow: 0 0 16px rgba(230, 224, 212, .6); }
+/* Anything dragged with a finger gets the light without the weld: an SVG
+   filter over the whole screen, on top of a backdrop blur, is two full-screen
+   passes a frame, and a tablet composites those no faster than a phone. The
+   trailing drops read as one body of liquid without it. */
+@media (pointer: coarse), (max-width: 1500px) {
+  .map { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+  .map .pour { filter: blur(11px); }
+  .map .pour i { width: 128px; height: 128px; margin: -64px 0 0 -64px; }
+  .map .card { animation-duration: .3s; }
+  .map .card.lit { box-shadow: none; }
+}
+.map.narrow { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.map.narrow .pour { filter: blur(11px); }
+.map.narrow .pour i { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
+.map.narrow .card { animation-duration: .3s; }
 .map.narrow .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important;
   gap: 10px; align-content: start; overflow: auto; padding-bottom: 12px; scrollbar-width: none; }
 .map.narrow .grid::-webkit-scrollbar { width: 0; }
