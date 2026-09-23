@@ -147,6 +147,20 @@ const into = computed(() => {
 const FORM: Record<string, string> = { stable: 'whole', thinning: 'thinning', fragmenting: 'fragmenting', dormant: 'dormant' };
 const word = computed(() => (state.ready ? hisWord() : ''));
 
+// The reading under the pulse, in the same words a chart would use.
+const pulse = computed(() => {
+  const days = dailyMinutes(84);
+  let flat = 0, run = 0;
+  for (const m of days) { run = m ? 0 : run + 1; flat = Math.max(flat, run); }
+  const best = Math.max(0, ...days);
+  return {
+    today: duration(days[days.length - 1] ?? 0),
+    beats: days.filter(Boolean).length,
+    flat,
+    deepest: duration(best),
+  };
+});
+
 const chron = computed(() => {
   const days = dailyMinutes(84);
   let silence = 0, run = 0, fedRun = 0;
@@ -163,7 +177,9 @@ const chron = computed(() => {
   ];
 });
 
-// You and him: your hours and his insight, both summed over twelve weeks.
+// His pulse. Every day of twelve weeks is a beat as tall as the hours it
+// had; a day with nothing in it is a flat line, and a long enough run of
+// them is what kills him. Read left to right, the last beat is today.
 const graph = ref<HTMLCanvasElement | null>(null);
 function drawGraph() {
   const c = graph.value;
@@ -171,19 +187,46 @@ function drawGraph() {
   const w = (c.width = c.clientWidth * 2), h = (c.height = c.clientHeight * 2), x = c.getContext('2d')!;
   x.clearRect(0, 0, w, h);
   const days = dailyMinutes(84);
-  let you = 0, him = 0;
-  const yours: number[] = [], his: number[] = [];
-  days.forEach((m) => { you += m; him += m * (m > 90 ? 1.5 : m >= 45 ? 1.25 : 1); yours.push(you); his.push(him); });
-  const max = Math.max(1, him);
-  const plot = (series: number[], dotted: boolean) => {
-    x.fillStyle = dotted ? '#7a7468' : '#c5bcab';
-    series.forEach((v, i) => {
-      const px = (i / 83) * (w - 8) + 4, py = h - 6 - (v / max) * (h - 16);
-      if (!dotted || i % 2 === 0) x.fillRect(px - 2, py - 2, dotted ? 3 : 5, dotted ? 3 : 5);
-    });
-  };
-  plot(yours, true);
-  plot(his, false);
+  const top = Math.max(60, ...days);
+  const mid = h * 0.56;
+  const beat = (w - 16) / days.length;
+
+  // The line it never leaves.
+  x.strokeStyle = '#3a3630';
+  x.lineWidth = 2;
+  x.beginPath(); x.moveTo(8, mid); x.lineTo(w - 8, mid); x.stroke();
+
+  x.strokeStyle = '#c5bcab';
+  x.lineWidth = 2.6;
+  x.lineJoin = 'round';
+  x.beginPath();
+  x.moveTo(8, mid);
+  days.forEach((m, i) => {
+    const at = 8 + i * beat;
+    if (!m) { x.lineTo(at + beat, mid); return; }
+    // A beat: up hard, down past the line, and back. Taller hours, taller beat.
+    const lift = Math.pow(m / top, 0.75) * (mid - 10);
+    x.lineTo(at + beat * 0.18, mid);
+    x.lineTo(at + beat * 0.36, mid - lift);
+    x.lineTo(at + beat * 0.54, mid + lift * 0.32);
+    x.lineTo(at + beat * 0.72, mid - lift * 0.12);
+    x.lineTo(at + beat, mid);
+  });
+  x.stroke();
+
+  // Where it went flat for more than a day, the silence is marked under it.
+  let run = 0;
+  days.forEach((m, i) => {
+    run = m ? 0 : run + 1;
+    if (run < 2) return;
+    const at = 8 + i * beat;
+    x.fillStyle = '#6d675f';
+    x.fillRect(at, h - 14, Math.max(1, beat), 3);
+  });
+
+  // Today, at the end of it.
+  x.fillStyle = '#e6e0d4';
+  x.fillRect(w - 10, mid - 16, 3, 32);
 }
 let ro: ResizeObserver | null = null;
 onMounted(() => { ro = new ResizeObserver(drawGraph); if (graph.value) ro.observe(graph.value); drawGraph(); });
@@ -217,9 +260,15 @@ watch([() => state.sessions, () => props.active], drawGraph);
         </div>
       </div>
       <blockquote class="word">{{ word }}</blockquote>
-      <Frame title="you and him // twelve weeks, summed" class="sym">
-        <canvas ref="graph" aria-label="Your hours and his insight, rising together"></canvas>
-        <div class="legend pix"><span><i class="you"></i>your hours</span><span><i class="him"></i>his insight</span></div>
+      <Frame title="his pulse // one beat a day, twelve weeks" class="sym">
+        <canvas ref="graph" aria-label="A beat for every day, as tall as the hours it had"></canvas>
+        <div class="vitals">
+          <span><b class="tek">{{ pulse.today }}</b><i class="pix">today</i></span>
+          <span><b class="tek">{{ pulse.beats }}</b><i class="pix">beats in 84</i></span>
+          <span><b class="tek">{{ pulse.flat }}</b><i class="pix">flat days</i></span>
+          <span><b class="tek">{{ pulse.deepest }}</b><i class="pix">strongest</i></span>
+          <span class="form"><b class="pix">{{ FORM[state.stats?.form ?? 'stable'] }}</b><i class="pix">his form</i></span>
+        </div>
       </Frame>
     </div>
 
@@ -250,8 +299,12 @@ watch([() => state.sessions, () => props.active], drawGraph);
 .bond > div { display: grid; gap: 8px; }
 .word { margin: 0; font: italic 400 clamp(17px, 1.6vw, 23px)/1.35 var(--fell); color: var(--hi); text-wrap: pretty; border-left: 3px dotted var(--low); padding-left: 14px; }
 .sym { flex: 1; min-height: 130px; }
-.sym canvas { width: 100%; height: calc(100% - 22px); min-height: 70px; display: block; }
-.legend { display: flex; gap: 16px; margin-top: 6px; }
+.sym canvas { width: 100%; height: calc(100% - 44px); min-height: 90px; display: block; }
+.vitals { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; padding-top: 10px; border-top: 3px dotted var(--low); }
+.vitals span { display: grid; gap: 1px; }
+.vitals b { font-size: 19px; color: var(--hi); }
+.vitals .pix { color: var(--dim); }
+.vitals .form b { font-size: 11px; color: var(--phos); letter-spacing: .12em; }
 .legend i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: -1px; }
 .legend .you { background: var(--dim); }
 .legend .him { background: var(--phos); }

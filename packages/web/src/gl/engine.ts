@@ -11,7 +11,8 @@ const DITHER = `
     vec2 cell = floor(gl_FragCoord.xy / px);
     vec3 c = texture2D(tex, (cell * px + px * 0.5) / res).rgb;
     float l = dot(c, vec3(0.299, 0.587, 0.114));
-    gl_FragColor = vec4(l > bayer(cell) + 0.015 ? ink : ground, 1.0);
+    bool on = l > bayer(cell) + 0.015;
+    gl_FragColor = on ? vec4(ink, 1.0) : vec4(ground, 0.0);
   }`;
 
 export const INK = 0xc5bcab;
@@ -24,10 +25,12 @@ export type Options = { dither?: boolean; px?: number; fov?: number; distance?: 
 
 export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Options = {}) {
   const { dither = true, px = 2, fov = 34, distance = 4.2, drift = 0.0035, tilt = 0.12, yaw = 0.4 } = opts;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !dither });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !dither, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(GROUND);
+  // Left unset: the pane behind shows through wherever the dither says ground.
+  scene.background = null;
+  renderer.setClearColor(GROUND, 0);
   const camera = new THREE.PerspectiveCamera(fov, 1, 0.05, 200);
   camera.position.set(0, 0, distance);
   const group = new THREE.Group();

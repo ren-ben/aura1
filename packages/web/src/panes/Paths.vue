@@ -100,7 +100,7 @@ async function addActivity(folderId: number) {
 
 <style scoped>
 .paths { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
-.walk { flex: none; height: clamp(150px, 22vh, 260px); }
+.walk { flex: none; height: clamp(200px, 28vh, 330px); }
 .walk .said { position: absolute; left: 16px; bottom: 12px; margin: 0; max-width: 42ch; padding: 6px 10px;
   background: rgba(18, 18, 18, .78); pointer-events: none; }
 header { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }

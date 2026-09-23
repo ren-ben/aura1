@@ -389,11 +389,19 @@ onBeforeUnmount(() => {
    passes a frame, and a tablet composites those no faster than a phone. The
    trailing drops read as one body of liquid without it. */
 @media (pointer: coarse), (max-width: 1500px) {
-  .map { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
-  .map .pour { filter: blur(11px); }
-  .map .pour i { width: 128px; height: 128px; margin: -64px 0 0 -64px; }
-  .map .card { animation-duration: .3s; }
-  .map .card.lit { box-shadow: none; }
+  /* Nothing full-screen is filtered here. A backdrop blur and an SVG weld
+     are each a pass over every pixel behind them, every frame of a drag; the
+     drops are soft enough on their own, and the ground behind them is nearly
+     opaque instead. */
+  .map { background: rgba(10, 9, 8, .965); backdrop-filter: none; -webkit-backdrop-filter: none; animation-duration: .2s; }
+  .map .pour { filter: none; }
+  .map .pour i { width: 150px; height: 150px; margin: -75px 0 0 -75px;
+    background: radial-gradient(circle, rgba(220, 213, 198, .5), rgba(197, 188, 171, .2) 45%, transparent 70%); }
+  .map .card { animation: none; transition: border-color .2s linear, transform .2s linear; }
+  .map .card.lit { box-shadow: none; transform: scale(1.03); }
+  .map .card::after { transition: opacity .2s linear; transform: none; }
+  .map .card .bars i { transition: none; }
+  .map .edges line { animation: none; }
 }
 .map.narrow { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
 .map.narrow .pour { filter: blur(11px); }
@@ -412,9 +420,9 @@ onBeforeUnmount(() => {
 /* An island at the top edge, a key at the foot: both under the thumb, both
    in the middle, so the hand never has to reach a corner. */
 .webkey.top { top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
-  width: min(62vw, 260px); height: 38px; border-radius: 19px; gap: 10px; grid-auto-flow: column; }
+  width: min(46vw, 190px); height: 34px; border-radius: 17px; }
 .webkey.top svg { width: 17px; height: 17px; }
-.webkey.top::after { content: 'the web'; font: 400 9.5px var(--pix); text-transform: uppercase; letter-spacing: .18em; }
+/* No word on it: the mark is the web itself. */
 .webkey.top.held { transform: translateX(-50%) scale(1.03); }
 .webkey.bottom { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; margin-left: -27px; }
 .webkey.held { border-color: var(--hi); background: var(--phos); color: var(--ground); transform: scale(1.08); }
@@ -450,13 +458,16 @@ onBeforeUnmount(() => {
    names well before the window is narrow, because at 1366 the names were
    landing on the pane, and the pane keeps more room top and bottom so the
    console's own labels never sit on what a pane is showing. */
+/* Below a wide desk the console says nothing about itself: no name, no earth
+   date, no wires across the glass. What is left is the pane and the two keys
+   under it, and the pane is given the room that frees up - top and bottom
+   equal, so what it holds sits in the middle of the screen. */
 @media (max-width: 1500px) {
-  .ports .port span:not(.wire) { display: none; }
-  .ports .port { padding: 14px; }
-  .pane { padding: 92px clamp(16px, 7.5vw, 116px) 116px; }
-  .hud .where b { font-size: 24px; }
-  .hud .mini { font-size: 9.5px; }
-  .stage::after { height: 118px; }
+  .ports { display: none; }
+  .hud .brand, .hud .rec, .hud .where { display: none; }
+  .pane { padding: 34px clamp(16px, 4.5vw, 64px) 96px; }
+  .hud .mini { font-size: 9.5px; bottom: 2px; }
+  .stage::after { height: 104px; }
 }
 @media (max-width: 860px) {
   .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
