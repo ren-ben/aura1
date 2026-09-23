@@ -6,7 +6,7 @@ import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { bats, catSprite, church, drift, moonDisc, skyline, starfield, trees } from '../gl/plate';
+import { bats, catSprite, church, drift, greatOne, moonDisc, sampleSprite, skyline, starfield, trees } from '../gl/plate';
 import { dailyMinutes, duration, state, today } from '../store';
 import { hisWord } from '../words';
 
@@ -14,17 +14,35 @@ const props = defineProps<{ active: boolean }>();
 
 // His drawing, prepared once: body dark, a moonlit rim, eyes bright.
 const sprite = ref<HTMLCanvasElement | null>(null);
-catSprite(art.sitting, 420).then((c) => { sprite.value = c; });
-const look = ref({ x: 0, y: 0 });
+catSprite(art.sitting, 420).then((c) => { sprite.value = c; points.value = sampleSprite(c, 5); });
+// Where the scene is leaning, and where it is being asked to lean. It travels
+// between the two every frame, so leaving the pane eases back instead of
+// snapping flat.
+const eye = { x: 0, y: 0, tx: 0, ty: 0 };
 function parallax(e: PointerEvent) {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  look.value = { x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: ((e.clientY - r.top) / r.height - 0.5) * 2 };
+  eye.tx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+  eye.ty = ((e.clientY - r.top) / r.height - 0.5) * 2;
 }
+const rest = () => { eye.tx = 0; eye.ty = 0; };
+
+// Held, he stops being a cat. The drawing comes apart into its points and
+// they take their places in what is actually there.
+const opening = ref(false);
+const form = { u: 0 };
+const points = ref<{ x: number; y: number; v: number }[]>([]);
+const shape = greatOne(5200);
 
 const draw = computed(() => {
   const cat = sprite.value;
-  const drift_ = look.value;
+  const dots = points.value;
   return (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
+    // Easing happens here, where a frame is drawn, not where the mouse moves.
+    eye.x += (eye.tx - eye.x) * 0.08;
+    eye.y += (eye.ty - eye.y) * 0.08;
+    form.u += ((opening.value ? 1 : 0) - form.u) * 0.055;
+    const drift_ = eye;
+    const u = form.u < 0.002 ? 0 : form.u;
     const horizon = h * 0.84;
     const sky = g.createLinearGradient(0, 0, 0, horizon);
     sky.addColorStop(0, 'rgb(3,3,3)'); sky.addColorStop(0.62, 'rgb(16,16,16)'); sky.addColorStop(1, 'rgb(86,86,86)');
@@ -50,13 +68,61 @@ const draw = computed(() => {
     if (cat) {
       const size = Math.min(h * 0.95, w * 0.66);
       const cx = w * 0.62 + drift_.x * 5, cy = horizon - size * 0.45;
-      const pool = g.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * 0.62);
-      pool.addColorStop(0, 'rgba(0,0,0,.92)'); pool.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = pool; g.beginPath(); g.arc(cx, cy, size * 0.62, 0, 7); g.fill();
-      g.drawImage(cat, w * 0.62 - size / 2 + drift_.x * 5, horizon - size * 0.93 + drift_.y * 3, size, size);
+      const pool = g.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * (0.62 + u * 1.6));
+      pool.addColorStop(0, `rgba(0,0,0,${0.92})`); pool.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = pool; g.beginPath(); g.arc(cx, cy, size * (0.62 + u * 1.6), 0, 7); g.fill();
+      // The ward goes out while he opens; the drawing fades as the points come.
+      if (u > 0.01) { g.fillStyle = `rgba(0,0,0,${0.72 * u})`; g.fillRect(0, 0, w, h); }
+      if (u < 0.55) {
+        g.globalAlpha = 1 - u / 0.55;
+        g.drawImage(cat, w * 0.62 - size / 2 + drift_.x * 5, horizon - size * 0.93 + drift_.y * 3, size, size);
+        g.globalAlpha = 1;
+      }
+      if (u > 0.01) openHim(g, w, h, t, u, dots, size, cx, cy);
     }
   };
 });
+
+// The drawing of him, point by point, on its way to what he is: each point
+// travels from where it sits in the picture to its place in the shape, and
+// the shape turns while it gathers.
+function openHim(g: CanvasRenderingContext2D, w: number, h: number, t: number, u: number,
+                 dots: { x: number; y: number; v: number }[], size: number, cx: number, cy: number) {
+  const ease = u * u * (3 - 2 * u);
+  const spin = t * 0.35, cs = Math.cos(spin), sn = Math.sin(spin);
+  const tilt = 0.32 + Math.sin(t * 0.21) * 0.06;
+  const reach = size * (0.8 + ease * 0.12);
+  // The hole in the middle of him: nothing comes back out of it.
+  if (ease > 0.2) {
+    g.fillStyle = `rgba(0,0,0,${(ease - 0.2) * 1.1})`;
+    g.beginPath(); g.ellipse(cx, cy, reach * 0.38, reach * 0.38 * Math.sin(tilt) * 1.3, 0, 0, 7); g.fill();
+  }
+  for (let i = 0; i < dots.length; i++) {
+    const d = dots[i]!;
+    const g3 = shape[i % shape.length]!;
+    // Out of the picture, into the shape: the points swing wide on the way.
+    const swing = Math.sin(ease * Math.PI) * 0.13 * Math.sin(i * 1.7);
+    const x3 = d.x + (g3.x - d.x) * ease + swing;
+    const y3 = d.y + (g3.y - d.y) * ease;
+    const z3 = (g3.z ?? 0) * ease;
+    const rx = x3 * cs - z3 * sn, rz = x3 * sn + z3 * cs;
+    const ry = y3 * Math.cos(tilt) - rz * Math.sin(tilt);
+    const persp = 1 / (1.5 - rz * 0.55);
+    const px = cx + rx * reach * persp;
+    const py = cy + ry * reach * persp + size * 0.05 * ease;
+    // Opened, he is light: the dark of the drawing is not dark any more.
+    const v = d.v + (g3.v - d.v) * ease;
+    const shade = Math.min(1, (0.22 + 0.5 * persp + 0.4 * v) * Math.min(1, u * 2.2));
+    if (shade < 0.06) continue;
+    g.fillStyle = `rgb(${Math.round(shade * 255)},${Math.round(shade * 255)},${Math.round(shade * 255)})`;
+    const s = persp > 0.95 && v > 0.75 ? 2 : 1;
+    g.fillRect(px, py, s, s);
+  }
+  // The horizon he keeps one foot behind.
+  g.strokeStyle = `rgba(255,255,255,${0.12 + ease * 0.3})`;
+  g.lineWidth = 1;
+  g.beginPath(); g.ellipse(cx, cy, reach * 0.42, reach * 0.42 * Math.sin(tilt), 0, 0, 7); g.stroke();
+}
 
 const bond = computed(() => state.stats?.bond);
 const into = computed(() => {
@@ -115,8 +181,14 @@ watch([() => state.sessions, () => props.active], drawGraph);
 <template>
   <div class="entity">
     <Frame class="scene" title="the cathedral ward, before dawn" flush>
-      <div class="plateHost" @pointermove="parallax" @pointerleave="look = { x: 0, y: 0 }">
+      <div class="plateHost" @pointermove="parallax" @pointerleave="rest">
         <Plate :draw="draw" :active="active" animated :cell="3" label="Kael'thos on a ledge above the cathedral ward at night" />
+        <button class="open" :class="{ held: opening }" aria-label="Hold to see what he is"
+          @pointerdown.prevent="opening = true" @pointerup="opening = false" @pointerleave="opening = false"
+          @pointercancel="opening = false" @contextmenu.prevent>
+          hold // what he is
+        </button>
+        <span v-if="opening" class="said pix">the cat is a courtesy</span>
       </div>
     </Frame>
 
@@ -149,7 +221,15 @@ watch([() => state.sessions, () => props.active], drawGraph);
 <style scoped>
 .entity { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "scene side" "chron chron"; }
 .scene { grid-area: scene; }
-.plateHost { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.plateHost { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.open { position: absolute; left: 12px; bottom: 12px; border: 2px solid var(--low); background: rgba(18, 18, 18, .8);
+  color: var(--dim); padding: 7px 11px; font: 400 10px var(--pix); text-transform: uppercase; touch-action: none;
+  transition: color .3s var(--out), border-color .3s var(--out), background .3s var(--out); }
+.open:hover { color: var(--hi); border-color: var(--phos); }
+.open.held { background: var(--phos); color: var(--ground); border-color: var(--hi); }
+.said { position: absolute; right: 14px; bottom: 16px; color: var(--hi); text-shadow: 0 0 12px rgba(0, 0, 0, .9);
+  animation: saidin .6s var(--out) both; }
+@keyframes saidin { from { opacity: 0; letter-spacing: .3em; } to { opacity: 1; letter-spacing: .12em; } }
 .side { grid-area: side; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .side .note { margin: -4px 0 0; max-width: 46ch; }
 .bond { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }

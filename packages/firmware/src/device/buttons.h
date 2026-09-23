@@ -24,7 +24,7 @@ constexpr int PIN_BATTERY     = 4;   // ADC1 ch3, battery through a 1:2 divider
 
 constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;
-constexpr unsigned long DOUBLE_MS = 260;  // a second SUN within this goes back up
+constexpr unsigned long DOUBLE_MS = 340;  // a second SUN within this goes back up
 
 class Buttons {
 public:
@@ -41,21 +41,26 @@ public:
 
   bool poll(Input& out) {
     arm();
+    // A single press acts at once - nothing is held back to watch for a
+    // second one, because that delay is felt on every press. A second press
+    // landing soon after fires the moment it goes down, and means "back up",
+    // which the machine takes as two steps: the one just made, and one more.
+    const unsigned long now = millis();
+    if (digitalRead(PIN_SUN_BTN) == LOW && !sunDown_ && now - sunEdge_ >= DEBOUNCE_MS
+        && shortAt_ && now - shortAt_ < DOUBLE_MS) {
+      shortAt_ = 0;
+      sunDown_ = true;
+      sunLong_ = true;  // so its release fires nothing
+      sunAt_ = sunEdge_ = now;
+      out = Input::SunDouble;
+      return true;
+    }
     Input sun;
     if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, sun)) {
-      // A short press is held back long enough to see whether a second one
-      // follows: two together move the selection back up the list.
-      if (sun == Input::SunShort) {
-        if (held_) { held_ = false; out = Input::SunDouble; return true; }
-        held_ = true;
-        heldAt_ = millis();
-        return false;
-      }
-      held_ = false;  // a long press cancels anything waiting
+      shortAt_ = sun == Input::SunShort ? millis() : 0;
       out = sun;
       return true;
     }
-    if (held_ && millis() - heldAt_ >= DOUBLE_MS) { held_ = false; out = Input::SunShort; return true; }
     return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrLong_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
   }
 
@@ -68,7 +73,7 @@ public:
 
   // Nothing held and nothing half-handled: safe to sleep until the next press.
   bool settled() const {
-    return !held_ && !sunDown_ && !pwrDown_
+    return !sunDown_ && !pwrDown_
         && digitalRead(PIN_SUN_BTN) == HIGH && digitalRead(PIN_POWER_BTN) == HIGH;
   }
 
@@ -108,8 +113,7 @@ private:
     return false;
   }
 
-  bool held_ = false;         // a short SUN waiting to see if a second follows
-  unsigned long heldAt_ = 0;
+  unsigned long shortAt_ = 0;  // when the last short SUN was let go
   bool sunDown_ = false, pwrDown_ = false;
   bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;

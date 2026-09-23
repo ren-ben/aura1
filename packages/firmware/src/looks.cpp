@@ -1037,89 +1037,109 @@ public:
 // ---------------------------------------------------------------- I: The Rite
 // A summoning circle: the items stand around the ring, the chosen one turned
 // to the top, and he is summoned in the middle.
-// The console: the device wearing the dashboard's own language. Dotted
-// frames, a strip that names each one, pixel capitals for the rows and
-// blackletter for the name of the page, the way the web reads.
+// The console: the device wearing the dashboard. Phosphor on a dark glass,
+// a dot field under everything, dotted frames with a lit strip naming each,
+// and blackletter at the foot. What the web looks like, in one bit.
 class Console : public Look {
 public:
   const char* name() const override { return "CONSOLE"; }
   QuoteBox quoteBox(bool large) const override {
-    return large ? QuoteBox{ &FreeSansBold12pt7b, 1, 164, 4 } : QuoteBox{ &FreeSans9pt7b, 1, 164, 5 };
+    return large ? QuoteBox{ &FreeSansBold12pt7b, 1, 160, 4 } : QuoteBox{ &FreeSans9pt7b, 1, 160, 5 };
   }
-  Corner corner(const ViewModel&, bool) const override { return { 4, INK }; }
+  bool negative() const override { return true; }
+  Corner corner(const ViewModel&, bool) const override { return { 4, PAPER }; }
 
   static constexpr int TOP = 18;  // the status corner owns the strip above
 
-  // A dotted border, as every frame on the web has.
-  static void dotRect(Canvas& c, int x, int y, int w, int h, uint8_t ink) {
-    for (int i = 0; i < w; i += 3) { c.pixel(x + i, y, ink); c.pixel(x + i, y + h - 1, ink); }
-    for (int i = 0; i < h; i += 3) { c.pixel(x, y + i, ink); c.pixel(x + w - 1, y + i, ink); }
+  // The dark glass and its dot field, as the console has behind everything.
+  static void ground(Canvas& c) {
+    c.clear(INK);
+    for (int y = 3; y < 200; y += 9) for (int x = 3; x < 200; x += 9) c.pixel(x, y, PAPER);
   }
-  // The strip on top of a frame: what it holds, and the lamp at its end.
+  static void dotRect(Canvas& c, int x, int y, int w, int h) {
+    for (int i = 0; i < w; i += 3) { c.pixel(x + i, y, PAPER); c.pixel(x + i, y + h - 1, PAPER); }
+    for (int i = 0; i < h; i += 3) { c.pixel(x, y + i, PAPER); c.pixel(x + w - 1, y + i, PAPER); }
+  }
+  // A frame: its border, a strip of dither behind its name, and the lamp.
   static void frame(Canvas& c, int x, int y, int w, int h, const std::string& text) {
-    dotRect(c, x, y, w, h, INK);
+    c.fillRect(x + 1, y + 1, w - 2, h - 2, INK);
+    c.dither(x + 1, y + 1, w - 2, 15, 1, PAPER);
+    dotRect(c, x, y, w, h);
     c.font(&FreeSansBold9pt7b);
-    c.text(upper(fit(c, text, w - 30)), x + 5, y + 12, INK);
-    c.fillRect(x + w - 11, y + 5, 5, 5, INK);
-    for (int i = 0; i < w; i += 3) c.pixel(x + i, y + 16, INK);
+    const std::string t = upper(fit(c, text, w - 30));
+    c.fillRect(x + 4, y + 2, c.width(t) + 4, 13, INK);
+    c.text(t, x + 6, y + 12, PAPER);
+    c.fillRect(x + w - 11, y + 5, 5, 5, PAPER);
+    for (int i = 0; i < w; i += 3) c.pixel(x + i, y + 16, PAPER);
   }
   static void rows(Canvas& c, const Rows& r, int top, int visible) {
     const int first = firstRow(std::max(r.cur, 0), visible);
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 20;
       const bool sel = i == r.cur;
-      const uint8_t fg = sel ? PAPER : INK;
-      if (sel) c.fillRect(12, y, 176, 19, INK);
+      const uint8_t fg = sel ? INK : PAPER;
+      if (sel) {
+        // The selected line is lit, and the light spills a row of dither.
+        c.fillRect(12, y, 176, 18, PAPER);
+        c.dither(12, y - 3, 176, 3, 1, PAPER);
+        c.dither(12, y + 18, 176, 3, 1, PAPER);
+      }
       c.font(&FreeSansBold9pt7b);
       int x = 17;
-      if (sel) { c.text(">", x, y + 14, fg); x += 11; }
+      if (sel) { c.text(">", x, y + 13, fg); x += 11; }
       if (!r.checks.empty()) {
-        c.drawRect(x, y + 5, 9, 9, fg);
-        if (r.checks[i]) c.fillRect(x + 2, y + 7, 5, 5, fg);
+        c.drawRect(x, y + 4, 9, 9, fg);
+        if (r.checks[i]) c.fillRect(x + 2, y + 6, 5, 5, fg);
         x += 15;
       }
-      const std::string label = upper(fit(c, r.items[i], r.values.empty() ? 162 - x : 86));
-      c.text(label, x, y + 14, fg);
-      if (!r.values.empty()) { c.font(&FreeSans9pt7b); c.right(upper(fit(c, r.values[i], 84)), 181, y + 14, fg); }
+      c.text(upper(fit(c, r.items[i], r.values.empty() ? 162 - x : 86)), x, y + 13, fg);
+      if (!r.values.empty()) { c.font(&FreeSans9pt7b); c.right(upper(fit(c, r.values[i], 84)), 181, y + 13, fg); }
     }
   }
-  // The plate at the foot, as the console names the pane it is showing.
+  // The plate at the foot: the pane he is showing, and whose console it is.
   static void nameplate(Canvas& c, const std::string& text) {
-    for (int i = 0; i < 176; i += 3) c.pixel(12 + i, 176, INK);
-    c.font(&Fraktur14); c.text(title(text), 12, 195, INK);
-    c.font(&FreeSansBold9pt7b); c.right(upper("aura-1"), 188, 193, INK);
+    for (int i = 0; i < 176; i += 3) c.pixel(12 + i, 176, PAPER);
+    c.font(&Fraktur14); c.text(title(text), 12, 194, PAPER);
+    c.font(&FreeSansBold9pt7b); c.right(upper("aura-1"), 188, 193, PAPER);
   }
 
   void page(Canvas& c, const ViewModel& vm, const Status& s, ArtSource& art) const override {
+    ground(c);
     const Rows r = rowsOf(vm);
     const int n = static_cast<int>(r.items.size());
     switch (vm.place) {
-      case Place::Menu:
-        art.draw(c, watchId(vm.cursor), 70, TOP - 14, INK);
-        c.font(&FreeSansBold9pt7b); c.text(upper("unit k-01"), 12, TOP + 4, INK);
-        for (int i = 0; i < 176; i += 3) c.pixel(12 + i, TOP + 50, INK);
-        frame(c, 8, TOP + 56, 184, 96, "where to");
-        rows(c, r, TOP + 76, 3);
-        gear(c, 168, TOP - 4, r.gearOn, INK);
+      case Place::Menu: {
+        art.draw(c, watchId(vm.cursor), 70, TOP - 14, PAPER);
+        c.font(&FreeSansBold9pt7b); c.text(upper("unit k-01"), 12, TOP + 4, PAPER);
+        c.dither(12, TOP + 46, 176, 4, 1, PAPER);
+        for (int i = 0; i < 176; i += 3) c.pixel(12 + i, TOP + 52, PAPER);
+        frame(c, 8, TOP + 58, 184, 94, "where to");
+        rows(c, r, TOP + 78, 3);
+        gear(c, 168, TOP - 4, r.gearOn, PAPER);
         nameplate(c, "console");
         return;
+      }
       case Place::Quotes: {
         const QuoteBox b = quoteBox(vm.largeText);
         const int lh = vm.largeText ? 22 : 17;
         const auto lines = quoteLines(*this, vm, vm.quote);
         frame(c, 8, TOP, 184, 150, "his voice");
         c.font(b.font);
-        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 16, TOP + 40 + static_cast<int>(i) * lh);
-        if (!vm.source.empty()) { c.font(&FreeSansBold9pt7b); c.right(upper(fit(c, vm.source, 150)), 183, TOP + 142); }
-        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 178, TOP + 124, INK);
+        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 16, TOP + 40 + static_cast<int>(i) * lh, PAPER);
+        if (!vm.source.empty()) {
+          c.font(&FreeSansBold9pt7b);
+          c.dither(12, TOP + 132, 176, 2, 1, PAPER);
+          c.right(upper(fit(c, vm.source, 150)), 181, TOP + 144, PAPER);
+        }
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 178, TOP + 122, PAPER);
         nameplate(c, "the library");
         return;
       }
       case Place::Settings:
         frame(c, 8, TOP, 184, 100, "settings");
         rows(c, r, TOP + 19, 4);
-        frame(c, 8, TOP + 104, 184, 46, "the cell");
-        batteryPanel(c, 20, TOP + 118, s, &FreeSansBold9pt7b, nullptr, INK, true);
+        frame(c, 8, TOP + 104, 184, 50, "the cell");
+        batteryPanel(c, 18, TOP + 124, s, &FreeSansBold9pt7b, &FreeSans9pt7b, PAPER);
         nameplate(c, "settings");
         return;
       case Place::Habits:
@@ -1127,8 +1147,8 @@ public:
         if (!n) break;
         rows(c, r, TOP + 20, 2);
         frame(c, 8, TOP + 66, 184, 84, "twelve weeks");
-        habitGraph(c, 16, TOP + 90, r.history[r.cur], Mark::Dot, INK);
-        c.font(&FreeSansBold9pt7b); c.right(upper(streakText(r.history[r.cur])), 183, TOP + 144, INK);
+        habitGraph(c, 16, TOP + 90, r.history[r.cur], Mark::Dot, PAPER);
+        c.font(&FreeSansBold9pt7b); c.right(upper(streakText(r.history[r.cur])), 183, TOP + 144, PAPER);
         nameplate(c, "rituals");
         return;
       default: {
@@ -1141,14 +1161,15 @@ public:
         return;
       }
     }
-    c.font(&FreeSans9pt7b); c.centered(emptyNote(vm), 100);
+    c.font(&FreeSans9pt7b); c.centered(emptyNote(vm), 100, PAPER);
     nameplate(c, "console");
   }
 
   void caption(Canvas& c, const ViewModel&, const std::string& text) const override {
-    c.fillRect(0, 172, 200, 28, PAPER);
-    for (int i = 0; i < 200; i += 3) c.pixel(i, 172, INK);
-    c.font(&FreeSansBold9pt7b); c.text(upper(fit(c, text, 176)), 12, 190, INK);
+    c.fillRect(0, 172, 200, 28, INK);
+    c.dither(0, 174, 200, 3, 1, PAPER);
+    for (int i = 0; i < 200; i += 3) c.pixel(i, 172, PAPER);
+    c.font(&FreeSansBold9pt7b); c.text(upper(fit(c, text, 176)), 12, 192, PAPER);
   }
 };
 

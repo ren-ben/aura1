@@ -79,17 +79,17 @@ const vigil = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => 
   // The horizon has to be lit, or a black tower on a black sky is nothing.
   sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.55, 'rgb(22,22,22)'); sky.addColorStop(1, 'rgb(104,104,104)');
   g.fillStyle = sky; g.fillRect(0, 0, w, h);
-  // Everything is sized off the height, so the ward reads the same in a wide
-  // strip on a phone as in a tall box on a desk: a lit horizon, one church
-  // large enough to be a shape, and low roofs either side of it.
-  starfield(g, w, h, Math.round((w * h) / 240), 41);
-  moonDisc(g, w * 0.74, h * 0.26, h * 0.17, 13);
-  const glow = g.createLinearGradient(0, h * 0.5, 0, h);
-  glow.addColorStop(0, 'rgba(255,255,255,0)'); glow.addColorStop(1, 'rgba(255,255,255,.17)');
-  g.fillStyle = glow; g.fillRect(0, h * 0.5, w, h * 0.5);
-  bats(g, w, h * 0.55, t, 5, 55);
-  skyline(g, w, h, h + 1, 19, h / 150);
-  church(g, w * 0.34, h + 1, h / 58, 5);
+  // Sized off the height so the ward holds together in a wide strip as well as
+  // in a tall box: stars, the moon, a lit horizon behind the roofs, and one
+  // church standing out of them.
+  starfield(g, w, h, Math.round((w * h) / 80), 41);
+  moonDisc(g, w * 0.68, h * 0.3, h * 0.2, 13);
+  const glow = g.createLinearGradient(0, h * 0.55, 0, h);
+  glow.addColorStop(0, 'rgba(255,255,255,0)'); glow.addColorStop(1, 'rgba(255,255,255,.14)');
+  g.fillStyle = glow; g.fillRect(0, h * 0.55, w, h * 0.45);
+  bats(g, w, h * 0.6, t, 8, 55);
+  skyline(g, w, h, h + 1, 19, h / 120);
+  church(g, w * 0.3, h + 1, h / 92, 5);
 };
 const records = computed(() => [...strips.value]
   .map((s) => ({ name: s.h.name, streak: s.streak, rate: s.rate, kept: s.h.done.length }))

@@ -18,9 +18,9 @@ const corridor = (g: CanvasRenderingContext2D, w: number, h: number) => labyrint
 // The seal pressed into the firmware, turning. Four dimensions, badly drawn
 // in three, the way he says every drawing of him is.
 const seal = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
-  camera.position.set(0, 0.3, 2.7); camera.lookAt(0, 0, 0);
+  camera.position.set(0, 0.5, 5.4); camera.lookAt(0, 0, 0);
   const { lines, update } = tesseract();
-  lines.scale.setScalar(2.3);
+  lines.scale.setScalar(1.7);
   group.add(lines);
   lights(scene, 1.1, 1.3, 0.16);
   return (t: number) => { update(t); lines.rotation.y = t * 0.35; lines.rotation.x = Math.sin(t * 0.22) * 0.4; };
@@ -77,7 +77,7 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
     </Frame>
 
     <Frame class="seal" title="the seal, as pressed into the firmware" flush>
-      <Gl :build="seal" :active="active" :options="{ drift: 0.003, tilt: 0.1, distance: 2.7 }" label="The seal of the pact, turning" />
+      <Gl :build="seal" :active="active" :options="{ drift: 0.003, tilt: 0.1, distance: 5.4 }" label="The seal of the pact, turning" />
       <p class="note inside">Stamped on every build since the breach. Amygdala Inc. did not put it there.</p>
     </Frame>
 

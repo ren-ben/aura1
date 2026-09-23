@@ -20,7 +20,7 @@ export function makePlate(canvas: HTMLCanvasElement, draw: Draw, cell = 3) {
     // A plate is drawn in roughly the same number of marks whatever size it is
     // shown at, so a moon is a moon on a phone and on a desk, and the marks
     // simply get bigger. Without this a small plate is all grain.
-    w = Math.min(220, Math.max(120, Math.round(cw / cell)));
+    w = Math.max(130, Math.round(cw / cell));
     h = Math.max(1, Math.round((w * ch) / cw));
     if (low.width !== w || low.height !== h) { low.width = out.width = w; low.height = out.height = h; }
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -80,7 +80,7 @@ export function catSprite(svg: string, size = 460): Promise<HTMLCanvasElement> {
       const near = (i: number) => ink[i - 1] || ink[i + 1] || ink[i - size] || ink[i + size] || ink[i - size - 1] || ink[i + size + 1];
       for (let i = 0; i < size * size; i++) {
         let v = -1;
-        if (ink[i]) v = near(i) && !(ink[i - 1] && ink[i + 1] && ink[i - size] && ink[i + size]) ? 0.62 : 0.055;
+        if (ink[i]) v = near(i) && !(ink[i - 1] && ink[i + 1] && ink[i - size] && ink[i + size]) ? 0.34 : 0.055;
         else if (!outside[i]) v = 0.95;
         if (v < 0) continue;
         const p = i * 4;
@@ -96,34 +96,64 @@ export function catSprite(svg: string, size = 460): Promise<HTMLCanvasElement> {
   });
 }
 
-// A gothic city at the horizon: towers, spires, rooftops, lit lancets.
+// A gothic city at the horizon: narrow houses under steep roofs, chimneys and
+// iron finials, arcades of lit lancets, a spire or two over all of it. Drawn
+// dark with a lit edge, the way a city looks with the moon behind it.
 export function skyline(g: CanvasRenderingContext2D, w: number, h: number, base: number, seed: number, scale = 1): void {
   const r = rand(seed);
+  const dark = grey(0.03), edge = grey(0.6), lit = grey(0.52);
   let x = -10;
   while (x < w + 10) {
-    const bw = (10 + r() * 26) * scale, bh = (18 + r() * 60) * scale * (0.6 + 0.6 * Math.sin(x / w * Math.PI));
+    const bw = (9 + r() * 20) * scale;
+    const bh = (22 + r() * 54) * scale * (0.6 + 0.6 * Math.sin((x / w) * Math.PI));
     const top = base - bh;
-    g.fillStyle = grey(0.03);
-    g.fillRect(x, top, bw, bh);
-    g.fillStyle = grey(0.62);
-    g.fillRect(x, top, bw, 1);
-    g.fillRect(x, top, 1, bh);
-    g.fillStyle = grey(0.03);
-    if (r() < 0.5) {
-      // A spire, its lit side towards the moon.
-      g.beginPath(); g.moveTo(x + bw / 2, top - bh * (0.3 + r() * 0.5)); g.lineTo(x, top); g.lineTo(x + bw, top); g.closePath(); g.fill();
-      g.strokeStyle = grey(0.62); g.lineWidth = 1; g.stroke();
-    } else if (r() < 0.5) {
-      // A rose window, faintly lit.
-      g.fillStyle = grey(0.5); g.beginPath(); g.arc(x + bw / 2, top + bh * 0.3, Math.max(1, bw * 0.16), 0, 7); g.fill();
+    g.fillStyle = dark; g.fillRect(x, top, bw, bh);
+    g.fillStyle = edge; g.fillRect(x, top, bw, 1); g.fillRect(x, top, 1, bh);
+
+    const kind = r();
+    if (kind < 0.42) {
+      // A steep roof, and often a finial on its ridge.
+      const rh = bh * (0.22 + r() * 0.3);
+      g.fillStyle = dark;
+      g.beginPath(); g.moveTo(x - scale, top); g.lineTo(x + bw / 2, top - rh); g.lineTo(x + bw + scale, top); g.closePath(); g.fill();
+      g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
+      if (r() < 0.6) g.fillRect(x + bw / 2, top - rh - 4 * scale, Math.max(1, scale * 0.8), 4 * scale);
+    } else if (kind < 0.62) {
+      // A spire: the tall thin kind, with a cross bar near the top.
+      const sh = bh * (0.5 + r() * 0.7), sw = bw * 0.42, sx = x + bw / 2 - sw / 2;
+      g.fillStyle = dark; g.fillRect(sx, top - sh, sw, sh);
+      g.fillStyle = edge; g.fillRect(sx, top - sh, sw, 1); g.fillRect(sx, top - sh, 1, sh);
+      g.fillStyle = dark;
+      g.beginPath(); g.moveTo(sx - scale, top - sh); g.lineTo(sx + sw / 2, top - sh - bh * 0.4); g.lineTo(sx + sw + scale, top - sh); g.closePath();
+      g.fill(); g.strokeStyle = edge; g.stroke();
+      g.fillStyle = edge; g.fillRect(sx - scale, top - sh - bh * 0.14, sw + 2 * scale, Math.max(1, scale * 0.6));
+    } else if (kind < 0.78) {
+      // A rose window over an arcade.
+      g.fillStyle = lit;
+      g.beginPath(); g.arc(x + bw / 2, top + bh * 0.26, Math.max(1.2, bw * 0.17), 0, 7); g.fill();
+      g.fillStyle = dark;
+      g.beginPath(); g.arc(x + bw / 2, top + bh * 0.26, Math.max(0.6, bw * 0.07), 0, 7); g.fill();
     }
-    // Lancet windows.
-    g.fillStyle = grey(0.42);
-    for (let k = 0; k < Math.floor(bh / (7 * scale)); k++) {
-      if (r() > 0.4) continue;
-      g.fillRect(x + bw * 0.25 + (r() < 0.5 ? 0 : bw * 0.4), top + 6 * scale + k * 7 * scale, Math.max(1, bw * 0.12), Math.max(1, 3 * scale));
+    // Chimneys, in ones and twos, leaning where the roof is steep.
+    for (let k = 0; k < (r() < 0.5 ? 2 : 1); k++) {
+      if (r() > 0.55) continue;
+      const cwd = Math.max(1, 2.4 * scale), cx = x + bw * (0.18 + r() * 0.6);
+      const chh = (5 + r() * 7) * scale;
+      g.fillStyle = dark; g.fillRect(cx, top - chh, cwd, chh);
+      g.fillStyle = edge; g.fillRect(cx, top - chh, cwd, 1);
     }
-    x += bw + r() * 6 * scale;
+    // Lancets, in rows, a few of them lit from inside.
+    const rows = Math.max(1, Math.floor(bh / (9 * scale)));
+    for (let row = 0; row < rows; row++) {
+      const y = top + 7 * scale + row * 9 * scale;
+      if (y > base - 3 * scale) break;
+      for (let k = 0; k < 2; k++) {
+        if (r() > 0.45) continue;
+        g.fillStyle = r() < 0.3 ? lit : grey(0.2);
+        g.fillRect(x + bw * (0.22 + k * 0.42), y, Math.max(1, bw * 0.13), Math.max(1, 3.4 * scale));
+      }
+    }
+    x += bw + r() * 4 * scale;
   }
 }
 
@@ -310,4 +340,56 @@ export function labyrinth(g: CanvasRenderingContext2D, w: number, h: number, see
     g.lineTo(x, y);
   }
   g.stroke();
+}
+
+// The drawing of him, read back as points: everywhere his ink is, with how
+// bright that ink was. Used to take him apart and put him back together.
+export function sampleSprite(sprite: HTMLCanvasElement, step = 3): { x: number; y: number; v: number }[] {
+  const n = sprite.width;
+  const d = sprite.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, n, n).data;
+  const out: { x: number; y: number; v: number }[] = [];
+  for (let y = 0; y < n; y += step) for (let x = 0; x < n; x += step) {
+    const i = (y * n + x) * 4;
+    if (!d[i + 3]) continue;
+    out.push({ x: x / n - 0.5, y: y / n - 0.5, v: d[i]! / 255 });
+  }
+  return out;
+}
+
+// What he is when he is not being a cat: a horizon seen at a slant, arms
+// curling off it, and eyes open along its rim. Every point of the drawing is
+// given a place here, so he can come apart into it and go back.
+export function greatOne(count: number, seed = 9): { x: number; y: number; z: number; v: number }[] {
+  const r = rand(seed), out = [];
+  const EYES = 7;
+  for (let i = 0; i < count; i++) {
+    const pick = r();
+    if (pick < 0.5) {
+      // The rim itself: a narrow band, brightest of everything.
+      const a = r() * Math.PI * 2;
+      const rad = 0.43 + (r() - 0.5) * 0.045;
+      out.push({ x: Math.cos(a) * rad, y: (r() - 0.5) * 0.035, z: Math.sin(a) * rad, v: 0.82 + r() * 0.18 });
+    } else if (pick < 0.78) {
+      // Arms: they leave the rim, curl, and come back down towards it.
+      const arm = Math.floor(r() * 5), u = r();
+      const a = (arm / 5) * Math.PI * 2 + u * 1.9;
+      const rad = 0.43 + Math.sin(u * Math.PI) * 0.24;
+      const rise = Math.sin(u * Math.PI * 0.9) * 0.3;
+      out.push({ x: Math.cos(a) * rad, y: -rise + Math.sin(u * 11 + arm) * 0.018, z: Math.sin(a) * rad, v: 0.3 + (1 - u) * 0.4 });
+    } else {
+      // Eyes along the rim: a dark iris with a lit pupil in it.
+      const eye = Math.floor(r() * EYES);
+      const ea = (eye / EYES) * Math.PI * 2 + 0.4;
+      const er = 0.43, lift = -0.06 - (eye % 3) * 0.05;
+      const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * 0.055;
+      const open = rr < 0.016;
+      out.push({
+        x: Math.cos(ea) * er + Math.cos(a) * rr * 1.5,
+        y: lift + Math.sin(a) * rr,
+        z: Math.sin(ea) * er + Math.cos(a) * rr * 0.4,
+        v: open ? 1 : 0.1,
+      });
+    }
+  }
+  return out;
 }

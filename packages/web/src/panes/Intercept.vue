@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // The vault: words kept for him to say on the device. Written in here, each
 // shown as a ring of his script, all of them listed below.
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
-import { rng } from '../gl/engine';
+import { drawLogo, logoFor, mixLogo } from '../gl/logogram';
 import { actions, state, type Quote } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -18,35 +18,51 @@ async function add() {
 }
 async function remove(q: Quote) { if (window.confirm('Take these words out of the vault?')) await actions.removeQuote(q); }
 
-// His script: a ring drawn from the words, seeded by them, like the circular
-// writing in Arrival. The same words always make the same ring.
+// His script: the words as a logogram, and one logogram turning into the next
+// when the intercept changes - nothing here cuts.
 const glyph = ref<HTMLCanvasElement | null>(null);
-function draw() {
-  const c = glyph.value, q = quote.value;
+let shown = logoFor(''), from = shown, to = shown;
+let turn = 1, raf = 0, ro: ResizeObserver | null = null;
+
+function paint(t: number) {
+  const c = glyph.value;
   if (!c) return;
-  const s = (c.width = c.height = 760), x = c.getContext('2d')!;
-  x.fillStyle = '#121212'; x.fillRect(0, 0, s, s);
-  if (!q) return;
-  const r = rng([...q.body].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 2147483646, 7) + 1);
-  const cx = s / 2, cy = s / 2, R = 240;
-  x.fillStyle = '#c5bcab';
-  for (let a = 0; a < Math.PI * 2; a += 0.004) {
-    const w = 14 + Math.sin(a * 3 + r()) * 5 + Math.sin(a * 11) * 3;
-    for (let k = 0; k < 3; k++) { const rr = R + (r() - 0.5) * w; x.globalAlpha = 0.35 + r() * 0.65; x.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 2.6, 2.6); }
-  }
-  for (const word of q.body.split(/\s+/)) {
-    const a = r() * Math.PI * 2, len = 16 + word.length * 10, out = r() < 0.5 ? 1 : -1;
-    for (let k = 0; k < len; k++) {
-      const rr = R + out * k * 0.9, wob = Math.sin(k / 6) * 0.025;
-      x.globalAlpha = 1 - k / len;
-      x.fillRect(cx + Math.cos(a + wob) * rr, cy + Math.sin(a + wob) * rr, 3.2, 3.2);
-    }
-    if (word.length > 6) { x.globalAlpha = 0.9; x.beginPath(); x.arc(cx + Math.cos(a) * (R + out * len * 0.9), cy + Math.sin(a) * (R + out * len * 0.9), 6 + r() * 8, 0, 7); x.fill(); }
-  }
-  x.globalAlpha = 1;
+  const box = c.getBoundingClientRect();
+  const s = Math.max(1, Math.round(Math.min(box.width, box.height) * 2));
+  if (c.width !== s) { c.width = s; c.height = s; }
+  const x = c.getContext('2d')!;
+  x.clearRect(0, 0, s, s);
+  drawLogo(x, s, s, shown, t);
 }
-onMounted(draw);
-watch(quote, draw);
+
+function frame(now: number) {
+  const t = now / 1000;
+  if (turn < 1) {
+    turn = Math.min(1, turn + 0.022);
+    const u = turn < 0.5 ? 2 * turn * turn : 1 - Math.pow(-2 * turn + 2, 2) / 2;
+    shown = mixLogo(from, to, u);
+  }
+  paint(t);
+  raf = requestAnimationFrame(frame);
+}
+
+// A new intercept is written over the old one, not swapped with it.
+watch(quote, (q) => {
+  from = shown;
+  to = logoFor(q?.body ?? '');
+  turn = 0;
+}, { immediate: true });
+
+onMounted(() => {
+  ro = new ResizeObserver(() => paint(performance.now() / 1000));
+  if (glyph.value) ro.observe(glyph.value);
+  raf = requestAnimationFrame(frame);
+});
+onBeforeUnmount(() => { cancelAnimationFrame(raf); ro?.disconnect(); });
+
+const count = computed(() => state.quotes.length);
+const at = computed(() => (count.value ? (index.value % count.value) + 1 : 0));
+const step = (d: number) => { if (count.value) index.value = (index.value + count.value + d) % count.value; };
 </script>
 
 <template>
@@ -55,16 +71,25 @@ watch(quote, draw);
       <canvas ref="glyph" aria-label="The quote drawn as a ring of his script"></canvas>
     </Frame>
 
-    <div class="current">
-      <div class="pix">intercept {{ String((index % Math.max(1, state.quotes.length)) + 1).padStart(2, '0') }} of {{ String(state.quotes.length).padStart(2, '0') }} // he says these on the device</div>
-      <blockquote v-if="quote">{{ quote.body }}</blockquote>
-      <p v-else class="empty">The vault is empty. Give him something worth saying.</p>
-      <cite v-if="quote?.source">source // {{ quote.source }}</cite>
-      <div class="row nav">
-        <button class="btn quiet" @click="index = (index + state.quotes.length - 1) % state.quotes.length">previous</button>
-        <button class="btn quiet" @click="index = (index + 1) % state.quotes.length">next</button>
+    <Frame class="current" :title="`intercept ${String(at).padStart(2, '0')} of ${String(count).padStart(2, '0')} // he says these on the device`">
+      <div class="win">
+        <div class="ticks" aria-hidden="true"><i v-for="n in 24" :key="n"></i></div>
+        <transition name="say" mode="out-in">
+          <div :key="quote?.id ?? 'empty'" class="words">
+            <blockquote v-if="quote">{{ quote.body }}</blockquote>
+            <p v-else class="empty">The vault is empty. Give him something worth saying.</p>
+          </div>
+        </transition>
       </div>
-    </div>
+      <div class="foot">
+        <cite>{{ quote?.source ? `source // ${quote.source}` : 'source // unattributed' }}</cite>
+        <div class="row nav">
+          <button class="btn quiet" aria-label="Previous intercept" @click="step(-1)">&lt;&lt; prev</button>
+          <span class="pix count">{{ String(at).padStart(2, '0') }}/{{ String(count).padStart(2, '0') }}</span>
+          <button class="btn quiet" aria-label="Next intercept" @click="step(1)">next &gt;&gt;</button>
+        </div>
+      </div>
+    </Frame>
 
     <Frame class="write" title="add to the vault">
       <form class="form" @submit.prevent="add">
@@ -87,10 +112,30 @@ watch(quote, draw);
 .intercept { display: grid; gap: 18px; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr) minmax(0, .9fr); grid-template-rows: minmax(0, 1fr) minmax(0, .8fr);
   grid-template-areas: "script current current" "write vault vault"; }
 .script { grid-area: script; }
+.script { position: relative; }
 .script canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
-.current { grid-area: current; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 0 10px; }
-blockquote { margin: 0; font: 400 clamp(22px, 2.6vw, 40px)/1.28 var(--mono); color: var(--hi); text-wrap: balance; }
+.script::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 52%, rgba(18, 18, 18, .55) 78%); }
+.current { grid-area: current; }
+.current :deep(.body) { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+/* The window the transmission lands in: ruled, ticked down one side, and
+   always the same height, so the words arriving never move the furniture. */
+.win { position: relative; flex: 1; min-height: 190px; display: grid; align-items: center;
+  border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); padding: 18px 16px 18px 34px; overflow: hidden; }
+.win::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(197, 188, 171, .04) 0 1px, transparent 1px 4px); }
+.ticks { position: absolute; left: 12px; top: 14px; bottom: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+.ticks i { width: 7px; height: 2px; background: var(--faint); }
+.ticks i:nth-child(6n + 1) { width: 13px; background: var(--low); }
+.words { min-width: 0; }
+blockquote { margin: 0; font: 400 clamp(19px, 2.1vw, 32px)/1.32 var(--mono); color: var(--hi); text-wrap: balance; }
 blockquote::before { content: '> '; color: var(--dim); }
+.say-enter-active, .say-leave-active { transition: opacity .34s var(--out), transform .34s var(--out), filter .34s var(--out); }
+.say-enter-from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
+.say-leave-to { opacity: 0; transform: translateY(-10px); filter: blur(3px); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.nav { gap: 10px; }
+.count { color: var(--phos); min-width: 46px; text-align: center; }
 cite { font: 400 11px var(--pix); color: var(--dim); font-style: normal; text-transform: uppercase; }
 .write { grid-area: write; }
 .form { display: grid; gap: 12px; }
