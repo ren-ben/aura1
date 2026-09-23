@@ -556,65 +556,130 @@ export function greatOne(count: number, seed = 9): { x: number; y: number; z: nu
   return out;
 }
 
-// The long walk: whoever keeps a path walks it in weather like this. A hooded
-// figure leaning into driving rain, stippled rather than drawn - dense where
-// the cloth catches light, open where it does not - with the rain falling
-// across the whole plate and standing up off the ground where it lands.
-export function pilgrim(g: CanvasRenderingContext2D, w: number, h: number, t: number): void {
+// The long walk: whoever keeps a path walks it in weather like this. A figure
+// leaning into driving rain, built out of parts that read as a person - hood,
+// shoulders, a back bent under the weather, a cloak pulled across, one leg
+// forward and one behind - and stippled so it looks drawn rather than cut out.
+//
+// wind is where the cursor is, in plate coordinates, and -1 when it is not on
+// the plate at all: the rain bends around it.
+export function pilgrim(g: CanvasRenderingContext2D, w: number, h: number, t: number,
+                        wind: { x: number; y: number } | null = null): void {
   const r = rand(5);
-  const lean = 0.42;  // the rain comes in at this slope, and so does he
+  const slant = 0.42;  // the weather comes in at this angle, and so does he
 
-  g.fillStyle = grey(0.02); g.fillRect(0, 0, w, h);
+  g.fillStyle = grey(0.02);
+  g.fillRect(0, 0, w, h);
 
-  // The rain: long strokes, falling at speed, wrapped so it never ends.
-  const drops = Math.round((w * h) / 80);
+  const ground = h * 0.9;
+
+  // The rain. Each drop is pushed aside by whatever the cursor is doing:
+  // near it the fall bends away and quickens, the way rain does round a body.
+  const drops = Math.round((w * h) / 70);
   for (let i = 0; i < drops; i++) {
-    const speed = 60 + r() * 90, len = 3 + r() * 9, near = r();
-    const x0 = (r() * (w + h) + t * speed * lean) % (w + h) - h * lean;
-    const y0 = (r() * h + t * speed) % (h + 20) - 10;
-    g.strokeStyle = grey(0.28 + near * 0.62);
-    g.lineWidth = near > 0.85 ? 1.6 : 1;
+    const speed = 55 + r() * 85, len = 3 + r() * 9, near = r();
+    let x = (r() * (w + h) + t * speed * slant) % (w + h) - h * slant;
+    let y = (r() * h + t * speed) % (h + 20) - 10;
+    let dx = len * slant, dy = len;
+    if (wind) {
+      const ox = x - wind.x, oy = y - wind.y;
+      const d = Math.hypot(ox, oy);
+      const reach = Math.min(w, h) * 0.55;
+      if (d < reach) {
+        // Pushed out of the way, and streaked by the push.
+        const push = Math.pow(1 - d / reach, 2) * reach * 0.42;
+        x += (ox / (d || 1)) * push;
+        y += (oy / (d || 1)) * push * 0.6;
+        dx += (ox / (d || 1)) * push * 0.28;
+        dy += (oy / (d || 1)) * push * 0.18;
+      }
+    }
+    g.strokeStyle = grey(0.26 + near * 0.6);
+    g.lineWidth = near > 0.86 ? 1.6 : 1;
     g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x0 + len * lean, y0 + len);
+    g.moveTo(x, y);
+    g.lineTo(x + dx, y + dy);
     g.stroke();
   }
 
-  // The ground: rain standing back up off it, thickest at the bottom edge.
-  const ground = h * 0.9;
-  for (let i = 0; i < Math.round(w * 1.4); i++) {
+  // The ground: rain standing back up off it.
+  for (let i = 0; i < Math.round(w * 1.3); i++) {
     const y = ground + Math.pow(r(), 0.6) * (h - ground);
-    const bright = 0.3 + ((y - ground) / (h - ground)) * 0.6;
-    g.fillStyle = grey(bright * (0.5 + r() * 0.5));
+    const lit = 0.3 + ((y - ground) / (h - ground)) * 0.6;
+    g.fillStyle = grey(lit * (0.5 + r() * 0.5));
     g.fillRect(r() * w, y, 1, 1);
   }
 
-  // Him: a hood, a back bent into it, and the hem of a coat being pulled.
-  const cx = w * 0.5, base = ground + (h - ground) * 0.5;
-  const tall = h * 0.84, wide = tall * 0.44;
-  const sway = Math.sin(t * 0.8) * tall * 0.012;
-  const inside = (x: number, y: number) => {
-    // Body in the plate's own space: hood on top of a widening cloak.
-    const u = (y - (base - tall)) / tall;          // 0 at the crown, 1 at the hem
-    if (u < 0 || u > 1) return -1;
-    const axis = cx + sway + (0.5 - u) * tall * lean * 0.5;
-    const hood = Math.sin(Math.min(1, u / 0.26) * Math.PI * 0.5);
-    const half = u < 0.26 ? wide * 0.42 * hood : wide * (0.42 + (u - 0.26) * 0.78);
-    const d = Math.abs(x - axis) / Math.max(0.001, half);
-    return d > 1 ? -1 : d;
-  };
-  const dots = Math.round(tall * wide * 2.2);
-  for (let i = 0; i < dots; i++) {
-    const x = cx + (r() - 0.5) * wide * 3.4, y = base - tall + r() * tall;
-    const d = inside(x, y);
-    if (d < 0) continue;
-    // The cloth is lit at its edge and lost towards the middle of him.
-    const light = Math.pow(d, 1.7) * 0.95 + 0.04;
-    if (r() > light) continue;
-    g.fillStyle = grey(0.5 + light * 0.5);
-    g.fillRect(x, y, 1, 1);
+  // Him. Everything is measured off his height, and he leans into the rain.
+  const tall = h * 0.66;
+  const cx = w * 0.5 + Math.sin(t * 0.35) * tall * 0.01;
+  const foot = ground + (h - ground) * 0.35;
+  const head = foot - tall;
+  const lean = tall * 0.14;          // how far the head is ahead of the feet
+  const stride = Math.sin(t * 1.1) * tall * 0.05;
+
+  // The body is built as one path, so the stipple has an inside and an out.
+  const body = new Path2D();
+  const hoodR = tall * 0.105;
+  // The hood: a cowl with its point pulled forward over the face.
+  body.moveTo(cx + lean - hoodR * 0.2, head + hoodR * 1.7);
+  body.quadraticCurveTo(cx + lean - hoodR * 1.25, head + hoodR * 0.9,
+                        cx + lean - hoodR * 0.55, head + hoodR * 0.12);
+  body.quadraticCurveTo(cx + lean + hoodR * 0.5, head - hoodR * 0.35,
+                        cx + lean + hoodR * 1.05, head + hoodR * 0.75);
+  body.quadraticCurveTo(cx + lean + hoodR * 1.3, head + hoodR * 1.5,
+                        cx + lean + hoodR * 0.5, head + hoodR * 1.9);
+  // The shoulders and the back, bent under it.
+  body.quadraticCurveTo(cx + lean + hoodR * 2.2, head + tall * 0.2,
+                        cx + tall * 0.21, head + tall * 0.44);
+  // The cloak, blown back and out behind him.
+  body.quadraticCurveTo(cx + tall * 0.1, foot - tall * 0.1,
+                        cx + tall * 0.26 + stride, foot);
+  body.lineTo(cx - tall * 0.32 + stride * 0.5, foot);
+  // Up the back of the cloak, which the wind has hold of.
+  body.quadraticCurveTo(cx - tall * 0.33, foot - tall * 0.34,
+                        cx - tall * 0.14, head + tall * 0.34);
+  body.closePath();
+
+  // The cloth: filled at a weight the dither turns into stipple by itself,
+  // with the light along its edge. Sampling every point against the outline
+  // was both slower and fainter than letting the plate do what it is for.
+  g.fillStyle = grey(0.46);
+  g.fill(body);
+  g.strokeStyle = grey(0.96);
+  g.lineWidth = Math.max(1, tall * 0.012);
+  g.stroke(body);
+
+  // The deep folds: the side away from the weather goes dark.
+  const shade = g.createLinearGradient(cx - tall * 0.3, 0, cx + tall * 0.2, 0);
+  shade.addColorStop(0, 'rgba(0,0,0,.72)');
+  shade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.save();
+  g.clip(body);
+  g.fillStyle = shade;
+  g.fillRect(cx - tall * 0.5, head - tall * 0.1, tall, tall * 1.3);
+  // A few creases running down the cloak, caught by the same light.
+  g.strokeStyle = grey(0.85);
+  g.lineWidth = Math.max(0.6, tall * 0.006);
+  for (let k = 0; k < 5; k++) {
+    const at = cx - tall * 0.2 + k * tall * 0.1 + Math.sin(k * 2.1) * tall * 0.02;
+    g.beginPath();
+    g.moveTo(at, head + tall * 0.34);
+    g.quadraticCurveTo(at - tall * 0.03, foot - tall * 0.3, at + stride * 0.6, foot);
+    g.stroke();
   }
-  // The dark inside the hood, and what is looking out of it.
+  g.restore();
+
+  // The staff, planted ahead of him, and the dark under the hood.
+  g.strokeStyle = grey(0.85);
+  g.lineWidth = Math.max(1, tall * 0.012);
+  g.beginPath();
+  g.moveTo(cx + tall * 0.2 + lean, head + tall * 0.3);
+  g.lineTo(cx + tall * 0.3 + stride, foot + tall * 0.02);
+  g.stroke();
+
   g.fillStyle = grey(0);
-  g.beginPath(); g.ellipse(cx + sway, base - tall * 0.88, wide * 0.24, wide * 0.3, 0, 0, 7); g.fill();
+  g.beginPath();
+  g.ellipse(cx + lean + hoodR * 0.25, head + hoodR * 0.95, hoodR * 0.52, hoodR * 0.62, -0.3, 0, 7);
+  g.fill();
 }

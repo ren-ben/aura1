@@ -43,6 +43,38 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
   group.add(disk);
   facing.scale.setScalar(0.34);
   scene.add(facing);
+
+  // What is inside it. The dark is not empty: an eye sits in the middle of
+  // the horizon and opens every so often, and arms of the disk reach out of
+  // the plane the planets keep to.
+  const eye = new THREE.Group();
+  const lid = new THREE.Mesh(
+    new THREE.CircleGeometry(0.21, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 }),
+  );
+  const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.075, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  pupil.position.z = 0.002;
+  eye.add(lid);
+  eye.add(pupil);
+  eye.position.z = 0.24;
+  scene.add(eye);
+
+  // The arms: threads of the disk lifted out of it, turning with everything.
+  const reach = new THREE.BufferGeometry();
+  const ar = rng(71), ap: number[] = [], ac: number[] = [];
+  for (let i = 0; i < 2600; i++) {
+    const arm = Math.floor(ar() * 6), u = Math.pow(ar(), 0.6);
+    const a = (arm / 6) * Math.PI * 2 + u * 2.6;
+    const rad = 0.42 + u * 1.5;
+    const lift = Math.sin(u * Math.PI) * 0.55 * (arm % 2 ? 1 : -1);
+    ap.push(Math.cos(a) * rad, lift + (ar() - 0.5) * 0.04, Math.sin(a) * rad);
+    const b = (1 - u) * 0.7 + 0.1;
+    ac.push(b, b, b);
+  }
+  reach.setAttribute('position', new THREE.Float32BufferAttribute(ap, 3));
+  reach.setAttribute('color', new THREE.Float32BufferAttribute(ac, 3));
+  const arms = new THREE.Points(reach, new THREE.PointsMaterial({ size: 0.028, vertexColors: true }));
+  group.add(arms);
   const bodies = worlds.value.map((w, i) => {
     const p = planet(w.size, 17 + i * 7, i % 2 === 0);
     group.add(p);
@@ -74,6 +106,16 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
   return (t: number) => {
     disk.rotation.y = t * 0.16;
     facing.rotation.z = Math.sin(t * 0.15) * 0.02;
+    arms.rotation.y = -t * 0.06;
+    // It opens for a few seconds out of every half minute, and is otherwise
+    // simply the dark. The lid always faces whoever is looking.
+    const cycle = (t % 31) / 31;
+    const openness = cycle < 0.16 ? Math.sin((cycle / 0.16) * Math.PI) : 0;
+    (lid.material as THREE.MeshBasicMaterial).opacity = openness * 0.92;
+    lid.scale.set(1, 0.18 + openness * 0.82, 1);
+    pupil.scale.set(1, 0.18 + openness * 0.82, 1);
+    (pupil.material as THREE.MeshBasicMaterial).opacity = openness;
+    eye.quaternion.copy(camera.quaternion);
     far.rotation.y = t * 0.01;
     cloud.rotation.y = t * 0.02;
     for (const b of bodies) {
@@ -169,9 +211,11 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 <style scoped>
 .orrery { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); align-items: stretch; }
 .sky { min-height: 0; height: 100%; }
+/* Nothing the sky draws belongs on the pane behind it. */
+.sky :deep(.flush) { overflow: hidden; }
 /* The survey is drawn in the plane of the glass, over everything, the way a
    plate of an orrery is drawn over the photograph of the sky. */
-.survey { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.survey { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; }
 .survey polyline { fill: none; stroke: var(--low); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-dasharray: 5 4; }
 .survey line { stroke: var(--dim); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 .survey .mark { fill: var(--hi); }

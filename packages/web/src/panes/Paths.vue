@@ -9,6 +9,18 @@ import { actions, duration, state } from '../store';
 
 defineProps<{ active: boolean }>();
 
+// Where the cursor is over the walk, in the plate's own grid, so the rain can
+// be pushed aside by it.
+const wind = ref<{ x: number; y: number } | null>(null);
+function gust(e: PointerEvent) {
+  const el = e.currentTarget as HTMLElement;
+  const box = el.getBoundingClientRect();
+  const canvas = el.querySelector('canvas');
+  const across = canvas && box.width ? canvas.width / box.width : 1;
+  wind.value = { x: (e.clientX - box.left) * across, y: (e.clientY - box.top) * across };
+}
+const walk = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => pilgrim(g, w, h, t, wind.value);
+
 const showArchived = ref(false);
 const newFolder = ref('');
 const newActivity = ref<Record<number, string>>({});
@@ -64,7 +76,9 @@ async function addActivity(folderId: number) {
     </header>
 
     <Frame class="walk" title="the long walk // whoever keeps a path walks it" flush>
-      <Plate :draw="pilgrim" :active="active" animated :cell="2" label="A hooded figure leaning into driving rain" />
+      <div class="weather" @pointermove="gust" @pointerleave="wind = null">
+        <Plate :draw="walk" :active="active" animated :cell="2" label="A hooded figure leaning into driving rain" />
+      </div>
       <p class="note said">Hours are the only units that reach me. You know what the weather is.</p>
     </Frame>
 
@@ -100,7 +114,9 @@ async function addActivity(folderId: number) {
 <style scoped>
 .paths { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .walk { flex: none; height: clamp(150px, 22vh, 260px); }
-.walk .said { position: absolute; left: 16px; bottom: 12px; margin: 0; max-width: 42ch; padding: 6px 10px; background: rgba(18, 18, 18, .78); }
+.weather { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.walk .said { position: absolute; left: 16px; bottom: 12px; margin: 0; max-width: 42ch; padding: 6px 10px;
+  background: rgba(18, 18, 18, .78); pointer-events: none; }
 header { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; }
 .meta { display: grid; gap: 8px; justify-items: end; }
 .meta .field { width: 180px; }
@@ -121,5 +137,9 @@ header { display: flex; justify-content: space-between; align-items: end; gap: 2
 .add { display: flex; gap: 6px; margin-top: 10px; }
 .add .field { flex: 1; }
 .err { color: var(--hi); }
-@media (max-width: 860px) { .paths { display: flex; flex-direction: column; } }
+@media (max-width: 860px) {
+  .paths { display: flex; flex-direction: column; }
+  /* On a phone what he says under the walk is a caption, not a paragraph. */
+  .walk .said { font-size: 11px; line-height: 1.35; max-width: 26ch; left: 10px; bottom: 8px; padding: 5px 7px; }
+}
 </style>

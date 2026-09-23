@@ -25,17 +25,40 @@ async function remove(q: Quote) { if (window.confirm('Take these words out of th
 // when the intercept changes - nothing here cuts.
 const glyph = ref<HTMLCanvasElement | null>(null);
 
-// Him, at the foot of the roll, saying it. Drawn small and looking up at the
-// words, the way he does when he is quoting somebody he approves of.
+// Him, at the foot of the roll, saying it. Drawn as a drawing - not through
+// the dither, which at this size turns him into grain - and tinted phosphor.
+const readerCanvas = ref<HTMLCanvasElement | null>(null);
 const him = ref<HTMLCanvasElement | null>(null);
-catSprite(art.cameo, 300).then((c) => { him.value = c; });
-const reader = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
-  const c = him.value;
-  if (!c) return;
-  const size = Math.min(w, h) * 1.02;
-  const bob = Math.sin(t * 0.7) * h * 0.025;
-  g.drawImage(c, w / 2 - size / 2, h - size * 0.99 + bob, size, size);
-};
+catSprite(art.cameo, 300).then((c) => { him.value = c; drawHim(); });
+
+function drawHim() {
+  const canvas = readerCanvas.value, sprite = him.value;
+  if (!canvas || !sprite) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const g = canvas.getContext('2d')!;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  // The shade map is darkest where his body is, so it is inverted into ink.
+  // The whole bust, sitting on the foot of the roll.
+  const size = Math.min(w, h);
+  g.save();
+  g.filter = 'invert(1) contrast(1.4)';
+  g.drawImage(sprite, w / 2 - size / 2, h - size, size, size);
+  g.restore();
+  // Tinted to the console's phosphor, over the drawing rather than through
+  // it: filling every pixel would flatten him into a silhouette and take his
+  // eyes with it.
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(197, 188, 171, .5)';
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'source-over';
+}
+onMounted(() => { ro2 = new ResizeObserver(drawHim); if (readerCanvas.value) ro2.observe(readerCanvas.value); });
+let ro2: ResizeObserver | null = null;
 let shown = logoFor(''), from = shown, to = shown;
 let turn = 1, raf = 0, ro: ResizeObserver | null = null;
 
@@ -73,7 +96,7 @@ onMounted(() => {
   if (glyph.value) ro.observe(glyph.value);
   raf = requestAnimationFrame(frame);
 });
-onBeforeUnmount(() => { cancelAnimationFrame(raf); ro?.disconnect(); });
+onBeforeUnmount(() => { cancelAnimationFrame(raf); ro?.disconnect(); ro2?.disconnect(); });
 
 const count = computed(() => state.quotes.length);
 const at = computed(() => (count.value ? (index.value % count.value) + 1 : 0));
@@ -97,7 +120,7 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
           </div>
         </transition>
         <div class="rod bottom" aria-hidden="true"></div>
-        <div class="reader" aria-hidden="true"><Plate :draw="reader" :active="active" animated :cell="3" /></div>
+        <canvas ref="readerCanvas" class="reader" aria-hidden="true"></canvas>
       </div>
       <div class="foot">
         <cite>{{ quote?.source ? `source // ${quote.source}` : 'source // unattributed' }}</cite>
@@ -150,15 +173,18 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
 .rod::after { right: -3px; }
 .rod.top { top: 0; }
 .rod.bottom { bottom: 0; }
-.reader { position: absolute; right: 10px; bottom: 14px; width: 92px; height: 78px; opacity: .9; display: flex; flex-direction: column; }
+.reader { position: absolute; right: 14px; bottom: 14px; width: 84px; height: 84px; opacity: .92; display: block; }
 .win::before { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(to bottom, rgba(197, 188, 171, .04) 0 1px, transparent 1px 4px); }
 .ticks { position: absolute; left: 12px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
 .ticks i { width: 7px; height: 2px; background: var(--faint); }
 .ticks i:nth-child(6n + 1) { width: 13px; background: var(--low); }
 .words { min-width: 0; }
-blockquote { margin: 0; font: 400 clamp(19px, 2.1vw, 32px)/1.32 var(--mono); color: var(--hi); text-wrap: balance; }
-blockquote::before { content: '> '; color: var(--dim); }
+/* Set in the same face the rest of him speaks in, at the roll's own measure,
+   so the words sit on the sheet instead of being printed over it. */
+blockquote { margin: 0; max-width: 34ch; font: 400 clamp(21px, 2.3vw, 34px)/1.42 var(--fell); color: var(--hi);
+  text-wrap: pretty; letter-spacing: .005em; }
+blockquote::first-letter { font-size: 1.5em; line-height: .9; padding-right: .04em; }
 .say-enter-active, .say-leave-active { transition: opacity .34s var(--out), transform .34s var(--out), filter .34s var(--out); }
 .say-enter-from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
 .say-leave-to { opacity: 0; transform: translateY(-10px); filter: blur(3px); }
