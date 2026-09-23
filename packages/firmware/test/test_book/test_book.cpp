@@ -127,6 +127,40 @@ void test_a_chapter_is_cut_into_pages_that_meet() {
   TEST_ASSERT_TRUE(readerPages(look(0), text, true).size() >= readerPages(look(0), text, false).size());
 }
 
+
+void test_the_whole_shelf_is_kept_and_a_book_is_asked_for() {
+  FakeStorage card;
+  Book book(card);
+  book.accept(FROM_SYNC);
+  book.shelve(R"([{"id": 7, "title": "The King in Yellow", "author": "Chambers", "chapters": 3, "chapterIdx": 1, "through": 0},
+                  {"id": 9, "title": "The Dream-Quest", "author": "Lovecraft", "chapters": 7, "chapterIdx": 0, "through": 0}])");
+
+  TEST_ASSERT_EQUAL_INT(2, static_cast<int>(book.shelf().size()));
+  TEST_ASSERT_EQUAL_STRING("The Dream-Quest", book.shelf()[1].title.c_str());
+  TEST_ASSERT_EQUAL_INT(3, book.shelf()[0].chapters);
+  TEST_ASSERT_EQUAL_INT(7, book.shelf()[1].chapters);
+  TEST_ASSERT_FALSE(book.waiting());
+
+  // Opening the other one: asked for, and the chapters of this one let go.
+  book.open(9);
+  TEST_ASSERT_TRUE(book.waiting());
+  TEST_ASSERT_EQUAL_INT(9, book.wanted());
+  TEST_ASSERT_FALSE(book.holds(1));
+
+  // It arrives, and is no longer being waited for.
+  book.accept(R"({"id": 9, "title": "The Dream-Quest", "chapterIdx": 0, "through": 0,
+                  "chapters": ["Kadath"], "parts": [{"idx": 0, "body": "Three times Randolph Carter dreamed."}]})");
+  TEST_ASSERT_FALSE(book.waiting());
+  TEST_ASSERT_EQUAL_INT(9, book.id());
+  TEST_ASSERT_TRUE(book.holds(0));
+
+  // And the shelf is still there after the power goes.
+  Book again(card);
+  again.begin();
+  TEST_ASSERT_EQUAL_INT(2, static_cast<int>(again.shelf().size()));
+  TEST_ASSERT_EQUAL_STRING("The King in Yellow", again.shelf()[0].title.c_str());
+}
+
 }  // namespace
 
 int main() {
@@ -135,5 +169,6 @@ int main() {
   RUN_TEST(test_reading_on_is_not_undone_by_a_sync);
   RUN_TEST(test_a_kept_page_is_kept_once_and_survives);
   RUN_TEST(test_a_chapter_is_cut_into_pages_that_meet);
+  RUN_TEST(test_the_whole_shelf_is_kept_and_a_book_is_asked_for);
   return UNITY_END();
 }

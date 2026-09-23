@@ -140,3 +140,41 @@ test('the device is sent the chapter it is on and the one after it', async () =>
     const again = (await app.inject({ method: 'GET', url: '/api/v1/marks' })).json() as unknown[];
     assert.equal(again.length, 1);
 });
+
+test('every book is on the shelf, and the device opens whichever it asks for', async () => {
+    const first = (await app.inject({ method: 'POST', url: '/api/v1/books', payload: BOOK })).json() as { id: number };
+    const second = (await app.inject({
+      method: 'POST',
+      url: '/api/v1/books',
+      payload: { ...BOOK, title: 'The Dream-Quest', chapters: [{ title: 'Kadath', body: 'Three times Randolph Carter dreamed of the marvellous city.' }] },
+    })).json() as { id: number };
+
+    // Both are listed; the one opened is the one it asked for, not the newest.
+    const said = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sync',
+      payload: {
+        deviceId: 'aura-1', configVersion: 0, events: [],
+        reading: { bookId: first.id, chapterIdx: 0, through: 0, marks: [] },
+      },
+    });
+    const body = said.json() as {
+      books: { id: number; title: string; chapters: number }[];
+      book: { id: number; chapters: string[] };
+    };
+    assert.equal(body.books.length, 2);
+    assert.ok(body.books.some((b) => b.id === second.id && b.chapters === 1));
+    assert.equal(body.book.id, first.id);
+    assert.equal(body.book.chapters.length, 3);
+
+    // Asking for the other one opens that instead.
+    const swapped = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sync',
+      payload: {
+        deviceId: 'aura-1', configVersion: 0, events: [],
+        reading: { bookId: second.id, chapterIdx: 0, through: 0, marks: [] },
+      },
+    });
+    assert.equal((swapped.json() as { book: { id: number } }).book.id, second.id);
+});

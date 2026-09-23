@@ -31,8 +31,9 @@ public:
   void setStatus(const DeviceStatus& status) { status_ = status; }
   // Where the reading is, sent with the next sync.
   void setReading(const ReadingState& reading) { reading_ = reading; }
-  // The book the last sync brought, once.
+  // The book the last sync brought, once, and the shelf it came from.
   std::string takeBook() { std::string b = book_; book_.clear(); return b; }
+  std::string takeShelf() { std::string s = shelf_; shelf_.clear(); return s; }
   // True once a sync has carried the marks away, so the card can forget them.
   bool tookMarks() { const bool t = tookMarks_; tookMarks_ = false; return t; }
   // A look the last sync brought from the web, once.
@@ -63,5 +64,6 @@ private:
   ReadingState reading_;
   std::string look_;
   std::string book_;
+  std::string shelf_;
   bool tookMarks_ = false;
 };

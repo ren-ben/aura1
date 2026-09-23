@@ -78,8 +78,8 @@ static void startSync(unsigned long connectMs = 20000, bool forceScan = false) {
   syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName() });
   // Where the reading is, and whatever was kept since the last sync.
   Book& book = machine.book();
-  if (book.has()) {
-    ReadingState reading{ book.id(), book.chapterIdx(), book.through(), {} };
+  if (book.has() || book.waiting()) {
+    ReadingState reading{ book.wanted(), book.chapterIdx(), book.through(), {} };
     for (const auto& m : book.marks()) {
       reading.marks.push_back(std::to_string(m.chapterIdx) + " " + std::to_string(m.start) + " "
                               + std::to_string(m.end) + " " + m.body);
@@ -105,6 +105,8 @@ static void finishSync(SyncOutcome outcome) {
   if (!look.empty()) machine.setLook(look);
   // The book it is reading, brought up to date.
   if (syncClient.tookMarks()) machine.book().clearMarks();
+  const std::string shelf = syncClient.takeShelf();
+  if (!shelf.empty()) machine.book().shelve(shelf);
   const std::string book = syncClient.takeBook();
   if (!book.empty()) { machine.book().accept(book); machine.bookChanged(); }
   // A level up is his to celebrate, but never over a running session. The

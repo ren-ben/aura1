@@ -104,6 +104,10 @@ SyncResult parseResponse(const std::string& body) {
   }
   result.todayHash = doc["todayHash"] | "";
   result.look = doc["look"] | "";
+  if (doc["books"].is<JsonArrayConst>()) {
+    result.hasShelf = true;
+    serializeJson(doc["books"], result.shelf);
+  }
   if (doc["book"].is<JsonObjectConst>()) {
     result.hasBook = true;
     serializeJson(doc["book"], result.book);

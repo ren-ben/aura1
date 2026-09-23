@@ -10,6 +10,16 @@
 // Where the reading is, is kept as a thousandth of the chapter. The console
 // scrolls and the glass turns pages, and neither has to know the other's
 // idea of a page.
+// One book as the shelf lists it: enough to show it and to ask for it.
+struct ShelfBook {
+  int id = 0;
+  std::string title;
+  std::string author;
+  int chapters = 0;
+  int chapterIdx = 0;
+  int through = 0;
+};
+
 struct BookMark {
   int chapterIdx = 0;
   int start = 0;
@@ -26,6 +36,14 @@ public:
   // A book from a sync: its chapters kept, its place taken only when it is a
   // different book, so reading on the glass is not undone by a sync.
   void accept(const std::string& json);
+  // Everything on the shelf, from the same sync.
+  void shelve(const std::string& json);
+  const std::vector<ShelfBook>& shelf() const { return shelf_; }
+  // Opening another one: it is asked for, and arrives at the next sync.
+  void open(int bookId);
+  // True while the book asked for has not arrived yet.
+  bool waiting() const { return wanted_ > 0 && wanted_ != id_; }
+  int wanted() const { return wanted_ > 0 ? wanted_ : id_; }
 
   bool has() const { return id_ > 0 && !titles_.empty(); }
   int id() const { return id_; }
@@ -51,6 +69,7 @@ private:
   void write();
 
   static constexpr const char* FILE = "/book.txt";     // the book and its place
+  static constexpr const char* SHELF = "/shelf.txt";   // every book, as a list
   static constexpr const char* MARKS = "/marks.txt";   // what was kept, until synced
 
   Storage& storage_;
@@ -62,4 +81,6 @@ private:
   int chapter_ = 0;
   int through_ = 0;
   std::vector<BookMark> marks_;
+  std::vector<ShelfBook> shelf_;
+  int wanted_ = 0;  // a book asked for and not yet arrived
 };

@@ -1164,7 +1164,8 @@ public:
               todos ? "today // " + std::to_string(done(r.checks)) + " of " + std::to_string(n) : pageTitle(vm));
         if (!n) break;
         rows(c, r, TOP + 16, 7);
-        nameplate(c, todos ? "today" : "the paths");
+        nameplate(c, todos ? "today" : vm.place == Place::Shelf ? "the library"
+                             : vm.place == Place::Book ? "the contents" : "the paths");
         return;
       }
     }

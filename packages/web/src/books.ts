@@ -9,6 +9,8 @@ export type Parsed = {
   author: string | null;
   format: 'epub' | 'pdf' | 'text';
   chapters: { title: string; body: string }[];
+  // Something worth saying about how it was read, if there is anything.
+  note?: string;
 };
 
 // Marked-up text, as text: tags out, entities back, paragraphs kept.
@@ -115,6 +117,16 @@ async function parsePdf(file: File): Promise<Parsed> {
     pages.push(out.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim());
   }
 
+  // A scan is a stack of photographs with no text in it at all. Say so,
+  // rather than keeping a book of empty chapters.
+  const letters = pages.join('').replace(/\s/g, '').length;
+  if (letters < Math.max(400, pages.length * 40)) {
+    throw new Error(
+      `This pdf has no text in it - ${doc.numPages} page${doc.numPages === 1 ? '' : 's'} of pictures, most likely a scan. `
+      + 'He reads words, not photographs. Run it through OCR first, or give him the epub.',
+    );
+  }
+
   const outline = await doc.getOutline().catch(() => null);
   const chapters: Parsed['chapters'] = [];
   if (outline?.length) {
@@ -146,6 +158,7 @@ async function parsePdf(file: File): Promise<Parsed> {
     author: info.Author?.trim() || null,
     format: 'pdf',
     chapters,
+    note: outline?.length ? undefined : 'That pdf carries no contents page, so it is cut into stretches of ten pages.',
   };
 }
 

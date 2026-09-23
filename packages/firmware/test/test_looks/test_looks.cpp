@@ -82,6 +82,15 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
   quote.source = "Albert Camus";
   out.push_back({ "7quotelong", quote });
 
+  // The shelf, the contents of one book, and a page of it.
+  ViewModel shelf = base(Place::Shelf);
+  shelf.title = "THE LIBRARY";
+  shelf.items = { "The King in Yellow", "The Dream-Quest of Unknown Kadath", "Blood Meridian", "The Book of the New Sun" };
+  shelf.values = { "34%", "NEW", "ASKING", "91%" };
+  shelf.checks = { true, false, false, false };
+  shelf.cursor = 2;
+  out.push_back({ "ashelf", shelf });
+
   // The contents of the book, and a page of it.
   ViewModel contents = base(Place::Book);
   contents.title = "The King in Yellow";

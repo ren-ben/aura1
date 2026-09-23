@@ -37,6 +37,15 @@ void Book::begin() {
     parts_.emplace_back(static_cast<int>(idx), join(storage_.readLines(path)));
   }
 
+  for (const auto& line : storage_.readLines(SHELF)) {
+    std::istringstream in(line);
+    ShelfBook book;
+    if (!(in >> book.id >> book.chapters >> book.chapterIdx >> book.through)) continue;
+    std::getline(in, book.title);
+    if (!book.title.empty() && book.title[0] == ' ') book.title.erase(0, 1);
+    shelf_.push_back(book);
+  }
+
   for (const auto& line : storage_.readLines(MARKS)) {
     // "<chapter> <start> <end> <text>"
     std::istringstream in(line);
@@ -46,6 +55,34 @@ void Book::begin() {
     if (!m.body.empty() && m.body[0] == ' ') m.body.erase(0, 1);
     marks_.push_back(m);
   }
+}
+
+void Book::shelve(const std::string& json) {
+  JsonDocument doc;
+  if (deserializeJson(doc, json) || !doc.is<JsonArrayConst>()) return;
+  shelf_.clear();
+  std::string out;
+  for (JsonObjectConst b : doc.as<JsonArrayConst>()) {
+    ShelfBook book{
+      b["id"] | 0, b["title"] | "", b["author"] | "",
+      b["chapters"] | 0, b["chapterIdx"] | 0, b["through"] | 0,
+    };
+    if (book.id <= 0) continue;
+    // One line a book: the title is last, since it is the only one that can
+    // hold spaces worth keeping.
+    out += std::to_string(book.id) + " " + std::to_string(book.chapters) + " "
+         + std::to_string(book.chapterIdx) + " " + std::to_string(book.through) + " " + book.title + "\n";
+    shelf_.push_back(std::move(book));
+  }
+  storage_.write(SHELF, out);
+}
+
+void Book::open(int bookId) {
+  wanted_ = bookId;
+  if (bookId == id_) return;
+  // The chapters of the one being closed are no use until it is opened again.
+  for (const auto& part : parts_) storage_.remove("/bk" + std::to_string(part.first) + ".txt");
+  parts_.clear();
 }
 
 void Book::accept(const std::string& json) {
@@ -61,6 +98,7 @@ void Book::accept(const std::string& json) {
   // A different book starts where the server says; the one being read keeps
   // its place, which is ahead of whatever the server last heard.
   const bool same = id == id_;
+  if (wanted_ == id) wanted_ = 0;
   id_ = id;
   title_ = doc["title"] | "";
   author_ = doc["author"] | "";

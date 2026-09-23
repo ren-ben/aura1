@@ -99,6 +99,7 @@ async function take(files: FileList | null) {
     if (!parsed.chapters.length) throw new Error('Nothing readable came out of it.');
     taking.value = `keeping ${parsed.chapters.length} chapters`;
     await actions.addBook(parsed);
+    if (parsed.note) failed.value = parsed.note;
   } catch (e) {
     failed.value = e instanceof Error ? e.message : String(e);
   } finally {

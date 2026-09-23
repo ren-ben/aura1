@@ -140,6 +140,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   // The marks went with the request: the card can forget them now.
   tookMarks_ = !reading_.marks.empty();
   if (result.hasBook) book_ = result.book;
+  if (result.hasShelf) shelf_ = result.shelf;
   // Never set the RTC from an unparseable time: every later session would carry it.
   if (result.hasServerTime && setClock) clock_.setEpochSeconds(result.serverTime);
   if (result.hasConfig) {

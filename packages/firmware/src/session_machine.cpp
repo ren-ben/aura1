@@ -346,13 +346,37 @@ void SessionMachine::browse(Input input) {
       }
       break;
     }
+    // The shelf. SUN walks the books, POWER opens one; one that is not on
+    // the card yet is asked for and arrives at the next sync.
+    case Place::Shelf: {
+      const auto& shelf = book_.shelf();
+      const size_t count = shelf.size();
+      if (!count) { place_ = book_.has() ? Place::Book : Place::Menu; draw(); break; }
+      if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % count; draw(); }
+      else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2 * count - 2) % count; draw(); }
+      else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort) {
+        const ShelfBook& chosen = shelf[listCursor_ % count];
+        if (chosen.id == book_.id() && book_.has()) {
+          place_ = Place::Book;
+          listCursor_ = static_cast<size_t>(book_.chapterIdx());
+          repaginate();
+        } else {
+          book_.open(chosen.id);
+          syncRequested_ = true;
+        }
+        draw();
+      }
+      break;
+    }
+
     // The contents. SUN walks the chapters, POWER opens one.
     case Place::Book: {
       const size_t count = book_.chapters().size();
       if (!count) { place_ = Place::Menu; draw(); break; }
       if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % count; draw(); }
       else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2 * count - 2) % count; draw(); }
-      else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::SunLong) { place_ = Place::Shelf; listCursor_ = 0; draw(); }
       else if (input == Input::PowerShort) {
         const int idx = static_cast<int>(listCursor_);
         // A chapter that has not reached the card yet is asked for.
@@ -442,7 +466,7 @@ std::vector<Place> SessionMachine::menu() const {
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
   for (Place p : { Place::Activities, Place::Todos, Place::Habits }) places.push_back(p);
   // The book is only offered when there is one on the card.
-  if (book_.has()) places.push_back(Place::Book);
+  if (book_.has() || !book_.shelf().empty()) places.push_back(Place::Shelf);
   for (Place p : { Place::Quotes, Place::Settings }) places.push_back(p);
   return places;
 }
@@ -461,10 +485,14 @@ void SessionMachine::repaginate() {
 }
 
 void SessionMachine::bookChanged() {
-  if (place_ == Place::Reading || place_ == Place::Book) {
-    repaginate();
-    draw();
+  if (place_ != Place::Reading && place_ != Place::Book && place_ != Place::Shelf) return;
+  repaginate();
+  // A book asked for on the shelf opens as soon as it lands.
+  if (place_ == Place::Shelf && book_.has() && !book_.waiting()) {
+    place_ = Place::Book;
+    listCursor_ = static_cast<size_t>(book_.chapterIdx());
   }
+  draw();
 }
 
 std::string SessionMachine::pageText() const {
@@ -574,7 +602,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Activities: vm.items.push_back("ACTIVITIES"); break;
           case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
-          case Place::Book: vm.items.push_back("READ"); break;
+          case Place::Shelf: vm.items.push_back("READ"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
@@ -596,6 +624,24 @@ void SessionMachine::draw(int minutes) {
         vm.quotePage = quotePage_;
       }
       break;
+    case Place::Shelf: {
+      vm.title = "THE LIBRARY";
+      vm.items.clear();
+      vm.values.clear();
+      vm.checks.clear();
+      for (const ShelfBook& b : book_.shelf()) {
+        vm.items.push_back(b.title);
+        // How far through it is, as a hundredth, beside its name.
+        const int through = b.chapters > 0
+          ? ((b.chapterIdx * 1000 + b.through) * 100) / (b.chapters * 1000)
+          : 0;
+        vm.values.push_back(book_.waiting() && b.id == book_.wanted() ? "ASKING"
+                            : through > 0 ? std::to_string(through) + "%" : "NEW");
+        vm.checks.push_back(b.id == book_.id());
+      }
+      vm.cursor = static_cast<int>(vm.items.empty() ? 0 : listCursor_ % vm.items.size());
+      break;
+    }
     case Place::Book: {
       vm.title = book_.title();
       vm.book = book_.title();

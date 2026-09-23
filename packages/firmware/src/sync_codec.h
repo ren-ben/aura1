@@ -56,6 +56,8 @@ struct SyncResult {
   std::string look;                   // a look chosen on the web, to wear
   bool hasBook = false;
   std::string book;                   // the book and its chapters, re-serialised
+  bool hasShelf = false;
+  std::string shelf;                  // every book he has, re-serialised
 };
 
 SyncResult parseResponse(const std::string& body);

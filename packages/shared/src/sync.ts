@@ -73,6 +73,17 @@ export const todayDtoSchema = z.object({
   quotes: z.array(z.object({ body: z.string(), source: z.string().nullable() })),
 });
 
+// Every book on the shelf, as the device lists them. Only what a list needs:
+// the chapter names and the text itself come with whichever one is open.
+export const shelfBookSchema = z.object({
+  id: z.number().int(),
+  title: z.string(),
+  author: z.string().nullable(),
+  chapters: z.number().int(),
+  chapterIdx: z.number().int(),
+  through: z.number().int(),
+});
+
 // What the device is given of the book it is reading: the chapter it is on
 // and the one after it, so the end of a chapter is never a wall, plus the
 // names of all of them for the contents page.
@@ -110,7 +121,8 @@ export const syncResponseSchema = z.object({
   today: todayDtoSchema.optional(),
   // A look chosen on the web, for the device to take on.
   look: z.string().optional(),
-  // The book it is reading, when it is reading one.
+  // Everything on the shelf, and the one it has open.
+  books: z.array(shelfBookSchema).max(60).optional(),
   book: bookPartSchema.optional(),
 });
 
@@ -122,4 +134,5 @@ export type ConfigDto = z.infer<typeof configDtoSchema>;
 export type Tick = z.infer<typeof tickSchema>;
 export type TodayDto = z.infer<typeof todayDtoSchema>;
 export type BookPart = z.infer<typeof bookPartSchema>;
+export type ShelfBook = z.infer<typeof shelfBookSchema>;
 export type Reading = z.infer<typeof readingSchema>;
