@@ -2,11 +2,17 @@
 // The Library: what he has to read, and the reading of it. A book is parsed
 // where it is dropped - the server is only ever given chapters of plain text -
 // and whatever is marked here is on the device's glass at its next sync.
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
+import Gl from '../components/Gl.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { catSprite } from '../gl/plate';
+import { catSprite, sigil } from '../gl/plate';
+import { lights } from '../gl/models';
+import { CELL, stacks, type ShelfEntry, type Stacks } from '../gl/stacks';
+import { grimoire, type Grimoire } from '../gl/grimoire';
+import type { Build } from '../gl/engine';
 import { readBook } from '../books';
 import { actions, chapterOf, duration, state, type Book, type Mark } from '../store';
 
@@ -119,6 +125,130 @@ const studious = (g: CanvasRenderingContext2D, w: number, h: number, t: number) 
   g.drawImage(c, w / 2 - size / 2, h - size * 0.98 + Math.sin(t * 0.5) * h * 0.02, size, size);
 };
 
+// ---- The stacks ---------------------------------------------------------
+// The shelf is a place you stand in rather than a list you read. Drag to look
+// round the gallery, wheel (or the two keys) to walk deeper into it, and
+// click one of your own volumes to have it pulled and opened.
+const EYE = 1.78, GALLERIES = 5;
+
+const entries = computed<ShelfEntry[]>(() => state.books.map((b) => ({
+  id: b.id, title: b.title, through: through(b), chapters: b.chapters.length, marks: b.marks,
+})));
+// The gallery is built once from the shelf it is given, so a book arriving
+// rebuilds it rather than being left out of it.
+const shelfKey = computed(() => entries.value.map((b) => `${b.id}:${b.through}:${b.marks}`).join(','));
+const pulled = ref<Book | null>(null);
+
+let hall: Stacks | null = null;
+let drift: { hold: boolean } | null = null;
+let held: { mesh: THREE.Mesh; grim: Grimoire; holder: THREE.Group; u: number; dir: 1 | -1 } | null = null;
+let world: THREE.Scene | null = null;
+let walkTo = 0, walkAt = 0;
+
+function pull(i: number) {
+  if (!hall || !world) return;
+  const mesh = hall.mine[i], entry = entries.value[i], book = state.books[i];
+  if (!mesh || !entry) return;
+  if (held) { held.holder.removeFromParent(); held.grim.dispose(); held.mesh.visible = true; held = null; }
+  const grim = grimoire(entry, 11 + i * 7);
+  grim.open(0);
+  const holder = new THREE.Group();
+  holder.add(grim.group);
+  mesh.getWorldPosition(holder.position);
+  holder.quaternion.copy(mesh.getWorldQuaternion(new THREE.Quaternion()));
+  world.add(holder);
+  mesh.visible = false;
+  held = { mesh, grim, holder, u: 0, dir: 1 };
+  if (drift) drift.hold = true;
+  pulled.value = book ?? null;
+}
+function shut() {
+  if (held) held.dir = -1;
+  if (drift) drift.hold = false;
+  pulled.value = null;
+}
+const walk = (d: number) => { walkTo = Math.max(-0.3, Math.min(GALLERIES - 1.6, walkTo + d * 0.55)); };
+
+const build: Build = ({ scene, camera, turn, canvas }) => {
+  world = scene;
+  drift = turn;
+  held = null;
+  pulled.value = null;
+  walkTo = 0;
+  walkAt = 0;
+  // The dark between galleries is the fog: it is what makes the shaft deep.
+  scene.fog = new THREE.Fog(0x000000, 2.2, 13);
+  lights(scene, 1.05, 0.4, 0.07);
+  // A lamp of its own over the first gallery, so the near shelves are read
+  // by something inside the room rather than by a light from nowhere.
+  const lamp = new THREE.PointLight(0xffffff, 30, 11, 2);
+  lamp.position.set(0, 2.7, 0);
+  scene.add(lamp);
+  const far = new THREE.PointLight(0xffffff, 22, 12, 2);
+  far.position.set(0, 2.7, -CELL * 2);
+  scene.add(far);
+
+  hall = stacks(entries.value, GALLERIES);
+  scene.add(hall.group);
+  camera.position.set(0, EYE, 2.45);
+  // Facing the wall your own books are on, looking very slightly down.
+  turn.x = 0.14;
+  turn.y = -0.13;
+
+  // Walking, and picking a volume off the shelf. A drag that moved is a look
+  // round the room, not a click on a book.
+  const ray = new THREE.Raycaster();
+  let from = { x: 0, y: 0, moved: false };
+  const onWheel = (e: WheelEvent) => { e.preventDefault(); walk(Math.sign(e.deltaY) * -1); };
+  const onDown = (e: PointerEvent) => { from = { x: e.clientX, y: e.clientY, moved: false }; };
+  const onMove = (e: PointerEvent) => {
+    if (Math.abs(e.clientX - from.x) + Math.abs(e.clientY - from.y) > 6) from.moved = true;
+  };
+  const onUp = (e: PointerEvent) => {
+    if (from.moved || !hall) return;
+    const b = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1,
+                                        -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    const hit = ray.intersectObjects(hall.mine, false)[0];
+    if (hit) pull((hit.object.userData as { index: number }).index);
+    else if (held) shut();
+  };
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerup', onUp);
+
+  const fwd = new THREE.Vector3();
+  return (t, dt) => {
+    hall?.update(t);
+    walkAt += (walkTo - walkAt) * Math.min(1, dt * 2.6);
+    // The drag turns the head and the walk moves it; the world stays put,
+    // because a library that swings round you is a carousel, not a library.
+    const yaw = turn.y * 0.9, pitch = Math.max(-0.55, Math.min(0.5, turn.x * 0.7));
+    camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    camera.position.set(Math.sin(yaw) * 0.3, EYE + Math.sin(t * 0.45) * 0.012, 2.45 - walkAt * CELL);
+    if (!held) return;
+    held.u = Math.max(0, Math.min(1, held.u + dt * (held.dir > 0 ? 0.85 : -1.9)));
+    camera.getWorldDirection(fwd);
+    const to = camera.position.clone().addScaledVector(fwd, 1.62).add(new THREE.Vector3(0, -0.02, 0));
+    const k = 1 - Math.pow(0.0025, dt);
+    // Out of the shelf, round to face you, and only then open.
+    held.holder.position.lerp(held.dir > 0 ? to : held.mesh.position, k);
+    held.holder.quaternion.slerp(held.dir > 0 ? camera.quaternion : held.mesh.quaternion, k);
+    held.grim.open(Math.max(0, (held.u - 0.32) / 0.68));
+    if (held.dir < 0 && held.u <= 0.001) {
+      held.holder.removeFromParent();
+      held.grim.dispose();
+      held.mesh.visible = true;
+      held = null;
+    }
+  };
+};
+
+function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && pulled.value) shut(); }
+onMounted(() => addEventListener('keydown', onKey));
+onBeforeUnmount(() => removeEventListener('keydown', onKey));
+
 const note = ref<Mark | null>(null);
 const draft = ref('');
 watch(note, (m) => { draft.value = m?.note ?? ''; });
@@ -134,39 +264,69 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 <template>
   <div class="library">
     <!-- The shelf -->
-    <div v-if="!open" class="shelf">
-      <h1 class="title">The Library</h1>
-      <p class="note">Everything he has been given to read. Drop an epub, a pdf or a text file anywhere here; it is
-        taken apart where you stand, and only the words are sent on.</p>
-
-      <div class="take" :class="{ busy: taking }" @drop.prevent="onDrop" @dragover.prevent>
-        <label class="btn">
-          <input type="file" accept=".epub,.pdf,.txt,.md" hidden @change="take(($event.target as HTMLInputElement).files)">
-          {{ taking || 'give him a book' }}
-        </label>
-        <span class="note">epub, pdf, txt</span>
-      </div>
-      <p v-if="failed" class="note err">{{ failed }}</p>
-
-      <div class="books">
-        <button v-for="b in shelf" :key="b.id" class="book" @click="openBook(b)">
-          <span class="spine" aria-hidden="true"><i v-for="n in 7" :key="n"></i></span>
-          <span class="what">
-            <b>{{ b.title }}</b>
-            <span class="note">{{ b.author ?? 'unattributed' }} // {{ b.chapters.length }} chapters // {{ Math.round(b.words / 1000) }}k words</span>
-            <span class="bar"><i :style="{ width: `${through(b)}%` }"></i></span>
-            <span class="pix">{{ through(b) }}% read // {{ b.marks }} kept // {{ b.format }}</span>
-          </span>
-        </button>
-        <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
-      </div>
-
-      <Frame v-if="state.marks.length" class="kept" :title="`kept passages // ${state.marks.length}`" scroll>
-        <div v-for="m in state.marks" :key="m.id" class="keeprow">
-          <span class="fell">{{ m.body }}</span>
-          <span class="pix">{{ m.source }}</span>
+    <div v-if="!open" class="shelf" @drop.prevent="onDrop" @dragover.prevent>
+      <Frame class="stacksFrame" title="the stacks // gallery of the hexagon, shelf of your own" flush>
+        <div class="glHost">
+          <Gl :key="shelfKey" :build="build" :active="active"
+            :options="{ px: 2, fov: 74, distance: 2.45, drift: 0.0004, tilt: 0, yaw: 0 }"
+            label="The stacks: hexagonal galleries of shelves, your own volumes on the near wall"
+            hint="drag to look // wheel to walk // click a volume" />
+          <div class="walk">
+            <button class="btn quiet" aria-label="Back one gallery" @click="walk(-1)">&lt;&lt; back</button>
+            <button class="btn quiet" aria-label="Deeper into the stacks" @click="walk(1)">deeper &gt;&gt;</button>
+          </div>
         </div>
       </Frame>
+
+      <div class="ledger">
+        <div class="head">
+          <h1 class="title">The Library</h1>
+          <div class="seal" aria-hidden="true"><Plate :draw="sigil" :active="active" animated :cell="2" /></div>
+        </div>
+        <p class="note">Everything he has been given to read, standing where he put it. Drop an epub, a pdf or a
+          text file anywhere here; it is taken apart where you stand, and only the words are sent on.</p>
+
+        <div v-if="pulled" class="pulled">
+          <div class="what">
+            <b class="fell">{{ pulled.title }}</b>
+            <span class="pix">{{ pulled.author ?? 'unattributed' }} // {{ pulled.chapters.length }} chapters //
+              {{ through(pulled) }}% // {{ pulled.marks }} kept</span>
+          </div>
+          <div class="row">
+            <button class="btn" @click="openBook(pulled!)">read it</button>
+            <button class="btn quiet" @click="shut()">shelve it</button>
+          </div>
+        </div>
+
+        <div class="take" :class="{ busy: taking }">
+          <label class="btn">
+            <input type="file" accept=".epub,.pdf,.txt,.md" hidden @change="take(($event.target as HTMLInputElement).files)">
+            {{ taking || 'give him a book' }}
+          </label>
+          <span class="note">epub, pdf, txt</span>
+        </div>
+        <p v-if="failed" class="note err">{{ failed }}</p>
+
+        <div class="books">
+          <div v-for="(b, i) in shelf" :key="b.id" class="book" :class="{ out: pulled?.id === b.id }">
+            <button class="what" @click="pull(i)">
+              <b>{{ b.title }}</b>
+              <span class="note">{{ b.author ?? 'unattributed' }} // {{ b.chapters.length }} chapters // {{ Math.round(b.words / 1000) }}k words</span>
+              <span class="bar"><i :style="{ width: `${through(b)}%` }"></i></span>
+              <span class="pix">{{ through(b) }}% read // {{ b.marks }} kept // {{ b.format }}</span>
+            </button>
+            <button class="btn quiet open" @click="openBook(b)">read</button>
+          </div>
+          <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
+        </div>
+
+        <Frame v-if="state.marks.length" class="kept" :title="`kept passages // ${state.marks.length}`" scroll>
+          <div v-for="m in state.marks" :key="m.id" class="keeprow">
+            <span class="fell">{{ m.body }}</span>
+            <span class="pix">{{ m.source }}</span>
+          </div>
+        </Frame>
+      </div>
     </div>
 
     <!-- The reading -->
@@ -226,16 +386,43 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 
 <style scoped>
 .library { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.6fr) minmax(300px, .9fr); min-height: 0; }
-.shelf { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-.shelf .note { max-width: 70ch; }
+/* The hall: the stacks take the room, the ledger stands beside them. */
+.shelf { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .85fr);
+  grid-template-rows: minmax(0, 1fr); gap: 18px; min-height: 0; }
+.stacksFrame { min-height: 0; }
+/* The glass takes what is left after the strip under it, rather than the
+   strip being pushed out of the bottom of the frame. */
+.stacksFrame :deep(.flush) { min-height: 0; }
+.glHost { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.glHost :deep(.hint) { bottom: 8px; left: 12px; }
+.walk { position: absolute; top: 10px; right: 10px; z-index: 4; display: flex; gap: 8px; }
+.walk .btn { background: rgba(18, 18, 18, .82); }
+/* What is in your hands, while it is in your hands. */
+/* What is out of the shelf, said in words under the glass it is held over. */
+.pulled { display: grid; gap: 10px; border: 3px solid var(--phos); padding: 12px 14px;
+  animation: pulledin .45s var(--out) both; }
+.pulled .what { display: grid; gap: 4px; min-width: 0; }
+.pulled .row { gap: 10px; }
+.pulled b { font: 400 25px/1.1 var(--goth); color: var(--hi); }
+@keyframes pulledin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.ledger { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.head { display: flex; align-items: center; gap: 16px; }
+.head .title { margin: 0; }
+.seal { width: 96px; height: 96px; flex: none; display: flex; flex-direction: column; opacity: .9; }
+.ledger .note { max-width: 46ch; }
 .take { display: flex; align-items: center; gap: 14px; border: 3px dotted var(--low); padding: 14px 16px; }
 .take.busy { border-color: var(--phos); }
 .take .btn { cursor: pointer; }
-.books { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; overflow: auto; min-height: 0; padding-right: 4px; }
-.book { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; text-align: left; border: 3px dotted var(--faint); padding: 14px;
+.books { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; overflow: auto; min-height: 0; padding-right: 4px; }
+.book { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; text-align: left;
+  border: 3px dotted var(--faint); padding: 12px 14px;
   transition: border-color .3s var(--out), transform .3s var(--out); }
 .book:hover { border-color: var(--phos); transform: translateY(-2px); }
-.book b { font: 400 26px/1.1 var(--goth); color: var(--hi); display: block; }
+/* The one standing open in the hall is marked in the ledger as out. */
+.book.out { border-color: var(--phos); border-style: solid; }
+.book.out b::after { content: ' // out'; font: 400 10px var(--pix); color: var(--phos); vertical-align: 5px; }
+.book .open { align-self: center; }
+.book b { font: 400 23px/1.1 var(--goth); color: var(--hi); display: block; }
 .spine { display: grid; gap: 3px; align-content: start; padding-top: 4px; }
 .spine i { display: block; width: 14px; height: 4px; background: var(--low); }
 .what { display: grid; gap: 7px; min-width: 0; }
@@ -270,11 +457,16 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 .noting blockquote { margin: 0; font: italic 400 19px/1.5 var(--fell); color: var(--hi); border-left: 3px dotted var(--low); padding-left: 14px; }
 .noting textarea { resize: vertical; font: inherit; }
 
-@media (max-aspect-ratio: 5/4) { .library { grid-template-columns: minmax(0, 1fr); } .read, .aside { grid-column: 1; } .aside { max-height: 34vh; } }
+@media (max-aspect-ratio: 5/4) { .library { grid-template-columns: minmax(0, 1fr); } .read, .aside { grid-column: 1; } .aside { max-height: 34vh; }
+  .shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(260px, 1fr) auto; }
+  .ledger { max-height: 42vh; } }
 @media (max-width: 860px) {
   .library { display: flex; flex-direction: column; }
   .read { min-height: 62vh; }
   .reader { width: 56px; height: 52px; bottom: 52px; }
   .books { grid-template-columns: minmax(0, 1fr); }
+  .shelf { display: flex; flex-direction: column; }
+  .stacksFrame { min-height: 300px; }
+  .pulled { bottom: 30px; }
 }
 </style>

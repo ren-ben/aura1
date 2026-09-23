@@ -867,6 +867,75 @@ export function greatOne(count: number, seed = 9): { x: number; y: number; z: nu
   return out;
 }
 
+// The seal of the library: rings of a script nobody kept, wound round an eye
+// that is awake whatever hour you come down here. It turns about a degree a
+// second, which is slow enough that you are never sure it does.
+export function sigil(g: CanvasRenderingContext2D, w: number, h: number, t: number): void {
+  const r = rand(23);
+  g.fillStyle = grey(0.02);
+  g.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, unit = Math.min(w, h);
+
+  // A haze behind it, so the rings have something to be written on.
+  const halo = g.createRadialGradient(cx, cy, unit * 0.04, cx, cy, unit * 0.52);
+  halo.addColorStop(0, 'rgba(255,255,255,.3)');
+  halo.addColorStop(0.55, 'rgba(255,255,255,.08)');
+  halo.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, w, h);
+
+  for (let k = 0; k < 5; k++) {
+    const rad = unit * (0.16 + k * 0.068);
+    const turn = t * (k % 2 ? -0.018 : 0.026) + k;
+    const marks = 26 + k * 12;
+    for (let i = 0; i < marks; i++) {
+      const a = (i / marks) * Math.PI * 2 + turn;
+      if (r() < 0.12) continue;                      // where the script breathes
+      const len = unit * (0.012 + r() * 0.022);
+      const lean = (r() - 0.5) * 0.6;
+      g.strokeStyle = grey(0.5 + r() * 0.5);
+      g.lineWidth = Math.max(0.7, unit * 0.005 * (0.6 + r()));
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+      g.lineTo(cx + Math.cos(a + lean * 0.1) * (rad + len), cy + Math.sin(a + lean * 0.1) * (rad + len));
+      g.stroke();
+    }
+    g.strokeStyle = grey(k % 2 ? 0.3 : 0.6);
+    g.lineWidth = Math.max(0.6, unit * 0.004);
+    g.beginPath();
+    g.arc(cx, cy, rad - unit * 0.008, 0, 7);
+    g.stroke();
+  }
+
+  // The eye: an almond, a slit, and the little that runs out of it.
+  const ew = unit * 0.115, eh = unit * 0.06;
+  g.fillStyle = grey(0.96);
+  g.beginPath();
+  g.moveTo(cx - ew, cy);
+  g.quadraticCurveTo(cx, cy - eh, cx + ew, cy);
+  g.quadraticCurveTo(cx, cy + eh, cx - ew, cy);
+  g.fill();
+  g.fillStyle = grey(0);
+  g.beginPath();
+  g.ellipse(cx, cy, ew * 0.13, eh * 0.78 + Math.sin(t * 0.7) * eh * 0.08, 0, 0, 7);
+  g.fill();
+  g.strokeStyle = grey(0.06);
+  g.lineWidth = Math.max(1, unit * 0.007);
+  g.beginPath();
+  g.moveTo(cx - ew, cy);
+  g.quadraticCurveTo(cx, cy - eh, cx + ew, cy);
+  g.stroke();
+  for (let i = 0; i < 6; i++) {
+    const x = cx - ew * 0.7 + i * ew * 0.28;
+    g.strokeStyle = grey(0.8);
+    g.lineWidth = Math.max(0.6, unit * 0.004);
+    g.beginPath();
+    g.moveTo(x, cy + eh * 0.5);
+    g.lineTo(x + (r() - 0.5) * unit * 0.02, cy + eh * (1.4 + r() * 1.8));
+    g.stroke();
+  }
+}
+
 // The long walk. Whatever keeps the paths does not walk them as a person: a
 // tall crooked column of cloth leaning into the weather, the hem torn and
 // dragging behind it, two long arms hanging where arms would be, and a head

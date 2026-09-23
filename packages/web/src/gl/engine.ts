@@ -19,8 +19,13 @@ export const INK = 0xc5bcab;
 export const GROUND = 0x121212;
 export const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export type Build = (ctx: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) =>
-  ((t: number, dt: number) => void) | void;
+export type Turn = { x: number; y: number; hold: boolean };
+export type Build = (ctx: {
+  scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera;
+  // The drag, for a scene that would rather move the camera than the world,
+  // and the canvas, for one that wants its own wheel or clicks.
+  turn: Turn; canvas: HTMLCanvasElement;
+}) => ((t: number, dt: number) => void) | void;
 export type Options = { dither?: boolean; px?: number; fov?: number; distance?: number; drift?: number; tilt?: number; yaw?: number };
 
 export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Options = {}) {
@@ -35,7 +40,9 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   camera.position.set(0, 0, distance);
   const group = new THREE.Group();
   scene.add(group);
-  const tick = build({ scene, group, camera }) || (() => {});
+  // Turning: drag to turn, let go and it keeps drifting.
+  const turn = { x: tilt, y: yaw, hold: false };
+  const tick = build({ scene, group, camera, turn, canvas }) || (() => {});
 
   const target = dither ? new THREE.WebGLRenderTarget(2, 2) : null;
   const quadScene = new THREE.Scene();
@@ -50,8 +57,6 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   });
   quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
 
-  // Turning: drag to turn, let go and it keeps drifting.
-  const turn = { x: tilt, y: yaw, hold: false };
   let drag: { x: number; y: number; tx: number; ty: number } | null = null;
   const down = (e: PointerEvent) => {
     drag = { x: e.clientX, y: e.clientY, tx: turn.x, ty: turn.y };
@@ -103,7 +108,7 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   }
 
   return {
-    scene, group, camera, turn,
+    scene, group, camera, turn, canvas,
     start() { if (running) return; running = true; last = 0; resize(); raf = requestAnimationFrame(frame); },
     stop() { running = false; cancelAnimationFrame(raf); },
     dispose() {
