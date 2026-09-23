@@ -96,66 +96,220 @@ export function catSprite(svg: string, size = 460): Promise<HTMLCanvasElement> {
   });
 }
 
-// A gothic city at the horizon: narrow houses under steep roofs, chimneys and
-// iron finials, arcades of lit lancets, a spire or two over all of it. Drawn
-// dark with a lit edge, the way a city looks with the moon behind it.
-export function skyline(g: CanvasRenderingContext2D, w: number, h: number, base: number, seed: number, scale = 1): void {
-  const r = rand(seed);
-  const dark = grey(0.03), edge = grey(0.6), lit = grey(0.52);
-  let x = -10;
-  while (x < w + 10) {
-    const bw = (9 + r() * 20) * scale;
-    const bh = (22 + r() * 54) * scale * (0.6 + 0.6 * Math.sin((x / w) * Math.PI));
-    const top = base - bh;
-    g.fillStyle = dark; g.fillRect(x, top, bw, bh);
-    g.fillStyle = edge; g.fillRect(x, top, bw, 1); g.fillRect(x, top, 1, bh);
+// The ward, built the way a city is: in layers, each one nearer and darker
+// than the one behind it, all of it lit from whatever is behind the roofs.
+//
+// Everything here is drawn as a dark body with a lit edge and lit openings.
+// A flat silhouette reads as a cut-out; an edge that catches the light and a
+// window that does not reads as a building.
 
-    const kind = r();
-    if (kind < 0.42) {
-      // A steep roof, and often a finial on its ridge.
-      const rh = bh * (0.22 + r() * 0.3);
-      g.fillStyle = dark;
-      g.beginPath(); g.moveTo(x - scale, top); g.lineTo(x + bw / 2, top - rh); g.lineTo(x + bw + scale, top); g.closePath(); g.fill();
-      g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
-      if (r() < 0.6) g.fillRect(x + bw / 2, top - rh - 4 * scale, Math.max(1, scale * 0.8), 4 * scale);
-    } else if (kind < 0.62) {
-      // A spire: the tall thin kind, with a cross bar near the top.
-      const sh = bh * (0.5 + r() * 0.7), sw = bw * 0.42, sx = x + bw / 2 - sw / 2;
-      g.fillStyle = dark; g.fillRect(sx, top - sh, sw, sh);
-      g.fillStyle = edge; g.fillRect(sx, top - sh, sw, 1); g.fillRect(sx, top - sh, 1, sh);
-      g.fillStyle = dark;
-      g.beginPath(); g.moveTo(sx - scale, top - sh); g.lineTo(sx + sw / 2, top - sh - bh * 0.4); g.lineTo(sx + sw + scale, top - sh); g.closePath();
-      g.fill(); g.strokeStyle = edge; g.stroke();
-      g.fillStyle = edge; g.fillRect(sx - scale, top - sh - bh * 0.14, sw + 2 * scale, Math.max(1, scale * 0.6));
-    } else if (kind < 0.78) {
-      // A rose window over an arcade.
-      g.fillStyle = lit;
-      g.beginPath(); g.arc(x + bw / 2, top + bh * 0.26, Math.max(1.2, bw * 0.17), 0, 7); g.fill();
-      g.fillStyle = dark;
-      g.beginPath(); g.arc(x + bw / 2, top + bh * 0.26, Math.max(0.6, bw * 0.07), 0, 7); g.fill();
-    }
-    // Chimneys, in ones and twos, leaning where the roof is steep.
-    for (let k = 0; k < (r() < 0.5 ? 2 : 1); k++) {
-      if (r() > 0.55) continue;
-      const cwd = Math.max(1, 2.4 * scale), cx = x + bw * (0.18 + r() * 0.6);
-      const chh = (5 + r() * 7) * scale;
-      g.fillStyle = dark; g.fillRect(cx, top - chh, cwd, chh);
-      g.fillStyle = edge; g.fillRect(cx, top - chh, cwd, 1);
-    }
-    // Lancets, in rows, a few of them lit from inside.
-    const rows = Math.max(1, Math.floor(bh / (9 * scale)));
-    for (let row = 0; row < rows; row++) {
-      const y = top + 7 * scale + row * 9 * scale;
-      if (y > base - 3 * scale) break;
-      for (let k = 0; k < 2; k++) {
-        if (r() > 0.45) continue;
-        g.fillStyle = r() < 0.3 ? lit : grey(0.2);
-        g.fillRect(x + bw * (0.22 + k * 0.42), y, Math.max(1, bw * 0.13), Math.max(1, 3.4 * scale));
-      }
-    }
-    x += bw + r() * 4 * scale;
+type Ink = { body: string; edge: string; glass: string; dim: string };
+
+const inkFor = (depth: number): Ink => ({
+  // The body is the dark itself. Distance only takes the light out of the
+  // windows, never puts grey into the walls: grey walls dither into scribble.
+  body: grey(0),
+  edge: grey(depth > 0.6 ? 0 : 0.5 - depth * 0.3),
+  glass: grey(0.95 - depth * 0.3),
+  dim: grey(0),
+});
+
+// A lancet: the pointed window this whole architecture is made of.
+function lancet(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, ink: Ink, lit: boolean): void {
+  g.fillStyle = lit ? ink.glass : ink.dim;
+  g.beginPath();
+  g.moveTo(x, y + h);
+  g.lineTo(x, y + w * 0.7);
+  g.quadraticCurveTo(x + w / 2, y - w * 0.15, x + w, y + w * 0.7);
+  g.lineTo(x + w, y + h);
+  g.closePath();
+  g.fill();
+  if (lit && w > 3) {
+    // The mullion down the middle of it.
+    g.fillStyle = ink.body;
+    g.fillRect(x + w / 2 - 0.5, y + w * 0.2, Math.max(0.6, w * 0.12), h - w * 0.2);
   }
 }
+
+// A row of them under an arcade.
+function arcade(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, n: number, ink: Ink, r: () => number): void {
+  const gap = w / n;
+  for (let i = 0; i < n; i++) {
+    const ww = gap * 0.56;
+    lancet(g, x + i * gap + gap * 0.22, y, ww, h, ink, r() < 0.45);
+  }
+}
+
+// A rose window: the wheel of tracery over the west door.
+function rose(g: CanvasRenderingContext2D, cx: number, cy: number, rad: number, ink: Ink): void {
+  g.fillStyle = ink.glass;
+  g.beginPath(); g.arc(cx, cy, rad, 0, 7); g.fill();
+  g.fillStyle = ink.body;
+  g.beginPath(); g.arc(cx, cy, rad * 0.36, 0, 7); g.fill();
+  const spokes = rad > 5 ? 8 : 6;
+  for (let i = 0; i < spokes; i++) {
+    const a = (i / spokes) * Math.PI * 2;
+    g.save();
+    g.translate(cx, cy); g.rotate(a);
+    g.fillRect(-Math.max(0.5, rad * 0.06), 0, Math.max(1, rad * 0.12), rad);
+    g.restore();
+  }
+  g.strokeStyle = ink.edge; g.lineWidth = 1;
+  g.beginPath(); g.arc(cx, cy, rad, 0, 7); g.stroke();
+}
+
+// A street lamp: the iron post, the lantern, and the pool of light it throws.
+function lamp(g: CanvasRenderingContext2D, x: number, base: number, h: number, ink: Ink): void {
+  g.fillStyle = ink.body;
+  g.fillRect(x - 0.5, base - h, Math.max(1, h * 0.05), h);
+  g.fillStyle = ink.edge;
+  g.fillRect(x - 0.5, base - h, Math.max(0.6, h * 0.025), h);
+  const lx = x, ly = base - h - h * 0.06;
+  const halo = g.createRadialGradient(lx, ly, 0, lx, ly, h * 0.55);
+  halo.addColorStop(0, 'rgba(255,255,255,.5)'); halo.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = halo; g.beginPath(); g.arc(lx, ly, h * 0.55, 0, 7); g.fill();
+  g.fillStyle = grey(0.95);
+  g.beginPath(); g.moveTo(lx - h * 0.07, ly + h * 0.09); g.lineTo(lx, ly - h * 0.07); g.lineTo(lx + h * 0.07, ly + h * 0.09); g.closePath(); g.fill();
+}
+
+// One house of the ward: tall, narrow, steep-roofed, its windows in storeys,
+// with chimneys and the odd shutter hanging open.
+function house(g: CanvasRenderingContext2D, x: number, base: number, w: number, h: number, ink: Ink, r: () => number): void {
+  g.fillStyle = ink.body;
+  g.fillRect(x, base - h, w, h);
+  // The lit edge, on the side the moon is.
+  g.fillStyle = ink.edge;
+  g.fillRect(x, base - h, 1, h);
+  g.fillRect(x, base - h, w, 1);
+
+  // The roof: steep, and hipped over the front.
+  const rh = h * (0.16 + r() * 0.16);
+  g.fillStyle = ink.body;
+  g.beginPath();
+  g.moveTo(x - w * 0.09, base - h);
+  g.lineTo(x + w * (0.3 + r() * 0.4), base - h - rh);
+  g.lineTo(x + w * 1.09, base - h);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke();
+
+  // Chimneys on the ridge.
+  for (let k = 0, n = r() < 0.55 ? 2 : 1; k < n; k++) {
+    const cw = Math.max(1, w * 0.12), cx = x + w * (0.2 + r() * 0.6);
+    const ch = rh * (0.6 + r() * 0.9);
+    g.fillStyle = ink.body; g.fillRect(cx, base - h - ch, cw, ch);
+    g.fillStyle = ink.edge; g.fillRect(cx, base - h - ch, cw, 1);
+  }
+
+  // The storeys. Every house is lit differently; some are dark all the way up.
+  const storeys = Math.max(1, Math.floor(h / (w * 0.85)));
+  const dark = r() < 0.3;
+  for (let s = 0; s < storeys; s++) {
+    const y = base - h + h * 0.1 + s * (h * 0.82 / storeys);
+    const wh = Math.min(h * 0.5 / storeys, w * 0.5);
+    if (w > 7) arcade(g, x + w * 0.12, y, w * 0.76, wh, w > 14 ? 3 : 2, ink, dark ? () => 1 : r);
+    else lancet(g, x + w * 0.3, y, w * 0.4, wh, ink, !dark && r() < 0.5);
+  }
+  // A shutter, hanging off one of them.
+  if (r() < 0.25 && w > 9) {
+    const y = base - h + h * (0.2 + r() * 0.5);
+    g.fillStyle = ink.body;
+    g.save(); g.translate(x + w * 0.1, y); g.rotate(-0.4 + r() * 0.3);
+    g.fillRect(0, 0, Math.max(1, w * 0.1), Math.max(2, h * 0.09));
+    g.restore();
+  }
+}
+
+// The cathedral: the thing the ward is built around. Nave, aisle roofs,
+// buttresses, a rose over the door, and the tower with its spire.
+export function church(g: CanvasRenderingContext2D, cx: number, base: number, scale: number, seed = 5): void {
+  const r = rand(seed), s = scale;
+  const ink = inkFor(0.1);
+  const navW = 58 * s, navH = 46 * s, navX = cx - navW * 0.36;
+
+  // Buttresses first: they stand in front of the wall.
+  for (let x = navX + 6 * s; x < navX + navW; x += 15 * s) {
+    g.fillStyle = ink.body;
+    g.beginPath();
+    g.moveTo(x, base);
+    g.lineTo(x, base - navH * 0.66);
+    g.lineTo(x + 5 * s, base - navH * 0.52);
+    g.lineTo(x + 5 * s, base);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink.edge; g.lineWidth = 1; g.stroke();
+  }
+
+  g.fillStyle = ink.body; g.fillRect(navX, base - navH, navW, navH);
+  g.fillStyle = ink.edge; g.fillRect(navX, base - navH, navW, 1); g.fillRect(navX, base - navH, 1, navH);
+
+  // The roof of the nave, and the lower aisle roofs either side.
+  g.fillStyle = ink.body;
+  g.beginPath();
+  g.moveTo(navX - 4 * s, base - navH);
+  g.lineTo(navX + navW * 0.44, base - navH - 17 * s);
+  g.lineTo(navX + navW + 4 * s, base - navH);
+  g.closePath(); g.fill();
+  g.strokeStyle = ink.edge; g.stroke();
+
+  // The great window, and the arcade under it.
+  rose(g, navX + navW * 0.44, base - navH * 0.66, 6.5 * s, ink);
+  arcade(g, navX + navW * 0.12, base - navH * 0.4, navW * 0.76, navH * 0.3, 5, ink, r);
+
+  // The tower: square, stepped, with a belfry and a spire on top.
+  const twW = 21 * s, twH = 96 * s, twX = navX - twW * 0.75;
+  g.fillStyle = ink.body; g.fillRect(twX, base - twH, twW, twH);
+  g.fillStyle = ink.edge; g.fillRect(twX, base - twH, twW, 1); g.fillRect(twX, base - twH, 1, twH);
+  // The string courses that break it into stages.
+  for (let k = 1; k < 4; k++) {
+    g.fillStyle = ink.edge;
+    g.fillRect(twX - 1.5 * s, base - twH + (twH / 4) * k, twW + 3 * s, Math.max(1, 1.2 * s));
+  }
+  lancet(g, twX + twW * 0.3, base - twH + 10 * s, twW * 0.4, 13 * s, ink, true);
+  lancet(g, twX + twW * 0.3, base - twH * 0.55, twW * 0.4, 11 * s, ink, false);
+  // The spire, with a finial and a cross bar.
+  g.fillStyle = ink.body;
+  g.beginPath();
+  g.moveTo(twX - 4 * s, base - twH);
+  g.lineTo(twX + twW / 2, base - twH - 46 * s);
+  g.lineTo(twX + twW + 4 * s, base - twH);
+  g.closePath(); g.fill();
+  g.strokeStyle = ink.edge; g.stroke();
+  g.fillStyle = ink.edge;
+  g.fillRect(twX + twW / 2 - 3 * s, base - twH - 50 * s, 6 * s, Math.max(1, s));
+  g.fillRect(twX + twW / 2 - 0.5 * s, base - twH - 56 * s, Math.max(1, s), 8 * s);
+}
+
+// A street of the ward, in one layer of depth. depth 0 is nearest.
+export function street(g: CanvasRenderingContext2D, w: number, base: number, seed: number, scale: number, depth: number): void {
+  const r = rand(seed);
+  const ink = inkFor(depth);
+  let x = -6 * scale;
+  while (x < w + 6 * scale) {
+    const hw = (7 + r() * 13) * scale;
+    const hh = (26 + r() * 46) * scale * (0.75 + 0.35 * Math.sin((x / w) * Math.PI * 1.3 + seed));
+    house(g, x, base, hw, hh, ink, r);
+    x += hw + r() * 2.5 * scale;
+  }
+}
+
+// The railing along the ledge: iron, with its spear heads.
+export function railing(g: CanvasRenderingContext2D, w: number, y: number, scale: number): void {
+  const ink = inkFor(0);
+  const step = Math.max(4, 7 * scale);
+  g.fillStyle = ink.edge;
+  g.fillRect(0, y, w, Math.max(1, scale * 0.7));
+  g.fillStyle = ink.body;
+  for (let x = 0; x < w; x += step) {
+    g.fillRect(x, y, Math.max(1, scale * 0.6), 9 * scale);
+    g.beginPath();
+    g.moveTo(x - scale * 0.9, y);
+    g.lineTo(x + scale * 0.3, y - 3.2 * scale);
+    g.lineTo(x + scale * 1.5, y);
+    g.closePath(); g.fill();
+  }
+}
+
+export { lamp };
 
 export function starfield(g: CanvasRenderingContext2D, w: number, h: number, count: number, seed: number, dx = 0, dy = 0): void {
   const r = rand(seed);
@@ -197,42 +351,6 @@ export function bats(g: CanvasRenderingContext2D, w: number, h: number, t: numbe
     g.quadraticCurveTo(x + size, y + size * 0.4, x + size * 2, y + size * 0.2);
     g.quadraticCurveTo(x + size, y - size * flap, x, y);
     g.fill();
-  }
-}
-
-// A church seen from the ward: nave, buttresses, a tower with a lit lancet,
-// the spire above everything. Drawn as a silhouette against the sky.
-export function church(g: CanvasRenderingContext2D, cx: number, base: number, scale: number, seed = 5): void {
-  const r = rand(seed), s = scale;
-  const dark = grey(0.02), edge = grey(0.72);
-  const lit = (x: number, y: number, w: number, h: number) => {
-    g.fillStyle = dark; g.fillRect(x, y, w, h);
-    g.fillStyle = edge; g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h);
-    g.fillStyle = dark;
-  };
-  g.fillStyle = dark;
-  // Nave, with a pitched roof.
-  const nw = 54 * s, nh = 40 * s, nx = cx - nw * 0.34;
-  lit(nx, base - nh, nw, nh);
-  g.beginPath(); g.moveTo(nx - 3 * s, base - nh); g.lineTo(nx + nw * 0.45, base - nh - 15 * s); g.lineTo(nx + nw + 3 * s, base - nh); g.closePath();
-  g.fill(); g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
-  // Tower and spire.
-  const tw = 20 * s, th = 92 * s, tx = cx - nw * 0.34 - tw * 0.7;
-  lit(tx, base - th, tw, th);
-  g.beginPath(); g.moveTo(tx - 4 * s, base - th); g.lineTo(tx + tw / 2, base - th - 42 * s); g.lineTo(tx + tw + 4 * s, base - th); g.closePath();
-  g.fillStyle = dark; g.fill(); g.strokeStyle = edge; g.stroke();
-  // Buttresses along the nave.
-  for (let x = nx + 10 * s; x < nx + nw; x += 16 * s) {
-    g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - nh * 0.7); g.lineTo(x + 7 * s, base); g.closePath(); g.fill();
-  }
-  // What is lit inside: the rose window, the belfry, a lancet or two.
-  g.fillStyle = grey(0.62);
-  g.beginPath(); g.arc(nx + nw * 0.45, base - nh * 0.62, 5.5 * s, 0, 7); g.fill();
-  g.fillStyle = grey(0.5);
-  g.fillRect(tx + tw * 0.3, base - th + 9 * s, tw * 0.4, 9 * s);
-  for (let k = 0; k < 4; k++) {
-    if (r() < 0.45) continue;
-    g.fillRect(nx + 8 * s + k * 13 * s, base - nh * 0.45, 3.5 * s, 11 * s);
   }
 }
 

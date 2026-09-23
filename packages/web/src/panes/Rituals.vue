@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
-import { bats, church, moonDisc, skyline, starfield } from '../gl/plate';
+import { bats, church, lamp, moonDisc, starfield, street } from '../gl/plate';
 import { actions, daysAgo, HABIT_DAYS, localDate, state } from '../store';
 import { narrow } from '../screen';
 
@@ -77,19 +77,21 @@ const strips = computed(() => state.habits.map((h) => {
 const vigil = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   const sky = g.createLinearGradient(0, 0, 0, h);
   // The horizon has to be lit, or a black tower on a black sky is nothing.
-  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.55, 'rgb(22,22,22)'); sky.addColorStop(1, 'rgb(104,104,104)');
+  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.55, 'rgb(6,6,6)'); sky.addColorStop(0.86, 'rgb(56,56,56)'); sky.addColorStop(1, 'rgb(160,160,160)');
   g.fillStyle = sky; g.fillRect(0, 0, w, h);
   // Sized off the height so the ward holds together in a wide strip as well as
   // in a tall box: stars, the moon, a lit horizon behind the roofs, and one
   // church standing out of them.
-  starfield(g, w, h, Math.round((w * h) / 80), 41);
+  starfield(g, w, h * 0.7, Math.round((w * h) / 130), 41);
   moonDisc(g, w * 0.68, h * 0.3, h * 0.2, 13);
-  const glow = g.createLinearGradient(0, h * 0.55, 0, h);
-  glow.addColorStop(0, 'rgba(255,255,255,0)'); glow.addColorStop(1, 'rgba(255,255,255,.14)');
-  g.fillStyle = glow; g.fillRect(0, h * 0.55, w, h * 0.45);
+
   bats(g, w, h * 0.6, t, 8, 55);
-  skyline(g, w, h, h + 1, 19, h / 120);
-  church(g, w * 0.3, h + 1, h / 92, 5);
+  const scale = h / 110;
+  street(g, w, h - h * 0.08, 31, scale * 0.6, 0.85);
+  street(g, w, h - h * 0.04, 47, scale * 0.82, 0.45);
+  church(g, w * 0.3, h - h * 0.02, scale * 0.95, 5);
+  street(g, w, h + 1, 19, scale * 1.1, 0.05);
+  lamp(g, w * 0.08, h, h * 0.2, scale);
 };
 const records = computed(() => [...strips.value]
   .map((s) => ({ name: s.h.name, streak: s.streak, rate: s.rate, kept: s.h.done.length }))
@@ -138,7 +140,7 @@ async function archive() {
     </Frame>
 
     <Frame class="vigil" title="the vigil // his sky while you keep them" flush>
-      <Plate :draw="vigil" :active="active" animated :cell="3" label="The moon over the ward, bats crossing" />
+      <Plate :draw="vigil" :active="active" animated :cell="2" label="The moon over the ward, bats crossing" />
     </Frame>
 
     <Frame class="records" title="the record of the rituals">

@@ -22,6 +22,13 @@ export const FONTS: { name: string; file: string; px: number; ink?: number }[] =
   { name: 'Fell13', file: 'IMFellEnglish.ttf', px: 13 },
   { name: 'Grenze13', file: 'GrenzeGotisch.ttf', px: 13 },
   { name: 'Grenze18', file: 'GrenzeGotisch.ttf', px: 18 },
+  // The console's own two: the pixel face its labels are set in, and the
+  // technical face its numbers are. Same fonts the dashboard uses.
+  { name: 'Silk8', file: 'Silkscreen.ttf', px: 8 },
+  { name: 'Silk11', file: 'Silkscreen.ttf', px: 11 },
+  { name: 'Tek12', file: 'Tektur.ttf', px: 12, ink: 200 },
+  { name: 'Tek16', file: 'Tektur.ttf', px: 16, ink: 200 },
+  { name: 'Tek24', file: 'Tektur.ttf', px: 24, ink: 200 },
 ];
 
 export function bakeFont(file: string, px: number, name: string, inkLevel = 128): string {

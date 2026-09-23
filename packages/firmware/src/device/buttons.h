@@ -26,6 +26,22 @@ constexpr unsigned long LONG_PRESS_MS = 700;
 constexpr unsigned long DEBOUNCE_MS = 30;
 constexpr unsigned long DOUBLE_MS = 340;  // a second SUN within this goes back up
 
+// SUN, watched by the hardware itself. A page of e-ink takes the best part of
+// a second to draw, and poll() is not called while it does; a press that lands
+// in there is simply not seen. The interrupt sees it, so a second press
+// counts even when it arrives over the top of a redraw.
+namespace sun {
+inline volatile unsigned long lastPress = 0;
+inline volatile bool twice = false;
+
+inline void IRAM_ATTR pressed() {
+  const unsigned long now = millis();
+  if (now - lastPress < DEBOUNCE_MS) return;
+  if (now - lastPress < DOUBLE_MS) twice = true;
+  lastPress = now;
+}
+}  // namespace sun
+
 class Buttons {
 public:
   void begin() {
@@ -33,6 +49,7 @@ public:
     digitalWrite(PIN_POWER_HOLD, HIGH);  // latch power on, first thing
     pinMode(PIN_POWER_BTN, INPUT_PULLUP);
     pinMode(PIN_SUN_BTN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(PIN_SUN_BTN), sun::pressed, FALLING);
     // Holding POWER is how the board turns on, so it is usually still held here.
     // Ignore POWER until it has been seen released, or that release would
     // register as a long press and switch the device straight back off.
@@ -41,24 +58,21 @@ public:
 
   bool poll(Input& out) {
     arm();
-    // A single press acts at once - nothing is held back to watch for a
-    // second one, because that delay is felt on every press. A second press
-    // landing soon after fires the moment it goes down, and means "back up",
-    // which the machine takes as two steps: the one just made, and one more.
-    const unsigned long now = millis();
-    if (digitalRead(PIN_SUN_BTN) == LOW && !sunDown_ && now - sunEdge_ >= DEBOUNCE_MS
-        && shortAt_ && now - shortAt_ < DOUBLE_MS) {
-      shortAt_ = 0;
-      sunDown_ = true;
-      sunLong_ = true;  // so its release fires nothing
-      sunAt_ = sunEdge_ = now;
+    // A single press acts at once: nothing is held back to watch for a second
+    // one, because that wait is felt on every press.
+    // Two presses close together: back up the list. The second one is taken
+    // from the interrupt, so it counts however long the last page took to draw.
+    if (sun::twice) {
+      sun::twice = false;
+      sunDown_ = digitalRead(PIN_SUN_BTN) == LOW;
+      sunLong_ = true;  // whatever this press does next, it fires nothing more
+      sunAt_ = sunEdge_ = millis();
       out = Input::SunDouble;
       return true;
     }
-    Input sun;
-    if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, sun)) {
-      shortAt_ = sun == Input::SunShort ? millis() : 0;
-      out = sun;
+    Input s;
+    if (read(PIN_SUN_BTN, sunDown_, sunLong_, sunAt_, sunEdge_, Input::SunShort, Input::SunLong, s)) {
+      out = s;
       return true;
     }
     return pwrArmed_ && read(PIN_POWER_BTN, pwrDown_, pwrLong_, pwrAt_, pwrEdge_, Input::PowerShort, Input::PowerLong, out);
@@ -113,7 +127,6 @@ private:
     return false;
   }
 
-  unsigned long shortAt_ = 0;  // when the last short SUN was let go
   bool sunDown_ = false, pwrDown_ = false;
   bool sunLong_ = false, pwrLong_ = false;
   bool pwrArmed_ = false;

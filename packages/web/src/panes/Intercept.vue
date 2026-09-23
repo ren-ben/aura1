@@ -4,6 +4,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import { drawLogo, logoFor, mixLogo } from '../gl/logogram';
+import Plate from '../components/Plate.vue';
+import art from '../gl/art.json';
+import { catSprite } from '../gl/plate';
 import { actions, state, type Quote } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -21,6 +24,18 @@ async function remove(q: Quote) { if (window.confirm('Take these words out of th
 // His script: the words as a logogram, and one logogram turning into the next
 // when the intercept changes - nothing here cuts.
 const glyph = ref<HTMLCanvasElement | null>(null);
+
+// Him, at the foot of the roll, saying it. Drawn small and looking up at the
+// words, the way he does when he is quoting somebody he approves of.
+const him = ref<HTMLCanvasElement | null>(null);
+catSprite(art.cameo, 300).then((c) => { him.value = c; });
+const reader = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
+  const c = him.value;
+  if (!c) return;
+  const size = Math.min(w, h) * 1.02;
+  const bob = Math.sin(t * 0.7) * h * 0.025;
+  g.drawImage(c, w / 2 - size / 2, h - size * 0.99 + bob, size, size);
+};
 let shown = logoFor(''), from = shown, to = shown;
 let turn = 1, raf = 0, ro: ResizeObserver | null = null;
 
@@ -73,6 +88,7 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
 
     <Frame class="current" :title="`intercept ${String(at).padStart(2, '0')} of ${String(count).padStart(2, '0')} // he says these on the device`">
       <div class="win">
+        <div class="rod top" aria-hidden="true"></div>
         <div class="ticks" aria-hidden="true"><i v-for="n in 24" :key="n"></i></div>
         <transition name="say" mode="out-in">
           <div :key="quote?.id ?? 'empty'" class="words">
@@ -80,6 +96,8 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
             <p v-else class="empty">The vault is empty. Give him something worth saying.</p>
           </div>
         </transition>
+        <div class="rod bottom" aria-hidden="true"></div>
+        <div class="reader" aria-hidden="true"><Plate :draw="reader" :active="active" animated :cell="3" /></div>
       </div>
       <div class="foot">
         <cite>{{ quote?.source ? `source // ${quote.source}` : 'source // unattributed' }}</cite>
@@ -118,13 +136,24 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
   background: radial-gradient(circle at 50% 50%, transparent 52%, rgba(18, 18, 18, .55) 78%); }
 .current { grid-area: current; }
 .current :deep(.body) { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-/* The window the transmission lands in: ruled, ticked down one side, and
-   always the same height, so the words arriving never move the furniture. */
-.win { position: relative; flex: 1; min-height: 190px; display: grid; align-items: center;
-  border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); padding: 18px 16px 18px 34px; overflow: hidden; }
+/* The roll the words are written on: a rod at each end, the sheet between
+   them, ruled and ticked, always the same height so nothing moves when the
+   words change. He sits at the foot of it, reading. */
+.win { position: relative; flex: 1; min-height: 210px; display: grid; align-items: center;
+  padding: 26px 96px 26px 36px; overflow: hidden;
+  background: linear-gradient(to right, rgba(197, 188, 171, .05), transparent 12%, transparent 88%, rgba(197, 188, 171, .05)); }
+.rod { position: absolute; left: 0; right: 0; height: 13px; background:
+    linear-gradient(to bottom, var(--faint), var(--low) 34%, var(--ground) 62%, var(--faint));
+  border-top: 1px solid var(--dim); border-bottom: 1px solid var(--dim); }
+.rod::before, .rod::after { content: ''; position: absolute; top: -3px; width: 9px; height: 19px; background: var(--low); border: 1px solid var(--dim); }
+.rod::before { left: -3px; }
+.rod::after { right: -3px; }
+.rod.top { top: 0; }
+.rod.bottom { bottom: 0; }
+.reader { position: absolute; right: 10px; bottom: 14px; width: 92px; height: 78px; opacity: .9; }
 .win::before { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(to bottom, rgba(197, 188, 171, .04) 0 1px, transparent 1px 4px); }
-.ticks { position: absolute; left: 12px; top: 14px; bottom: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+.ticks { position: absolute; left: 12px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
 .ticks i { width: 7px; height: 2px; background: var(--faint); }
 .ticks i:nth-child(6n + 1) { width: 13px; background: var(--low); }
 .words { min-width: 0; }

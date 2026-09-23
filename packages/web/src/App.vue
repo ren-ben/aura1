@@ -54,21 +54,34 @@ const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r +
 // into whichever pane it is over; letting go there goes to that pane.
 const mapping = ref(false);
 const lit = shallowRef<Pane | null>(null);
-const glow = ref({ x: -400, y: -400, on: false });
+// Five blobs: the first chases the finger, each of the others chases the one
+// in front. Blurred together they read as one body of liquid being dragged,
+// stretching thin when it moves and pooling back into a drop when it stops.
+const BLOBS = 5;
+const glow = ref({ on: false, drops: Array.from({ length: BLOBS }, () => ({ x: -400, y: -400, r: 1 })) });
 let want = { x: -400, y: -400 };
 let flow = 0;
 
-// The light lags the finger and catches up, so it moves like something poured.
 function pour() {
-  const g = glow.value;
-  const k = 0.22;
-  const x = g.x + (want.x - g.x) * k, y = g.y + (want.y - g.y) * k;
-  glow.value = { x, y, on: true };
-  flow = Math.abs(want.x - x) + Math.abs(want.y - y) > 0.4 ? requestAnimationFrame(pour) : 0;
+  const drops = glow.value.drops.map((d) => ({ ...d }));
+  let moved = 0;
+  for (let i = 0; i < drops.length; i++) {
+    const d = drops[i]!;
+    const target = i ? drops[i - 1]! : want;
+    const k = i ? 0.34 : 0.26;
+    const dx = target.x - d.x, dy = target.y - d.y;
+    d.x += dx * k; d.y += dy * k;
+    // A drop being pulled stretches; a drop at rest is round again.
+    d.r = 1 + Math.min(1.4, Math.hypot(dx, dy) / 90);
+    moved += Math.abs(dx) + Math.abs(dy);
+  }
+  glow.value = { on: true, drops };
+  flow = moved > 1.5 ? requestAnimationFrame(pour) : 0;
 }
 function aim(x: number, y: number) {
+  const first = !glow.value.on;
   want = { x, y };
-  if (!glow.value.on) glow.value = { x, y, on: true };
+  if (first) glow.value = { on: true, drops: glow.value.drops.map(() => ({ x, y, r: 1 })) };
   if (!flow) flow = requestAnimationFrame(pour);
   const el = document.elementsFromPoint(x, y).find((e) => (e as HTMLElement).dataset?.pane) as HTMLElement | undefined;
   const pane = el ? PANES.find((q) => q.id === el.dataset.pane) ?? null : null;
@@ -86,6 +99,7 @@ function release(e?: PointerEvent) {
   if (!mapping.value) return;
   mapping.value = false;
   glow.value = { ...glow.value, on: false };
+  cancelAnimationFrame(flow); flow = 0;
   const target = lit.value;
   lit.value = null;
   if (e || target) go(target ?? undefined);
@@ -230,7 +244,17 @@ onBeforeUnmount(() => {
   </button>
 
   <div v-if="mapping" class="map" :class="{ narrow }" aria-label="The whole web">
-    <div class="pour" :class="{ on: glow.on }" :style="{ left: `${glow.x}px`, top: `${glow.y}px` }" aria-hidden="true"></div>
+    <svg class="weld" aria-hidden="true">
+      <filter id="goo">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="soft" />
+        <feColorMatrix in="soft" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" result="welded" />
+        <feBlend in="SourceGraphic" in2="welded" />
+      </filter>
+    </svg>
+    <div class="pour" :class="{ on: glow.on }" aria-hidden="true">
+      <i v-for="(d, i) in glow.drops" :key="i"
+        :style="{ left: `${d.x}px`, top: `${d.y}px`, '--r': d.r, '--k': 1 - i / glow.drops.length }"></i>
+    </div>
     <div class="sky"></div>
     <div class="grid" :style="{ gridTemplateColumns: `repeat(${mapBox.cols}, 1fr)`, gridTemplateRows: `repeat(${mapBox.rows}, 1fr)` }">
       <svg v-if="!narrow" class="edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -325,10 +349,13 @@ onBeforeUnmount(() => {
 .map .card .bars i { width: 4px; height: calc(4px + var(--v) * 22px); background: var(--low); transition: height .5s var(--ease); }
 .map .card:hover .bars i, .map .card.here .bars i { background: var(--phos); }
 .map .card .stat { color: var(--phos); }
-.map .pour { position: fixed; width: 260px; height: 260px; margin: -130px 0 0 -130px; pointer-events: none; z-index: 1;
-  background: radial-gradient(circle, rgba(197, 188, 171, .5), rgba(197, 188, 171, .12) 42%, transparent 68%);
-  filter: blur(26px); opacity: 0; transition: opacity .3s var(--out); }
-.map .pour.on { opacity: 1; }
+.weld { position: fixed; width: 0; height: 0; }
+.map .pour { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
+  filter: url(#goo) blur(7px); transition: opacity .34s var(--out); }
+.map .pour.on { opacity: .85; }
+.map .pour i { position: absolute; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(220, 213, 198, .95), rgba(197, 188, 171, .5) 58%, transparent 72%);
+  transform: scale(calc(var(--k) * var(--r))); }
 /* The card under the light fills from wherever the finger is, and leans. */
 .map .card.lit { border-color: var(--hi); border-style: solid; z-index: 2;
   transform: perspective(760px) rotateY(calc(var(--tx, 0) * 5deg)) rotateX(calc(var(--ty, 0) * -5deg)) scale(1.045);
@@ -348,8 +375,13 @@ onBeforeUnmount(() => {
   border: 2px solid var(--low); background: rgba(18, 18, 18, .86); color: var(--phos); backdrop-filter: blur(6px);
   transition: transform .28s var(--out), border-color .28s var(--out), background .28s var(--out); touch-action: none; }
 .webkey svg { width: 24px; height: 24px; }
-.webkey.top { top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); width: 42px; height: 42px; }
-.webkey.top svg { width: 19px; height: 19px; }
+/* An island at the top edge, a key at the foot: both under the thumb, both
+   in the middle, so the hand never has to reach a corner. */
+.webkey.top { top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  width: min(62vw, 260px); height: 38px; border-radius: 19px; gap: 10px; grid-auto-flow: column; }
+.webkey.top svg { width: 17px; height: 17px; }
+.webkey.top::after { content: 'the web'; font: 400 9.5px var(--pix); text-transform: uppercase; letter-spacing: .18em; }
+.webkey.top.held { transform: translateX(-50%) scale(1.03); }
 .webkey.bottom { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; margin-left: -27px; }
 .webkey.held { border-color: var(--hi); background: var(--phos); color: var(--ground); transform: scale(1.08); }
 .map .card.sealed .stat { color: var(--dim); }
@@ -385,12 +417,11 @@ onBeforeUnmount(() => {
   .ports .port { padding: 14px; }
 }
 @media (max-width: 860px) {
-  .pane { padding: calc(56px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+  .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
                   calc(92px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
   .hud { inset: calc(8px + env(safe-area-inset-top, 0px)) 14px calc(8px + env(safe-area-inset-bottom, 0px)); }
-  .hud .where, .hud .rec .clock, .hud .mini { display: none; }
-  .hud .brand b { font-size: 17px; }
-  .hud .brand .pix { font-size: 9px; }
+  /* Nothing is written along the top on a phone: the console is the pane. */
+  .hud .where, .hud .rec, .hud .mini, .hud .brand { display: none; }
   .stage::after { height: 84px; }
   .map { padding: calc(58px + env(safe-area-inset-top, 0px)) 14px calc(84px + env(safe-area-inset-bottom, 0px)); }
   .map .say { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }

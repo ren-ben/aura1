@@ -17,6 +17,11 @@
 #include "fonts/FreeSerifItalic9pt7b.h"
 #include "fonts/Grenze13.h"
 #include "fonts/Grenze18.h"
+#include "fonts/Silk8.h"
+#include "fonts/Silk11.h"
+#include "fonts/Tek12.h"
+#include "fonts/Tek16.h"
+#include "fonts/Tek24.h"
 #include "fonts/Pirata13.h"
 #include "fonts/Pirata18.h"
 #include "fonts/Pirata24.h"
@@ -1037,70 +1042,71 @@ public:
 // ---------------------------------------------------------------- I: The Rite
 // A summoning circle: the items stand around the ring, the chosen one turned
 // to the top, and he is summoned in the middle.
-// The console: the device wearing the dashboard. Phosphor on a dark glass,
-// a dot field under everything, dotted frames with a lit strip naming each,
-// and blackletter at the foot. What the web looks like, in one bit.
+// The console: the device wearing the dashboard, in the dashboard's own
+// letters - Silkscreen for the labels, Tektur for anything measured, IM Fell
+// for what he says, blackletter for the name of the page. Phosphor on dark
+// glass, a dot field under it, dotted frames with a lit strip.
 class Console : public Look {
 public:
   const char* name() const override { return "CONSOLE"; }
   QuoteBox quoteBox(bool large) const override {
-    return large ? QuoteBox{ &FreeSansBold12pt7b, 1, 160, 4 } : QuoteBox{ &FreeSans9pt7b, 1, 160, 5 };
+    return large ? QuoteBox{ &Fell13, 1, 158, 5 } : QuoteBox{ &Fell13, 1, 158, 6 };
   }
   bool negative() const override { return true; }
   Corner corner(const ViewModel&, bool) const override { return { 4, PAPER }; }
 
-  static constexpr int TOP = 18;  // the status corner owns the strip above
+  static constexpr int TOP = 20;   // the status corner owns the strip above
+  static constexpr int L = 10, R = 190;
 
-  // The dark glass and its dot field, as the console has behind everything.
   static void ground(Canvas& c) {
     c.clear(INK);
-    for (int y = 3; y < 200; y += 9) for (int x = 3; x < 200; x += 9) c.pixel(x, y, PAPER);
+    for (int y = 4; y < 200; y += 10) for (int x = 4; x < 200; x += 10) c.pixel(x, y, PAPER);
   }
+  static void dots(Canvas& c, int x, int y, int w) { for (int i = 0; i < w; i += 3) c.pixel(x + i, y, PAPER); }
   static void dotRect(Canvas& c, int x, int y, int w, int h) {
-    for (int i = 0; i < w; i += 3) { c.pixel(x + i, y, PAPER); c.pixel(x + i, y + h - 1, PAPER); }
+    dots(c, x, y, w); dots(c, x, y + h - 1, w);
     for (int i = 0; i < h; i += 3) { c.pixel(x, y + i, PAPER); c.pixel(x + w - 1, y + i, PAPER); }
   }
-  // A frame: its border, a strip of dither behind its name, and the lamp.
+  // A frame, named in a strip of dither, with its lamp at the far end.
   static void frame(Canvas& c, int x, int y, int w, int h, const std::string& text) {
-    c.fillRect(x + 1, y + 1, w - 2, h - 2, INK);
-    c.dither(x + 1, y + 1, w - 2, 15, 1, PAPER);
     dotRect(c, x, y, w, h);
-    c.font(&FreeSansBold9pt7b);
-    const std::string t = upper(fit(c, text, w - 30));
-    c.fillRect(x + 4, y + 2, c.width(t) + 4, 13, INK);
-    c.text(t, x + 6, y + 12, PAPER);
-    c.fillRect(x + w - 11, y + 5, 5, 5, PAPER);
-    for (int i = 0; i < w; i += 3) c.pixel(x + i, y + 16, PAPER);
+    c.font(&Silk8);
+    const std::string t = upper(fit(c, text, w - 26));
+    c.dither(x + 2, y + 2, w - 4, 11, 1, PAPER);
+    c.fillRect(x + 3, y + 2, c.width(t) + 5, 11, INK);
+    c.text(t, x + 5, y + 10, PAPER);
+    c.fillRect(x + w - 9, y + 5, 4, 4, PAPER);
+    dots(c, x, y + 14, w);
   }
+  // A row: the label in Tektur, what it is set to in Silkscreen, and when it
+  // is the one selected, a lit bar with the light spilling off its edges.
   static void rows(Canvas& c, const Rows& r, int top, int visible) {
     const int first = firstRow(std::max(r.cur, 0), visible);
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
-      const int y = top + (i - first) * 20;
+      const int y = top + (i - first) * 17;
       const bool sel = i == r.cur;
       const uint8_t fg = sel ? INK : PAPER;
       if (sel) {
-        // The selected line is lit, and the light spills a row of dither.
-        c.fillRect(12, y, 176, 18, PAPER);
-        c.dither(12, y - 3, 176, 3, 1, PAPER);
-        c.dither(12, y + 18, 176, 3, 1, PAPER);
+        c.fillRect(L + 2, y, R - L - 4, 15, PAPER);
+        c.dither(L + 2, y - 2, R - L - 4, 2, 1, PAPER);
+        c.dither(L + 2, y + 15, R - L - 4, 2, 1, PAPER);
       }
-      c.font(&FreeSansBold9pt7b);
-      int x = 17;
-      if (sel) { c.text(">", x, y + 13, fg); x += 11; }
+      int x = L + 7;
+      if (sel) { c.font(&Silk8); c.text(">", x, y + 11, fg); x += 9; }
       if (!r.checks.empty()) {
-        c.drawRect(x, y + 4, 9, 9, fg);
-        if (r.checks[i]) c.fillRect(x + 2, y + 6, 5, 5, fg);
-        x += 15;
+        c.drawRect(x, y + 4, 8, 8, fg);
+        if (r.checks[i]) c.fillRect(x + 2, y + 6, 4, 4, fg);
+        x += 13;
       }
-      c.text(upper(fit(c, r.items[i], r.values.empty() ? 162 - x : 86)), x, y + 13, fg);
-      if (!r.values.empty()) { c.font(&FreeSans9pt7b); c.right(upper(fit(c, r.values[i], 84)), 181, y + 13, fg); }
+      c.font(&Tek12);
+      c.text(upper(fit(c, r.items[i], r.values.empty() ? R - 14 - x : 96)), x, y + 12, fg);
+      if (!r.values.empty()) { c.font(&Silk8); c.right(upper(fit(c, r.values[i], 72)), R - 7, y + 11, fg); }
     }
   }
-  // The plate at the foot: the pane he is showing, and whose console it is.
   static void nameplate(Canvas& c, const std::string& text) {
-    for (int i = 0; i < 176; i += 3) c.pixel(12 + i, 176, PAPER);
-    c.font(&Fraktur14); c.text(title(text), 12, 194, PAPER);
-    c.font(&FreeSansBold9pt7b); c.right(upper("aura-1"), 188, 193, PAPER);
+    dots(c, L, 178, R - L);
+    c.font(&Fraktur14); c.text(title(text), L, 195, PAPER);
+    c.font(&Silk8); c.right(upper("aura-1"), R, 194, PAPER);
   }
 
   void page(Canvas& c, const ViewModel& vm, const Status& s, ArtSource& art) const override {
@@ -1109,67 +1115,68 @@ public:
     const int n = static_cast<int>(r.items.size());
     switch (vm.place) {
       case Place::Menu: {
-        art.draw(c, watchId(vm.cursor), 70, TOP - 14, PAPER);
-        c.font(&FreeSansBold9pt7b); c.text(upper("unit k-01"), 12, TOP + 4, PAPER);
-        c.dither(12, TOP + 46, 176, 4, 1, PAPER);
-        for (int i = 0; i < 176; i += 3) c.pixel(12 + i, TOP + 52, PAPER);
-        frame(c, 8, TOP + 58, 184, 94, "where to");
-        rows(c, r, TOP + 78, 3);
-        gear(c, 168, TOP - 4, r.gearOn, PAPER);
+        // He looks over the top of the list; the gear sits by his title, well
+        // clear of the battery and the link in the corner.
+        art.draw(c, watchId(vm.cursor), 70, TOP - 16, PAPER);
+        c.font(&Silk8); c.text(upper("unit k-01"), L + 16, TOP - 2, PAPER);
+        gear(c, L, TOP - 12, r.gearOn, PAPER);
+        c.dither(L, TOP + 40, R - L, 3, 1, PAPER);
+        dots(c, L, TOP + 46, R - L);
+        frame(c, L - 2, TOP + 52, R - L + 4, 92, "where to");
+        rows(c, r, TOP + 70, 4);
         nameplate(c, "console");
         return;
       }
       case Place::Quotes: {
         const QuoteBox b = quoteBox(vm.largeText);
-        const int lh = vm.largeText ? 22 : 17;
+        const int lh = vm.largeText ? 20 : 17;
         const auto lines = quoteLines(*this, vm, vm.quote);
-        frame(c, 8, TOP, 184, 150, "his voice");
+        frame(c, L - 2, TOP - 4, R - L + 4, 150, "his voice // intercepted");
         c.font(b.font);
-        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], 16, TOP + 40 + static_cast<int>(i) * lh, PAPER);
+        for (size_t i = 0; i < lines.size(); ++i) c.text(lines[i], L + 6, TOP + 28 + static_cast<int>(i) * lh, PAPER);
         if (!vm.source.empty()) {
-          c.font(&FreeSansBold9pt7b);
-          c.dither(12, TOP + 132, 176, 2, 1, PAPER);
-          c.right(upper(fit(c, vm.source, 150)), 181, TOP + 144, PAPER);
+          c.dither(L + 2, TOP + 126, R - L - 4, 2, 1, PAPER);
+          c.font(&Silk8); c.right(upper(fit(c, vm.source, 140)), R - 7, TOP + 138, PAPER);
         }
-        if (moreQuote(*this, vm, vm.quote)) moreMark(c, 178, TOP + 122, PAPER);
+        if (moreQuote(*this, vm, vm.quote)) moreMark(c, R - 12, TOP + 112, PAPER);
         nameplate(c, "the library");
         return;
       }
       case Place::Settings:
-        frame(c, 8, TOP, 184, 100, "settings");
-        rows(c, r, TOP + 19, 4);
-        frame(c, 8, TOP + 104, 184, 50, "the cell");
-        batteryPanel(c, 18, TOP + 124, s, &FreeSansBold9pt7b, &FreeSans9pt7b, PAPER);
+        frame(c, L - 2, TOP - 4, R - L + 4, 88, "settings");
+        rows(c, r, TOP + 14, 4);
+        frame(c, L - 2, TOP + 88, R - L + 4, 60, "the cell");
+        batteryPanel(c, L + 6, TOP + 110, s, &Tek16, &Silk8, PAPER);
         nameplate(c, "settings");
         return;
       case Place::Habits:
-        frame(c, 8, TOP, 184, 62, "rituals " + std::to_string(done(r.checks)) + "/" + std::to_string(n));
+        frame(c, L - 2, TOP - 4, R - L + 4, 56, "rituals " + std::to_string(done(r.checks)) + "/" + std::to_string(n));
         if (!n) break;
-        rows(c, r, TOP + 20, 2);
-        frame(c, 8, TOP + 66, 184, 84, "twelve weeks");
-        habitGraph(c, 16, TOP + 90, r.history[r.cur], Mark::Dot, PAPER);
-        c.font(&FreeSansBold9pt7b); c.right(upper(streakText(r.history[r.cur])), 183, TOP + 144, PAPER);
+        rows(c, r, TOP + 14, 2);
+        frame(c, L - 2, TOP + 56, R - L + 4, 88, "twelve weeks");
+        habitGraph(c, L + 8, TOP + 78, r.history[r.cur], Mark::Dot, PAPER);
+        c.font(&Tek12); c.right(upper(streakText(r.history[r.cur])), R - 7, TOP + 134, PAPER);
         nameplate(c, "rituals");
         return;
       default: {
         const bool todos = vm.place == Place::Todos;
-        frame(c, 8, TOP, 184, 150,
-              todos ? "today " + std::to_string(done(r.checks)) + "/" + std::to_string(n) : pageTitle(vm));
+        frame(c, L - 2, TOP - 4, R - L + 4, 148,
+              todos ? "today // " + std::to_string(done(r.checks)) + " of " + std::to_string(n) : pageTitle(vm));
         if (!n) break;
-        rows(c, r, TOP + 22, 6);
+        rows(c, r, TOP + 16, 7);
         nameplate(c, todos ? "today" : "the paths");
         return;
       }
     }
-    c.font(&FreeSans9pt7b); c.centered(emptyNote(vm), 100, PAPER);
+    c.font(&Fell13); c.centered(emptyNote(vm), 100, PAPER);
     nameplate(c, "console");
   }
 
   void caption(Canvas& c, const ViewModel&, const std::string& text) const override {
-    c.fillRect(0, 172, 200, 28, INK);
-    c.dither(0, 174, 200, 3, 1, PAPER);
-    for (int i = 0; i < 200; i += 3) c.pixel(i, 172, PAPER);
-    c.font(&FreeSansBold9pt7b); c.text(upper(fit(c, text, 176)), 12, 192, PAPER);
+    c.fillRect(0, 174, 200, 26, INK);
+    dots(c, 0, 174, 200);
+    c.dither(0, 176, 200, 2, 1, PAPER);
+    c.font(&Tek12); c.text(upper(fit(c, text, 180)), L, 193, PAPER);
   }
 };
 

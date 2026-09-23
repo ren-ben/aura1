@@ -6,7 +6,7 @@ import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { bats, catSprite, church, drift, greatOne, moonDisc, sampleSprite, skyline, starfield, trees } from '../gl/plate';
+import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, sampleSprite, starfield, street, trees } from '../gl/plate';
 import { dailyMinutes, duration, state, today } from '../store';
 import { hisWord } from '../words';
 
@@ -45,9 +45,9 @@ const draw = computed(() => {
     const u = form.u < 0.002 ? 0 : form.u;
     const horizon = h * 0.84;
     const sky = g.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, 'rgb(3,3,3)'); sky.addColorStop(0.62, 'rgb(16,16,16)'); sky.addColorStop(1, 'rgb(86,86,86)');
+    sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.58, 'rgb(6,6,6)'); sky.addColorStop(0.88, 'rgb(52,52,52)'); sky.addColorStop(1, 'rgb(158,158,158)');
     g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
-    starfield(g, w, horizon, Math.round((w * h) / 220), 17, drift_.x * -3, drift_.y * -2);
+    starfield(g, w, horizon * 0.72, Math.round((w * h) / 260), 17, drift_.x * -3, drift_.y * -2);
     moonDisc(g, w * 0.78 + drift_.x * -5, h * 0.19 + drift_.y * -4, Math.min(w, h) * 0.09, 7);
     for (let k = 0; k < 3; k++) {
       const y = h * (0.2 + k * 0.13) + Math.sin(t * 0.05 + k) * 4;
@@ -57,14 +57,20 @@ const draw = computed(() => {
       band.addColorStop(1, 'rgba(255,255,255,0)');
       g.fillStyle = band; g.fillRect(0, y - 12, w, 24);
     }
-    const scale = Math.max(0.55, w / 300);
-    skyline(g, w, horizon, horizon + 2, 31, scale * 0.8);
-    church(g, w * 0.26 + drift_.x * -2, horizon + 2, scale, 5);
-    trees(g, w, horizon + 2, t, Math.max(3, Math.round(w / 52)), 61, scale * 1.5);
-    bats(g, w, horizon * 0.8, t, 6, 23);
-    drift(g, w, horizon, t, Math.round((w * h) / 900), 83);
-    g.fillStyle = 'rgb(14,14,14)'; g.fillRect(0, horizon, w, h - horizon);
-    g.fillStyle = 'rgb(58,58,58)'; g.fillRect(0, horizon, w, 2);
+    // The city in three streets, each nearer and darker than the one behind,
+    // the cathedral standing over the middle one, and the ledge in front.
+    const scale = Math.max(0.42, w / 300);
+    street(g, w, horizon - h * 0.055, 31, scale * 0.55, 0.85);
+    street(g, w, horizon - h * 0.03, 47, scale * 0.78, 0.45);
+    church(g, w * 0.27 + drift_.x * -2, horizon - h * 0.02, scale * 0.92, 5);
+    street(g, w, horizon + 2, 19, scale * 1.05, 0.05);
+    trees(g, w, horizon + 2, t, Math.max(2, Math.round(w / 90)), 61, scale * 1.7);
+    lamp(g, w * 0.12, horizon + 1, h * 0.17, scale);
+    lamp(g, w * 0.88, horizon + 1, h * 0.13, scale);
+    bats(g, w, horizon * 0.78, t, 7, 23);
+    drift(g, w, horizon, t, Math.round((w * h) / 700), 83);
+    g.fillStyle = 'rgb(10,10,10)'; g.fillRect(0, horizon, w, h - horizon);
+    railing(g, w, horizon + 1, scale * 1.4);
     if (cat) {
       const size = Math.min(h * 0.95, w * 0.66);
       const cx = w * 0.62 + drift_.x * 5, cy = horizon - size * 0.45;
@@ -182,7 +188,7 @@ watch([() => state.sessions, () => props.active], drawGraph);
   <div class="entity">
     <Frame class="scene" title="the cathedral ward, before dawn" flush>
       <div class="plateHost" @pointermove="parallax" @pointerleave="rest">
-        <Plate :draw="draw" :active="active" animated :cell="3" label="Kael'thos on a ledge above the cathedral ward at night" />
+        <Plate :draw="draw" :active="active" animated :cell="2" label="Kael'thos on a ledge above the cathedral ward at night" />
         <button class="open" :class="{ held: opening }" aria-label="Hold to see what he is"
           @pointerdown.prevent="opening = true" @pointerup="opening = false" @pointerleave="opening = false"
           @pointercancel="opening = false" @contextmenu.prevent>
