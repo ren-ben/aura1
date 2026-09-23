@@ -150,7 +150,7 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
 .rod::after { right: -3px; }
 .rod.top { top: 0; }
 .rod.bottom { bottom: 0; }
-.reader { position: absolute; right: 10px; bottom: 14px; width: 92px; height: 78px; opacity: .9; }
+.reader { position: absolute; right: 10px; bottom: 14px; width: 92px; height: 78px; opacity: .9; display: flex; flex-direction: column; }
 .win::before { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: repeating-linear-gradient(to bottom, rgba(197, 188, 171, .04) 0 1px, transparent 1px 4px); }
 .ticks { position: absolute; left: 12px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }

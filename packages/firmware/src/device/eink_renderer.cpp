@@ -183,7 +183,7 @@ void EinkRenderer::render(const ViewModel& vm) {
   switch (vm.screen) {
     case Screen::Idle:
       env_.clear();  // a page is no place
-      lk.page(base_, vm, status_, *this);
+      drawPage(base_, lk, vm, status_, *this);
       break;
     case Screen::Celebrate:
     case Screen::Screensaver:

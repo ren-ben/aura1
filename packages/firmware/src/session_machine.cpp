@@ -1,4 +1,5 @@
 #include "session_machine.h"
+#include "book.h"
 #include "art_index.h"
 #include "looks.h"
 #include "validate.h"
@@ -99,6 +100,7 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
 static const char* const SKINS[] = { "jiji" };
 
 void SessionMachine::begin() {
+  book_.begin();
   daily_.load();
   loadSettings();
   lastInput_ = clock_.nowEpochSeconds();
@@ -344,14 +346,40 @@ void SessionMachine::browse(Input input) {
       }
       break;
     }
+    // The contents. SUN walks the chapters, POWER opens one.
+    case Place::Book: {
+      const size_t count = book_.chapters().size();
+      if (!count) { place_ = Place::Menu; draw(); break; }
+      if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % count; draw(); }
+      else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2 * count - 2) % count; draw(); }
+      else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort) {
+        const int idx = static_cast<int>(listCursor_);
+        // A chapter that has not reached the card yet is asked for.
+        if (!book_.holds(idx)) { syncRequested_ = true; draw(); break; }
+        if (idx != book_.chapterIdx()) book_.goTo(idx, 0);
+        book_.save();
+        place_ = Place::Reading;
+        repaginate();
+        if (idx != book_.chapterIdx() || book_.through() == 0) page_ = 0;
+        draw();
+      }
+      break;
+    }
+    case Place::Reading:
+      read(input);
+      break;
+
     // SUN moves, POWER changes the line: text size, look, skin, or a sync now.
     case Place::Settings:
       if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % 4; draw(); }
       else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2) % 4; draw(); }
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort) {
-        if (listCursor_ == 0) { largeText_ = !largeText_; saveSettings(); }
-        else if (listCursor_ == 1) { look_ = (look_ + 1) % lookCount(); saveSettings(); }
+        // Either of these changes how a page of a book is set, so the
+        // chapter is cut into pages again under the new one.
+        if (listCursor_ == 0) { largeText_ = !largeText_; saveSettings(); if (book_.has()) repaginate(); }
+        else if (listCursor_ == 1) { look_ = (look_ + 1) % lookCount(); saveSettings(); if (book_.has()) repaginate(); }
         else if (listCursor_ == 2) {
           const size_t count = sizeof(SKINS) / sizeof(SKINS[0]);
           size_t i = 0;
@@ -412,14 +440,91 @@ void SessionMachine::redrawSettings() {
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Quotes, Place::Settings }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits }) places.push_back(p);
+  // The book is only offered when there is one on the card.
+  if (book_.has()) places.push_back(Place::Book);
+  for (Place p : { Place::Quotes, Place::Settings }) places.push_back(p);
   return places;
+}
+
+// The chapter, cut into pages the way this look sets them. Called whenever
+// the look, the text size, the chapter or the book itself changes.
+void SessionMachine::repaginate() {
+  const std::string& body = book_.body(book_.chapterIdx());
+  pageStarts_ = body.empty() ? std::vector<int>{ 0 } : readerPages(look(look_), body, largeText_);
+  // Back to where the reading was, as a thousandth of the chapter.
+  const int at = static_cast<int>((static_cast<long>(book_.through()) * body.size()) / 1000);
+  page_ = 0;
+  for (size_t i = 0; i < pageStarts_.size(); ++i) {
+    if (pageStarts_[i] <= at) page_ = i;
+  }
+}
+
+void SessionMachine::bookChanged() {
+  if (place_ == Place::Reading || place_ == Place::Book) {
+    repaginate();
+    draw();
+  }
+}
+
+std::string SessionMachine::pageText() const {
+  const std::string& body = book_.body(book_.chapterIdx());
+  if (body.empty() || pageStarts_.empty()) return "";
+  const size_t from = static_cast<size_t>(pageStarts_[std::min(page_, pageStarts_.size() - 1)]);
+  const size_t to = page_ + 1 < pageStarts_.size() ? static_cast<size_t>(pageStarts_[page_ + 1]) : body.size();
+  return body.substr(from, to - from);
+}
+
+// Turning a page, and turning the last page of a chapter into the next one.
+void SessionMachine::turn(int pages) {
+  const int here = static_cast<int>(page_) + pages;
+  if (here >= 0 && here < static_cast<int>(pageStarts_.size())) {
+    page_ = static_cast<size_t>(here);
+  } else if (here < 0) {
+    if (book_.chapterIdx() == 0) return;
+    book_.goTo(book_.chapterIdx() - 1, 1000);
+    if (!book_.holds(book_.chapterIdx())) { book_.goTo(book_.chapterIdx() + 1, 0); return; }
+    repaginate();
+    page_ = pageStarts_.empty() ? 0 : pageStarts_.size() - 1;
+  } else {
+    const int next = book_.chapterIdx() + 1;
+    if (next >= static_cast<int>(book_.chapters().size())) return;
+    if (!book_.holds(next)) { syncRequested_ = true; return; }
+    book_.goTo(next, 0);
+    repaginate();
+    page_ = 0;
+  }
+  // Where the reading is now, kept for the console and the next sync.
+  const std::string& body = book_.body(book_.chapterIdx());
+  const int start = pageStarts_.empty() ? 0 : pageStarts_[std::min(page_, pageStarts_.size() - 1)];
+  book_.goTo(book_.chapterIdx(), body.empty() ? 0 : static_cast<int>((static_cast<long>(start) * 1000) / body.size()));
+  book_.save();
+  draw();
+}
+
+// SUN turns the page, SUN twice turns it back, POWER keeps it, holding SUN
+// goes back to the contents.
+void SessionMachine::read(Input input) {
+  if (input == Input::SunShort) { turn(1); return; }
+  if (input == Input::SunDouble) { turn(-1); return; }
+  if (input == Input::SunLong) { place_ = Place::Book; listCursor_ = static_cast<size_t>(book_.chapterIdx()); draw(); return; }
+  if (input != Input::PowerShort) return;
+  // Keeping the page: the passage is whatever is on the glass.
+  const std::string text = pageText();
+  if (text.empty()) return;
+  const int start = pageStarts_.empty() ? 0 : pageStarts_[std::min(page_, pageStarts_.size() - 1)];
+  book_.mark(book_.chapterIdx(), start, start + static_cast<int>(text.size()), text);
+  draw();
 }
 
 void SessionMachine::enter(Place place) {
   place_ = place;
   listCursor_ = 0;
   quotePage_ = 0;
+  if (place == Place::Book) {
+    listCursor_ = static_cast<size_t>(book_.chapterIdx());
+    repaginate();
+  }
   const size_t quotes = daily_.quotes().size();
   if (place == Place::Quotes && quotes) quote_ = random_.next() % quotes;
   draw();
@@ -469,6 +574,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Activities: vm.items.push_back("ACTIVITIES"); break;
           case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
+          case Place::Book: vm.items.push_back("READ"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
@@ -490,6 +596,28 @@ void SessionMachine::draw(int minutes) {
         vm.quotePage = quotePage_;
       }
       break;
+    case Place::Book: {
+      vm.title = book_.title();
+      vm.book = book_.title();
+      vm.items = book_.chapters();
+      vm.cursor = static_cast<int>(listCursor_ % std::max<size_t>(1, vm.items.size()));
+      // The chapter being read is ticked; one not yet on the card is not.
+      vm.checks.assign(vm.items.size(), false);
+      for (size_t i = 0; i < vm.items.size(); ++i) vm.checks[i] = book_.holds(static_cast<int>(i));
+      break;
+    }
+    case Place::Reading: {
+      vm.book = book_.title();
+      vm.title = book_.title();
+      const int idx = book_.chapterIdx();
+      vm.chapter = idx < static_cast<int>(book_.chapters().size()) ? book_.chapters()[idx] : "";
+      vm.passage = pageText();
+      vm.page = static_cast<int>(page_);
+      vm.pages = static_cast<int>(pageStarts_.size());
+      const int start = pageStarts_.empty() ? 0 : pageStarts_[std::min(page_, pageStarts_.size() - 1)];
+      vm.kept = book_.marked(idx, start);
+      break;
+    }
     case Place::Settings: {
       std::string skin = skin_;
       for (auto& c : skin) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));

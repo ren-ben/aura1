@@ -96,6 +96,46 @@ function stats(): Stats {
   };
 }
 
+// Something on the shelf, out of copyright and in his taste.
+const PARA = [
+  'There are not many persons who know what wonders are opened to them in the stories and visions of their youth; for when as children we listen and dream, we think but half-formed thoughts, and when as men we try to remember, we are dulled and prosaic with the poison of life.',
+  'But some of us awake in the night with strange phantasms of enchanted hills and gardens, of fountains that sing in the sun, of golden cliffs overhanging murmuring seas, of plains that stretch down to sleeping cities of bronze and stone, and of shadowy companies of heroes that ride caparisoned white horses along the edges of thick forests.',
+  'Then we know that we have looked back through the ivory gates into that world of wonder which was ours before we were wise and unhappy.',
+  'Out of the fungoid moon there came no light, and the stars above the marsh were the stars of no sky that any man has charted; yet the road went on, and the walls of the city stood as they had stood before the first of us drew breath.',
+  'He who passes the gate does not come back the same, for the gate is not a thing of stone but a thing of hours, and it takes them from him as he goes.',
+];
+const chapterBody = (n: number) => Array.from({ length: 9 }, (_, i) => PARA[(n * 3 + i) % PARA.length]).join('\n\n');
+const BOOK_CHAPTERS = [
+  'The Silver Key', 'The White Ship', 'The Doom That Came to Sarnath', 'Celephais',
+  'The Cats of Ulthar', 'The Other Gods', 'The Quest of Iranon',
+];
+let books = [{
+  id: 900,
+  title: 'The Dream-Quest of Unknown Kadath',
+  author: 'H. P. Lovecraft',
+  format: 'epub' as const,
+  words: 41_200,
+  chapterIdx: 2,
+  through: 340,
+  readAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
+  chapters: BOOK_CHAPTERS.map((title, idx) => ({ idx, title, words: 5900 })),
+  marks: 2,
+}];
+let marks = [
+  {
+    id: 901, bookId: 900, chapterIdx: 2, start: 0, end: 118,
+    body: 'Then we know that we have looked back through the ivory gates into that world of wonder which was ours before we were wise and unhappy.',
+    note: 'The gate is hours. He would say that.', source: 'web' as const,
+    createdAt: new Date(Date.now() - 26 * 3600_000).toISOString(),
+  },
+  {
+    id: 902, bookId: 900, chapterIdx: 1, start: 220, end: 332,
+    body: 'He who passes the gate does not come back the same, for the gate is not a thing of stone but a thing of hours.',
+    note: null, source: 'device' as const,
+    createdAt: new Date(Date.now() - 50 * 3600_000).toISOString(),
+  },
+];
+
 // The API's routes, in memory.
 export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
@@ -111,6 +151,41 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'GET /habits': { void query; return structuredClone(habits); }
     case 'GET /quotes': return structuredClone(quotes);
     case 'GET /device': return { ...device };
+    case 'GET /books': return structuredClone(books);
+    case 'GET /marks': return structuredClone(marks);
+    case 'GET /books/:id/chapters': {
+      const idx = Number(seg[3]);
+      return { idx, title: BOOK_CHAPTERS[idx] ?? `Part ${idx + 1}`, body: chapterBody(idx) };
+    }
+    case 'POST /books': {
+      books.unshift({
+        id: nextId++, title: body.title, author: body.author, format: body.format,
+        words: body.chapters.reduce((a: number, c: { body: string }) => a + c.body.split(/\s+/).length, 0),
+        chapterIdx: 0, through: 0, readAt: null, marks: 0,
+        chapters: body.chapters.map((c: { title: string; body: string }, idx: number) => ({ idx, title: c.title, words: Math.round(c.body.length / 6) })),
+      });
+      return;
+    }
+    case 'DELETE /books/:id': books = books.filter((b) => b.id !== id); return;
+    case 'PUT /books/:id/reading': {
+      const b = books.find((x) => x.id === id);
+      if (b) Object.assign(b, { chapterIdx: body.chapterIdx, through: body.through, readAt: new Date().toISOString() });
+      return;
+    }
+    case 'POST /marks': {
+      marks.unshift({ id: nextId++, ...body, note: null, source: 'web', createdAt: new Date().toISOString() });
+      const b = books.find((x) => x.id === body.bookId);
+      if (b) b.marks += 1;
+      return;
+    }
+    case 'PUT /marks/:id': { const m = marks.find((x) => x.id === id); if (m) m.note = body.note; return; }
+    case 'DELETE /marks/:id': {
+      const gone = marks.find((x) => x.id === id);
+      marks = marks.filter((x) => x.id !== id);
+      const b = books.find((x) => x.id === gone?.bookId);
+      if (b) b.marks = Math.max(0, b.marks - 1);
+      return;
+    }
     case 'POST /todos': todos.push({ id: nextId++, body: body.body, dueDate: body.dueDate, done: false }); return;
     case 'PATCH /todos/:id': todos = todos.map((t) => (t.id === id ? { ...t, ...body } : t)); return;
     case 'DELETE /todos/:id': todos = todos.filter((t) => t.id !== id); return;

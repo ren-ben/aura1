@@ -5,7 +5,7 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Book, Reading };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -28,4 +28,11 @@ struct ViewModel {
   int quotePage = 0;               // which page of a long quote
   bool largeText = false;          // the text size setting, for quotes
   std::string moment;              // the art pack scene for Waking, Celebrate, Screensaver
+  // The book, while one is being read.
+  std::string book;                // its title
+  std::string chapter;             // the chapter's title
+  std::string passage;             // the page's text, wrapped by the look
+  int page = 0;                    // which page of the chapter
+  int pages = 1;
+  bool kept = false;               // this page is one he was told to keep
 };

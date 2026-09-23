@@ -81,6 +81,25 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
                 "for he knows the whole extent of his wretched condition, and it is what he thinks of during his descent.";
   quote.source = "Albert Camus";
   out.push_back({ "7quotelong", quote });
+
+  // The contents of the book, and a page of it.
+  ViewModel contents = base(Place::Book);
+  contents.title = "The King in Yellow";
+  contents.book = contents.title;
+  contents.items = { "The Repairer of Reputations", "The Mask", "In the Court of the Dragon", "The Yellow Sign" };
+  contents.checks = { true, true, false, false };
+  contents.cursor = 1;
+  out.push_back({ "acontents", contents });
+
+  ViewModel reading = base(Place::Reading);
+  reading.book = "The King in Yellow";
+  reading.chapter = "The Mask";
+  reading.passage = "Camilla: You, sir, should unmask.\n\nStranger: Indeed?\n\nCassilda: Indeed it is time. We have all "
+                    "laid aside disguise but you.\n\nStranger: I wear no mask.\n\nCamilla: No mask? No mask!";
+  reading.page = 3;
+  reading.pages = 12;
+  reading.kept = true;
+  out.push_back({ "breading", reading });
   return out;
 }
 
@@ -97,7 +116,7 @@ void test_every_look_draws_every_page() {
       s.charging = k % 2;
       s.link = k % 3 == 0 ? Link::Syncing : k % 3 == 1 ? Link::Offline : Link::Online;
       std::fprintf(stderr, "%s %s\n", look.name(), name.c_str()); std::fflush(stderr);
-      look.page(c, vm, s, art);
+      drawPage(c, look, vm, s, art);
       const Corner at = look.corner(vm, false);
       drawCorner(c, at.y, s, at.ink);
       int ink = 0;

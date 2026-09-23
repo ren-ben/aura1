@@ -29,6 +29,12 @@ public:
   void abort();
   // How the device is, sent with the next sync.
   void setStatus(const DeviceStatus& status) { status_ = status; }
+  // Where the reading is, sent with the next sync.
+  void setReading(const ReadingState& reading) { reading_ = reading; }
+  // The book the last sync brought, once.
+  std::string takeBook() { std::string b = book_; book_.clear(); return b; }
+  // True once a sync has carried the marks away, so the card can forget them.
+  bool tookMarks() { const bool t = tookMarks_; tookMarks_ = false; return t; }
   // A look the last sync brought from the web, once.
   std::string takeLook() { std::string l = look_; look_.clear(); return l; }
 
@@ -54,5 +60,8 @@ private:
   unsigned long missingAt_ = 0; // when the hotspot first went missing in this scan
   bool direct_ = false;         // joining by the remembered channel
   DeviceStatus status_;
+  ReadingState reading_;
   std::string look_;
+  std::string book_;
+  bool tookMarks_ = false;
 };

@@ -20,6 +20,15 @@ export type Session = {
 export type Todo = { id: number; body: string; dueDate: string | null; done: boolean };
 export type Habit = { id: number; name: string; done: string[] };
 export type Quote = { id: number; body: string; source: string | null };
+export type Book = {
+  id: number; title: string; author: string | null; format: 'epub' | 'pdf' | 'text';
+  words: number; chapterIdx: number; through: number; readAt: string | null;
+  chapters: { idx: number; title: string; words: number }[]; marks: number;
+};
+export type Mark = {
+  id: number; bookId: number; chapterIdx: number; start: number; end: number;
+  body: string; note: string | null; source: 'web' | 'device'; createdAt: string;
+};
 export type Device = {
   lastSyncAt: string | null; battery: number | null; millivolts: number | null;
   charging: boolean | null; look: string | null; pendingLook: string | null;
@@ -37,6 +46,8 @@ export const state = reactive({
   todos: [] as Todo[],
   habits: [] as Habit[],
   quotes: [] as Quote[],
+  books: [] as Book[],
+  marks: [] as Mark[],
   device: null as Device | null,
 });
 
@@ -78,7 +89,7 @@ export async function load(): Promise<void> {
   const all = () => Promise.all([
     call<Stats>('GET', '/stats'), call<Folder[]>('GET', '/folders'), call<Session[]>('GET', sessionsPath()),
     call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
-    call<Device>('GET', '/device'),
+    call<Device>('GET', '/device'), call<Book[]>('GET', '/books'), call<Mark[]>('GET', '/marks'),
   ]);
   let got;
   try {
@@ -88,7 +99,8 @@ export async function load(): Promise<void> {
     state.demo = true;
     got = await all();
   }
-  [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device] = got;
+  [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device,
+    state.books, state.marks] = got;
   state.ready = true;
 }
 
@@ -110,6 +122,13 @@ const reSessions = async () => { state.sessions = await call<Session[]>('GET', s
 const reTodos = async () => { state.todos = await call<Todo[]>('GET', '/todos'); };
 const reHabits = async () => { state.habits = await call<Habit[]>('GET', habitsPath()); };
 const reQuotes = async () => { state.quotes = await call<Quote[]>('GET', '/quotes'); };
+const reBooks = async () => { state.books = await call<Book[]>('GET', '/books'); };
+const reMarks = async () => { state.marks = await call<Mark[]>('GET', '/marks'); };
+
+// One chapter of one book, fetched when it is opened rather than held in the
+// console: a book is far too big to keep in memory for the sake of a list.
+export const chapterOf = (bookId: number, idx: number) =>
+  call<{ idx: number; title: string; body: string }>('GET', `/books/${bookId}/chapters/${idx}`);
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
 
 export const actions = {
@@ -120,6 +139,16 @@ export const actions = {
   archiveHabit: (h: Habit) => act('PATCH', `/habits/${h.id}`, { archived: true }, [reHabits]),
   setHabit: (h: Habit, date: string, done: boolean) => act('PUT', `/habits/${h.id}/entries/${date}`, { done }, [reHabits]),
   addQuote: (body: string, source: string | null) => act('POST', '/quotes', { body, source }, [reQuotes]),
+  // The book arrives already parsed: the server is never given an epub.
+  addBook: (b: { title: string; author: string | null; format: string; chapters: { title: string; body: string }[] }) =>
+    act('POST', '/books', b, [reBooks]),
+  removeBook: (b: Book) => act('DELETE', `/books/${b.id}`, undefined, [reBooks]),
+  readTo: (b: Book, chapterIdx: number, through: number) =>
+    act('PUT', `/books/${b.id}/reading`, { chapterIdx, through }, [reBooks]),
+  keep: (m: { bookId: number; chapterIdx: number; start: number; end: number; body: string }) =>
+    act('POST', '/marks', m, [reMarks, reBooks]),
+  annotate: (m: Mark, note: string | null) => act('PUT', `/marks/${m.id}`, { note }, [reMarks]),
+  unkeep: (m: Mark) => act('DELETE', `/marks/${m.id}`, undefined, [reMarks, reBooks]),
   removeQuote: (q: Quote) => act('DELETE', `/quotes/${q.id}`, undefined, [reQuotes]),
   addSession: (activityId: number, startedAt: Date, endedAt: Date) =>
     act('POST', '/sessions', { activityId, startedAt: startedAt.toISOString(), endedAt: endedAt.toISOString() }, [reSessions, reStats]),

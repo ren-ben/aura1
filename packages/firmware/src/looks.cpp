@@ -1195,6 +1195,133 @@ const Look* const LOOKS[] = { &CODEX, &NODES, &FOCUS, &CONTAINMENT, &CATHEDRAL, 
 
 int lookCount() { return sizeof(LOOKS) / sizeof(LOOKS[0]); }
 
+// Every look reads in its own quote face at its own width, unless it says
+// otherwise: the quote box is the honest default for a page of prose.
+ReaderBox Look::readerBox(bool large) const {
+  const QuoteBox q = quoteBox(large);
+  // 12 to 180 across, from the rule under the chapter down to where he sits.
+  return { q.font, q.size, 168, large ? 6 : 8, 46, large ? 21 : 17, 130, 128 };
+}
+
+// Where the pages of a chapter begin. A page is as many lines as the look
+// holds, and a line is broken on a word, so an offset always lands between
+// two words and never inside one.
+// The lines that run alongside him are shorter: the page is written around
+// the corner he reads in.
+int readerLineWidth(const ReaderBox& b, int line) {
+  if (b.catX < 0) return b.width;
+  const int baseline = b.top + line * b.leading;
+  return baseline > b.catY - 4 ? b.catX - 20 : b.width;
+}
+
+std::vector<int> readerPages(const Look& look, const std::string& text, bool large) {
+  const ReaderBox b = look.readerBox(large);
+  static Canvas measure;
+  measure.font(b.font, b.size);
+
+  std::vector<int> starts{ 0 };
+  int line = 0;
+  size_t at = 0, lineStart = 0, lastBreak = 0;
+  std::string current;
+
+  const auto endLine = [&](size_t next) {
+    current.clear();
+    lineStart = next;
+    if (++line < b.lines) return;
+    line = 0;
+    starts.push_back(static_cast<int>(next));
+  };
+
+  while (at < text.size()) {
+    const char ch = text[at];
+    if (ch == '\n') {
+      // A paragraph ends the line, and an empty one costs a line of its own.
+      const bool blank = current.empty();
+      endLine(at + 1);
+      if (blank && line != 0) endLine(at + 1);
+      ++at;
+      lastBreak = at;
+      continue;
+    }
+    if (ch == ' ') lastBreak = at;
+    const std::string grown = current + ch;
+    if (measure.width(grown) > readerLineWidth(b, line) && lastBreak > lineStart) {
+      // Back to the last space: the rest of the word begins the next line.
+      at = lastBreak + 1;
+      endLine(at);
+      lastBreak = at;
+      continue;
+    }
+    current = grown;
+    ++at;
+  }
+  if (starts.size() > 1 && starts.back() >= static_cast<int>(text.size())) starts.pop_back();
+  return starts;
+}
+
+// Drawn instead of the look's own page while a book is open, so every look
+// reads without any of them having to know how.
+void drawPage(Canvas& c, const Look& look, const ViewModel& vm, const Status& s, ArtSource& art) {
+  if (vm.place == Place::Reading) readerPage(c, look, vm, art);
+  else look.page(c, vm, s, art);
+}
+
+void readerPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art) {
+  const ReaderBox b = look.readerBox(vm.largeText);
+  const bool negative = look.negative();
+  const uint8_t ink = negative ? PAPER : INK;
+  // A negative look reads white on black, like the rest of its pages.
+  if (negative) c.clear(INK);
+
+  // The chapter, over a rule.
+  c.font(&Silk8);
+  const std::string head = upper(fit(c, vm.chapter.empty() ? vm.book : vm.chapter, 150));
+  c.text(head, 10, 26, ink);
+  for (int x = 10; x < 190; x += 3) c.pixel(x, 32, ink);
+
+  // The page. The look's own face, its own measure.
+  static Canvas measure;
+  measure.font(b.font, b.size);
+  c.font(b.font, b.size);
+  // Broken the same way it was when the chapter was cut into pages.
+  std::string line, word;
+  int at = 0;
+  const auto put = [&]() {
+    if (at < b.lines && !line.empty()) c.text(line, 12, b.top + at * b.leading, ink);
+    ++at;
+    line.clear();
+  };
+  for (size_t i = 0; i <= vm.passage.size() && at < b.lines; ++i) {
+    const char ch = i < vm.passage.size() ? vm.passage[i] : ' ';
+    if (ch != ' ' && ch != '\n') { word += ch; continue; }
+    const std::string grown = line.empty() ? word : line + " " + word;
+    if (!word.empty()) {
+      if (measure.width(grown) > readerLineWidth(b, at) && !line.empty()) { put(); line = word; }
+      else line = grown;
+      word.clear();
+    }
+    if (ch == '\n') { const bool blank = line.empty(); put(); if (blank) ++at; }
+  }
+  if (!line.empty() && at < b.lines) c.text(line, 12, b.top + at * b.leading, ink);
+
+  // Him, reading it over your shoulder.
+  if (b.catX >= 0) art.draw(c, "cameo", b.catX, b.catY, ink);
+
+  // The foot: how far through the chapter, and whether this page was kept.
+  const int y = 188;
+  c.font(&Silk8);
+  const std::string count = std::to_string(vm.page + 1) + "/" + std::to_string(std::max(1, vm.pages));
+  c.text(count, 10, y + 4, ink);
+  const int barX = 10 + c.width(count) + 8, barW = 150 - c.width(count);
+  for (int x = barX; x < barX + barW; x += 3) c.pixel(x, y, ink);
+  const int through = vm.pages > 1 ? (barW * vm.page) / (vm.pages - 1) : barW;
+  c.fillRect(barX, y - 2, std::max(2, through), 4, ink);
+  if (vm.kept) {
+    // A dog ear, where the page was folded over.
+    c.fillTriangle(182, y - 8, 192, y - 8, 192, y + 2, ink);
+  }
+}
+
 int quotePageCount(const Look& look, const std::string& text, bool large) {
   const QuoteBox b = look.quoteBox(large);
   const size_t lines = quoteWrap(b, text).size();

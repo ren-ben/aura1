@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import {
-  activities, folders, sessions, meta, habitEntries, habits, todos, device, CONFIG_VERSION_KEY,
+  activities, folders, sessions, meta, habitEntries, habits, todos, device, books, chapters, marks,
+  CONFIG_VERSION_KEY,
 } from '../db/schema.ts';
 import { buildToday } from './today.ts';
 
@@ -61,6 +62,41 @@ async function recordDevice(db: Db, status: SyncRequest['status']): Promise<stri
   return pending && status?.look !== pending ? pending : null;
 }
 
+// What the device was reading when it last synced, brought up to date with
+// where it says it is now, and sent back the chapter it needs next.
+async function readerFor(db: Db, said: SyncRequest['reading']): Promise<SyncResponse['book']> {
+  if (said) {
+    await db.update(books)
+      .set({ chapterIdx: said.chapterIdx, through: said.through, readAt: new Date() })
+      .where(eq(books.id, said.bookId));
+    for (const m of said.marks ?? []) {
+      // The same passage marked twice on the device is still one passage.
+      const [seen] = await db.select({ id: marks.id }).from(marks).where(and(
+        eq(marks.bookId, said.bookId), eq(marks.chapterIdx, m.chapterIdx), eq(marks.start, m.start),
+      ));
+      if (seen) continue;
+      await db.insert(marks).values({ ...m, bookId: said.bookId, note: null, source: 'device' });
+    }
+  }
+
+  const [book] = await db.select().from(books).where(isNull(books.archivedAt))
+    .orderBy(desc(books.readAt), desc(books.addedAt)).limit(1);
+  if (!book) return undefined;
+  const parts = await db.select().from(chapters).where(eq(chapters.bookId, book.id)).orderBy(asc(chapters.idx));
+  if (!parts.length) return undefined;
+  const here = Math.min(book.chapterIdx, parts.length - 1);
+  return {
+    id: book.id,
+    title: book.title,
+    author: book.author,
+    chapterIdx: here,
+    through: book.through,
+    chapters: parts.map((c) => c.title),
+    // The one it is on, and the next: the end of a chapter is never a wall.
+    parts: parts.slice(here, here + 2).map((c) => ({ idx: c.idx, body: c.body })),
+  };
+}
+
 export async function applySync(db: Db, request: SyncRequest): Promise<SyncResponse> {
   await applyTicks(db, request.ticks ?? []);
   const version = await configVersion(db);
@@ -110,6 +146,7 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
 
   const stale = request.configVersion !== version;
   const look = await recordDevice(db, request.status);
+  const book = await readerFor(db, request.reading);
   const today = await buildToday(db);
   const todayHash = createHash('sha1').update(JSON.stringify(today)).digest('hex').slice(0, 16);
   return {
@@ -121,5 +158,6 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
     todayHash,
     ...(request.todayHash === todayHash ? {} : { today }),
     ...(look ? { look } : {}),
+    ...(book ? { book } : {}),
   };
 }

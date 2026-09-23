@@ -29,17 +29,12 @@ constexpr unsigned long DOUBLE_MS = 340;  // a second SUN within this goes back 
 // SUN, watched by the hardware itself. A page of e-ink takes the best part of
 // a second to draw, and poll() is not called while it does; a press that lands
 // in there is simply not seen. The interrupt sees it, so a second press
-// counts even when it arrives over the top of a redraw.
+// counts even when it arrives over the top of a redraw. Defined in
+// sun_watch.cpp: an IRAM handler cannot be inline.
 namespace sun {
-inline volatile unsigned long lastPress = 0;
-inline volatile bool twice = false;
-
-inline void IRAM_ATTR pressed() {
-  const unsigned long now = millis();
-  if (now - lastPress < DEBOUNCE_MS) return;
-  if (now - lastPress < DOUBLE_MS) twice = true;
-  lastPress = now;
-}
+extern volatile unsigned long lastPress;
+extern volatile bool twice;
+void pressed();
 }  // namespace sun
 
 class Buttons {

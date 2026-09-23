@@ -9,7 +9,8 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<QueuedEvent>& pending,
                          const std::vector<std::string>& ticks,
                          const std::string& todayHash,
-                         const DeviceStatus* status) {
+                         const DeviceStatus* status,
+                         const ReadingState* reading) {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["configVersion"] = configVersion;
@@ -46,6 +47,28 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     s["charging"] = status->charging;
     s["look"] = status->look;
   }
+  if (reading && reading->bookId > 0) {
+    JsonObject r = doc["reading"].to<JsonObject>();
+    r["bookId"] = reading->bookId;
+    r["chapterIdx"] = reading->chapterIdx;
+    r["through"] = reading->through;
+    JsonArray kept = r["marks"].to<JsonArray>();
+    for (const auto& line : reading->marks) {
+      std::istringstream in(line);
+      int chapterIdx = 0, start = 0, end = 0;
+      std::string body;
+      if (!(in >> chapterIdx >> start >> end)) continue;
+      std::getline(in, body);
+      if (!body.empty() && body[0] == ' ') body.erase(0, 1);
+      if (body.empty()) continue;
+      JsonObject mark = kept.add<JsonObject>();
+      mark["chapterIdx"] = chapterIdx;
+      mark["start"] = start;
+      mark["end"] = end;
+      // The server keeps at most two thousand characters of a passage.
+      mark["body"] = body.substr(0, 2000);
+    }
+  }
   if (doc.overflowed()) return "";
   std::string body;
   serializeJson(doc, body);
@@ -81,6 +104,10 @@ SyncResult parseResponse(const std::string& body) {
   }
   result.todayHash = doc["todayHash"] | "";
   result.look = doc["look"] | "";
+  if (doc["book"].is<JsonObjectConst>()) {
+    result.hasBook = true;
+    serializeJson(doc["book"], result.book);
+  }
   if (doc["today"].is<JsonObjectConst>()) {
     result.hasToday = true;
     serializeJson(doc["today"], result.today);

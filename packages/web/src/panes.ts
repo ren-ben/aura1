@@ -30,7 +30,7 @@ export const PANES: Pane[] = [
   { id: 'rituals', c: -1, r: 1, name: 'Rituals', kind: 'habits', component: Rituals },
   { id: 'intercept', c: 1, r: 1, name: 'Intercept', kind: 'the vault', component: Intercept },
   { id: 'pact', c: 0, r: 2, name: 'The Pact', kind: 'the horizon', component: Pact },
-  { id: 'library', c: -1, r: 2, name: 'The Library', kind: 'sealed', component: Library },
+  { id: 'library', c: -1, r: 2, name: 'The Library', kind: 'the reading', component: Library },
   { id: 'voice', c: 1, r: 2, name: 'His Voice', kind: 'sealed', component: Voice },
   { id: 'mood', c: -2, r: 1, name: 'Mood', kind: 'sealed', component: Mood },
   { id: 'hunt', c: 2, r: 1, name: 'The Hunt', kind: 'sealed', component: Hunt },

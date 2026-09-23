@@ -13,6 +13,16 @@
 // attempt, forever. The append-only queue copes with a partial drain.
 constexpr size_t MAX_SYNC_EVENTS = 200;
 
+// Where the reading is, and anything kept while it was there. Sent with the
+// sync; the server answers with the chapter it is on and the one after it.
+struct ReadingState {
+  int bookId = 0;
+  int chapterIdx = 0;
+  int through = 0;
+  // "<chapter> <start> <end> <text>", one a line, as the card holds them.
+  std::vector<std::string> marks;
+};
+
 // How the device is, sent with each sync for the dashboard.
 struct DeviceStatus {
   int battery = 0;  // percent
@@ -30,7 +40,8 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<QueuedEvent>& pending,
                          const std::vector<std::string>& ticks = {},
                          const std::string& todayHash = "",
-                         const DeviceStatus* status = nullptr);
+                         const DeviceStatus* status = nullptr,
+                         const ReadingState* reading = nullptr);
 
 struct SyncResult {
   bool ok = false;                    // well formed; otherwise apply nothing
@@ -43,6 +54,8 @@ struct SyncResult {
   std::string today;                  // today's bundle, re-serialised
   std::string todayHash;              // the server's bundle, sent or not
   std::string look;                   // a look chosen on the web, to wear
+  bool hasBook = false;
+  std::string book;                   // the book and its chapters, re-serialised
 };
 
 SyncResult parseResponse(const std::string& body);

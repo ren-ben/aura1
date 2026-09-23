@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <vector>
 #include "canvas.h"
 #include "status.h"
 #include "view_model.h"
@@ -26,6 +27,19 @@ struct QuoteBox {
   bool upper = false;   // set in capitals
 };
 
+// Where a look sets a page of a book: the font it is read in, how wide a
+// line runs, how many lines stand above him, and where he sits reading. The
+// same box paginates the chapter, so every look turns its own pages.
+struct ReaderBox {
+  const GFXfont* font;
+  int size;
+  int width;
+  int lines;
+  int top;          // the first line's baseline
+  int leading;      // between lines
+  int catX, catY;   // where he reads, or -1 for a look that does not show him
+};
+
 // How every page is drawn: the menu, lists, quotes and settings, and the
 // caption over a running or sealed scene. Chosen in the settings.
 class Look {
@@ -40,7 +54,19 @@ public:
   // Where the battery and link sit, over a page or over a scene.
   virtual Corner corner(const ViewModel& vm, bool scene) const = 0;
   virtual QuoteBox quoteBox(bool large) const = 0;
+  // Every look reads the same way unless it says otherwise: the book's own
+  // page, in the look's serif, with him reading in the lower right.
+  virtual ReaderBox readerBox(bool large) const;
 };
+
+// Where each page of a chapter begins, measured in the look's own reader
+// box: the offsets SUN turns through. Always at least one page.
+std::vector<int> readerPages(const Look& look, const std::string& text, bool large);
+// The page of whatever the device is showing: a look's own page, or the page
+// of a book, which every look reads the same way.
+void drawPage(Canvas& c, const Look& look, const ViewModel& vm, const Status& s, ArtSource& art);
+// The page itself: the text, the chapter, how far through, and him reading.
+void readerPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art);
 
 // How many pages a quote takes in a look, for SUN to turn through.
 int quotePageCount(const Look& look, const std::string& text, bool large);

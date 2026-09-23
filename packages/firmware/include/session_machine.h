@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include "carousel.h"
+#include "book.h"
 #include "daily.h"
 #include "queue.h"
 #include "ports.h"
@@ -27,6 +28,9 @@ public:
   // A moment of joy (a level up, the list done): a scene held briefly.
   void celebrate(const std::string& moment);
   Daily& daily() { return daily_; }
+  Book& book() { return book_; }
+  // A book arrived with a sync: its pages are set again for this look.
+  void bookChanged();
   // SYNC NOW in the settings asks for a sync; the main loop takes the ask
   // and reports back with a word for the list.
   bool takeSyncRequest();
@@ -47,6 +51,10 @@ private:
   void appendHeartbeat(uint64_t heartbeat);
   void recoverMarker();
   void browse(Input input);
+  void read(Input input);        // the reading place
+  void repaginate();             // the chapter, cut into pages for this look
+  void turn(int pages);          // forward or back, over chapter ends
+  std::string pageText() const;
   void enter(Place place);
   void loadSettings();
   void saveSettings();
@@ -83,6 +91,9 @@ private:
   uint64_t stoppedAt_ = 0;
 
   Daily daily_{storage_};
+  Book book_{storage_};
+  std::vector<int> pageStarts_;  // where each page of the chapter begins
+  size_t page_ = 0;
   Place place_ = Place::Activities;
   size_t menuCursor_ = 0;
   size_t listCursor_ = 0;
