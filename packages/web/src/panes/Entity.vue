@@ -27,7 +27,7 @@ const draw = computed(() => {
   return (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
     const horizon = h * 0.84;
     const sky = g.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, 'rgb(3,3,3)'); sky.addColorStop(0.74, 'rgb(13,13,13)'); sky.addColorStop(1, 'rgb(34,34,34)');
+    sky.addColorStop(0, 'rgb(3,3,3)'); sky.addColorStop(0.62, 'rgb(16,16,16)'); sky.addColorStop(1, 'rgb(86,86,86)');
     g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
     starfield(g, w, horizon, Math.round((w * h) / 220), 17, drift_.x * -3, drift_.y * -2);
     moonDisc(g, w * 0.78 + drift_.x * -5, h * 0.19 + drift_.y * -4, Math.min(w, h) * 0.09, 7);
@@ -173,7 +173,7 @@ watch([() => state.sessions, () => props.active], drawGraph);
   .sym { grid-row: 3; grid-column: 1 / -1; }
   .chron { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) {
+@media (max-width: 860px) { .side { order: -1; } .scene { min-height: 330px; } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .entity { display: flex; flex-direction: column; }
   .scene { min-height: 340px; }
   .side { display: flex; }

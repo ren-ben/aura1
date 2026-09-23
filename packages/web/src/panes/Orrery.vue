@@ -156,5 +156,5 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 .lv i.on { background: var(--phos); }
 .moon .note { font-size: 12px; min-width: 52px; text-align: right; }
 @media (max-aspect-ratio: 5/4) { .orrery { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); } }
-@media (max-width: 860px) { .orrery { display: flex; flex-direction: column; } .sky { min-height: 380px; } }
+@media (max-width: 860px) { .side { order: -1; } .worlds { overflow: visible; } .orrery { display: flex; flex-direction: column; } .sky { min-height: 380px; } }
 </style>

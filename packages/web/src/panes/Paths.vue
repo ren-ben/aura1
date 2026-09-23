@@ -111,4 +111,5 @@ header { display: flex; justify-content: space-between; align-items: end; gap: 2
 .add { display: flex; gap: 6px; margin-top: 10px; }
 .add .field { flex: 1; }
 .err { color: var(--hi); }
+@media (max-width: 860px) { .paths { display: flex; flex-direction: column; } }
 </style>

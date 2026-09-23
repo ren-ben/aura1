@@ -5,8 +5,9 @@ import { computed, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
-import { bats, moonDisc, skyline, starfield } from '../gl/plate';
+import { bats, church, moonDisc, skyline, starfield } from '../gl/plate';
 import { actions, daysAgo, HABIT_DAYS, localDate, state } from '../store';
+import { narrow } from '../screen';
 
 defineProps<{ active: boolean }>();
 
@@ -15,12 +16,13 @@ const habit = computed(() => state.habits.find((h) => h.id === chosen.value) ?? 
 watch(() => state.habits, (hs) => { if (!hs.some((h) => h.id === chosen.value)) chosen.value = hs[0]?.id ?? null; }, { immediate: true });
 
 // Columns are weeks, Monday first, ending with this week.
+const COLS = computed(() => (narrow.value ? 13 : 27));
 const weeks = computed(() => {
-  const start = daysAgo(HABIT_DAYS - 1);
+  const start = daysAgo(COLS.value * 7 - 1);
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   const cols: (string | null)[][] = [];
   const today = localDate();
-  for (let w = 0; w < 27; w++) cols.push(Array.from({ length: 7 }, (_, d) => {
+  for (let w = 0; w < COLS.value; w++) cols.push(Array.from({ length: 7 }, (_, d) => {
     const x = new Date(start); x.setDate(start.getDate() + w * 7 + d);
     const s = localDate(x);
     return s > today ? null : s;
@@ -74,12 +76,20 @@ const strips = computed(() => state.habits.map((h) => {
 // The vigil: his sky while you keep the rituals.
 const vigil = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   const sky = g.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, 'rgb(4,4,4)'); sky.addColorStop(1, 'rgb(34,34,34)');
+  // The horizon has to be lit, or a black tower on a black sky is nothing.
+  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.55, 'rgb(22,22,22)'); sky.addColorStop(1, 'rgb(104,104,104)');
   g.fillStyle = sky; g.fillRect(0, 0, w, h);
-  starfield(g, w, h, Math.round((w * h) / 70), 41);
-  moonDisc(g, w * 0.5, h * 0.42, Math.min(w, h) * 0.22, 13);
-  bats(g, w, h * 0.9, t, 9, 55);
-  skyline(g, w, h, h, 19, Math.max(0.6, w / 360));
+  // Everything is sized off the height, so the ward reads the same in a wide
+  // strip on a phone as in a tall box on a desk: a lit horizon, one church
+  // large enough to be a shape, and low roofs either side of it.
+  starfield(g, w, h, Math.round((w * h) / 240), 41);
+  moonDisc(g, w * 0.74, h * 0.26, h * 0.17, 13);
+  const glow = g.createLinearGradient(0, h * 0.5, 0, h);
+  glow.addColorStop(0, 'rgba(255,255,255,0)'); glow.addColorStop(1, 'rgba(255,255,255,.17)');
+  g.fillStyle = glow; g.fillRect(0, h * 0.5, w, h * 0.5);
+  bats(g, w, h * 0.55, t, 5, 55);
+  skyline(g, w, h, h + 1, 19, h / 150);
+  church(g, w * 0.34, h + 1, h / 58, 5);
 };
 const records = computed(() => [...strips.value]
   .map((s) => ({ name: s.h.name, streak: s.streak, rate: s.rate, kept: s.h.done.length }))
@@ -99,7 +109,7 @@ async function archive() {
       <div class="tabs" role="tablist">
         <button v-for="h in state.habits" :key="h.id" role="tab" :aria-selected="h.id === habit?.id" @click="chosen = h.id">{{ h.name }}</button>
       </div>
-      <div v-if="habit" :key="habit.id" class="heat" :aria-label="`${habit.name}, the last half year, a column a week`">
+      <div v-if="habit" :key="habit.id" class="heat" :style="{ '--cols': COLS }" :aria-label="`${habit.name}, the last half year, a column a week`">
         <div v-for="(col, w) in weeks" :key="w" class="wk">
           <button v-for="(d, i) in col" :key="i" class="dot" :class="{ on: d && done.has(d), today: d === localDate(), none: !d }"
             :disabled="!d" :aria-label="d ? `${d}: ${done.has(d) ? 'kept' : 'not kept'}` : ''" @click="toggle(d)"></button>
@@ -158,7 +168,7 @@ async function archive() {
 .tabs button { color: var(--dim); }
 .tabs button[aria-selected="true"] { color: var(--hi); text-shadow: 0 0 10px rgba(197, 188, 171, .5); }
 .tabs button[aria-selected="true"]::before { content: '> '; }
-.heat { display: grid; grid-template-columns: repeat(27, minmax(0, 1fr)); gap: clamp(3px, .5vw, 7px); max-width: 1000px; }
+.heat { display: grid; grid-template-columns: repeat(var(--cols, 27), minmax(0, 1fr)); gap: clamp(3px, .5vw, 7px); max-width: 1000px; }
 .wk { display: grid; gap: clamp(3px, .5vw, 7px); }
 .dot { aspect-ratio: 1; border-radius: 50%; background: var(--low); transition: background .4s var(--out), box-shadow .4s var(--out), transform .3s var(--out); }
 .dot:not(.none):active { transform: scale(.82); }
@@ -193,5 +203,5 @@ async function archive() {
     grid-template-areas: "main main" "chosen records" "vigil vigil" "all all"; }
   .vigil { min-height: 220px; }
 }
-@media (max-width: 860px) { .vigil { min-height: 200px; } .rituals { display: flex; flex-direction: column; } .strip { grid-template-columns: 80px minmax(0, 1fr) 40px 30px; } }
+@media (max-width: 860px) { .main { order: -1; } .vigil { min-height: 210px; } .records { overflow: visible; } .vigil { min-height: 200px; } .rituals { display: flex; flex-direction: column; } .strip { grid-template-columns: 80px minmax(0, 1fr) 40px 30px; } }
 </style>

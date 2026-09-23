@@ -137,5 +137,5 @@ const send = () => actions.setLook(preview.value);
   .vessel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .dials { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) { .vessel { display: flex; flex-direction: column; } .dev { min-height: 360px; } .dials { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .side { order: -1; } .dev { min-height: 320px; } .dials { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vessel { display: flex; flex-direction: column; } .dev { min-height: 360px; } .dials { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 </style>

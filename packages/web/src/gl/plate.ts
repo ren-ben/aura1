@@ -17,7 +17,11 @@ export function makePlate(canvas: HTMLCanvasElement, draw: Draw, cell = 3) {
   function render(t: number) {
     const cw = canvas.clientWidth, ch = canvas.clientHeight;
     if (!cw || !ch) return;
-    w = Math.max(1, Math.round(cw / cell)); h = Math.max(1, Math.round(ch / cell));
+    // A plate is drawn in roughly the same number of marks whatever size it is
+    // shown at, so a moon is a moon on a phone and on a desk, and the marks
+    // simply get bigger. Without this a small plate is all grain.
+    w = Math.min(220, Math.max(120, Math.round(cw / cell)));
+    h = Math.max(1, Math.round((w * ch) / cw));
     if (low.width !== w || low.height !== h) { low.width = out.width = w; low.height = out.height = h; }
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
@@ -101,9 +105,14 @@ export function skyline(g: CanvasRenderingContext2D, w: number, h: number, base:
     const top = base - bh;
     g.fillStyle = grey(0.03);
     g.fillRect(x, top, bw, bh);
+    g.fillStyle = grey(0.62);
+    g.fillRect(x, top, bw, 1);
+    g.fillRect(x, top, 1, bh);
+    g.fillStyle = grey(0.03);
     if (r() < 0.5) {
-      // A spire.
+      // A spire, its lit side towards the moon.
       g.beginPath(); g.moveTo(x + bw / 2, top - bh * (0.3 + r() * 0.5)); g.lineTo(x, top); g.lineTo(x + bw, top); g.closePath(); g.fill();
+      g.strokeStyle = grey(0.62); g.lineWidth = 1; g.stroke();
     } else if (r() < 0.5) {
       // A rose window, faintly lit.
       g.fillStyle = grey(0.5); g.beginPath(); g.arc(x + bw / 2, top + bh * 0.3, Math.max(1, bw * 0.16), 0, 7); g.fill();
@@ -138,9 +147,9 @@ export function moonDisc(g: CanvasRenderingContext2D, cx: number, cy: number, r:
     g.beginPath(); g.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r * (0.04 + rr() * 0.09), 0, 7); g.fill();
   }
   // The halo around it.
-  const halo = g.createRadialGradient(cx, cy, r, cx, cy, r * 3.4);
-  halo.addColorStop(0, 'rgba(255,255,255,.22)'); halo.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, r * 3.4, 0, 7); g.fill();
+  const halo = g.createRadialGradient(cx, cy, r, cx, cy, r * 2.1);
+  halo.addColorStop(0, 'rgba(255,255,255,.16)'); halo.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, r * 2.1, 0, 7); g.fill();
 }
 
 export function bats(g: CanvasRenderingContext2D, w: number, h: number, t: number, count: number, seed: number): void {
@@ -165,16 +174,23 @@ export function bats(g: CanvasRenderingContext2D, w: number, h: number, t: numbe
 // the spire above everything. Drawn as a silhouette against the sky.
 export function church(g: CanvasRenderingContext2D, cx: number, base: number, scale: number, seed = 5): void {
   const r = rand(seed), s = scale;
-  const dark = grey(0.02);
+  const dark = grey(0.02), edge = grey(0.72);
+  const lit = (x: number, y: number, w: number, h: number) => {
+    g.fillStyle = dark; g.fillRect(x, y, w, h);
+    g.fillStyle = edge; g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h);
+    g.fillStyle = dark;
+  };
   g.fillStyle = dark;
   // Nave, with a pitched roof.
   const nw = 54 * s, nh = 40 * s, nx = cx - nw * 0.34;
-  g.fillRect(nx, base - nh, nw, nh);
-  g.beginPath(); g.moveTo(nx - 3 * s, base - nh); g.lineTo(nx + nw * 0.45, base - nh - 15 * s); g.lineTo(nx + nw + 3 * s, base - nh); g.closePath(); g.fill();
+  lit(nx, base - nh, nw, nh);
+  g.beginPath(); g.moveTo(nx - 3 * s, base - nh); g.lineTo(nx + nw * 0.45, base - nh - 15 * s); g.lineTo(nx + nw + 3 * s, base - nh); g.closePath();
+  g.fill(); g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
   // Tower and spire.
   const tw = 20 * s, th = 92 * s, tx = cx - nw * 0.34 - tw * 0.7;
-  g.fillRect(tx, base - th, tw, th);
-  g.beginPath(); g.moveTo(tx - 4 * s, base - th); g.lineTo(tx + tw / 2, base - th - 42 * s); g.lineTo(tx + tw + 4 * s, base - th); g.closePath(); g.fill();
+  lit(tx, base - th, tw, th);
+  g.beginPath(); g.moveTo(tx - 4 * s, base - th); g.lineTo(tx + tw / 2, base - th - 42 * s); g.lineTo(tx + tw + 4 * s, base - th); g.closePath();
+  g.fillStyle = dark; g.fill(); g.strokeStyle = edge; g.stroke();
   // Buttresses along the nave.
   for (let x = nx + 10 * s; x < nx + nw; x += 16 * s) {
     g.beginPath(); g.moveTo(x, base); g.lineTo(x, base - nh * 0.7); g.lineTo(x + 7 * s, base); g.closePath(); g.fill();

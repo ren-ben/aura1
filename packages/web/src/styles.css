@@ -77,3 +77,17 @@ label.lab > span { font: 400 10.5px var(--pix); color: var(--dim); text-transfor
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+@media (max-width: 860px) {
+  /* The gutter is the margin: scrollbars must not stand in it. */
+  .pane > *, .frame > .body.scroll, .scroll { scrollbar-width: none; }
+  .pane > *::-webkit-scrollbar, .scroll::-webkit-scrollbar { width: 0; height: 0; }
+  .title { font-size: clamp(30px, 11vw, 46px); }
+  .frame > .body { padding: 12px 13px; }
+  .frame > .bar { padding: 7px 10px; }
+  .btn { padding: 9px 13px; }
+  .field { padding: 10px 11px; }
+  .row { gap: 10px; }
+  .row > .btn { flex: 1; }
+  .kv { gap: 6px 12px; }
+}

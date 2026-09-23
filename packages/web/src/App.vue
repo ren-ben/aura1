@@ -22,12 +22,12 @@ function preview(id: string): { stat: string; bars: number[] } {
       return { stat: `${kept} of ${state.habits.length} kept today`, bars: state.habits.length ? shape.map((v) => 0.35 + v * 0.65) : flat(0.2) };
     }
     case 'paths': return { stat: `${state.folders.length} paths open`, bars: shape };
-    case 'entity': return { stat: `bond ${state.stats?.bond.level ?? 0} // form ${state.stats?.form ?? '--'}`, bars: shape };
+    case 'kael': return { stat: `bond ${state.stats?.bond.level ?? 0} // form ${state.stats?.form ?? '--'}`, bars: shape };
     case 'orrery': return { stat: `${state.folders.length} bodies in orbit`, bars: shape.map((v) => 1 - v * 0.6) };
     case 'vessel': return { stat: state.device ? `${state.device.battery ?? '--'}% // ${(state.device.look ?? '').toLowerCase()}` : 'no report', bars: flat(0.5) };
     case 'pact': return { stat: `${days.filter(Boolean).length} of 84 days fed`, bars: shape };
     case 'log': return { stat: `${state.sessions.length} sessions kept`, bars: shape };
-    case 'library': return { stat: `${state.quotes.length} of his lines`, bars: flat(0.3) };
+    case 'intercept': return { stat: `${state.quotes.length} of his lines`, bars: flat(0.3) };
     default: return { stat: 'sealed until it is built', bars: flat(0.08) };
   }
 }
@@ -40,35 +40,67 @@ const DIRS = [
 ] as const;
 const ports = computed(() => DIRS.map((d) => ({ ...d, pane: at(here.value.c + d.dc, here.value.r + d.dr) })).filter((p) => p.pane));
 
-// Keys held down would otherwise throw the camera about: each step waits
-// its turn, and only the last one asked for survives.
-let lastStep = 0, queued = 0;
+// A key pressed again before the glide ends steps on from where the glide is
+// going, not from where it started; the plane keeps its own easing, so a run
+// of presses reads as one long travel instead of a stutter.
 function go(p: Pane | undefined) {
   if (!p || p === here.value) return;
-  const wait = Math.max(0, 150 - (performance.now() - lastStep));
-  clearTimeout(queued);
-  queued = window.setTimeout(() => {
-    lastStep = performance.now();
-    here.value = p;
-    try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
-  }, wait);
+  here.value = p;
+  try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
 }
 const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r + dr));
 
-// The web, only while held.
+// The web, only while held. A light follows the finger across it and settles
+// into whichever pane it is over; letting go there goes to that pane.
 const mapping = ref(false);
+const lit = shallowRef<Pane | null>(null);
+const glow = ref({ x: -400, y: -400, on: false });
+let want = { x: -400, y: -400 };
+let flow = 0;
+
+// The light lags the finger and catches up, so it moves like something poured.
+function pour() {
+  const g = glow.value;
+  const k = 0.22;
+  const x = g.x + (want.x - g.x) * k, y = g.y + (want.y - g.y) * k;
+  glow.value = { x, y, on: true };
+  flow = Math.abs(want.x - x) + Math.abs(want.y - y) > 0.4 ? requestAnimationFrame(pour) : 0;
+}
+function aim(x: number, y: number) {
+  want = { x, y };
+  if (!glow.value.on) glow.value = { x, y, on: true };
+  if (!flow) flow = requestAnimationFrame(pour);
+  const el = document.elementsFromPoint(x, y).find((e) => (e as HTMLElement).dataset?.pane) as HTMLElement | undefined;
+  const pane = el ? PANES.find((q) => q.id === el.dataset.pane) ?? null : null;
+  if (pane !== lit.value) lit.value = pane;
+  if (el) {
+    const b = el.getBoundingClientRect();
+    el.style.setProperty('--fx', `${((x - b.left) / b.width) * 100}%`);
+    el.style.setProperty('--fy', `${((y - b.top) / b.height) * 100}%`);
+    el.style.setProperty('--tx', `${((x - b.left) / b.width - 0.5) * 2}`);
+    el.style.setProperty('--ty', `${((y - b.top) / b.height - 0.5) * 2}`);
+  }
+}
+function trace(e: PointerEvent) { if (mapping.value) aim(e.clientX, e.clientY); }
 function release(e?: PointerEvent) {
   if (!mapping.value) return;
   mapping.value = false;
-  if (!e) return;
-  const card = document.elementsFromPoint(e.clientX, e.clientY).find((el) => (el as HTMLElement).dataset?.pane);
-  if (card) go(PANES.find((p) => p.id === (card as HTMLElement).dataset.pane));
+  glow.value = { ...glow.value, on: false };
+  const target = lit.value;
+  lit.value = null;
+  if (e || target) go(target ?? undefined);
 }
 function holdDown(e: PointerEvent) {
   e.preventDefault();
-  (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  // Safari throws here for a pointer it no longer considers active, and that
+  // used to take the whole hold with it.
+  try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* no capture, we track by position */ }
   mapping.value = true;
+  lit.value = null;
+  aim(e.clientX, e.clientY);
 }
+// A tap on a card goes there, for a finger that lifts and taps instead of drags.
+function pickPane(p: Pane) { mapping.value = false; lit.value = null; go(p); }
 const mapBox = computed(() => {
   const cs = PANES.map((p) => p.c), rs = PANES.map((p) => p.r);
   return { c0: Math.min(...cs), r0: Math.min(...rs), cols: Math.max(...cs) - Math.min(...cs) + 1, rows: Math.max(...rs) - Math.min(...rs) + 1 };
@@ -112,11 +144,11 @@ function key(e: KeyboardEvent) {
   if (searching.value) return;
   if ((e.target as HTMLElement).closest?.('input, textarea, select, [contenteditable]')) return;
   if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || e.key === '/') { e.preventDefault(); openSearch(); return; }
-  if (e.key === ' ') { e.preventDefault(); if (!e.repeat) mapping.value = true; return; }
+  if (e.key === ' ') { e.preventDefault(); if (!e.repeat) { mapping.value = true; lit.value = null; } return; }
   const d = DIRS.find((x) => x.key === e.key);
   if (d) { e.preventDefault(); step(d.dc, d.dr); }
 }
-function keyUp(e: KeyboardEvent) { if (e.key === ' ') mapping.value = false; }
+function keyUp(e: KeyboardEvent) { if (e.key === ' ') release(); }
 
 // Swipes, away from anything that turns or scrolls.
 let touch: { x: number; y: number } | null = null;
@@ -132,11 +164,25 @@ function tUp(e: PointerEvent) {
   if (Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1, 0); else step(0, dy < 0 ? 1 : -1);
 }
 
+// A phone gets a different console: no wires between panes, no terminal, and
+// the web on a key under the thumb.
+const narrow = ref(false);
+const seeWidth = () => { narrow.value = matchMedia('(max-width: 860px)').matches; };
+
 const clock = ref('');
 const tick = () => { const d = new Date(); clock.value = `${d.toLocaleDateString('en-GB').replaceAll('/', '.')} // ${d.toTimeString().slice(0, 5)}`; };
 let timer = 0;
-onMounted(() => { addEventListener('keydown', key); addEventListener('keyup', keyUp); tick(); timer = window.setInterval(tick, 20_000); load(); });
-onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener('keyup', keyUp); clearInterval(timer); });
+onMounted(() => {
+  addEventListener('keydown', key); addEventListener('keyup', keyUp);
+  addEventListener('pointermove', trace, { passive: true });
+  addEventListener('resize', seeWidth); seeWidth();
+  tick(); timer = window.setInterval(tick, 20_000); load();
+});
+onBeforeUnmount(() => {
+  removeEventListener('keydown', key); removeEventListener('keyup', keyUp);
+  removeEventListener('pointermove', trace); removeEventListener('resize', seeWidth);
+  cancelAnimationFrame(flow); clearInterval(timer);
+});
 </script>
 
 <template>
@@ -149,7 +195,7 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
     </div>
   </div>
 
-  <nav v-if="!mapping" class="ports" aria-label="Neighbouring panes">
+  <nav v-if="!mapping && !narrow" class="ports" aria-label="Neighbouring panes">
     <button v-for="p in ports" :key="p.k" class="port" :class="p.k" @click="go(p.pane)">
       <span class="wire"></span><span>{{ p.pane!.name }}</span>
     </button>
@@ -159,7 +205,7 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
     <div class="brand"><b>AURA-1</b><span class="pix">console{{ state.demo ? ' // sample data' : '' }}</span></div>
     <div class="rec"><span class="clock">earth date {{ clock }}</span><span class="blink">recording</span></div>
     <div class="where"><span class="pix">{{ here.kind }}</span><b>{{ here.name }}</b></div>
-    <div class="tools">
+    <div v-if="!narrow" class="tools">
       <button aria-label="Search, ctrl k" @click="openSearch">
         <svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M9.5 9.5 13 13" stroke="currentColor" stroke-width="2" /></svg>
         <span>search</span>
@@ -172,21 +218,34 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
     <div class="mini" v-if="state.device"><span>unit k-01</span><span>{{ state.device.battery ?? '--' }}%</span><span>{{ Math.floor(today.minutes / 60) }}h {{ String(Math.round(today.minutes % 60)).padStart(2, '0') }}m today</span></div>
   </div>
 
-  <div v-if="mapping" class="map" aria-label="The whole web">
+  <button v-for="side in (narrow ? ['top', 'bottom'] : [])" :key="side" class="webkey" :class="[side, { held: mapping }]"
+    aria-label="Hold and drag over the web to travel" @pointerdown="holdDown" @pointermove.prevent="trace"
+    @pointerup="release" @pointercancel="release()" @contextmenu.prevent>
+    <svg viewBox="0 0 22 22" aria-hidden="true">
+      <path d="M4 5 11 11 18 6M4 17 11 11 18 17" stroke="currentColor" stroke-width="1.4" fill="none" opacity=".55" />
+      <circle cx="11" cy="11" r="3.1" fill="currentColor" />
+      <circle cx="4" cy="5" r="1.7" fill="currentColor" /><circle cx="18" cy="6" r="1.7" fill="currentColor" />
+      <circle cx="4" cy="17" r="1.7" fill="currentColor" /><circle cx="18" cy="17" r="1.7" fill="currentColor" />
+    </svg>
+  </button>
+
+  <div v-if="mapping" class="map" :class="{ narrow }" aria-label="The whole web">
+    <div class="pour" :class="{ on: glow.on }" :style="{ left: `${glow.x}px`, top: `${glow.y}px` }" aria-hidden="true"></div>
     <div class="sky"></div>
     <div class="grid" :style="{ gridTemplateColumns: `repeat(${mapBox.cols}, 1fr)`, gridTemplateRows: `repeat(${mapBox.rows}, 1fr)` }">
-      <svg class="edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <svg v-if="!narrow" class="edges" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <line v-for="(l, i) in mapEdges" :key="i" :x1="l.x1" :y1="l.y1" :x2="l.x2" :y2="l.y2" />
       </svg>
-      <div v-for="(p, i) in PANES" :key="p.id" class="card" :class="{ here: p === here, sealed: p.kind === 'sealed' }" :data-pane="p.id"
-        :style="{ gridColumn: p.c - mapBox.c0 + 1, gridRow: p.r - mapBox.r0 + 1, '--i': i }">
+      <div v-for="(p, i) in PANES" :key="p.id" class="card" :class="{ here: p === here, sealed: p.kind === 'sealed', lit: p === lit }" :data-pane="p.id"
+        :style="narrow ? { '--i': i } : { gridColumn: p.c - mapBox.c0 + 1, gridRow: p.r - mapBox.r0 + 1, '--i': i }"
+        @click="pickPane(p)">
         <b>{{ p.name }}</b>
         <span>{{ p.kind }}</span>
         <span class="bars" aria-hidden="true"><i v-for="(v, k) in preview(p.id).bars" :key="k" :style="{ '--v': v }"></i></span>
         <span class="stat">{{ preview(p.id).stat }}</span>
       </div>
     </div>
-    <p class="pix say">let go over a pane to go there</p>
+    <p class="pix say">{{ lit ? lit.name : 'let go over a pane to go there' }}</p>
   </div>
 
   <div v-if="searching" class="term" @click.self="searching = false">
@@ -216,7 +275,9 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
   transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108vh)); }
 .pane { position: absolute; width: 100vw; height: 100vh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108vh); overflow: clip;
   background: radial-gradient(var(--faint) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--ground);
-  padding: 76px clamp(16px, 4vw, 64px) 88px; display: flex; flex-direction: column; }
+  /* The side gutters are as wide as the wires and their names, so nothing the
+     console says about itself ever lands on what a pane is showing. */
+  padding: 84px clamp(16px, 7.5vw, 116px) 100px; display: flex; flex-direction: column; }
 .pane > * { flex: 1; min-height: 0; width: 100%; max-width: 1500px; margin: 0 auto; }
 
 .ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 10px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 8px; }
@@ -264,6 +325,33 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
 .map .card .bars i { width: 4px; height: calc(4px + var(--v) * 22px); background: var(--low); transition: height .5s var(--ease); }
 .map .card:hover .bars i, .map .card.here .bars i { background: var(--phos); }
 .map .card .stat { color: var(--phos); }
+.map .pour { position: fixed; width: 260px; height: 260px; margin: -130px 0 0 -130px; pointer-events: none; z-index: 1;
+  background: radial-gradient(circle, rgba(197, 188, 171, .5), rgba(197, 188, 171, .12) 42%, transparent 68%);
+  filter: blur(26px); opacity: 0; transition: opacity .3s var(--out); }
+.map .pour.on { opacity: 1; }
+/* The card under the light fills from wherever the finger is, and leans. */
+.map .card.lit { border-color: var(--hi); border-style: solid; z-index: 2;
+  transform: perspective(760px) rotateY(calc(var(--tx, 0) * 5deg)) rotateX(calc(var(--ty, 0) * -5deg)) scale(1.045);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .55); }
+.map .card::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), rgba(197, 188, 171, .26), rgba(197, 188, 171, .07) 45%, transparent 72%);
+  transform: scale(.4); transition: opacity .34s var(--out), transform .5s var(--out); }
+.map .card.lit::after { opacity: 1; transform: scale(1); }
+.map .card.lit b { color: #fff; text-shadow: 0 0 16px rgba(230, 224, 212, .6); }
+.map.narrow .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important;
+  gap: 10px; align-content: start; overflow: auto; padding-bottom: 12px; scrollbar-width: none; }
+.map.narrow .grid::-webkit-scrollbar { width: 0; }
+.map.narrow .card { min-height: 116px; }
+
+/* The key for the web: top edge for a thumb reaching up, bottom for down. */
+.webkey { position: fixed; z-index: 30; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;
+  border: 2px solid var(--low); background: rgba(18, 18, 18, .86); color: var(--phos); backdrop-filter: blur(6px);
+  transition: transform .28s var(--out), border-color .28s var(--out), background .28s var(--out); touch-action: none; }
+.webkey svg { width: 24px; height: 24px; }
+.webkey.top { top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); width: 42px; height: 42px; }
+.webkey.top svg { width: 19px; height: 19px; }
+.webkey.bottom { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; margin-left: -27px; }
+.webkey.held { border-color: var(--hi); background: var(--phos); color: var(--ground); transform: scale(1.08); }
 .map .card.sealed .stat { color: var(--dim); }
 .map .card:hover, .map .card.here { border-color: var(--hi); }
 .map .card.here { box-shadow: 0 0 0 4px var(--ground), 0 0 0 7px var(--dim); }
@@ -292,8 +380,23 @@ onBeforeUnmount(() => { removeEventListener('keydown', key); removeEventListener
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 @keyframes grain { 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -2%); } }
 
+@media (max-width: 1200px) {
+  .ports .port span:not(.wire) { display: none; }
+  .ports .port { padding: 14px; }
+}
 @media (max-width: 860px) {
-  .pane { padding: 62px 14px 80px; }
+  .pane { padding: calc(56px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+                  calc(92px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  .hud { inset: calc(8px + env(safe-area-inset-top, 0px)) 14px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .hud .where, .hud .rec .clock, .hud .mini { display: none; }
+  .hud .brand b { font-size: 17px; }
+  .hud .brand .pix { font-size: 9px; }
+  .stage::after { height: 84px; }
+  .map { padding: calc(58px + env(safe-area-inset-top, 0px)) 14px calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .map .say { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+  .map .card b { font-size: 21px; }
+  .map .card .bars { height: 18px; }
+  .map .card .bars i { width: 3px; height: calc(3px + var(--v) * 14px); }
   .pane > * { overflow: auto; }
   /* Narrow panes stack and scroll; nothing is squeezed onto its neighbour. */
   .pane > * > * { flex-shrink: 0; }

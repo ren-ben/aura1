@@ -5,6 +5,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { makePlate, type Draw } from '../gl/plate';
 
 const props = withDefaults(defineProps<{ draw: Draw; active: boolean; animated?: boolean; cell?: number; label?: string }>(), { cell: 3 });
+const cellFor = () => ((canvas.value?.clientWidth ?? 600) < 520 ? props.cell + 1 : props.cell);
 const canvas = ref<HTMLCanvasElement | null>(null);
 let render: ((t: number) => void) | null = null;
 let raf = 0;
@@ -21,13 +22,13 @@ function run() {
   else render?.(performance.now() / 1000);
 }
 onMounted(() => {
-  render = makePlate(canvas.value!, props.draw, props.cell);
-  observer = new ResizeObserver(() => render?.(performance.now() / 1000));
+  render = makePlate(canvas.value!, props.draw, cellFor());
+  observer = new ResizeObserver(() => { render = makePlate(canvas.value!, props.draw, cellFor()); render(performance.now() / 1000); });
   observer.observe(canvas.value!);
   run();
 });
 watch(() => props.active, run);
-watch(() => props.draw, () => { render = makePlate(canvas.value!, props.draw, props.cell); run(); });
+watch(() => props.draw, () => { render = makePlate(canvas.value!, props.draw, cellFor()); run(); });
 onBeforeUnmount(() => { cancelAnimationFrame(raf); observer?.disconnect(); });
 </script>
 

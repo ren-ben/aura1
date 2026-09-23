@@ -227,5 +227,5 @@ const byFolder = computed(() => {
   .side { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .ledger { grid-column: 1 / -1; }
 }
-@media (max-width: 860px) { .insight { display: flex; flex-direction: column; } .range { min-height: 380px; } .side { display: flex; } }
+@media (max-width: 860px) { .side { order: -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .range { min-height: 280px; } .clock, .week, .folders { min-height: 190px; } .insight { display: flex; flex-direction: column; } .range { min-height: 380px; } .side { display: flex; } }
 </style>
