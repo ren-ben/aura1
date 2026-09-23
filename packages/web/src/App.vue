@@ -412,9 +412,17 @@ onBeforeUnmount(() => {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 @keyframes grain { 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -2%); } }
 
-@media (max-width: 1200px) {
+/* A tablet is not a small desk: the wires keep their dots and drop their
+   names well before the window is narrow, because at 1366 the names were
+   landing on the pane, and the pane keeps more room top and bottom so the
+   console's own labels never sit on what a pane is showing. */
+@media (max-width: 1500px) {
   .ports .port span:not(.wire) { display: none; }
   .ports .port { padding: 14px; }
+  .pane { padding: 92px clamp(16px, 7.5vw, 116px) 116px; }
+  .hud .where b { font-size: 24px; }
+  .hud .mini { font-size: 9.5px; }
+  .stage::after { height: 118px; }
 }
 @media (max-width: 860px) {
   .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))

@@ -210,28 +210,71 @@ export function drawLogo(g: CanvasRenderingContext2D, w: number, h: number, lo: 
     g.fillRect(x, y, 1.4, 1.4);
   }
 
-  // The fans: short, close, and splayed like hairs, each thinning to nothing.
+  // The fans. Ink leaves a brush in trails, not in noodles: each one starts
+  // at the weight of the stroke it came off, breaks where the hair skipped,
+  // splits where it caught, and ends in whatever was left of the load.
   for (const td of lo.tendrils) {
     if (td.len < 0.03) continue;
     const i = Math.round(((td.at / (Math.PI * 2)) * N + N) % N);
     const root = half(i);
+
+    const trail = (from: number, spread: number, length: number, weight: number, depth: number) => {
+      const steps = 22;
+      let skipping = false;
+      for (let k = 0; k < steps; k++) {
+        const u = k / steps, next = (k + 1) / steps;
+        // A hair skips: the trail is broken, the way dry ink breaks.
+        if (!skipping && depth === 0 && r() < 0.07) skipping = true;
+        else if (skipping && r() < 0.35) skipping = false;
+        if (skipping) continue;
+
+        const bend = (v: number) => from + spread * (0.5 + v * 1.5) + td.lean * v * v * 0.4 + lo.lean * 0.08;
+        const out = (v: number) => R + root * 0.5 + v * length * R * 2.6 + Math.sin(v * 4 + depth) * R * 0.01;
+        const a0 = bend(u), a1 = bend(next);
+        const r0 = out(u), r1 = out(next);
+        // Tapering: fat where it left the stroke, nothing where it ran out.
+        const w0 = weight * Math.pow(1 - u, 1.5), w1 = weight * Math.pow(1 - next, 1.5);
+        const x0 = cx + Math.cos(a0) * r0, y0 = cy + Math.sin(a0) * r0;
+        const x1 = cx + Math.cos(a1) * r1, y1 = cy + Math.sin(a1) * r1;
+        // Drawn as a quad, so the taper is in the shape and not in a stroke.
+        const n0 = a0 + Math.PI / 2, n1 = a1 + Math.PI / 2;
+        g.globalAlpha = 0.5 + 0.5 * (1 - u);
+        g.beginPath();
+        g.moveTo(x0 + Math.cos(n0) * w0, y0 + Math.sin(n0) * w0);
+        g.lineTo(x1 + Math.cos(n1) * w1, y1 + Math.sin(n1) * w1);
+        g.lineTo(x1 - Math.cos(n1) * w1, y1 - Math.sin(n1) * w1);
+        g.lineTo(x0 - Math.cos(n0) * w0, y0 - Math.sin(n0) * w0);
+        g.closePath();
+        g.fill();
+
+        // Where it caught, it splits and the split goes its own way.
+        if (depth === 0 && u > 0.3 && u < 0.8 && r() < 0.1) {
+          trail(a0 - lo.lean * 0.08, (r() - 0.5) * 0.3, length * (0.3 + r() * 0.4) * (1 - u), w0 * 0.6, depth + 1);
+        }
+        // And it throws what it cannot hold.
+        if (r() < 0.06) {
+          g.globalAlpha = 0.15 + r() * 0.35;
+          g.beginPath();
+          g.arc(x1 + (r() - 0.5) * 7, y1 + (r() - 0.5) * 7, 0.5 + r() * 1.4, 0, 7);
+          g.fill();
+        }
+      }
+      // The last of the load, sitting at the end of it.
+      if (depth === 0 && r() < 0.6) {
+        const a = bendEnd(from, spread);
+        const rad = R + root * 0.5 + length * R * 2.6;
+        g.globalAlpha = 0.55 + r() * 0.4;
+        g.beginPath();
+        g.ellipse(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, weight * (0.7 + r()), weight * (0.5 + r() * 0.8), a, 0, 7);
+        g.fill();
+      }
+    };
+    const bendEnd = (from: number, spread: number) => from + spread * 2 + td.lean * 0.4 + lo.lean * 0.08;
+
     for (let hair = 0; hair < td.hairs; hair++) {
       const off = (hair / Math.max(1, td.hairs - 1) - 0.5) * td.spread;
-      const grown = 0.45 + r() * 0.9;   // this hair's own length
-      const bend = (r() - 0.5) * 0.8;   // and its own bend
-      const steps = 16;
-      g.globalAlpha = 0.55 + 0.45 * (1 - Math.abs(off) / Math.max(0.01, td.spread));
-      g.beginPath();
-      for (let k = 0; k <= steps; k++) {
-        const u = k / steps;
-        const a = td.at + off * (0.5 + u * 1.4) + (td.lean + bend) * u * u * 0.4 + lo.lean * 0.08;
-        const rad = R + root * 0.5 + u * td.len * grown * R * 2.6 + Math.sin(u * 4 + hair) * R * 0.01;
-        g[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
-      }
-      g.strokeStyle = '#c5bcab';
-      g.lineWidth = Math.max(0.7, root * 0.42 * (1 - Math.abs(off) * 1.4));
-      g.lineCap = 'round';
-      g.stroke();
+      const grown = 0.45 + r() * 0.9;
+      trail(td.at + off * 0.4, off, td.len * grown, Math.max(0.6, root * 0.5 * (1 - Math.abs(off))), 0);
     }
   }
   g.globalAlpha = 1;

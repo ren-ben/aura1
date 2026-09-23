@@ -6,7 +6,7 @@ import Frame from '../components/Frame.vue';
 import { drawLogo, logoFor, mixLogo } from '../gl/logogram';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { catSprite } from '../gl/plate';
+import { catSprite, makePlate } from '../gl/plate';
 import { actions, state, type Quote } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -61,28 +61,19 @@ onMounted(() => { ro2 = new ResizeObserver(drawHim); if (readerCanvas.value) ro2
 let ro2: ResizeObserver | null = null;
 let shown = logoFor(''), from = shown, to = shown;
 let turn = 1, raf = 0, ro: ResizeObserver | null = null;
+let render: ((t: number) => void) | null = null;
 
-function paint(t: number) {
-  const c = glyph.value;
-  if (!c) return;
-  const box = c.getBoundingClientRect();
-  const s = Math.max(1, Math.round(Math.min(box.width, box.height) * 2));
-  if (c.width !== s) { c.width = s; c.height = s; }
-  const x = c.getContext('2d')!;
-  x.clearRect(0, 0, s, s);
-  drawLogo(x, s, s, shown, t);
-}
-
-function frame(now: number) {
-  const t = now / 1000;
+// Drawn through the plate, like every other picture on the console: in grey
+// at a coarse grid, then thresholded to the two inks. Ink on rough paper is
+// the one thing that should not be the crispest object on the page.
+const script = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   if (turn < 1) {
     turn = Math.min(1, turn + 0.022);
     const u = turn < 0.5 ? 2 * turn * turn : 1 - Math.pow(-2 * turn + 2, 2) / 2;
     shown = mixLogo(from, to, u);
   }
-  paint(t);
-  raf = requestAnimationFrame(frame);
-}
+  drawLogo(g, w, h, shown, t);
+};
 
 // A new intercept is written over the old one, not swapped with it.
 watch(quote, (q) => {
@@ -92,9 +83,11 @@ watch(quote, (q) => {
 }, { immediate: true });
 
 onMounted(() => {
-  ro = new ResizeObserver(() => paint(performance.now() / 1000));
-  if (glyph.value) ro.observe(glyph.value);
-  raf = requestAnimationFrame(frame);
+  render = makePlate(glyph.value!, script, 2);
+  ro = new ResizeObserver(() => render?.(performance.now() / 1000));
+  ro.observe(glyph.value!);
+  const spin = (now: number) => { render?.(now / 1000); raf = requestAnimationFrame(spin); };
+  raf = requestAnimationFrame(spin);
 });
 onBeforeUnmount(() => { cancelAnimationFrame(raf); ro?.disconnect(); ro2?.disconnect(); });
 
