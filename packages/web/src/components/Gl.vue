@@ -20,7 +20,8 @@ onMounted(() => {
   run(props.active);
 });
 watch(() => props.active, run);
-onBeforeUnmount(() => { handle?.dispose(); });
+// A scene's own textures and geometry go with it.
+onBeforeUnmount(() => { canvas.value?.dispatchEvent(new Event('aura:dispose')); handle?.dispose(); });
 </script>
 
 <template>

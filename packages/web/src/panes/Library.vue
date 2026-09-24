@@ -12,6 +12,7 @@ import { catSprite, sigil } from '../gl/plate';
 import { lights } from '../gl/models';
 import { CELL, stacks, type ShelfEntry, type Stacks } from '../gl/stacks';
 import { grimoire, type Grimoire } from '../gl/grimoire';
+import { study, type DeskBook } from '../gl/study';
 import type { Build } from '../gl/engine';
 import { readBook } from '../books';
 import { actions, chapterOf, duration, state, type Book, type Mark } from '../store';
@@ -129,7 +130,7 @@ const studious = (g: CanvasRenderingContext2D, w: number, h: number, t: number) 
 // The shelf is a place you stand in rather than a list you read. Drag to look
 // round the gallery, wheel (or the two keys) to walk deeper into it, and
 // click one of your own volumes to have it pulled and opened.
-const EYE = 1.78, GALLERIES = 5;
+const EYE = 1.78;
 
 const entries = computed<ShelfEntry[]>(() => state.books.map((b) => ({
   id: b.id, title: b.title, through: through(b), chapters: b.chapters.length, marks: b.marks,
@@ -182,7 +183,8 @@ function shut() {
   if (drift) drift.hold = false;
   pulled.value = null;
 }
-const walk = (d: number) => { walkTo = Math.max(-0.3, Math.min(GALLERIES - 1.6, walkTo + d * 0.55)); };
+// There is no end to walk to, either way.
+const walk = (d: number) => { walkTo += d * 0.55; };
 
 const build: Build = ({ scene, camera, turn, canvas }) => {
   world = scene;
@@ -195,16 +197,8 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
   // The dark between galleries is the fog: it is what makes the shaft deep.
   scene.fog = new THREE.Fog(0x000000, 2.2, 13);
   lights(scene, 1.05, 0.4, 0.07);
-  // A lamp of its own over the first gallery, so the near shelves are read
-  // by something inside the room rather than by a light from nowhere.
-  const lamp = new THREE.PointLight(0xffffff, 30, 11, 2);
-  lamp.position.set(0, 2.7, 0);
-  scene.add(lamp);
-  const far = new THREE.PointLight(0xffffff, 22, 12, 2);
-  far.position.set(0, 2.7, -CELL * 2);
-  scene.add(far);
-
-  hall = stacks(entries.value, GALLERIES);
+  // The galleries carry their own lamps, and go on in every direction.
+  hall = stacks(entries.value);
   scene.add(hall.group);
   camera.position.set(0, EYE, 2.45);
   // Facing the wall your own books are on, looking very slightly down.
@@ -236,11 +230,11 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
 
   const back = new THREE.Vector3();
   return (t, dt) => {
-    hall?.update(t);
+    hall?.update(t, camera.position);
     walkAt += (walkTo - walkAt) * Math.min(1, dt * 2.6);
     // The drag turns the head and the walk moves it; the world stays put,
     // because a library that swings round you is a carousel, not a library.
-    const yaw = turn.y * 0.9, pitch = Math.max(-0.55, Math.min(0.5, turn.x * 0.7));
+    const yaw = turn.y * 0.9, pitch = Math.max(-0.95, Math.min(0.95, turn.x * 0.7));
     camera.rotation.set(pitch, yaw, 0, 'YXZ');
     camera.position.set(Math.sin(yaw) * 0.3, EYE + Math.sin(t * 0.45) * 0.012, 2.45 - walkAt * CELL);
     if (!held) return;
@@ -289,11 +283,10 @@ async function saveNote() {
 
 const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Math.max(1, b.chapters.length)) * 100);
 
-// ---- The pile ------------------------------------------------------------
-// Your books lie on top of each other the way a scholar leaves them: the last
-// one given on top, none of them square to the one under it. Each has its own
-// lean, reach and length, worked out from its id so the pile is the same pile
-// every time it is looked at.
+// ---- The study ----------------------------------------------------------
+// Your books lie in a pile on his desk the way a scholar leaves them: newest
+// on top, none square to the one under it. The desk is a room of its own,
+// drawn in three dimensions through the same dither as the stacks.
 const SIGILS = [
   'M12 3 21 19H3ZM7.5 13.5Q12 9.5 16.5 13.5 12 17.5 7.5 13.5ZM12 12.2v2.6',
   'M12 2.5a9.5 9.5 0 1 0 .01 0ZM12 3.5 17 18.9 3.9 9.4H20.1L7 18.9Z',
@@ -303,43 +296,29 @@ const SIGILS = [
   'M12 3 20 17H4ZM12 21 4 7H20Z',
 ];
 const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
-const pile = computed(() => state.books.map((b, i) => {
-  const h = hash(`${b.id}:${b.title}`), f = (k: number) => ((h >>> k) & 255) / 255;
-  return { b, i, tilt: (f(0) - 0.5) * 3, shift: (f(8) - 0.5) * 40, width: 70 + f(16) * 30, turn: (f(24) - 0.5) * 10,
-    thick: 36 + Math.min(14, b.chapters.length * 0.5), sigil: SIGILS[h % SIGILS.length]!, read: through(b) };
-}).reverse());
-// The moon over a book fills as it is read: new, waxing, full.
-function phase(pct: number) {
-  const p = pct / 100, r = 8, rx = r * Math.abs(1 - 2 * p);
-  return `M12 ${12 - r}A${r} ${r} 0 0 1 12 ${12 + r}A${rx} ${r} 0 0 ${p < 0.5 ? 0 : 1} 12 ${12 - r}Z`;
-}
+const deskBooks = computed<DeskBook[]>(() => state.books.map((b) => {
+  const h = hash(`${b.id}:${b.title}`);
+  return { title: b.title, author: b.author ?? 'unattributed', read: through(b), chapters: b.chapters.length,
+    kept: b.marks, format: b.format, sigil: SIGILS[h % SIGILS.length]!, seed: h % 100000 };
+}));
+// A book read on, or a passage kept, is painted onto its spine afresh.
+const deskKey = computed(() => state.books.map((b) => `${b.id}:${through(b)}:${b.marks}`).join(','));
+const deskHover = ref(-1);
+const outIndex = computed(() => (pulled.value ? state.books.findIndex((b) => b.id === pulled.value!.id) : -1));
+const deskBuild = computed(() => study(deskBooks.value, {
+  // Out of the pile and into your hands: it slides off toward the hall, and
+  // comes in at the glass's edge there.
+  pick: (i) => { if (outIndex.value !== i) pull(i, true); },
+  hover: (i) => { deskHover.value = i; },
+  out: () => outIndex.value,
+}));
+const deskHint = computed(() => {
+  const b = deskBooks.value[deskHover.value];
+  return b ? `${b.title} // ${b.author} // ${b.read}% // ${b.kept} kept` : 'take a book from the pile';
+});
 
 const glHost = ref<HTMLElement | null>(null);
 const prompt = ref<HTMLElement | null>(null);
-// Out of the pile and into your hands: the spine slides off to the right, into
-// the glass, and is gone by the time the book comes in at the glass's edge.
-function fromPile(s: { i: number; tilt: number; turn: number }, e: MouseEvent) {
-  if (pulled.value?.id === state.books[s.i]?.id) return;
-  const book = e.currentTarget as HTMLElement, host = glHost.value;
-  if (host) {
-    const r = book.getBoundingClientRect(), to = host.getBoundingClientRect();
-    const w = book.offsetWidth, h = book.offsetHeight, cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const ghost = book.cloneNode(true) as HTMLElement;
-    Object.assign(ghost.style, { position: 'fixed', left: `${cx - w / 2}px`, top: `${cy - h / 2}px`, width: `${w}px`, height: `${h}px`,
-      margin: '0', zIndex: '19', pointerEvents: 'none', transition: 'none' });
-    document.body.appendChild(ghost);
-    const dx = to.left + Math.min(to.width * 0.2, 160) - cx, dy = to.top + to.height * 0.5 - cy;
-    // Held the way it lay on the pile, then turned end on as it goes into the hall.
-    const lay = (x: number, y: number, pitch: number, yaw: number, lean: number, k = 1) =>
-      `translate(${x}px, ${y}px) perspective(1100px) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${lean}deg) scale(${k})`;
-    ghost.animate([
-      { transform: lay(0, 0, -22, -18 + s.turn, s.tilt), opacity: 1 },
-      { transform: lay(dx * 0.55, dy * 0.55, -14, -40, s.tilt * 0.4), opacity: 1, offset: 0.55 },
-      { transform: lay(dx, dy, -6, -62, 0, 0.85), opacity: 0 },
-    ], { duration: 560, easing: 'cubic-bezier(.45, 0, .6, 1)' }).onfinish = () => ghost.remove();
-  }
-  pull(s.i, true);
-}
 </script>
 
 <template>
@@ -391,65 +370,13 @@ function fromPile(s: { i: number; tilt: number; turn: number }, e: MouseEvent) {
         </div>
         <p v-if="failed" class="note err">{{ failed }}</p>
 
-        <!-- A desk: the pile on it, a skull with a candle guttering on it, a
-             quill in its ink and a loose leaf with a working on it. -->
-        <div class="desk" :style="{ '--n': pile.length }">
-          <div class="table" aria-hidden="true"><i class="pool"></i><i class="top"></i><i class="edge"></i></div>
-
-          <svg class="thing skull" viewBox="0 0 120 200" aria-hidden="true">
-            <defs><radialGradient id="candlelight"><stop offset="0" stop-color="#e6e0d4" stop-opacity=".55" /><stop offset="1" stop-color="#e6e0d4" stop-opacity="0" /></radialGradient></defs>
-            <circle class="glow" cx="60" cy="30" r="34" fill="url(#candlelight)" />
-            <path class="flame" d="M60 14C66 24 67 31 60 38 53 31 54 24 60 14Z" />
-            <path d="M60 34v8" class="ln" />
-            <path d="M51 44H69V104H51Z" class="bone" />
-            <path d="M51 44c0 8 4 8 4 16 0 4 3 4 3-2 0-8 4-8 4-12M69 44c0 10-3 12-3 26 0 4-3 4-3-2" class="ln" fill="none" />
-            <path d="M56 50v50M64 54v46" class="faint" />
-            <path d="M49 104c-5 0-5 8-1 8s4-6 8-6h8c4 0 6 10 10 8 3-2-1-10-3-10Z" class="wax" />
-            <path d="M18 142c0-38 84-38 84 0 0 16-7 22-13 26l-2 14H33l-2-14c-6-4-13-10-13-26Z" class="bone" />
-            <path d="M28 132c2-10 10-16 18-18M24 146c0-8 2-12 6-16M78 116l-4 8 6 4-3 6" class="faint" fill="none" />
-            <ellipse cx="44" cy="146" rx="11" ry="12" class="hollow" /><ellipse cx="76" cy="146" rx="11" ry="12" class="hollow" />
-            <circle cx="46" cy="148" r="1.6" class="spark" /><circle cx="78" cy="148" r="1.6" class="spark" />
-            <path d="M60 156l-5 12h10Z" class="hollow" />
-            <path d="M33 182l3 12h48l3-12" class="bone" />
-            <path d="M40 176v16M47 176v17M54 176v18M60 176v18M66 176v18M73 176v17M80 176v16M36 186h48" class="ln" />
-          </svg>
-
-          <div class="thing leaf" aria-hidden="true"><svg viewBox="0 0 96 70"><g fill="none" stroke="#2a2420" stroke-width="1.2">
-            <circle cx="30" cy="35" r="20" /><circle cx="30" cy="35" r="16" /><path d="M30 19 39.4 47.9 14.8 30.1H45.2L20.6 47.9Z" />
-            <path d="M60 18h26M60 25h22M60 32h27M60 39h18M60 46h24M60 53h14" /></g></svg></div>
-
-          <div class="pile">
-            <div v-for="s in pile" :key="s.b.id" class="slot" :class="{ out: pulled?.id === s.b.id }">
-              <div class="clip">
-                <button class="book" :style="{ '--tilt': `${s.tilt}deg`, '--shift': `${s.shift}px`, '--turn': `${s.turn}deg`, '--w': `${s.width}%`, '--t': `${s.thick}px` }"
-                  :aria-label="`Take ${s.b.title} from the pile`" @click="fromPile(s, $event)">
-                  <i class="face cover" aria-hidden="true"></i>
-                  <i class="face pages" aria-hidden="true"></i>
-                  <span class="face spine">
-                    <svg class="sig" viewBox="0 0 24 24" aria-hidden="true"><path :d="s.sigil" /></svg>
-                    <span class="t">
-                      <b>{{ s.b.title }}</b>
-                      <span>{{ s.b.author ?? 'unattributed' }} // {{ s.b.chapters.length }} ch // {{ s.b.marks }} kept // {{ s.b.format }}</span>
-                    </span>
-                    <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path :d="phase(s.read)" /></svg>
-                    <span class="pct">{{ s.read }}%</span>
-                  </span>
-                </button>
-              </div>
-            </div>
-            <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
+        <Frame class="studyFrame" title="the study // what is being read, and what reads it" flush>
+          <div class="studyHost">
+            <Gl :key="deskKey" :build="deskBuild" :active="active" :options="{ px: 1, fov: 36, drift: 0, tilt: 0, yaw: 0 }"
+              label="The study: your books in a pile on the desk, a skull with a candle, a lancet window with the moon in it"
+              :hint="shelf.length ? deskHint : 'the shelf is bare. he notices.'" />
           </div>
-
-          <svg class="thing ink" viewBox="0 0 70 150" aria-hidden="true">
-            <path d="M30 108c10-38 22-68 36-104-6 26-12 48-22 76-4 12-8 20-12 28" class="bone" />
-            <path d="M30 110 66 4" class="ln" />
-            <path d="m48 58 8-4m-12 14 9-3m-1-21 7-5m-3-7 7-6m-23 48 8-2" class="faint" />
-            <path d="M14 122c0-16 42-16 42 0l4 24H10Z" class="bone" />
-            <path d="M24 106h22v8H24Z" class="bone" />
-            <ellipse cx="35" cy="106" rx="11" ry="3" class="hollow" />
-            <path d="M18 128c4-4 12-4 16-2" class="faint" fill="none" />
-          </svg>
-        </div>
+        </Frame>
 
         <Frame v-if="state.marks.length" class="kept" :title="`kept passages // ${state.marks.length}`" scroll>
           <div v-for="m in state.marks" :key="m.id" class="keeprow">
@@ -561,84 +488,13 @@ function fromPile(s: { i: number; tilt: number; turn: number }, e: MouseEvent) {
 .take { display: flex; align-items: center; gap: 14px; border: 3px dotted var(--low); padding: 14px 16px; }
 .take.busy { border-color: var(--phos); }
 .take .btn { cursor: pointer; }
-/* The desk the pile stands on: a dark table seen from above, the candle's
-   light pooled on it, and the things a scholar of the wrong subjects keeps
-   to hand. It sits part way up the column, not on its floor. */
-.desk { position: relative; flex: 1 1 auto; min-height: 280px; max-height: 500px; }
-.table { position: absolute; left: -6px; right: -6px; bottom: 0; height: 118px; pointer-events: none; }
-.table i { position: absolute; display: block; }
-.table .top { inset: 0 0 16px; transform-origin: bottom; transform: perspective(520px) rotateX(58deg); border-top: 1px solid #3a3530;
-  background:
-    repeating-linear-gradient(to bottom, transparent 0 7px, rgba(197, 188, 171, .05) 7px 8px),
-    repeating-linear-gradient(97deg, transparent 0 38px, rgba(0, 0, 0, .28) 38px 40px, transparent 40px 90px),
-    linear-gradient(to bottom, #1c1a18, #2a2622 70%, #322d28); }
-.table .edge { left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(to bottom, #3a342e, #1a1816); border-top: 1px dotted rgba(197, 188, 171, .35); }
-.table .pool { right: 4%; bottom: 30px; width: 220px; height: 70px; border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(197, 188, 171, .13), transparent 70%); animation: pool 3.2s ease-in-out infinite; }
-@keyframes pool { 50% { opacity: .7; transform: scale(.96); } }
-.thing { position: absolute; pointer-events: none; overflow: visible; }
-.thing .bone { fill: #171615; stroke: var(--phos); stroke-width: 1.8; }
-.thing .hollow { fill: #0e0e0e; stroke: var(--phos); stroke-width: 1.6; }
-.thing .ln { stroke: var(--phos); stroke-width: 1.3; }
-.thing .faint { stroke: rgba(197, 188, 171, .4); stroke-width: 1.1; }
-.thing .wax, .thing .spark { fill: var(--phos); }
-.thing .flame { fill: var(--hi); transform-origin: 60px 34px; animation: flicker 1.3s ease-in-out infinite; }
-.thing .glow { animation: candle 1.3s ease-in-out infinite; }
-@keyframes flicker { 30% { transform: scale(.94, 1.08) skewX(2deg); } 60% { transform: scale(1.04, .95) skewX(-2deg); } }
-@keyframes candle { 50% { opacity: .65; } }
-.skull { right: -4px; bottom: 34px; width: 90px; }
-.ink { left: -6px; bottom: 6px; width: 76px; z-index: 2; }
-.leaf { right: 27%; bottom: 8px; width: 96px; height: 70px; transform: perspective(400px) rotateX(58deg) rotateZ(-14deg); transform-origin: bottom;
-  background: linear-gradient(#cfc7b7, #bfb6a4); box-shadow: 0 0 0 1px #3d3934; }
-.leaf svg { display: block; width: 100%; height: 100%; }
-
-/* The pile is built from the table up, oldest at the bottom: a tall one
-   runs off the top rather than the bottom, and pulling one out lets the ones
-   above it come down into the gap. */
-.pile { position: absolute; left: 1%; width: 82%; top: 0; bottom: 58px; overflow-y: auto; overflow-x: hidden;
-  display: flex; flex-direction: column-reverse; padding: 36px 26px 0 6px; scrollbar-width: none; }
-.pile::-webkit-scrollbar { width: 0; }
-.pile .empty { margin: 0 0 18px; }
-.slot { flex: none; display: grid; grid-template-rows: 1fr; margin-top: -2px; transition: grid-template-rows .5s var(--ease) .3s; }
-.slot.out { grid-template-rows: 0fr; transition-delay: .2s; }
-.clip { min-height: 0; transition: transform .55s var(--out) .45s, opacity .45s var(--out) .45s; }
-.slot.out .clip { opacity: 0; transform: translateX(40%); transition: opacity .08s linear, transform 0s linear .08s; pointer-events: none; }
-/* A book, lying down, seen from above and to the left: its spine to you,
-   its cover on top, the block of its pages at its end. Each one lies a
-   little out of true with the one under it. */
-.book { --d: 54px; position: relative; display: block; margin: 0 auto; width: var(--w); height: var(--t); padding: 0; border: 0; background: none;
-  color: var(--phos); text-align: left; transform-style: preserve-3d;
-  transform: perspective(1100px) translateX(var(--shift)) rotateX(-22deg) rotateY(calc(-18deg + var(--turn))) rotateZ(var(--tilt));
-  transition: transform .35s var(--out); }
-.book:hover, .book:focus-visible { transform: perspective(1100px) translateX(calc(var(--shift) + 12px)) translateZ(16px) rotateX(-22deg) rotateY(calc(-18deg + var(--turn))) rotateZ(var(--tilt)); }
-.face { position: absolute; display: block; }
-.cover { left: 0; top: 0; width: 100%; height: var(--d); transform-origin: top; transform: rotateX(-90deg); outline: 1px solid #3d3934; outline-offset: -1px;
-  background:
-    radial-gradient(circle at 50% 50%, transparent 13px, rgba(197, 188, 171, .35) 13px 14px, transparent 15px),
-    linear-gradient(#2a2622, #201e1b); }
-.cover::before { content: ''; position: absolute; inset: 7px 10px; border: 1px dotted rgba(197, 188, 171, .3); }
-.pages { right: 0; top: 0; width: var(--d); height: 100%; transform-origin: right; transform: rotateY(-90deg);
-  background: repeating-linear-gradient(to bottom, #b9b09f 0 1px, #d6cfc0 1px 3px); border: 1px solid #3d3934; border-left: 0; }
-/* The spine: leather, a dotted tooling rule at the head and foot, two raised
-   bands, a few stars pricked into it, his sigil at one end and the moon of
-   how far you are at the other. */
-.spine { inset: 0; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid #3d3934;
-  background:
-    radial-gradient(1px 1px at 22% 30%, rgba(197, 188, 171, .35), transparent),
-    radial-gradient(1px 1px at 61% 72%, rgba(197, 188, 171, .3), transparent),
-    linear-gradient(to right, transparent 38px, rgba(197, 188, 171, .13) 38px 41px, transparent 41px calc(100% - 58px),
-      rgba(197, 188, 171, .13) calc(100% - 58px) calc(100% - 55px), transparent 0),
-    linear-gradient(to bottom, #34302b, #1d1c1a 24%, #171615 60%, #26231f 88%, #36312b); }
-.spine::before { content: ''; position: absolute; inset: 4px 6px; pointer-events: none;
-  border-top: 1px dotted rgba(197, 188, 171, .3); border-bottom: 1px dotted rgba(197, 188, 171, .3); }
-.book:hover .spine, .book:focus-visible .spine { border-color: var(--dim); }
-.spine .t { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.spine .t b { font: 400 18px/1 var(--goth); color: var(--hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spine .t span { font: 400 8px var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spine svg { flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.3; }
-.spine .moon path { fill: currentColor; stroke: none; }
-.spine .pct { flex: none; font: 400 9px var(--pix); }
-.kept { flex: none; max-height: min(18vh, 130px); }
+/* The study takes what the ledger leaves, and keeps its desk off the floor
+   of the column. */
+.studyFrame { flex: 1 1 auto; min-height: 340px; }
+.studyFrame :deep(.flush) { min-height: 0; }
+.studyHost { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.studyHost :deep(.hint) { left: 12px; bottom: 8px; right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kept { flex: none; max-height: min(14vh, 112px); }
 .keeprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-bottom: 3px dotted var(--faint); }
 .keeprow .fell { font-size: 15px; font-style: italic; color: var(--dim); }
 
@@ -682,8 +538,7 @@ function fromPile(s: { i: number; tilt: number; turn: number }, e: MouseEvent) {
   .ledger { max-height: none; }
   .glHost :deep(.hint) { display: none; }
   /* On a phone the page scrolls, so the desk is as tall as its pile. */
-  .desk { flex: none; max-height: none; height: max(280px, calc(var(--n) * 50px + 150px)); }
+  .studyFrame { flex: none; height: 380px; }
   .kept { max-height: none; }
-  .spine .pct { display: none; }
 }
 </style>
