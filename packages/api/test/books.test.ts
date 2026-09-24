@@ -167,7 +167,7 @@ test('the device fetches a book whole: its head, then each chapter as plain text
     const { id } = (await app.inject({ method: 'POST', url: '/api/v1/books', payload: BOOK })).json() as { id: number };
     await app.inject({ method: 'PUT', url: `/api/v1/books/${id}/reading`, payload: { chapterIdx: 1, through: 250 } });
 
-    const head = await app.inject({ method: 'GET', url: `/api/v1/books/${id}/device` });
+    const head = await app.inject({ method: 'GET', url: `/api/v1/sync/books/${id}` });
     assert.equal(head.statusCode, 200);
     assert.match(head.headers['content-type'] as string, /^text\/plain/);
     assert.deepEqual(head.body.trimEnd().split('\n'), [
@@ -175,10 +175,10 @@ test('the device fetches a book whole: its head, then each chapter as plain text
       'The Repairer of Reputations', 'The Mask', 'In the Court of the Dragon',
     ]);
 
-    const text = await app.inject({ method: 'GET', url: `/api/v1/books/${id}/chapters/1/text` });
+    const text = await app.inject({ method: 'GET', url: `/api/v1/sync/books/${id}/chapters/1` });
     assert.equal(text.statusCode, 200);
     assert.ok(text.body.startsWith('Camilla: You, sir, should unmask.'));
 
-    assert.equal((await app.inject({ method: 'GET', url: `/api/v1/books/${id}/chapters/9/text` })).statusCode, 404);
-    assert.equal((await app.inject({ method: 'GET', url: '/api/v1/books/999/device' })).statusCode, 404);
+    assert.equal((await app.inject({ method: 'GET', url: `/api/v1/sync/books/${id}/chapters/9` })).statusCode, 404);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/v1/sync/books/999' })).statusCode, 404);
 });

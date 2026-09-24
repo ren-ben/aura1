@@ -19,6 +19,7 @@ struct FetchProgress {
   int total = 0;
   bool whole = false; // the last of it just arrived
   bool failed = false;
+  bool offline = false; // failed because the hotspot went, not the server
 };
 
 class SyncClient {

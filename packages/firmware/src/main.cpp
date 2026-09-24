@@ -208,7 +208,7 @@ void loop() {
     // A chapter a pass through the loop, so the buttons still answer.
     FetchProgress progress;
     if (syncClient.step(progress)) {
-      if (progress.failed) machine.setSyncNote("NO WIFI");
+      if (progress.failed) machine.setSyncNote(progress.offline ? "NO WIFI" : "SERVER ERROR");
       else if (progress.whole) machine.bookArrived(progress.id);
       else machine.copying(progress.id, progress.done, progress.total);
     }

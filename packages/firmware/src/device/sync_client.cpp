@@ -121,7 +121,13 @@ void SyncClient::fetch(const std::vector<Fetch>& plan, int urgent) {
 
 bool SyncClient::step(FetchProgress& progress) {
   if (!fetching_) return false;
-  if (WiFi.status() != WL_CONNECTED) { radioOff(); return false; }
+  if (WiFi.status() != WL_CONNECTED) {
+    progress = FetchProgress{};
+    progress.id = plan_[0].id;
+    progress.failed = progress.offline = true;
+    radioOff();
+    return true;
+  }
   // Nobody is waiting on the rest of the shelf: it gets a while each sync.
   if (plan_[0].id != urgent_ && millis() - fetchFrom_ > BACKGROUND_FETCH_MS) { radioOff(); return false; }
   Fetch& book = plan_[0];
@@ -136,7 +142,7 @@ bool SyncClient::step(FetchProgress& progress) {
   };
   // The head first: the name, the chapters, where it was left.
   if (!storage_.exists(Book::headPath(book.id))) {
-    if (!download("/books/" + id + "/device", Book::headPath(book.id))) return failed();
+    if (!download("/books/" + id, Book::headPath(book.id))) return failed();
     next_ = 0;
   }
   if (next_ == 0) {
@@ -155,15 +161,15 @@ bool SyncClient::step(FetchProgress& progress) {
     if (plan_.empty()) radioOff();
     return true;
   }
-  if (!download("/books/" + id + "/chapters/" + std::to_string(next_) + "/text", Book::partPath(book.id, next_))) return failed();
+  if (!download("/books/" + id + "/chapters/" + std::to_string(next_), Book::partPath(book.id, next_))) return failed();
   progress.done = ++next_;
   return true;
 }
 
 bool SyncClient::download(const std::string& path, const std::string& file) {
-  // The API lives beside the sync endpoint.
-  std::string url = SYNC_URL;
-  url = url.substr(0, url.rfind('/')) + path;
+  // Under the sync endpoint: the one path Cloudflare Access opens to the
+  // device's service token.
+  const std::string url = std::string(SYNC_URL) + path;
   http_.begin(tls_, url.c_str());
   http_.addHeader("CF-Access-Client-Id", CF_ACCESS_ID);
   http_.addHeader("CF-Access-Client-Secret", CF_ACCESS_SECRET);

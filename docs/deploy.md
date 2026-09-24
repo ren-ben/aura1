@@ -75,8 +75,10 @@ Create the service token first, then the two applications on
    action **Service Auth**, selector "Service Token" (not "Any Access
    Service Token"), set to the `aura-1` token created above.
 
-   The more specific path (`api/v1/sync`) wins for requests to that path and
-   does not inherit the root application's `browser` policy. Every other
+   The more specific path (`api/v1/sync`) wins for requests to that path,
+   and every path under it, and does not inherit the root application's
+   `browser` policy. Everything the device reaches lives there: the sync
+   itself, and `api/v1/sync/books/...`, where it fetches books whole. Every other
    path, including `/api/v1/sessions`, falls under the root application and
    its Allow policy only — so it is closed to a service token and open only
    to your logged-in browser session.
