@@ -197,7 +197,7 @@ async function archive() {
 </template>
 
 <style scoped>
-.rituals { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 330px); grid-template-rows: auto minmax(0, 1fr) auto;
+.rituals { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 330px); grid-template-rows: min-content minmax(min-content, 1fr) min-content;
   grid-template-areas: "main chosen" "vigil records" "all all"; }
 .main { grid-area: main; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .tabs { display: flex; gap: 18px; flex-wrap: wrap; font: 400 11px var(--pix); text-transform: uppercase; }
@@ -235,7 +235,7 @@ async function archive() {
 .strip { transition: opacity .3s var(--out); }
 .strip .tek { font-size: 20px; text-align: right; }
 @media (max-aspect-ratio: 5/4) {
-  .rituals { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+  .rituals { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: min-content min-content minmax(min-content, 1fr) min-content;
     grid-template-areas: "main main" "chosen records" "vigil vigil" "all all"; }
   .vigil { min-height: 220px; }
 }
