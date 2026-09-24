@@ -305,8 +305,8 @@ const SIGILS = [
 const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 const pile = computed(() => state.books.map((b, i) => {
   const h = hash(`${b.id}:${b.title}`), f = (k: number) => ((h >>> k) & 255) / 255;
-  return { b, i, tilt: (f(0) - 0.5) * 4.4, shift: (f(8) - 0.5) * 40, width: 70 + f(16) * 30,
-    thick: 40 + Math.min(16, b.chapters * 0.6), sigil: SIGILS[h % SIGILS.length]!, read: through(b) };
+  return { b, i, tilt: (f(0) - 0.5) * 3, shift: (f(8) - 0.5) * 40, width: 70 + f(16) * 30, turn: (f(24) - 0.5) * 10,
+    thick: 36 + Math.min(14, b.chapters.length * 0.5), sigil: SIGILS[h % SIGILS.length]!, read: through(b) };
 }).reverse());
 // The moon over a book fills as it is read: new, waxing, full.
 function phase(pct: number) {
@@ -318,21 +318,24 @@ const glHost = ref<HTMLElement | null>(null);
 const prompt = ref<HTMLElement | null>(null);
 // Out of the pile and into your hands: the spine slides off to the right, into
 // the glass, and is gone by the time the book comes in at the glass's edge.
-function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
+function fromPile(s: { i: number; tilt: number; turn: number }, e: MouseEvent) {
   if (pulled.value?.id === state.books[s.i]?.id) return;
-  const spine = e.currentTarget as HTMLElement, host = glHost.value;
+  const book = e.currentTarget as HTMLElement, host = glHost.value;
   if (host) {
-    const r = spine.getBoundingClientRect(), to = host.getBoundingClientRect();
-    const w = spine.offsetWidth, h = spine.offsetHeight, cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const ghost = spine.cloneNode(true) as HTMLElement;
+    const r = book.getBoundingClientRect(), to = host.getBoundingClientRect();
+    const w = book.offsetWidth, h = book.offsetHeight, cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const ghost = book.cloneNode(true) as HTMLElement;
     Object.assign(ghost.style, { position: 'fixed', left: `${cx - w / 2}px`, top: `${cy - h / 2}px`, width: `${w}px`, height: `${h}px`,
       margin: '0', zIndex: '19', pointerEvents: 'none', transition: 'none' });
     document.body.appendChild(ghost);
     const dx = to.left + Math.min(to.width * 0.2, 160) - cx, dy = to.top + to.height * 0.5 - cy;
+    // Held the way it lay on the pile, then turned end on as it goes into the hall.
+    const lay = (x: number, y: number, pitch: number, yaw: number, lean: number, k = 1) =>
+      `translate(${x}px, ${y}px) perspective(1100px) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${lean}deg) scale(${k})`;
     ghost.animate([
-      { transform: `rotate(${s.tilt}deg)`, opacity: 1 },
-      { transform: `translate(${dx * 0.55}px, ${dy * 0.55}px) rotate(${s.tilt * 0.4}deg)`, opacity: 1, offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(.9)`, opacity: 0 },
+      { transform: lay(0, 0, -22, -18 + s.turn, s.tilt), opacity: 1 },
+      { transform: lay(dx * 0.55, dy * 0.55, -14, -40, s.tilt * 0.4), opacity: 1, offset: 0.55 },
+      { transform: lay(dx, dy, -6, -62, 0, 0.85), opacity: 0 },
     ], { duration: 560, easing: 'cubic-bezier(.45, 0, .6, 1)' }).onfinish = () => ghost.remove();
   }
   pull(s.i, true);
@@ -388,22 +391,64 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
         </div>
         <p v-if="failed" class="note err">{{ failed }}</p>
 
-        <div class="pile">
-          <div v-for="s in pile" :key="s.b.id" class="slot" :class="{ out: pulled?.id === s.b.id }">
-            <div class="clip">
-              <button class="spine" :style="{ '--tilt': `${s.tilt}deg`, '--shift': `${s.shift}px`, width: `${s.width}%`, height: `${s.thick}px` }"
-                :aria-label="`Take ${s.b.title} from the pile`" @click="fromPile(s, $event)">
-                <svg class="sig" viewBox="0 0 24 24" aria-hidden="true"><path :d="s.sigil" /></svg>
-                <span class="t">
-                  <b>{{ s.b.title }}</b>
-                  <span>{{ s.b.author ?? 'unattributed' }} // {{ s.b.chapters.length }} ch // {{ s.b.marks }} kept // {{ s.b.format }}</span>
-                </span>
-                <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path :d="phase(s.read)" /></svg>
-                <span class="pct">{{ s.read }}%</span>
-              </button>
+        <!-- A desk: the pile on it, a skull with a candle guttering on it, a
+             quill in its ink and a loose leaf with a working on it. -->
+        <div class="desk" :style="{ '--n': pile.length }">
+          <div class="table" aria-hidden="true"><i class="pool"></i><i class="top"></i><i class="edge"></i></div>
+
+          <svg class="thing skull" viewBox="0 0 120 200" aria-hidden="true">
+            <defs><radialGradient id="candlelight"><stop offset="0" stop-color="#e6e0d4" stop-opacity=".55" /><stop offset="1" stop-color="#e6e0d4" stop-opacity="0" /></radialGradient></defs>
+            <circle class="glow" cx="60" cy="30" r="34" fill="url(#candlelight)" />
+            <path class="flame" d="M60 14C66 24 67 31 60 38 53 31 54 24 60 14Z" />
+            <path d="M60 34v8" class="ln" />
+            <path d="M51 44H69V104H51Z" class="bone" />
+            <path d="M51 44c0 8 4 8 4 16 0 4 3 4 3-2 0-8 4-8 4-12M69 44c0 10-3 12-3 26 0 4-3 4-3-2" class="ln" fill="none" />
+            <path d="M56 50v50M64 54v46" class="faint" />
+            <path d="M49 104c-5 0-5 8-1 8s4-6 8-6h8c4 0 6 10 10 8 3-2-1-10-3-10Z" class="wax" />
+            <path d="M18 142c0-38 84-38 84 0 0 16-7 22-13 26l-2 14H33l-2-14c-6-4-13-10-13-26Z" class="bone" />
+            <path d="M28 132c2-10 10-16 18-18M24 146c0-8 2-12 6-16M78 116l-4 8 6 4-3 6" class="faint" fill="none" />
+            <ellipse cx="44" cy="146" rx="11" ry="12" class="hollow" /><ellipse cx="76" cy="146" rx="11" ry="12" class="hollow" />
+            <circle cx="46" cy="148" r="1.6" class="spark" /><circle cx="78" cy="148" r="1.6" class="spark" />
+            <path d="M60 156l-5 12h10Z" class="hollow" />
+            <path d="M33 182l3 12h48l3-12" class="bone" />
+            <path d="M40 176v16M47 176v17M54 176v18M60 176v18M66 176v18M73 176v17M80 176v16M36 186h48" class="ln" />
+          </svg>
+
+          <div class="thing leaf" aria-hidden="true"><svg viewBox="0 0 96 70"><g fill="none" stroke="#2a2420" stroke-width="1.2">
+            <circle cx="30" cy="35" r="20" /><circle cx="30" cy="35" r="16" /><path d="M30 19 39.4 47.9 14.8 30.1H45.2L20.6 47.9Z" />
+            <path d="M60 18h26M60 25h22M60 32h27M60 39h18M60 46h24M60 53h14" /></g></svg></div>
+
+          <div class="pile">
+            <div v-for="s in pile" :key="s.b.id" class="slot" :class="{ out: pulled?.id === s.b.id }">
+              <div class="clip">
+                <button class="book" :style="{ '--tilt': `${s.tilt}deg`, '--shift': `${s.shift}px`, '--turn': `${s.turn}deg`, '--w': `${s.width}%`, '--t': `${s.thick}px` }"
+                  :aria-label="`Take ${s.b.title} from the pile`" @click="fromPile(s, $event)">
+                  <i class="face cover" aria-hidden="true"></i>
+                  <i class="face pages" aria-hidden="true"></i>
+                  <span class="face spine">
+                    <svg class="sig" viewBox="0 0 24 24" aria-hidden="true"><path :d="s.sigil" /></svg>
+                    <span class="t">
+                      <b>{{ s.b.title }}</b>
+                      <span>{{ s.b.author ?? 'unattributed' }} // {{ s.b.chapters.length }} ch // {{ s.b.marks }} kept // {{ s.b.format }}</span>
+                    </span>
+                    <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path :d="phase(s.read)" /></svg>
+                    <span class="pct">{{ s.read }}%</span>
+                  </span>
+                </button>
+              </div>
             </div>
+            <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
           </div>
-          <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
+
+          <svg class="thing ink" viewBox="0 0 70 150" aria-hidden="true">
+            <path d="M30 108c10-38 22-68 36-104-6 26-12 48-22 76-4 12-8 20-12 28" class="bone" />
+            <path d="M30 110 66 4" class="ln" />
+            <path d="m48 58 8-4m-12 14 9-3m-1-21 7-5m-3-7 7-6m-23 48 8-2" class="faint" />
+            <path d="M14 122c0-16 42-16 42 0l4 24H10Z" class="bone" />
+            <path d="M24 106h22v8H24Z" class="bone" />
+            <ellipse cx="35" cy="106" rx="11" ry="3" class="hollow" />
+            <path d="M18 128c4-4 12-4 16-2" class="faint" fill="none" />
+          </svg>
         </div>
 
         <Frame v-if="state.marks.length" class="kept" :title="`kept passages // ${state.marks.length}`" scroll>
@@ -516,39 +561,84 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
 .take { display: flex; align-items: center; gap: 14px; border: 3px dotted var(--low); padding: 14px 16px; }
 .take.busy { border-color: var(--phos); }
 .take .btn { cursor: pointer; }
-/* The pile is built from the floor up, oldest at the bottom, so it sits on
-   the floor of its column, a tall one runs off the top rather than the
-   bottom, and pulling one out lets the ones above it come down into the gap. */
-.pile { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column-reverse; padding: 6px 2px 4px; scrollbar-width: none; }
+/* The desk the pile stands on: a dark table seen from above, the candle's
+   light pooled on it, and the things a scholar of the wrong subjects keeps
+   to hand. It sits part way up the column, not on its floor. */
+.desk { position: relative; flex: 1 1 auto; min-height: 280px; max-height: 500px; }
+.table { position: absolute; left: -6px; right: -6px; bottom: 0; height: 118px; pointer-events: none; }
+.table i { position: absolute; display: block; }
+.table .top { inset: 0 0 16px; transform-origin: bottom; transform: perspective(520px) rotateX(58deg); border-top: 1px solid #3a3530;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 7px, rgba(197, 188, 171, .05) 7px 8px),
+    repeating-linear-gradient(97deg, transparent 0 38px, rgba(0, 0, 0, .28) 38px 40px, transparent 40px 90px),
+    linear-gradient(to bottom, #1c1a18, #2a2622 70%, #322d28); }
+.table .edge { left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(to bottom, #3a342e, #1a1816); border-top: 1px dotted rgba(197, 188, 171, .35); }
+.table .pool { right: 4%; bottom: 30px; width: 220px; height: 70px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(197, 188, 171, .13), transparent 70%); animation: pool 3.2s ease-in-out infinite; }
+@keyframes pool { 50% { opacity: .7; transform: scale(.96); } }
+.thing { position: absolute; pointer-events: none; overflow: visible; }
+.thing .bone { fill: #171615; stroke: var(--phos); stroke-width: 1.8; }
+.thing .hollow { fill: #0e0e0e; stroke: var(--phos); stroke-width: 1.6; }
+.thing .ln { stroke: var(--phos); stroke-width: 1.3; }
+.thing .faint { stroke: rgba(197, 188, 171, .4); stroke-width: 1.1; }
+.thing .wax, .thing .spark { fill: var(--phos); }
+.thing .flame { fill: var(--hi); transform-origin: 60px 34px; animation: flicker 1.3s ease-in-out infinite; }
+.thing .glow { animation: candle 1.3s ease-in-out infinite; }
+@keyframes flicker { 30% { transform: scale(.94, 1.08) skewX(2deg); } 60% { transform: scale(1.04, .95) skewX(-2deg); } }
+@keyframes candle { 50% { opacity: .65; } }
+.skull { right: -4px; bottom: 34px; width: 90px; }
+.ink { left: -6px; bottom: 6px; width: 76px; z-index: 2; }
+.leaf { right: 27%; bottom: 8px; width: 96px; height: 70px; transform: perspective(400px) rotateX(58deg) rotateZ(-14deg); transform-origin: bottom;
+  background: linear-gradient(#cfc7b7, #bfb6a4); box-shadow: 0 0 0 1px #3d3934; }
+.leaf svg { display: block; width: 100%; height: 100%; }
+
+/* The pile is built from the table up, oldest at the bottom: a tall one
+   runs off the top rather than the bottom, and pulling one out lets the ones
+   above it come down into the gap. */
+.pile { position: absolute; left: 1%; width: 82%; top: 0; bottom: 58px; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column-reverse; padding: 36px 26px 0 6px; scrollbar-width: none; }
 .pile::-webkit-scrollbar { width: 0; }
-.slot { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .5s var(--ease) .3s; }
+.pile .empty { margin: 0 0 18px; }
+.slot { flex: none; display: grid; grid-template-rows: 1fr; margin-top: -2px; transition: grid-template-rows .5s var(--ease) .3s; }
 .slot.out { grid-template-rows: 0fr; transition-delay: .2s; }
-.clip { min-height: 0; overflow: hidden; padding: 3px 16px; transition: transform .55s var(--out) .45s, opacity .45s var(--out) .45s; }
-.slot.out .clip { opacity: 0; transform: translateX(40%); transition: opacity .08s linear, transform 0s linear .08s; }
-/* A spine: leather, a dotted tooling rule at the head and foot, two raised
+.clip { min-height: 0; transition: transform .55s var(--out) .45s, opacity .45s var(--out) .45s; }
+.slot.out .clip { opacity: 0; transform: translateX(40%); transition: opacity .08s linear, transform 0s linear .08s; pointer-events: none; }
+/* A book, lying down, seen from above and to the left: its spine to you,
+   its cover on top, the block of its pages at its end. Each one lies a
+   little out of true with the one under it. */
+.book { --d: 54px; position: relative; display: block; margin: 0 auto; width: var(--w); height: var(--t); padding: 0; border: 0; background: none;
+  color: var(--phos); text-align: left; transform-style: preserve-3d;
+  transform: perspective(1100px) translateX(var(--shift)) rotateX(-22deg) rotateY(calc(-18deg + var(--turn))) rotateZ(var(--tilt));
+  transition: transform .35s var(--out); }
+.book:hover, .book:focus-visible { transform: perspective(1100px) translateX(calc(var(--shift) + 12px)) translateZ(16px) rotateX(-22deg) rotateY(calc(-18deg + var(--turn))) rotateZ(var(--tilt)); }
+.face { position: absolute; display: block; }
+.cover { left: 0; top: 0; width: 100%; height: var(--d); transform-origin: top; transform: rotateX(-90deg); outline: 1px solid #3d3934; outline-offset: -1px;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 13px, rgba(197, 188, 171, .35) 13px 14px, transparent 15px),
+    linear-gradient(#2a2622, #201e1b); }
+.cover::before { content: ''; position: absolute; inset: 7px 10px; border: 1px dotted rgba(197, 188, 171, .3); }
+.pages { right: 0; top: 0; width: var(--d); height: 100%; transform-origin: right; transform: rotateY(-90deg);
+  background: repeating-linear-gradient(to bottom, #b9b09f 0 1px, #d6cfc0 1px 3px); border: 1px solid #3d3934; border-left: 0; }
+/* The spine: leather, a dotted tooling rule at the head and foot, two raised
    bands, a few stars pricked into it, his sigil at one end and the moon of
    how far you are at the other. */
-.spine { position: relative; display: flex; align-items: center; gap: 10px; margin: 0 auto; padding: 0 12px; text-align: left; color: var(--phos);
-  transform: translateX(var(--shift)) rotate(var(--tilt)); border: 1px solid #3a3733;
+.spine { inset: 0; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid #3d3934;
   background:
     radial-gradient(1px 1px at 22% 30%, rgba(197, 188, 171, .35), transparent),
     radial-gradient(1px 1px at 61% 72%, rgba(197, 188, 171, .3), transparent),
-    radial-gradient(1px 1px at 83% 22%, rgba(197, 188, 171, .25), transparent),
-    linear-gradient(to right, transparent 40px, rgba(197, 188, 171, .12) 40px 43px, transparent 43px calc(100% - 64px),
-      rgba(197, 188, 171, .12) calc(100% - 64px) calc(100% - 61px), transparent calc(100% - 61px)),
-    linear-gradient(to bottom, #2e2b28, #1d1c1a 22%, #181716 60%, #25231f 88%, #302d29);
-  box-shadow: 0 2px 0 #0c0c0c, inset 0 1px 0 rgba(197, 188, 171, .12);
-  transition: transform .3s var(--out), border-color .3s var(--out); }
+    linear-gradient(to right, transparent 38px, rgba(197, 188, 171, .13) 38px 41px, transparent 41px calc(100% - 58px),
+      rgba(197, 188, 171, .13) calc(100% - 58px) calc(100% - 55px), transparent 0),
+    linear-gradient(to bottom, #34302b, #1d1c1a 24%, #171615 60%, #26231f 88%, #36312b); }
 .spine::before { content: ''; position: absolute; inset: 4px 6px; pointer-events: none;
-  border-top: 1px dotted rgba(197, 188, 171, .28); border-bottom: 1px dotted rgba(197, 188, 171, .28); }
-.spine:hover { transform: translateX(calc(var(--shift) + 8px)) rotate(var(--tilt)); border-color: var(--dim); }
+  border-top: 1px dotted rgba(197, 188, 171, .3); border-bottom: 1px dotted rgba(197, 188, 171, .3); }
+.book:hover .spine, .book:focus-visible .spine { border-color: var(--dim); }
 .spine .t { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.spine .t b { font: 400 20px/1 var(--goth); color: var(--hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spine .t span { font: 400 8.5px var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spine svg { flex: none; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.spine .t b { font: 400 18px/1 var(--goth); color: var(--hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spine .t span { font: 400 8px var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spine svg { flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 .spine .moon path { fill: currentColor; stroke: none; }
 .spine .pct { flex: none; font: 400 9px var(--pix); }
-.kept { flex: none; max-height: min(20vh, 150px); }
+.kept { flex: none; max-height: min(18vh, 130px); }
 .keeprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-bottom: 3px dotted var(--faint); }
 .keeprow .fell { font-size: 15px; font-style: italic; color: var(--dim); }
 
@@ -591,8 +681,8 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
   .stacksFrame { position: sticky; top: 0; z-index: 3; flex: none; height: max(260px, 42dvh); background: var(--ground); }
   .ledger { max-height: none; }
   .glHost :deep(.hint) { display: none; }
-  /* On a phone the page scrolls, so the pile and the passages take all the room they need. */
-  .pile { flex: none; overflow: visible; }
+  /* On a phone the page scrolls, so the desk is as tall as its pile. */
+  .desk { flex: none; max-height: none; height: max(280px, calc(var(--n) * 50px + 150px)); }
   .kept { max-height: none; }
   .spine .pct { display: none; }
 }
