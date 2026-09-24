@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Weather in static: noise that clears and clouds over, slowly.
+// Static that clears and clouds over, slowly: the degree not yet in focus.
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Sealed from '../components/Sealed.vue';
 
@@ -25,9 +25,9 @@ onBeforeUnmount(() => clearInterval(timer));
 </script>
 
 <template>
-  <Sealed title="The Weather Within" phase="phase eight" :lines="[
-    'How you are, set down each day, beside the hours and the rituals.',
-    'Read against the work, over months: what lifts you, what it costs.',
+  <Sealed title="The Academy" phase="phase eight" :lines="[
+    'Physics at the University of Vienna: courses, ECTS, grades, the exams ahead.',
+    'Course dates and rooms drawn from u:find; the degree filled in module by module.',
   ]">
     <canvas ref="canvas" width="120" height="120" class="static" aria-hidden="true"></canvas>
   </Sealed>

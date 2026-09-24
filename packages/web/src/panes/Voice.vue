@@ -5,13 +5,13 @@ defineProps<{ active: boolean }>();
 </script>
 
 <template>
-  <Sealed title="His Voice" phase="phase seven" :lines="[
-    'Conversations with Kael\'thos: he speaks, you answer yes or no with the two buttons.',
-    'Company on the long nights, counsel when you ask, the ego when you need it.',
-    'The words come from far away; the vessel wakes its radio only for each reply.',
+  <Sealed title="The Vigil" phase="phase seven" :lines="[
+    'Sits begun on the vessel: a practice, a length, a bell to open and a bell to close.',
+    'The old methods and the breath research, taught here, one stage at a time.',
+    'Every sit kept: the hours, the streak, how deep each practice went.',
   ]">
     <div class="eye" aria-hidden="true"><div class="lens"></div></div>
-    <p class="say note">I'm sorry. I can't speak to you yet.</p>
+    <p class="say note">Breathe with it. The bell is not cast yet.</p>
   </Sealed>
 </template>
 

@@ -236,12 +236,13 @@ in [hardware-checklist.md](hardware-checklist.md).
 
 6. **Phase 6, reader:** books on the card, chapter jumps, saved progress, highlights
    picked and annotated on the web, Kael'thos reading in the corner.
-7. **Phase 7, companion:** conversations with Kael'thos through an LLM, answered yes or
-   no with the two buttons.
-8. **Phase 8, mood tracker.** Details to come.
+7. **Phase 7, meditation:** sits started on the device with a chime to open and close
+   them, practices taught and tracked on the web, Kael'thos in meditation poses.
+8. **Phase 8, university:** courses, ECTS, grades and exams for physics at the
+   University of Vienna, course data pulled from u:find.
 9. **Phase 9, workout tracker:** weights and cardio. Details to come.
 
 **Open along the way:** the Bloodborne and Halloween skins (phase 4b, planned); check the
 latest firmware on the hardware (sync speed, the
 charging bolt, the looks); the RESURRECTION ritual (for now any session wakes him);
-upgrade Node to 22+, which removes three workarounds. Audio is dropped.
+upgrade Node to 22+, which removes three workarounds. Audio is only the meditation chimes.

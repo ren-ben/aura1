@@ -163,14 +163,22 @@ contract has exactly one definition.
   highlight saves the whole page on the glass; on the web the exact passage
   is picked from it and notes added. Battery: e-ink draws only on a page
   turn, so reading costs about what the lists do.
-- **Phase 7** Companion. Conversations with Kael'thos through an LLM
-  (OpenRouter), in character: he speaks, the user answers yes or no with the
-  two buttons. Roleplay, wisdom, company, motivation. The server holds the
-  key, the persona and the history; the device sends only the answer and
-  gets his next line. Wi-Fi only for each exchange, off between.
-- **Phase 8** Mood tracker. Details to come.
+- **Phase 7** Meditation (replaces the LLM companion). Sits started on the
+  device: pick a practice and a length, POWER starts, a chime on the board's
+  speaker (ES8311) opens and closes the sit, interval bells optional. Practices
+  from the contemplative traditions and the breath research: cyclic sighing,
+  resonance breathing (about 6 a minute), The Mind Illuminated's stages,
+  noting (Mahasi, Shinzen Young's See Hear Feel), the jhanas by the pleasant
+  sensation (Brasington), do-nothing (Taft, shikantaza). Kael'thos gets
+  meditation poses. Sits sync like sessions; the web keeps the record (hours,
+  streak, depth by practice, stage reached) and teaches each practice.
+- **Phase 8** University (replaces the mood tracker). Physics at the
+  University of Vienna: courses, ECTS, grades, exam dates, progress through
+  the curriculum. Course data comes from u:find's public XML
+  (`m1-ufind.univie.ac.at/courses/<nr>/<semester>`: name, type, ECTS, module
+  codes, dates, rooms); grades are entered by hand, u:space has no API.
 - **Phase 9** Workout tracker, weights and cardio/runs. Details to come.
-- Dropped: audio (speaker signature, mic capture).
+- Audio: only the meditation chimes on the onboard speaker. No mic capture.
 
 ---
 
