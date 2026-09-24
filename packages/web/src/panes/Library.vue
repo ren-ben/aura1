@@ -240,7 +240,7 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
     camera.rotation.set(pitch, yaw, 0, 'YXZ');
     camera.position.set(Math.sin(yaw) * 0.3, EYE + Math.sin(t * 0.45) * 0.012, 2.45 - walkAt * CELL);
     if (!held) return;
-    held.u = Math.max(0, Math.min(1, held.u + dt * (held.dir > 0 ? 0.85 : -1.9)));
+    held.u = Math.max(0, Math.min(1, held.u + dt * (held.dir > 0 ? 0.5 : -1.1)));
     camera.getWorldDirection(fwd);
     const to = camera.position.clone().addScaledVector(fwd, HOLD).add(new THREE.Vector3(0, -0.02, 0));
     const k = 1 - Math.pow(0.0025, dt);
@@ -248,7 +248,7 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
     const home = held.hand ? edge(back) : held.mesh.position;
     held.holder.position.lerp(held.dir > 0 ? to : home, k);
     held.holder.quaternion.slerp(held.dir > 0 || held.hand ? camera.quaternion : held.mesh.quaternion, k);
-    held.grim.open(Math.max(0, (held.u - 0.32) / 0.68));
+    held.grim.open(Math.max(0, (held.u - 0.26) / 0.74));
     // The prompt rides just over the top of the book, wherever it is on the glass.
     if (prompt.value && held.dir > 0) {
       lift.set(0, 0.64, 0).applyQuaternion(camera.quaternion).add(held.holder.position).project(camera);
@@ -495,6 +495,8 @@ const prompt = ref<HTMLElement | null>(null);
 .studyFrame { flex: 1 1 auto; min-height: 340px; }
 .studyFrame :deep(.flush) { min-height: 0; }
 .studyHost { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* The study turns nothing under a finger: a swipe over it scrolls the page. */
+.studyHost :deep(.gl) { touch-action: pan-y; cursor: default; }
 .studyHost :deep(.hint) { left: 12px; bottom: 8px; right: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kept { flex: none; max-height: min(14vh, 112px); }
 .keeprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-bottom: 3px dotted var(--faint); }

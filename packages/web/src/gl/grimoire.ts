@@ -286,16 +286,41 @@ function treePage(book: ShelfEntry, seed: number): HTMLCanvasElement {
 
 export type Grimoire = {
   group: THREE.Group;
-  // 0 shut, 1 laid open. Everything between is the covers turning.
+  // 0 shut, 1 laid open. Everything between is the book coming open: the
+  // clasps let go, the cover swings up and over, and the leaves under it
+  // follow one after another before they settle. Played backwards, it shuts.
   open: (u: number) => void;
   dispose: () => void;
 };
 
+// A leaf of the book, neither the seal nor the tree: faded script, for the
+// pages that turn over between them.
+function blankLeaf(seed: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  const r = rng(seed);
+  paper(g, seed);
+  for (let y = S * 0.14; y < S * 0.88; y += S * 0.05) script(g, S * 0.12, S * (0.88 - r() * 0.15), y, 12, r);
+  return c;
+}
+
+const clamp = (v: number) => Math.max(0, Math.min(1, v));
+// Where a stage of the opening is, given when it starts and how long it runs.
+const stage = (u: number, from: number, len: number) => clamp((u - from) / len);
+const smooth = (x: number) => x * x * x * (x * (x * 6 - 15) + 10);
+// Past the mark and back, the way a heavy cover lands.
+const land = (x: number) => { const c = 1.4; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+
 export function grimoire(book: ShelfEntry, seed = 11): Grimoire {
   const group = new THREE.Group();
-  const w = 0.8, h = 1.1, thick = 0.042;
-  const leather = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.22, 0.22, 0.22) });
-  const edge = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.86, 0.86, 0.86) });
+  const book3 = new THREE.Group();
+  group.add(book3);
+  const w = 0.8, h = 1.1, board = 0.03, block = 0.05;
+  const leather = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.3, 0.3, 0.3) });
+  const tooled = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.75, 0.75, 0.75) });
+  const edges = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.85, 0.85, 0.85) });
+  const brass = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.95, 0.95, 0.95) });
 
   const tex = (c: HTMLCanvasElement) => {
     const t = new THREE.CanvasTexture(c);
@@ -305,36 +330,77 @@ export function grimoire(book: ShelfEntry, seed = 11): Grimoire {
   };
   const left = tex(sealPage(book, seed));
   const right = tex(treePage(book, seed));
-  const textures = [left, right];
+  const blank = tex(blankLeaf(seed + 9));
+  const textures = [left, right, blank];
 
-  // The block of pages, and the two leaves that turn off the spine.
-  const block = new THREE.Mesh(new THREE.BoxGeometry(w * 2 * 0.96, h * 0.96, thick * 0.9), edge);
-  block.position.set(0, 0, -thick * 0.5);
-  group.add(block);
-
-  const leaf = (side: 1 | -1, map: THREE.Texture) => {
-    const pivot = new THREE.Group();
-    const cover = new THREE.Mesh(new THREE.BoxGeometry(w, h, thick), leather);
-    cover.position.set((side * w) / 2, 0, -thick * 0.6);
-    pivot.add(cover);
-    const page = new THREE.Mesh(
-      new THREE.PlaneGeometry(w * 0.94, h * 0.94),
-      new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide, fog: false }),
-    );
-    page.position.set((side * w) / 2, 0, 0.001);
-    pivot.add(page);
-    group.add(pivot);
-    return pivot;
+  // Each half of the book: its board, its half of the text block, and the
+  // page on top, around a hinge at the spine. Lying open, both face you;
+  // the front half turned over onto the back one is the book shut.
+  const half = (side: 1 | -1, map: THREE.Texture) => {
+    const hinge = new THREE.Group();
+    const cover = new THREE.Mesh(new THREE.BoxGeometry(w, h, board), leather);
+    cover.position.set((side * w) / 2, 0, -block - board / 2);
+    hinge.add(cover);
+    // The tooling round the board's outer face, and a boss in its middle.
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(w * 0.86, h * 0.9, 0.004), tooled);
+    frame.position.set((side * w) / 2, 0, -block - board - 0.002);
+    hinge.add(frame);
+    const inset = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, h * 0.84, 0.006), leather);
+    inset.position.set((side * w) / 2, 0, -block - board - 0.004);
+    hinge.add(inset);
+    const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.02, 20), brass);
+    boss.rotation.x = Math.PI / 2;
+    boss.position.set((side * w) / 2, 0, -block - board - 0.012);
+    hinge.add(boss);
+    const pages = new THREE.Mesh(new THREE.BoxGeometry(w * 0.96, h * 0.96, block), edges);
+    pages.position.set((side * w * 0.96) / 2, 0, -block / 2);
+    hinge.add(pages);
+    const page = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.94, h * 0.94),
+      new THREE.MeshBasicMaterial({ map, fog: false }));
+    page.position.set((side * w * 0.94) / 2, 0, 0.001);
+    hinge.add(page);
+    book3.add(hinge);
+    return hinge;
   };
-  const leftLeaf = leaf(-1, left);
-  const rightLeaf = leaf(1, right);
+  const front = half(-1, left);
+  half(1, right);
 
-  // Clasps: two straps across the fore-edge, which let go as it opens.
-  const clasps = [-0.26, 0.26].map((y) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w * 2 * 1.02, 0.045, thick * 2.4), edge);
-    m.position.set(0, y * h, 0);
-    group.add(m);
-    return m;
+  // The spine: rounded, between the two boards.
+  const spine = new THREE.Mesh(new THREE.CylinderGeometry(block + board, block + board, h, 16, 1, false, Math.PI, Math.PI), leather);
+  spine.position.set(0, 0, -block - board);
+  spine.scale.set(0.35, 1, 1);
+  book3.add(spine);
+
+  // Two straps: riveted to the back board at its fore-edge, up over the
+  // edge of the pages and buckled across the front one. Unbuckled, each
+  // swings out and away before the cover can move.
+  const T = 2 * (block + board);
+  const straps = [-0.28, 0.28].map((y) => {
+    const hinge = new THREE.Group();
+    hinge.position.set(w, y * h, -block - board);
+    const wrap = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, T + 0.012), leather);
+    wrap.position.set(0.006, 0, T / 2);
+    hinge.add(wrap);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.008), leather);
+    band.position.set(-0.1, 0, T + 0.006);
+    hinge.add(band);
+    const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.016), brass);
+    clasp.position.set(-0.2, 0, T + 0.012);
+    hinge.add(clasp);
+    book3.add(hinge);
+    return hinge;
+  });
+
+  // The leaves that turn between the seal and the tree, a flutter of them.
+  const LEAVES = 6;
+  const leafGeo = new THREE.PlaneGeometry(w * 0.93, h * 0.93);
+  leafGeo.translate((w * 0.93) / 2, 0, 0);
+  const leafMat = new THREE.MeshBasicMaterial({ map: blank, side: THREE.DoubleSide, fog: false });
+  const leaves = Array.from({ length: LEAVES }, (_, i) => {
+    const leaf = new THREE.Mesh(leafGeo, leafMat);
+    leaf.position.z = 0.0016 + i * 0.0005;
+    book3.add(leaf);
+    return leaf;
   });
 
   group.rotation.x = -0.28;
@@ -342,16 +408,27 @@ export function grimoire(book: ShelfEntry, seed = 11): Grimoire {
   return {
     group,
     open(u: number) {
-      const e = u * u * (3 - 2 * u);
-      // Shut, the left leaf lies folded over the right one.
-      leftLeaf.rotation.y = (1 - e) * Math.PI;
-      rightLeaf.rotation.y = -(1 - e) * 0.06;
-      block.scale.z = 0.4 + e * 0.6;
-      clasps.forEach((c, i) => {
-        c.visible = u < 0.5;
-        c.position.z = (1 - e) * 0.0 + e * 0.2 * (i ? 1 : -1);
+      // The clasps let go.
+      const unclasp = smooth(stage(u, 0, 0.2));
+      straps.forEach((s, i) => { s.rotation.y = unclasp * (2.25 + i * 0.2); s.rotation.x = unclasp * (i ? 0.06 : -0.06); });
+      // The cover comes up and over, and lands with a little give.
+      const lift = stage(u, 0.14, 0.52);
+      const swing = lift < 1 ? smooth(lift) * 0.97 + (lift > 0.8 ? (land((lift - 0.8) / 0.2) - 1) * 0.03 : 0) : 1;
+      front.rotation.y = (1 - Math.min(1, swing)) * Math.PI;
+      // The leaves under it follow, one after another, each a little slower.
+      leaves.forEach((leaf, i) => {
+        const p = stage(u, 0.3 + i * 0.06, 0.28);
+        const e = smooth(p);
+        leaf.visible = p > 0 && p < 1;
+        leaf.rotation.y = -Math.PI * e;
+        // In the air a leaf lifts at its middle, and lies flat again once down.
+        leaf.rotation.x = Math.sin(Math.PI * e) * 0.12 * (i % 2 ? 1 : -1);
       });
-      group.rotation.x = -0.28 - e * 0.22;
+      // The book comes up to meet you as it opens, and settles back.
+      const open = smooth(stage(u, 0.1, 0.8));
+      group.rotation.x = -0.28 - open * 0.24;
+      book3.position.z = Math.sin(Math.PI * clamp(u * 1.1)) * 0.05;
+      book3.rotation.z = Math.sin(Math.PI * lift) * -0.025;
     },
     dispose() {
       textures.forEach((t) => t.dispose());
@@ -359,6 +436,7 @@ export function grimoire(book: ShelfEntry, seed = 11): Grimoire {
         if (o instanceof THREE.Mesh) {
           o.geometry.dispose();
           if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+          else o.material.dispose();
         }
       });
     },
