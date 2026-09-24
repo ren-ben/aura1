@@ -114,12 +114,23 @@ onBeforeUnmount(() => { cancelAnimationFrame(raf); ro?.disconnect(); ro2?.discon
 const count = computed(() => state.quotes.length);
 const at = computed(() => (count.value ? (index.value % count.value) + 1 : 0));
 const step = (d: number) => { if (count.value) index.value = (index.value + count.value + d) % count.value; };
+
+// A swipe across his script turns to the next intercept or back to the last.
+let swipe: { x: number; y: number } | null = null;
+const swipeDown = (e: PointerEvent) => { swipe = { x: e.clientX, y: e.clientY }; };
+function swipeUp(e: PointerEvent) {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) step(dx < 0 ? 1 : -1);
+}
 </script>
 
 <template>
   <div class="intercept">
     <Frame class="script" title="his script // the words, as he would write them" flush>
-      <canvas ref="glyph" aria-label="The quote drawn as a ring of his script"></canvas>
+      <canvas ref="glyph" aria-label="The quote drawn as a ring of his script, swipe to turn to another"
+        @pointerdown="swipeDown" @pointerup="swipeUp" @pointercancel="swipe = null"></canvas>
     </Frame>
 
     <Frame class="current" :title="`intercept ${String(at).padStart(2, '0')} of ${String(count).padStart(2, '0')} // he says these on the device`">
@@ -167,7 +178,7 @@ const step = (d: number) => { if (count.value) index.value = (index.value + coun
   grid-template-areas: "script current current" "write vault vault"; }
 .script { grid-area: script; }
 .script { position: relative; }
-.script canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.script canvas { width: 100%; height: 100%; object-fit: contain; display: block; touch-action: pan-y; }
 .script::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(circle at 50% 50%, transparent 52%, rgba(18, 18, 18, .55) 78%); }
 .current { grid-area: current; }
