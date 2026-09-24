@@ -196,7 +196,9 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
   walkAt = 0;
   // The dark between galleries is the fog: it is what makes the shaft deep.
   scene.fog = new THREE.Fog(0x000000, 2.2, 13);
-  lights(scene, 1.05, 0.4, 0.07);
+  // Faint light from nowhere; the lamps in the galleries do the rest, so
+  // the stacks fall away into the dark between them.
+  lights(scene, 0.4, 0.25, 0.04);
   // The galleries carry their own lamps, and go on in every direction.
   hall = stacks(entries.value);
   scene.add(hall.group);

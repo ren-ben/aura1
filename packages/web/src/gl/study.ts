@@ -7,6 +7,7 @@
 // them. Behind, the moon through the tracery.
 import * as THREE from 'three';
 import { rng, type Build } from './engine';
+import { moonDisc, starfield } from './plate';
 
 export type DeskBook = {
   title: string;
@@ -158,217 +159,324 @@ function lancet(cx: number, y0: number, w: number, h: number, path: THREE.Path =
   return path;
 }
 
+// The night outside the glass, drawn like every other sky on the console: a
+// cratered moon with its halo, a thin scatter of stars, and cloud across it.
+function paintSky(g: CanvasRenderingContext2D, w: number, h: number): void {
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+  starfield(g, w, h, 420, 23);
+  const r = rng(5);
+  for (let i = 0; i < 16; i++) {
+    g.fillStyle = '#fff';
+    const x = r() * w, y = r() * h * 0.8, s = 2 + r() * 2;
+    g.fillRect(x - s, y, s * 2 + 1, 1); g.fillRect(x, y - s, 1, s * 2 + 1);
+  }
+  moonDisc(g, w * 0.62, h * 0.3, w * 0.14, 11);
+  for (let i = 0; i < 4; i++) {
+    const y = h * (0.26 + i * 0.07), band = g.createLinearGradient(0, y - 10, 0, y + 10);
+    band.addColorStop(0, 'rgba(0,0,0,0)'); band.addColorStop(0.5, 'rgba(0,0,0,.55)'); band.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = band; g.fillRect(0, y - 10, w, 20);
+  }
+}
+
+// Ashlar: the wall laid in courses of dark stone, each block its own shade.
+function paintStone(g: CanvasRenderingContext2D, w: number, h: number): void {
+  const r = rng(29);
+  const rows = 14, bh = h / rows;
+  for (let row = 0; row < rows; row++) {
+    let x = row % 2 ? -bh : 0;
+    while (x < w) {
+      const bw = bh * (1.6 + r() * 1.4), v = 18 + r() * 16;
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x + 2, row * bh + 2, bw - 4, bh - 4);
+      g.fillStyle = `rgba(255,255,255,${0.03 + r() * 0.04})`;
+      g.fillRect(x + 2, row * bh + 2, bw - 4, 2);
+      x += bw;
+    }
+  }
+}
+
+// A circle of summoning chalked on the desk: rings, the houses, a star, and
+// letters nobody reads, turning slowly under the pile.
+function paintCircle(g: CanvasRenderingContext2D, s: number): void {
+  g.clearRect(0, 0, s, s);
+  g.fillStyle = '#000'; g.fillRect(0, 0, s, s);
+  const c = s / 2;
+  g.strokeStyle = '#fff'; g.fillStyle = '#fff';
+  for (const [rad, lw] of [[0.47, 5], [0.43, 2], [0.3, 3], [0.27, 1.5]] as const) {
+    g.lineWidth = lw; g.beginPath(); g.arc(c, c, s * rad, 0, Math.PI * 2); g.stroke();
+  }
+  g.lineWidth = 3; g.beginPath();
+  for (let i = 0; i <= 5; i++) {
+    const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5;
+    const x = c + Math.cos(a) * s * 0.3, y = c + Math.sin(a) * s * 0.3;
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  }
+  g.stroke();
+  const r = rng(61);
+  g.font = `${s * 0.04}px UnifrakturMaguntia, serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const letters = 'ABRAXASIAOSABAOTHADONAIELOHIMAGLA';
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
+    g.save(); g.translate(c + Math.cos(a) * s * 0.365, c + Math.sin(a) * s * 0.365); g.rotate(a + Math.PI / 2);
+    g.fillText(letters[i % letters.length]!, 0, 0); g.restore();
+  }
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + r();
+    g.beginPath(); g.arc(c + Math.cos(a) * s * 0.45, c + Math.sin(a) * s * 0.45, s * 0.018, 0, Math.PI * 2); g.fill();
+  }
+}
+
 export function study(books: DeskBook[], hooks: DeskHooks): Build {
   return ({ scene, camera, canvas: glass }) => {
     camera.fov = 34;
     camera.updateProjectionMatrix();
-    scene.fog = new THREE.Fog(0x000000, 4.5, 9);
+    scene.fog = new THREE.Fog(0x000000, 3.8, 8);
     // Everything made here that holds GPU memory, let go when the room is.
     const held: { dispose: () => void }[] = [];
     const keep = <T extends { dispose: () => void }>(x: T) => { held.push(x); return x; };
     glass.addEventListener('aura:dispose', () => held.forEach((x) => x.dispose()), { once: true });
+    const basic = (params: THREE.MeshBasicMaterialParameters) => keep(new THREE.MeshBasicMaterial(params));
 
-    // ---- the room -------------------------------------------------------
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-    // The reader's own lamp, low and to the left, off the edge of the glass:
-    // what the spines are read by.
-    const reading = new THREE.DirectionalLight(0xffffff, 1.1);
-    reading.position.set(-2, 2.2, 3.5);
-    scene.add(reading);
-    const moonlight = new THREE.DirectionalLight(0xffffff, 0.75);
-    moonlight.position.set(1.6, 3, -2.5);
+    // ---- light ------------------------------------------------------------
+    // Almost none. The room is lit by the candle and the moon, and the pile by
+    // a reading lamp overhead, so the books are the brightest thing in it.
+    scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+    const moonlight = new THREE.DirectionalLight(0xffffff, 0.35);
+    moonlight.position.set(1.2, 2.5, -2.5);
     scene.add(moonlight);
+    const lamp = new THREE.SpotLight(0xffffff, 9, 6, 0.42, 0.75, 1.2);
+    lamp.position.set(-0.9, 2.6, 1.6);
+    lamp.target.position.set(-0.15, 0.1, 0.2);
+    scene.add(lamp, lamp.target);
 
-    // The wall, with the window cut through it.
-    const WX = 0.8, WY = 0.5, WW = 0.9, WH = 0.7;
+    // ---- the wall and its window ------------------------------------------
+    const WX = 0.75, WY = 0.55, WW = 0.95, WH = 0.62;
+    const [stoneC, stoneG] = canvas(1024, 1024);
+    paintStone(stoneG, 1024, 1024);
+    const stone = keep(texture(stoneC));
+    stone.wrapS = stone.wrapT = THREE.RepeatWrapping;
+    stone.repeat.set(2.4, 2.4);
     const wallShape = new THREE.Shape();
     wallShape.moveTo(-5, -2); wallShape.lineTo(5, -2); wallShape.lineTo(5, 5); wallShape.lineTo(-5, 5); wallShape.lineTo(-5, -2);
     wallShape.holes.push(lancet(WX, WY, WW, WH, new THREE.Path()));
-    const wall = new THREE.Mesh(keep(new THREE.ShapeGeometry(wallShape, 24)), lambert(0.2));
+    const wallGeo = keep(new THREE.ShapeGeometry(wallShape, 24));
+    const uv = wallGeo.attributes.position!;
+    const uvs = new Float32Array(uv.count * 2);
+    for (let i = 0; i < uv.count; i++) { uvs[i * 2] = (uv.getX(i) + 5) / 10; uvs[i * 2 + 1] = (uv.getY(i) + 2) / 7; }
+    wallGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    const wall = new THREE.Mesh(wallGeo, keep(new THREE.MeshLambertMaterial({ map: stone })));
     wall.position.z = -1.35;
     scene.add(wall);
-    // Stone courses on it, faintly.
-    const courses = new THREE.Group();
-    for (let i = 0; i < 9; i++) {
-      const y = -1 + i * 0.55;
-      const line = new THREE.Mesh(keep(new THREE.BoxGeometry(10, 0.012, 0.01)), lambert(0.1));
-      line.position.set(0, y, -1.34);
-      courses.add(line);
-    }
-    scene.add(courses);
 
-    // The window: its frame of stone, a mullion, a transom, a round of tracery, the sill.
-    const frameShape = lancet(WX, WY - 0.08, WW + 0.2, WH + 0.08) as THREE.Shape;
+    // The window's stone: a deep reveal, two lights under a round, the sill.
+    const stoneMat = keep(new THREE.MeshLambertMaterial({ color: grey(0.34) }));
+    const frameShape = lancet(WX, WY - 0.09, WW + 0.22, WH + 0.09) as THREE.Shape;
     frameShape.holes.push(lancet(WX, WY, WW, WH, new THREE.Path()));
-    const frame = new THREE.Mesh(keep(new THREE.ExtrudeGeometry(frameShape, { depth: 0.14, bevelEnabled: false, curveSegments: 24 })), lambert(0.42));
-    frame.position.z = -1.42;
+    const frame = new THREE.Mesh(keep(new THREE.ExtrudeGeometry(frameShape, { depth: 0.22, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2, curveSegments: 32 })), stoneMat);
+    frame.position.z = -1.5;
     scene.add(frame);
     const apex = WY + WH + WW * Math.sin(Math.PI / 3);
-    const stoneBar = (w: number, h: number, x: number, y: number) => {
-      const m = new THREE.Mesh(keep(new THREE.BoxGeometry(w, h, 0.07)), lambert(0.4));
-      m.position.set(x, y, -1.38);
-      scene.add(m);
-    };
-    stoneBar(0.045, apex - WY - 0.25, WX, WY + (apex - WY - 0.25) / 2);
-    stoneBar(WW, 0.045, WX, WY + WH * 0.55);
-    const rose = new THREE.Mesh(keep(new THREE.TorusGeometry(0.16, 0.022, 6, 24)), lambert(0.4));
-    rose.position.set(WX, WY + WH + 0.3, -1.38);
-    scene.add(rose);
-    stoneBar(WW + 0.34, 0.07, WX, WY - 0.09);
+    // Two narrow lancets inside the big one, and a round over them.
+    const inner = new THREE.Shape();
+    inner.moveTo(WX - WW / 2, WY); inner.lineTo(WX + WW / 2, WY); inner.lineTo(WX + WW / 2, apex); inner.lineTo(WX - WW / 2, apex); inner.lineTo(WX - WW / 2, WY);
+    const lw = WW * 0.4, lh = WH * 0.95;
+    inner.holes.push(lancet(WX - WW * 0.23, WY, lw, lh, new THREE.Path()));
+    inner.holes.push(lancet(WX + WW * 0.23, WY, lw, lh, new THREE.Path()));
+    const roundR = WW * 0.17, roundY = WY + lh + lw * 0.87 + roundR * 1.05;
+    const oculus = new THREE.Path(); oculus.absarc(WX, roundY, roundR, 0, Math.PI * 2, true);
+    inner.holes.push(oculus);
+    const tracery = new THREE.Mesh(keep(new THREE.ExtrudeGeometry(inner, { depth: 0.05, bevelEnabled: false, curveSegments: 32 })), stoneMat);
+    // Only the tracery inside the arch shows: the wall covers the rest.
+    tracery.position.z = -1.43;
+    scene.add(tracery);
+    const cusps = new THREE.Mesh(keep(new THREE.TorusGeometry(roundR * 0.55, 0.012, 6, 4)), stoneMat);
+    cusps.position.set(WX, roundY, -1.4);
+    cusps.rotation.z = Math.PI / 4;
+    scene.add(cusps);
+    const sill = new THREE.Mesh(keep(new THREE.BoxGeometry(WW + 0.4, 0.06, 0.34)), stoneMat);
+    sill.position.set(WX, WY - 0.12, -1.3);
+    scene.add(sill);
+    // A candle guttered out on the sill, long ago.
+    const stub = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.03, 0.035, 0.09, 12)), keep(new THREE.MeshLambertMaterial({ color: grey(0.6) })));
+    stub.position.set(WX + WW * 0.34, WY - 0.045, -1.24);
+    scene.add(stub);
 
-    // Outside: the night, the stars, the moon, and its light coming in.
-    const sky = new THREE.Mesh(keep(new THREE.PlaneGeometry(4, 4)), new THREE.MeshBasicMaterial({ color: grey(0.04), fog: false }));
-    sky.position.set(WX, 1.4, -2.4);
+    // Outside.
+    const [skyC, skyG] = canvas(1024, 1024);
+    paintSky(skyG, 1024, 1024);
+    const sky = new THREE.Mesh(keep(new THREE.PlaneGeometry(2.6, 2.6)), basic({ map: keep(texture(skyC)), fog: false }));
+    sky.position.set(WX - 0.5, 0.78, -2.1);
     scene.add(sky);
-    const r = rng(7);
-    const starPos = new Float32Array(120 * 3);
-    for (let i = 0; i < 120; i++) starPos.set([WX + (r() - 0.5) * 2.4, 0.4 + r() * 2.4, -2.3], i * 3);
-    const starGeo = keep(new THREE.BufferGeometry());
-    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false })));
-    const moon = new THREE.Mesh(keep(new THREE.SphereGeometry(0.2, 32, 16)), new THREE.MeshBasicMaterial({ color: grey(0.95), fog: false }));
-    moon.position.set(WX + 0.18, WY + WH + 0.1, -2.2);
-    scene.add(moon);
-    const bite = new THREE.Mesh(keep(new THREE.SphereGeometry(0.2, 32, 16)), new THREE.MeshBasicMaterial({ color: grey(0.04), fog: false }));
-    bite.position.set(WX + 0.28, WY + WH + 0.16, -2.19);
-    scene.add(bite);
-    // The beam: faint, so the dither lays it down as a scatter of light.
+    // Its light, coming in across the desk, faint enough to be a scatter.
     const beamGeo = keep(new THREE.BufferGeometry());
     beamGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-      WX - WW / 2, WY + WH, -1.36, WX + WW / 2, WY + WH, -1.36, WX + WW / 2 - 0.6, 0.002, 0.7,
-      WX - WW / 2, WY + WH, -1.36, WX + WW / 2 - 0.6, 0.002, 0.7, WX - WW / 2 - 0.8, 0.002, 0.5,
+      WX - WW / 2, WY + WH, -1.36, WX + WW / 2, WY + WH, -1.36, WX - 0.15, 0.004, 0.6,
+      WX - WW / 2, WY + WH, -1.36, WX - 0.15, 0.004, 0.6, WX - 1.2, 0.004, 0.45,
     ]), 3));
-    const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }));
-    scene.add(beam);
+    scene.add(new THREE.Mesh(beamGeo, basic({ color: 0xffffff, transparent: true, opacity: 0.055, depthWrite: false, side: THREE.DoubleSide })));
 
-    // ---- the desk -------------------------------------------------------
+    // ---- the desk -----------------------------------------------------------
     const [woodC, woodG] = canvas(1024, 512);
     paintWood(woodG, 1024, 512);
-    const wood = keep(texture(woodC));
-    const deskMat = new THREE.MeshLambertMaterial({ map: wood });
-    const top = new THREE.Mesh(keep(new THREE.BoxGeometry(4.4, 0.12, 1.9)), deskMat);
+    const woodMat = keep(new THREE.MeshLambertMaterial({ map: keep(texture(woodC)) }));
+    const top = new THREE.Mesh(keep(new THREE.BoxGeometry(4.4, 0.12, 1.9)), woodMat);
     top.position.set(0, -0.06, -0.25);
     scene.add(top);
-    const apron = new THREE.Mesh(keep(new THREE.BoxGeometry(4.3, 0.55, 0.08)), lambert(0.16));
-    apron.position.set(0, -0.4, 0.62);
-    scene.add(apron);
-    const lip = new THREE.Mesh(keep(new THREE.BoxGeometry(4.46, 0.035, 0.05)), lambert(0.45));
-    lip.position.set(0, -0.015, 0.69);
+    const carved = keep(new THREE.MeshLambertMaterial({ color: grey(0.22) }));
+    const lip = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.04, 0.04, 4.46, 12)), carved);
+    lip.rotation.z = Math.PI / 2;
+    lip.position.set(0, -0.03, 0.7);
     scene.add(lip);
+    const apron = new THREE.Mesh(keep(new THREE.BoxGeometry(4.3, 0.5, 0.06)), keep(new THREE.MeshLambertMaterial({ color: grey(0.08) })));
+    apron.position.set(0, -0.35, 0.64);
+    scene.add(apron);
 
-    // ---- the skull, and the candle on it ------------------------------------
-    const bone = lambert(0.78), hollow = lambert(0.02);
+    // The circle under the pile, chalked and faintly alight.
+    const [circleC, circleG] = canvas(1024, 1024);
+    paintCircle(circleG, 1024);
+    const circleTex = keep(texture(circleC));
+    const circle = new THREE.Mesh(keep(new THREE.PlaneGeometry(1.9, 1.9)),
+      basic({ map: circleTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.4 }));
+    circle.rotation.x = -Math.PI / 2;
+    circle.position.set(-0.15, 0.002, 0.18);
+    scene.add(circle);
+
+    // ---- the skull and its candle ---------------------------------------------
+    const bone = keep(new THREE.MeshLambertMaterial({ color: grey(0.62) }));
+    const hollow = basic({ color: 0x000000 });
     const skull = new THREE.Group();
-    const cranium = new THREE.Mesh(keep(new THREE.SphereGeometry(0.2, 32, 24)), bone);
-    cranium.scale.set(1, 0.92, 1.12);
-    cranium.position.y = 0.25;
+    const cranium = new THREE.Mesh(keep(new THREE.SphereGeometry(0.2, 40, 30)), bone);
+    cranium.scale.set(0.96, 0.9, 1.15);
+    cranium.position.set(0, 0.27, -0.02);
     skull.add(cranium);
-    const face = new THREE.Mesh(keep(new THREE.SphereGeometry(0.15, 24, 16)), bone);
-    face.scale.set(1, 0.9, 0.8);
-    face.position.set(0, 0.16, 0.1);
+    const face = new THREE.Mesh(keep(new THREE.SphereGeometry(0.16, 32, 24)), bone);
+    face.scale.set(0.95, 0.85, 0.75);
+    face.position.set(0, 0.17, 0.09);
     skull.add(face);
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(keep(new THREE.SphereGeometry(0.05, 16, 12)), hollow);
-      eye.scale.set(1, 1.1, 0.6);
-      eye.position.set(s * 0.068, 0.2, 0.205);
-      skull.add(eye);
+      const cheek = new THREE.Mesh(keep(new THREE.SphereGeometry(0.05, 16, 12)), bone);
+      cheek.position.set(s * 0.1, 0.12, 0.13);
+      skull.add(cheek);
+      const socket = new THREE.Mesh(keep(new THREE.SphereGeometry(0.055, 20, 16)), hollow);
+      socket.scale.set(1, 0.95, 0.55);
+      socket.position.set(s * 0.068, 0.2, 0.19);
+      skull.add(socket);
     }
-    const nose = new THREE.Mesh(keep(new THREE.ConeGeometry(0.025, 0.06, 3)), hollow);
+    const nose = new THREE.Mesh(keep(new THREE.ConeGeometry(0.028, 0.065, 3)), hollow);
     nose.rotation.x = Math.PI;
-    nose.position.set(0, 0.125, 0.22);
+    nose.position.set(0, 0.125, 0.205);
     skull.add(nose);
-    const jaw = new THREE.Mesh(keep(new THREE.BoxGeometry(0.19, 0.08, 0.16)), bone);
-    jaw.position.set(0, 0.04, 0.09);
+    const jaw = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.1, 0.085, 0.07, 24, 1, false, -Math.PI / 2, Math.PI)), bone);
+    jaw.position.set(0, 0.04, 0.08);
     skull.add(jaw);
-    for (let i = 0; i < 6; i++) {
-      const tooth = new THREE.Mesh(keep(new THREE.BoxGeometry(0.022, 0.035, 0.02)), lambert(0.9));
-      tooth.position.set(-0.06 + i * 0.024, 0.085, 0.17);
+    const toothGeo = keep(new THREE.BoxGeometry(0.018, 0.03, 0.02));
+    for (let i = 0; i < 8; i++) {
+      const a = -0.95 + (i / 7) * 1.9;
+      const tooth = new THREE.Mesh(toothGeo, bone);
+      tooth.position.set(Math.sin(a) * 0.1, 0.085, 0.08 + Math.cos(a) * 0.085);
+      tooth.rotation.y = a;
       skull.add(tooth);
     }
-    const wax = lambert(0.85);
-    const candle = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.042, 0.048, 0.34, 20)), wax);
+    const wax = keep(new THREE.MeshLambertMaterial({ color: grey(0.85) }));
+    const candle = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.04, 0.046, 0.3, 20)), wax);
     candle.position.y = 0.6;
     skull.add(candle);
-    for (const [x, z, len] of [[0.04, 0.02, 0.16], [-0.03, 0.035, 0.24], [0.01, -0.04, 0.12]] as const) {
-      const drip = new THREE.Mesh(keep(new THREE.CapsuleGeometry(0.012, len, 4, 8)), wax);
-      drip.position.set(x, 0.62 - len / 2, z);
+    for (const [x, z, len] of [[0.04, 0.02, 0.2], [-0.035, 0.03, 0.28], [0.01, -0.04, 0.14], [0.12, 0.08, 0.1]] as const) {
+      const drip = new THREE.Mesh(keep(new THREE.CapsuleGeometry(0.011, len, 4, 8)), wax);
+      drip.position.set(x, 0.6 - len / 2, z);
       skull.add(drip);
     }
-    const pool = new THREE.Mesh(keep(new THREE.SphereGeometry(0.09, 16, 8)), wax);
-    pool.scale.set(1, 0.25, 1);
+    const pool = new THREE.Mesh(keep(new THREE.SphereGeometry(0.1, 20, 8)), wax);
+    pool.scale.set(1, 0.22, 1);
     pool.position.y = 0.44;
     skull.add(pool);
-    const flame = new THREE.Mesh(keep(new THREE.SphereGeometry(0.03, 16, 12)), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    flame.position.y = 0.83;
+    const flame = new THREE.Mesh(keep(new THREE.SphereGeometry(0.028, 16, 12)), basic({ color: 0xffffff }));
+    flame.position.y = 0.8;
     skull.add(flame);
     const [haloC, haloG] = canvas(128, 128);
     const glow = haloG.createRadialGradient(64, 64, 0, 64, 64, 64);
-    glow.addColorStop(0, 'rgba(255,255,255,.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+    glow.addColorStop(0, 'rgba(255,255,255,.6)'); glow.addColorStop(0.35, 'rgba(255,255,255,.18)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
     haloG.fillStyle = glow; haloG.fillRect(0, 0, 128, 128);
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: keep(texture(haloC)), depthWrite: false, transparent: true }));
-    halo.scale.set(0.5, 0.5, 1);
-    halo.position.y = 0.83;
+    const halo = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: keep(texture(haloC)), depthWrite: false, transparent: true, blending: THREE.AdditiveBlending })));
+    halo.scale.set(0.7, 0.7, 1);
+    halo.position.y = 0.8;
     skull.add(halo);
-    const candlelight = new THREE.PointLight(0xffffff, 2.4, 5, 1.6);
-    candlelight.position.y = 0.86;
+    const candlelight = new THREE.PointLight(0xffffff, 2.6, 3.4, 1.5);
+    candlelight.position.y = 0.84;
     skull.add(candlelight);
-    skull.position.set(0.82, 0, 0.02);
-    skull.rotation.y = -0.45;
+    skull.position.set(0.8, 0, -0.05);
+    skull.rotation.y = -0.5;
     scene.add(skull);
 
-    // ---- the hourglass --------------------------------------------------
+    // ---- the hourglass --------------------------------------------------------
+    const brass = keep(new THREE.MeshLambertMaterial({ color: grey(0.4) }));
     const hourglass = new THREE.Group();
-    const cap = keep(new THREE.CylinderGeometry(0.14, 0.14, 0.03, 16));
-    for (const y of [0.015, 0.45]) { const m = new THREE.Mesh(cap, lambert(0.3)); m.position.y = y; hourglass.add(m); }
-    const post = keep(new THREE.CylinderGeometry(0.01, 0.01, 0.43, 6));
+    const cap = keep(new THREE.CylinderGeometry(0.13, 0.14, 0.035, 20));
+    for (const y of [0.018, 0.46]) { const m = new THREE.Mesh(cap, brass); m.position.y = y; hourglass.add(m); }
+    const post = keep(new THREE.CylinderGeometry(0.009, 0.009, 0.43, 6));
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
-      const m = new THREE.Mesh(post, lambert(0.35));
-      m.position.set(Math.cos(a) * 0.11, 0.23, Math.sin(a) * 0.11);
+      const m = new THREE.Mesh(post, brass);
+      m.position.set(Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.11);
       hourglass.add(m);
     }
-    const bulb = [0.03, 0.09, 0.105, 0.09, 0.03, 0.012, 0.03, 0.09, 0.105, 0.09, 0.03].map((x, i) => new THREE.Vector2(x, 0.03 + i * 0.04));
-    hourglass.add(new THREE.Mesh(keep(new THREE.LatheGeometry(bulb, 20)), new THREE.MeshLambertMaterial({ color: grey(0.7), transparent: true, opacity: 0.45 })));
-    const sand = new THREE.Mesh(keep(new THREE.ConeGeometry(0.075, 0.08, 16)), lambert(0.75));
-    sand.position.y = 0.08;
+    const bulb = [0.02, 0.085, 0.1, 0.085, 0.03, 0.01, 0.03, 0.085, 0.1, 0.085, 0.02].map((x, i) => new THREE.Vector2(x, 0.035 + i * 0.039));
+    hourglass.add(new THREE.Mesh(keep(new THREE.LatheGeometry(bulb, 24)),
+      keep(new THREE.MeshLambertMaterial({ color: grey(0.9), transparent: true, opacity: 0.22, depthWrite: false }))));
+    const sand = new THREE.Mesh(keep(new THREE.ConeGeometry(0.075, 0.07, 20)), keep(new THREE.MeshLambertMaterial({ color: grey(0.8) })));
+    sand.position.y = 0.075;
     hourglass.add(sand);
-    hourglass.position.set(1.08, 0, -0.62);
+    hourglass.position.set(-1.2, 0, -0.55);
     scene.add(hourglass);
 
-    // ---- the inkwell and its quill -----------------------------------------
+    // ---- the inkwell and its quill ----------------------------------------------
     const ink = new THREE.Group();
-    const well = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.11, 0.13, 0.1, 20)), lambert(0.12));
-    well.position.y = 0.05;
+    const well = new THREE.Mesh(keep(new THREE.LatheGeometry(
+      [[0, 0], [0.12, 0], [0.13, 0.03], [0.12, 0.08], [0.06, 0.11], [0.05, 0.15], [0.06, 0.16], [0, 0.16]].map(([x, y]) => new THREE.Vector2(x, y)), 24)),
+      keep(new THREE.MeshLambertMaterial({ color: grey(0.2) })));
     ink.add(well);
-    const neck = new THREE.Mesh(keep(new THREE.CylinderGeometry(0.05, 0.06, 0.05, 16)), lambert(0.12));
-    neck.position.y = 0.12;
-    ink.add(neck);
     const vane = new THREE.Shape();
-    vane.moveTo(0, 0); vane.quadraticCurveTo(0.07, 0.3, 0.02, 0.62); vane.quadraticCurveTo(-0.04, 0.3, 0, 0);
-    const quill = new THREE.Mesh(keep(new THREE.ShapeGeometry(vane, 12)), new THREE.MeshLambertMaterial({ color: grey(0.85), side: THREE.DoubleSide }));
-    quill.position.set(0, 0.12, 0);
-    quill.rotation.set(-0.25, 0.6, 0.35);
+    vane.moveTo(0, 0); vane.quadraticCurveTo(0.09, 0.32, 0.03, 0.66); vane.quadraticCurveTo(-0.05, 0.34, 0, 0);
+    const quill = new THREE.Mesh(keep(new THREE.ShapeGeometry(vane, 16)), keep(new THREE.MeshLambertMaterial({ color: grey(0.9), side: THREE.DoubleSide })));
+    quill.position.set(0, 0.14, 0);
+    quill.rotation.set(-0.3, 0.5, 0.4);
     ink.add(quill);
-    ink.position.set(0.42, 0, 0.78);
+    ink.position.set(-1.05, 0, 0.45);
     scene.add(ink);
 
-    // ---- loose leaves ---------------------------------------------------
-    [[0.62, 0.5, 0.35, 11], [0.2, -0.45, -0.3, 12]].forEach(([x, z, turn, seed]) => {
+    // ---- loose leaves ---------------------------------------------------------
+    [[0.55, 0.45, 0.4, 11], [-0.95, -0.2, -0.35, 12]].forEach(([x, z, turn, seed]) => {
       const [c, g] = canvas(512, 360);
       paintLeaf(g, 512, 360, seed!);
-      const leaf = new THREE.Mesh(keep(new THREE.PlaneGeometry(0.62, 0.44)), new THREE.MeshLambertMaterial({ map: keep(texture(c)) }));
+      const leaf = new THREE.Mesh(keep(new THREE.PlaneGeometry(0.6, 0.42)), keep(new THREE.MeshLambertMaterial({ map: keep(texture(c)) })));
       leaf.rotation.set(-Math.PI / 2, 0, turn!);
-      leaf.position.set(x!, 0.003, z!);
+      leaf.position.set(x!, 0.004, z!);
       scene.add(leaf);
     });
 
-    // ---- the pile -------------------------------------------------------
-    // Newest on top. Each book is a group, so it can be slid and lifted.
+    // ---- motes in the lamp's light ------------------------------------------------
+    const MOTES = 70;
+    const motePos = new Float32Array(MOTES * 3), moteCol = new Float32Array(MOTES * 3), moteSeed = new Float32Array(MOTES);
+    const mr = rng(3);
+    for (let i = 0; i < MOTES; i++) {
+      motePos.set([-0.9 + mr() * 1.6, mr() * 1.6, -0.4 + mr() * 1.2], i * 3);
+      moteSeed[i] = mr() * 100;
+    }
+    const moteGeo = keep(new THREE.BufferGeometry());
+    moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+    moteGeo.setAttribute('color', new THREE.BufferAttribute(moteCol, 3));
+    scene.add(new THREE.Points(moteGeo, keep(new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true, fog: false }))));
+
+    // ---- the pile -------------------------------------------------------------
+    // Newest on top. Each book is a group, so it can be slid and lifted, with
+    // a line drawn round it while the pointer is on it.
     const D = 0.72;
     const covers: THREE.Mesh[] = [];
+    const outlineMat = basic({ color: 0xffffff, side: THREE.BackSide });
     const pile = books.map((b, i) => {
       const f = rng(b.seed);
-      const L = 1.02 + f() * 0.3, t = 0.13 + Math.min(0.07, b.chapters * 0.0025);
+      const L = 1.05 + f() * 0.28, t = 0.13 + Math.min(0.07, b.chapters * 0.0025);
       const spineH = Math.max(48, Math.round((1024 * t) / L));
       const [sc, sg] = canvas(1024, spineH);
       const [cc, cg] = canvas(512, Math.round((512 * D) / L));
@@ -379,26 +487,26 @@ export function study(books: DeskBook[], hooks: DeskHooks): Build {
       const spine = keep(texture(sc));
       const draw = () => { paintSpine(sg, 1024, spineH, b); spine.needsUpdate = true; };
       draw();
+      const spineMat = keep(new THREE.MeshLambertMaterial({ map: spine, emissive: 0xffffff, emissiveMap: spine, emissiveIntensity: 0.35 }));
       // The faces: +x, -x the head and tail, +y the cover, -y the back
       // cover, +z the spine to you, -z the fore-edge.
-      const mats = [
-        new THREE.MeshLambertMaterial({ map: pages }), new THREE.MeshLambertMaterial({ map: pages }),
-        new THREE.MeshLambertMaterial({ map: keep(texture(cc)) }), lambert(0.12),
-        // The name glows a little of its own, so the dither never loses it.
-        new THREE.MeshLambertMaterial({ map: spine, emissive: 0xffffff, emissiveMap: spine, emissiveIntensity: 0.45 }),
-        new THREE.MeshLambertMaterial({ map: pages }),
-      ];
-      const mesh = new THREE.Mesh(keep(new THREE.BoxGeometry(L, t, D)), mats);
+      const pageMat = keep(new THREE.MeshLambertMaterial({ map: pages }));
+      const mats = [pageMat, pageMat, keep(new THREE.MeshLambertMaterial({ map: keep(texture(cc)) })),
+        keep(new THREE.MeshLambertMaterial({ color: grey(0.1) })), spineMat, pageMat];
+      const geo = keep(new THREE.BoxGeometry(L, t, D));
+      const mesh = new THREE.Mesh(geo, mats);
       mesh.userData.index = i;
       covers.push(mesh);
+      const outline = new THREE.Mesh(geo, outlineMat);
+      outline.scale.set(1 + 0.03 / L, 1 + 0.03 / t, 1 + 0.03 / D);
+      outline.visible = false;
       const group = new THREE.Group();
-      group.add(mesh);
+      group.add(outline, mesh);
       scene.add(group);
-      return { group, t, x: -0.32 + (f() - 0.5) * 0.24, z: 0.3 + (f() - 0.5) * 0.12, yaw: (f() - 0.5) * 0.5, draw, y: 0, off: 0 };
+      return { group, outline, spineMat, t, x: -0.15 + (f() - 0.5) * 0.22, z: 0.22 + (f() - 0.5) * 0.12, yaw: (f() - 0.5) * 0.45, draw, y: 0 };
     });
     // The fonts arrive after the first paint; the spines are painted again.
     document.fonts?.ready.then(() => pile.forEach((p) => p.draw()));
-    // Laid down at once where they rest, before anything moves.
     const rest = () => {
       let y = 0;
       const out = hooks.out();
@@ -411,7 +519,7 @@ export function study(books: DeskBook[], hooks: DeskHooks): Build {
     rest();
     pile.forEach((p) => { p.group.position.set(p.x, p.y, p.z); p.group.rotation.y = p.yaw; });
 
-    // ---- looking, and picking ---------------------------------------------
+    // ---- looking, and picking ---------------------------------------------------
     const ray = new THREE.Raycaster();
     const pointer = new THREE.Vector2(9, 9);
     let hovered = -1, down: { x: number; y: number } | null = null;
@@ -443,30 +551,48 @@ export function study(books: DeskBook[], hooks: DeskHooks): Build {
     glass.addEventListener('pointerup', onUp);
     glass.addEventListener('pointerleave', onLeave);
 
-    const eye = new THREE.Vector3(0, 1.4, 3.05), look = new THREE.Vector3(0.08, 0.34, -0.3);
+    // The pile's height sets where the eye rests: the top book is always in view.
+    const height = pile.reduce((a, p) => a + p.t, 0);
+    const eye = new THREE.Vector3(-0.05, 1.3, 2.75), look = new THREE.Vector3(-0.05, Math.min(0.45, 0.15 + height * 0.5), -0.2);
     const lean = new THREE.Vector2();
     return (t, dt) => {
       const k = 1 - Math.pow(0.004, dt);
       // The candle gutters; the light on everything breathes with it.
       const f = Math.sin(t * 7.3) * 0.5 + Math.sin(t * 13.1) * 0.3 + Math.sin(t * 2.1) * 0.2;
       flame.scale.set(1 - f * 0.08, 1.9 + f * 0.25, 1 - f * 0.08);
-      candlelight.intensity = 2.4 + f * 0.45;
-      halo.material.opacity = 0.85 + f * 0.15;
+      candlelight.intensity = 2.6 + f * 0.5;
+      halo.material.opacity = 0.8 + f * 0.2;
+      circle.rotation.z = t * 0.03;
+      (circle.material as THREE.MeshBasicMaterial).opacity = 0.34 + Math.sin(t * 0.7) * 0.08;
+      // Motes rise through the light, and catch it as they turn.
+      for (let i = 0; i < MOTES; i++) {
+        const s = moteSeed[i]!;
+        let y = motePos[i * 3 + 1]! + dt * (0.02 + (s % 1) * 0.03);
+        if (y > 1.7) y = 0.05;
+        motePos[i * 3 + 1] = y;
+        motePos[i * 3] = motePos[i * 3]! + Math.sin(t * 0.5 + s) * dt * 0.02;
+        const v = Math.max(0, Math.sin(t * (0.8 + (s % 3) * 0.4) + s)) * 0.9;
+        moteCol.set([v, v, v], i * 3);
+      }
+      moteGeo.attributes.position!.needsUpdate = true;
+      moteGeo.attributes.color!.needsUpdate = true;
       // The room leans a little toward the pointer, as a head would.
       if (Math.abs(pointer.x) <= 1) lean.lerp(pointer, 0.04); else lean.multiplyScalar(0.96);
       // A narrow glass stands further back, so the whole desk is still in it.
       const back = Math.max(0, 1.5 - camera.aspect) * 1.6;
-      camera.position.set(eye.x + lean.x * 0.18, eye.y + lean.y * 0.08 + back * 0.3, eye.z + back);
+      camera.position.set(eye.x + lean.x * 0.16, eye.y + lean.y * 0.07 + back * 0.3, eye.z + back);
       camera.lookAt(look);
       // The pile: the book taken slides off toward the hall, the ones above
-      // it come down, the one under the pointer comes out to meet it.
+      // it come down, the one under the pointer comes out to meet you, lit.
       rest();
       const out = hooks.out();
-      // Down into the gap only once the book taken has slid clear of it.
       const clear = out < 0 || pile[out]!.group.position.x - pile[out]!.x > 1.6;
       pile.forEach((p, i) => {
-        const x = p.x + (i === out ? 3.4 : 0) + (i === hovered && i !== out ? -0.05 : 0);
-        const z = p.z + (i === hovered && i !== out ? 0.16 : 0);
+        const on = i === hovered && i !== out;
+        p.outline.visible = on;
+        p.spineMat.emissiveIntensity += ((on ? 0.8 : 0.35) - p.spineMat.emissiveIntensity) * k;
+        const x = p.x + (i === out ? 3.4 : 0) + (on ? -0.04 : 0);
+        const z = p.z + (on ? 0.18 : 0);
         p.group.position.x += (x - p.group.position.x) * k;
         p.group.position.z += (z - p.group.position.z) * k;
         p.group.position.y += ((clear ? p.y : p.group.position.y) - p.group.position.y) * k;

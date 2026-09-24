@@ -4,12 +4,12 @@
 import * as THREE from 'three';
 
 const DITHER = `
-  uniform sampler2D tex; uniform vec2 res; uniform float px; uniform vec3 ink; uniform vec3 ground;
+  uniform sampler2D tex; uniform vec2 cells; uniform float px; uniform vec3 ink; uniform vec3 ground;
   float b2(vec2 a) { a = floor(mod(a, 2.0)); return mod(a.x * 2.0 + a.y * 3.0, 4.0); }
   float bayer(vec2 p) { return (4.0 * b2(p) + b2(floor(p / 2.0))) / 16.0; }
   void main() {
     vec2 cell = floor(gl_FragCoord.xy / px);
-    vec3 c = texture2D(tex, (cell * px + px * 0.5) / res).rgb;
+    vec3 c = texture2D(tex, (cell + 0.5) / cells).rgb;
     float l = dot(c, vec3(0.299, 0.587, 0.114));
     bool on = l > bayer(cell) + 0.015;
     gl_FragColor = on ? vec4(ink, 1.0) : vec4(ground, 0.0);
@@ -30,8 +30,13 @@ export type Options = { dither?: boolean; px?: number; fov?: number; distance?: 
 
 export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Options = {}) {
   const { dither = true, px = 2, fov = 34, distance = 4.2, drift = 0.0035, tilt = 0.12, yaw = 0.4 } = opts;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !dither, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !dither, alpha: true, powerPreference: 'high-performance' });
+  // A dithered scene is drawn once per dither cell, never once per pixel:
+  // the whole glass is a cell a pixel, scaled up crisp. The same cells, a
+  // sixteenth of the work on a retina screen, and points and lines keep the
+  // size they had.
+  renderer.setPixelRatio(dither ? 1 / px : Math.min(devicePixelRatio, 2));
+  if (dither) canvas.style.imageRendering = 'pixelated';
   const scene = new THREE.Scene();
   // Left unset: the pane behind shows through wherever the dither says ground.
   scene.background = null;
@@ -44,12 +49,12 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   const turn = { x: tilt, y: yaw, hold: false };
   const tick = build({ scene, group, camera, turn, canvas }) || (() => {});
 
-  const target = dither ? new THREE.WebGLRenderTarget(2, 2) : null;
+  const target = dither ? new THREE.WebGLRenderTarget(2, 2, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter }) : null;
   const quadScene = new THREE.Scene();
   const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      tex: { value: target?.texture ?? null }, res: { value: new THREE.Vector2() }, px: { value: px },
+      tex: { value: target?.texture ?? null }, cells: { value: new THREE.Vector2(1, 1) }, px: { value: px },
       ink: { value: new THREE.Color(INK) }, ground: { value: new THREE.Color(GROUND) },
     },
     vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
@@ -84,10 +89,10 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    const pr = renderer.getPixelRatio();
-    target?.setSize(w * pr, h * pr);
-    material.uniforms.res!.value.set(w * pr, h * pr);
-    material.uniforms.px!.value = px * pr;
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    target?.setSize(size.x, size.y);
+    material.uniforms.cells!.value.copy(size);
+    material.uniforms.px!.value = 1;
   }
   // Resizing wipes the canvas; a stopped scene paints itself again at once.
   const observer = new ResizeObserver(() => { resize(); if (!running) paint(performance.now()); });
