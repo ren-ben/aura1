@@ -68,6 +68,40 @@ function go(p: Pane | undefined) {
 }
 const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r + dr));
 
+// The glide is moved a frame at a time from here rather than left to a CSS
+// transition. Safari runs a transition on its compositor and does not paint
+// what comes into view until it has stopped, so every picture on the pane you
+// were going to arrived blank. Moved from script, it paints as it goes.
+const world = ref<HTMLElement | null>(null);
+let pos = { x: here.value.c, y: here.value.r }, glideRaf = 0;
+// The console's ease, cubic-bezier(.72, 0, .18, 1), solved for x by Newton.
+const bez = (a: number, b: number, t: number) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+function ease(x: number) {
+  let t = x;
+  for (let i = 0; i < 6; i++) {
+    const d = 3 * .72 * (1 - t) * (1 - 3 * t) + 3 * .18 * t * (2 - 3 * t) + 3 * t * t;
+    if (Math.abs(d) < 1e-6) break;
+    t = Math.min(1, Math.max(0, t - (bez(.72, .18, t) - x) / d));
+  }
+  return bez(0, 1, t);
+}
+function place() {
+  world.value?.style.setProperty('--x', String(pos.x));
+  world.value?.style.setProperty('--y', String(pos.y));
+}
+function glide() {
+  cancelAnimationFrame(glideRaf);
+  const from = { ...pos }, to = { x: here.value.c, y: here.value.r }, t0 = performance.now();
+  const frame = (now: number) => {
+    const k = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : ease(Math.min(1, (now - t0) / 700));
+    pos = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
+    place();
+    if (k < 1) glideRaf = requestAnimationFrame(frame);
+  };
+  glideRaf = requestAnimationFrame(frame);
+}
+watch(here, glide);
+
 // The web, only while held. A light follows the finger across it and settles
 // into whichever pane it is over; letting go there goes to that pane.
 const mapping = ref(false);
@@ -217,19 +251,19 @@ let timer = 0;
 onMounted(() => {
   addEventListener('keydown', key); addEventListener('keyup', keyUp);
   addEventListener('pointermove', trace, { passive: true });
-  addEventListener('resize', seeWidth); seeWidth();
+  addEventListener('resize', seeWidth); seeWidth(); place();
   tick(); timer = window.setInterval(tick, 20_000); load();
 });
 onBeforeUnmount(() => {
   removeEventListener('keydown', key); removeEventListener('keyup', keyUp);
   removeEventListener('pointermove', trace); removeEventListener('resize', seeWidth);
-  cancelAnimationFrame(flow); clearInterval(timer);
+  cancelAnimationFrame(flow); cancelAnimationFrame(glideRaf); clearInterval(timer);
 });
 </script>
 
 <template>
   <div class="stage" @pointerdown="tDown" @pointerup="tUp">
-    <div class="world" :style="{ '--c': here.c, '--r': here.r }">
+    <div ref="world" class="world">
       <section v-for="p in PANES" :key="p.id" class="pane" :class="{ here: p === here }"
         :style="{ '--pc': p.c, '--pr': p.r }" :aria-hidden="p !== here" :inert="p !== here">
         <component :is="p.component" v-if="state.ready" :active="(p === here || p === leaving) && !mapping" />
@@ -325,8 +359,8 @@ onBeforeUnmount(() => {
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
 .stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 74px; z-index: 5; pointer-events: none;
   background: linear-gradient(to top, var(--ground) 30%, rgba(18, 18, 18, .6) 62%, transparent); }
-.world { position: absolute; left: 0; top: 0; transition: transform .7s var(--ease); will-change: transform;
-  transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108dvh)); }
+.world { position: absolute; left: 0; top: 0; will-change: transform;
+  transform: translate(calc(var(--x) * -108vw), calc(var(--y) * -108dvh)); }
 .pane { position: absolute; width: 100vw; height: 100dvh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108dvh); overflow: clip;
   background: radial-gradient(var(--faint) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--ground);
   /* Every edge is exactly as deep as what the console writes along it, and
