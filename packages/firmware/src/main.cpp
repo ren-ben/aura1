@@ -171,7 +171,8 @@ void setup() {
 void loop() {
   Input input;
   if (buttons.poll(input)) {
-    if (input == Input::PowerLong) {
+    // Holding POWER over a page of a book goes back to the menu instead.
+    if (input == Input::PowerLong && !machine.reading()) {
       // Goodnight first, and only then the sync. The other way round the
       // glass kept whatever was on it for the seconds the sync took, so
       // there was nothing to tell you the press had taken and you could let

@@ -807,6 +807,49 @@ void test_a_look_from_the_web_is_worn_and_kept() {
   TEST_ASSERT_EQUAL_STRING("CARMILLA", again.lookName());
 }
 
+void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
+  FakeStorage storage;
+  FakeClock clock;
+  FakeRenderer renderer;
+  FakeRandom random;
+  Carousel carousel;
+  carousel.load({ {1, "AXIOM"} }, { {10, 1, "coursework", 0} });
+  std::string text;
+  for (int i = 0; i < 60; ++i) text += "Ne raillons pas les fous, leur folie dure plus longtemps que la notre. ";
+  storage.write("/shelf.txt", "7 1 0 0 The King in Yellow\n");
+  storage.write(Book::headPath(7), "1 0 0\nThe King in Yellow\nChambers\nThe Mask\n");
+  storage.write(Book::partPath(7, 0), text);
+  storage.write(Book::donePath(7), "");
+  EventQueue queue(storage);
+  SessionMachine m(carousel, queue, clock, storage, renderer, random);
+  m.begin();
+  // Up to the menu, along to READ, into the shelf, the book and its page.
+  m.handle(Input::SunLong);
+  for (int i = 0; i < 3; ++i) m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.reading());
+  TEST_ASSERT_EQUAL_INT(0, renderer.last().page);
+
+  m.handle(Input::SunShort);
+  TEST_ASSERT_EQUAL_INT(1, renderer.last().page);
+  m.handle(Input::SunLong);
+  TEST_ASSERT_EQUAL_INT(0, renderer.last().page);
+  TEST_ASSERT_TRUE(m.reading());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(renderer.last().kept);
+
+  // Holding POWER is not goodnight here: it is the menu.
+  m.handle(Input::PowerLong);
+  TEST_ASSERT_FALSE(m.reading());
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_TRUE(renderer.last().place == Place::Menu);
+  // Outside the book it switches off as before.
+  m.handle(Input::PowerLong);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Dormant);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles);
@@ -834,6 +877,7 @@ int main() {
   RUN_TEST(test_normal_stop_uses_the_uuid_minted_at_start);
   RUN_TEST(test_uuid_is_rfc9562_version_4);
   RUN_TEST(test_consecutive_uuids_differ_even_within_the_same_second);
+  RUN_TEST(test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book);
   RUN_TEST(test_power_short_starts_a_session);
   RUN_TEST(test_running_screen_never_shows_elapsed_time);
   RUN_TEST(test_second_power_short_queues_the_session_and_clears_the_marker);

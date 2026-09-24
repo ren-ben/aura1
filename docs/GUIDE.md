@@ -27,6 +27,9 @@ Other docs:
 ![Session lifecycle](img/session-lifecycle.svg)
 
 SUN always moves, POWER always acts, holding SUN goes back up, holding POWER switches off.
+Reading a book is the one exception: SUN turns to the next page, holding SUN turns back,
+POWER keeps the page as a highlight, and holding POWER goes back to the menu. The device
+cannot be switched off from the middle of a book; go to the menu first.
 
 | Button | Menu | Folder list | Inside a folder | Today / Habits | Quotes | Settings | Running |
 |---|---|---|---|---|---|---|---|

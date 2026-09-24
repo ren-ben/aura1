@@ -216,6 +216,12 @@ void SessionMachine::stopSession() {
 }
 
 void SessionMachine::handle(Input input) {
+  if (input == Input::PowerLong && reading()) {
+    lastInput_ = clock_.nowEpochSeconds();
+    place_ = Place::Menu;
+    draw();
+    return;
+  }
   if (input == Input::PowerLong) {
     // The device is about to power off: append a final heartbeat so at most a
     // partial interval is lost on recovery, not the whole session. The marker
@@ -561,12 +567,11 @@ void SessionMachine::turn(int pages) {
   draw();
 }
 
-// SUN turns the page, SUN twice turns it back, POWER keeps it, holding SUN
-// goes back to the contents.
+// SUN turns the page, holding SUN turns it back, POWER keeps it, holding
+// POWER goes back to the menu (see handle()).
 void SessionMachine::read(Input input) {
   if (input == Input::SunShort) { turn(1); return; }
-  if (input == Input::SunDouble) { turn(-1); return; }
-  if (input == Input::SunLong) { place_ = Place::Book; listCursor_ = static_cast<size_t>(book_.chapterIdx()); draw(); return; }
+  if (input == Input::SunLong || input == Input::SunDouble) { turn(-1); return; }
   if (input != Input::PowerShort) return;
   // Keeping the page: the passage is whatever is on the glass.
   const std::string text = pageText();

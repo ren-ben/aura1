@@ -21,6 +21,10 @@ public:
   void begin();
   void handle(Input input);
   Screen screen() const { return screen_; }
+  // A page of a book is on the glass. Holding POWER here goes back to the
+  // menu instead of switching off: the device cannot be switched off from
+  // the middle of a book, by design.
+  bool reading() const { return screen_ == Screen::Idle && place_ == Place::Reading; }
   // Redraws after the carousel was reloaded under the machine (a sync pulled a
   // new config). Only Idle shows the selection; other screens pick it up on
   // their next transition.
