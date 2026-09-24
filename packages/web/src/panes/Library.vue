@@ -350,8 +350,12 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
             label="The stacks: hexagonal galleries of shelves, your own volumes on the near wall"
             hint="drag to look // wheel to walk // click a volume" />
           <div class="walk">
-            <button class="btn quiet" aria-label="Back one gallery" @click="walk(-1)">&lt;&lt; back</button>
-            <button class="btn quiet" aria-label="Deeper into the stacks" @click="walk(1)">deeper &gt;&gt;</button>
+            <button class="btn quiet" aria-label="Back one gallery" @click="walk(-1)">
+              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M9 2 4 7l5 5" /></svg>
+            </button>
+            <button class="btn quiet" aria-label="Deeper into the stacks" @click="walk(1)">
+              <svg viewBox="0 0 14 14" aria-hidden="true"><path d="m5 2 5 5-5 5" /></svg>
+            </button>
           </div>
           <div v-if="pulled" ref="prompt" class="prompt">
             <div class="card">
@@ -479,8 +483,11 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
 .stacksFrame :deep(.flush) { min-height: 0; }
 .glHost { position: relative; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 .glHost :deep(.hint) { bottom: 8px; left: 12px; }
-.walk { position: absolute; top: 10px; right: 10px; z-index: 4; display: flex; gap: 8px; }
-.walk .btn { background: rgba(18, 18, 18, .82); }
+/* Back and deeper, at the foot of the glass, clear of anything the console
+   lays over the top of the screen. */
+.walk { position: absolute; bottom: 10px; right: 10px; z-index: 4; display: flex; gap: 6px; }
+.walk .btn { background: rgba(18, 18, 18, .82); width: 38px; height: 34px; padding: 0; display: grid; place-items: center; }
+.walk svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
 /* What is in your hands: a prompt over the book, the way a game asks. */
 .prompt { position: absolute; z-index: 5; left: var(--px, 50%); top: max(var(--py, 30%), 128px);
   transform: translate(-50%, -100%); display: grid; justify-items: center; animation: promptin .45s var(--out) .35s both; }
@@ -579,7 +586,11 @@ function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
   .read { min-height: 62vh; }
   .reader { width: 56px; height: 52px; bottom: 52px; }
   .shelf { display: flex; flex-direction: column; }
-  .stacksFrame { min-height: 300px; }
+  /* The hall stays on the glass; the pile and everything under it scroll
+     beneath it. */
+  .stacksFrame { position: sticky; top: 0; z-index: 3; flex: none; height: max(260px, 42dvh); background: var(--ground); }
+  .ledger { max-height: none; }
+  .glHost :deep(.hint) { display: none; }
   /* On a phone the page scrolls, so the pile and the passages take all the room they need. */
   .pile { flex: none; overflow: visible; }
   .kept { max-height: none; }
