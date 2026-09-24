@@ -10,6 +10,7 @@
     "test": "echo 'no web tests in the vertical slice'"
   },
   "dependencies": {
+    "@aura/shared": "workspace:*",
     "fflate": "^0.8.3",
     "pdfjs-dist": "^6.3.289",
     "three": "^0.186.0",

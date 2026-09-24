@@ -1,0 +1,46 @@
+// Bachelor Physik at the University of Vienna, curriculum version 2026:
+// every module with its ECTS, its group and the semester the curriculum's
+// appendix recommends it in.
+export type CurriculumModule = { code: string; name: string; ects: number; sem: number; group: string };
+
+export const CURRICULUM: CurriculumModule[] = [
+  { code: 'STEOP1', name: 'Experimentalphysik 1', ects: 8, sem: 1, group: 'StEOP' },
+  { code: 'STEOP2', name: 'Physikalische Rechenmethoden', ects: 8, sem: 1, group: 'StEOP' },
+  { code: 'STEOP3', name: 'Forschung und Studium', ects: 2, sem: 1, group: 'StEOP' },
+  { code: 'LA1', name: 'Lineare Algebra 1', ects: 4, sem: 1, group: 'Mathematik' },
+  { code: 'ANA1', name: 'Analysis 1', ects: 8, sem: 1, group: 'Mathematik' },
+  { code: 'EP2', name: 'Experimentalphysik 2', ects: 8, sem: 2, group: 'Experimentalphysik' },
+  { code: 'TP1', name: 'Klassische Mechanik', ects: 8, sem: 2, group: 'Theoretische Physik' },
+  { code: 'LA2', name: 'Lineare Algebra 2', ects: 4, sem: 2, group: 'Mathematik' },
+  { code: 'ANA2', name: 'Analysis 2', ects: 8, sem: 2, group: 'Mathematik' },
+  { code: 'GEA', name: 'Experimentelles Arbeiten', ects: 2, sem: 2, group: 'Labor' },
+  { code: 'LP1', name: 'Laborpraktikum 1', ects: 5, sem: 3, group: 'Labor' },
+  { code: 'TP2', name: 'Elektrodynamik', ects: 8, sem: 3, group: 'Theoretische Physik' },
+  { code: 'ANA3', name: 'Analysis 3', ects: 8, sem: 3, group: 'Mathematik' },
+  { code: 'PROG', name: 'Programmierung', ects: 6, sem: 3, group: 'Programmierung' },
+  { code: 'WST', name: 'Wahrscheinlichkeit & Statistik', ects: 4, sem: 3, group: 'Mathematik' },
+  { code: 'EP3', name: 'Quantenoptik, Atom, Kern', ects: 8, sem: 4, group: 'Experimentalphysik' },
+  { code: 'TP3', name: 'Quantenmechanik 1', ects: 8, sem: 4, group: 'Theoretische Physik' },
+  { code: 'LP2', name: 'Laborpraktikum 2', ects: 8, sem: 4, group: 'Labor' },
+  { code: 'SCDS', name: 'Scientific Computing', ects: 6, sem: 4, group: 'Programmierung' },
+  { code: 'EP4', name: 'Kondensierte Materie', ects: 8, sem: 5, group: 'Experimentalphysik' },
+  { code: 'TP4', name: 'Statistische Mechanik', ects: 8, sem: 5, group: 'Theoretische Physik' },
+  { code: 'WFach', name: 'Wahl-Fachbereiche', ects: 7, sem: 5, group: 'Wahl' },
+  { code: 'EXT', name: 'Erweiterung', ects: 15, sem: 5, group: 'Erweiterung' },
+  { code: 'TP5', name: 'Quantenmechanik 2', ects: 7, sem: 6, group: 'Theoretische Physik' },
+  { code: 'WLab', name: 'Wahl-Laborpraktikum', ects: 6, sem: 6, group: 'Labor' },
+  { code: 'BAPR', name: 'Bachelorprojekt', ects: 8, sem: 6, group: 'Bachelorprojekt' },
+];
+
+// The first term's courses in 2026W, from u:find: offered as one click.
+export const FIRST_TERM = { semester: '2026W', courses: ['261600', '260162', '261603', '261604', '260041', '260022', '261608', '261609'] };
+
+// Which module a u:find course counts toward, from the codes it lists
+// (u:find writes "LA" for Lineare Algebra 1, and so on). EXT when unknown:
+// anything can count as Erweiterung.
+export function guessModule(codes: string[], name: string): string {
+  const known = new Set(CURRICULUM.map((m) => m.code.toUpperCase()));
+  for (const c of codes) if (known.has(c.toUpperCase())) return CURRICULUM.find((m) => m.code.toUpperCase() === c.toUpperCase())!.code;
+  const byName = CURRICULUM.find((m) => name.toLowerCase().includes(m.name.toLowerCase()));
+  return byName?.code ?? 'EXT';
+}

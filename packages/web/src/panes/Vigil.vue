@@ -2,38 +2,50 @@
 // The Vigil: the Tree of Life with the ten gates of the ascent on it, him
 // sitting still at its foot, the Abyss turning at Da'ath where he waits, and
 // every sit kept as a star. Stillness is its own measure: hours of work feed
-// him; stillness brings you nearer. Sits are sample data until the device
-// sends them.
+// him; stillness brings you nearer. Sits come from the vessel; the signs
+// are ticked here, and the gate you stand on is the first with one unkept.
 import { computed, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
 import { moonDisc, rand, starfield } from '../gl/plate';
-import { duration } from '../store';
-import { GATE_SPHERES, GATES, PATHS, sampleSits, SPHERES } from '../vigil';
+import { actions, duration, state } from '../store';
+import { GATE_SPHERES, GATES, PATHS, SPHERES, type Sit } from '../vigil';
 
 defineProps<{ active: boolean }>();
 
-const sits = sampleSits();
-const reached = 4;  // gate v, the sun: where the sample practitioner stands
-const picked = ref(reached);
+// Every sit as days back from today and the hour it began.
+const sits = computed<Sit[]>(() => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return state.vigil.sits.map((x) => {
+    const at = new Date(x.startedAt);
+    const day = new Date(at); day.setHours(0, 0, 0, 0);
+    return { day: Math.round((today.getTime() - day.getTime()) / 864e5), hour: at.getHours() + at.getMinutes() / 60, minutes: x.minutes, practice: x.practice };
+  });
+});
+const kept = computed(() => new Set(state.vigil.signs));
+const reached = computed(() => {
+  const i = GATES.findIndex((g) => g.signs.some((x) => !kept.value.has(x)));
+  return i < 0 ? GATES.length - 1 : i;
+});
+const picked = ref(reached.value);
 const gate = computed(() => GATES[picked.value]!);
-const kept = ref<Set<string>>(new Set(['thirty days without a gap', 'twenty minutes, sat through', 'the breath told apart from thoughts about it',
-  'a whole sit without losing the breath', 'dullness caught before it catches you', 'sensations seen flickering', 'warmth that comes on its own', 'rapture entered on purpose']));
-const toggle = (s: string) => { const k = new Set(kept.value); k.has(s) ? k.delete(s) : k.add(s); kept.value = k; };
+const toggle = (x: string) => actions.keepSign(x, !kept.value.has(x));
 
 const stats = computed(() => {
-  const minutes = sits.reduce((a, s) => a + s.minutes, 0);
-  const days = new Set(sits.map((s) => s.day));
+  const list = sits.value;
+  const minutes = list.reduce((a, s) => a + s.minutes, 0);
+  const days = new Set(list.map((s) => s.day));
+  // Today may not have had its sit yet: the streak still stands from yesterday.
   let streak = 0;
-  while (days.has(streak)) streak++;
+  for (let d = days.has(0) ? 0 : 1; days.has(d); d++) streak++;
   const by = new Map<string, { minutes: number; n: number }>();
-  for (const s of sits) { const e = by.get(s.practice) ?? { minutes: 0, n: 0 }; e.minutes += s.minutes; e.n++; by.set(s.practice, e); }
-  const most = Math.max(...[...by.values()].map((v) => v.minutes));
+  for (const s of list) { const e = by.get(s.practice) ?? { minutes: 0, n: 0 }; e.minutes += s.minutes; e.n++; by.set(s.practice, e); }
+  const most = Math.max(1, ...[...by.values()].map((v) => v.minutes));
   return {
-    minutes, streak, count: sits.length,
-    longest: Math.max(...sits.map((s) => s.minutes)),
-    week: sits.filter((s) => s.day < 7).reduce((a, s) => a + s.minutes, 0),
+    minutes, streak, count: list.length,
+    longest: Math.max(0, ...list.map((s) => s.minutes)),
+    week: list.filter((s) => s.day < 7).reduce((a, s) => a + s.minutes, 0),
     practices: [...by.entries()].sort((a, b) => b[1].minutes - a[1].minutes).map(([name, v]) => ({ name, ...v, share: v.minutes / most })),
   };
 });
@@ -72,6 +84,7 @@ const sprite = ref<HTMLCanvasElement | null>(null);
 const drawTree = computed(() => {
   const him = sprite.value;
   const at = picked.value;
+  const here = reached.value;
   return (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
     const { s, ox, oy } = fit(w, h);
     const X = (x: number) => ox + x * s, Y = (y: number) => oy + y * s;
@@ -104,8 +117,8 @@ const drawTree = computed(() => {
     g.fillStyle = '#000'; g.beginPath(); g.arc(X(dx), Y(dy), 4.2 * s, 0, 7); g.fill();
     g.strokeStyle = grey(0.9); g.lineWidth = Math.max(1, s * 0.3); g.beginPath(); g.arc(X(dx), Y(dy), 4.4 * s, 0, 7); g.stroke();
 
-    // The paths: lit once both ends are reached.
-    const reachedSet = new Set(GATE_SPHERES.slice(0, reached + 1));
+    // The paths: lit once both ends are here.
+    const reachedSet = new Set(GATE_SPHERES.slice(0, here + 1));
     reachedSet.add('malkuth');
     for (const [a, b] of PATHS) {
       const [x1, y1] = SPHERES[a]!, [x2, y2] = SPHERES[b]!;
@@ -128,14 +141,14 @@ const drawTree = computed(() => {
           g.beginPath(); g.arc(X(x), Y(y), R * 1.1, 0, 7); g.stroke(); g.setLineDash([]);
           continue;
         }
-        if (i === reached) {
+        if (i === here) {
           const glow = g.createRadialGradient(X(x), Y(y), R * 0.6, X(x), Y(y), R * (2.4 + breath * 1.6));
           glow.addColorStop(0, `rgba(255,255,255,${0.35 + breath * 0.25})`); glow.addColorStop(1, 'rgba(255,255,255,0)');
           g.fillStyle = glow; g.beginPath(); g.arc(X(x), Y(y), R * 4.2, 0, 7); g.fill();
         }
-        g.fillStyle = i < reached ? grey(0.78) : i === reached ? grey(1) : '#000';
+        g.fillStyle = i < here ? grey(0.78) : i === here ? grey(1) : '#000';
         g.beginPath(); g.arc(X(x), Y(y), R, 0, 7); g.fill();
-        if (i > reached) { g.strokeStyle = grey(0.42); g.lineWidth = Math.max(1, s * 0.5); g.stroke(); }
+        if (i > here) { g.strokeStyle = grey(0.42); g.lineWidth = Math.max(1, s * 0.5); g.stroke(); }
         if (i === at) {
           g.strokeStyle = grey(0.9); g.lineWidth = Math.max(1, s * 0.35); g.setLineDash([2, 3]);
           g.beginPath(); g.arc(X(x), Y(y), R * 1.7, 0, 7); g.stroke(); g.setLineDash([]);
@@ -178,7 +191,7 @@ const drawRecord = (g: CanvasRenderingContext2D, w: number, h: number, t: number
     g.fillStyle = 'rgb(40,40,40)';
     for (let y = 0; y < h; y += 3) g.fillRect(x, y, 1, 1);
   }
-  for (const sit of sits) {
+  for (const sit of sits.value) {
     const x = pad + ((181 - sit.day) / 181) * (w - pad * 2);
     const y = 4 + (sit.hour / 24) * (h - 8);
     const size = 0.5 + Math.sqrt(sit.minutes) * 0.28;
@@ -213,7 +226,7 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
           <text :x="m.at[0] + (m.at[0] < 50 ? -8 : 8)" :y="m.at[1] + 1.2" :text-anchor="m.at[0] < 50 ? 'end' : 'start'">{{ GATES[m.i]!.n }} {{ GATES[m.i]!.sephira.split(' ')[0]!.toLowerCase() }}</text>
         </g>
       </svg>
-      <div class="dist"><span class="pix">gate v of x // the sun</span><span class="tek">{{ duration(stats.minutes) }}</span><span class="pix">of stillness, kept apart from insight</span></div>
+      <div class="dist"><span class="pix">gate {{ GATES[reached]!.n.toLowerCase() }} of x // {{ GATES[reached]!.title.toLowerCase() }}</span><span class="tek">{{ duration(stats.minutes) }}</span><span class="pix">of stillness, kept apart from insight</span></div>
     </Frame>
 
     <div class="side">
@@ -248,6 +261,7 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
 
     <Frame class="record" title="the night record // every sit a star, by the day and the hour" flush>
       <div class="sky">
+        <p v-if="!sits.length" class="none note">No sits yet. Choose VIGIL on the vessel, a practice and a length, and sit.</p>
         <Plate :draw="drawRecord" :active="active" animated :cell="2" label="Half a year of sits as stars: across by day, down by hour, larger the longer." />
         <div class="months" aria-hidden="true"><span v-for="m in months" :key="m.left" :style="{ left: `${m.left}%` }">{{ m.label }}</span></div>
       </div>
@@ -300,6 +314,7 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
 .record { grid-area: record; min-height: 0; }
 .record :deep(.flush) { flex-direction: row; }
 .sky { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-style: italic; font-family: var(--fell); font-size: 16px; pointer-events: none; }
 .months { height: 16px; position: relative; border-top: 3px dotted var(--faint); }
 .months span { position: absolute; top: 3px; font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; transform: translateX(-50%); }
 .by { width: 260px; flex: none; padding: 10px 14px; display: grid; align-content: center; gap: 5px; border-left: 3px dotted var(--low); }

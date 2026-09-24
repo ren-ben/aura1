@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey,
+  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique,
 } from 'drizzle-orm/pg-core';
 
 export const folders = pgTable('folders', {
@@ -119,3 +119,28 @@ export const device = pgTable('device', {
   look: text('look'),
   pendingLook: text('pending_look'),
 });
+
+// The Vigil's signs (docs/vigil/ASCENT.md), ticked on the web. The gate the
+// user stands on is the first with a sign not yet kept.
+export const vigilSigns = pgTable('vigil_signs', {
+  sign: text('sign').primaryKey(),
+  keptAt: timestamp('kept_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// A course of the degree, as u:find published it when it was added: its
+// groups and their dates, kept whole so the week works offline. The module
+// is the curriculum code it counts toward; the grade is the Austrian 1 to 5.
+export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+export const courses = pgTable('courses', {
+  id: serial('id').primaryKey(),
+  nr: text('nr').notNull(),
+  semester: text('semester').notNull(),
+  module: text('module').notNull(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  ects: integer('ects').notNull(),
+  groups: jsonb('groups').$type<CourseGroup[]>().notNull(),
+  groupId: text('group_id'),
+  grade: integer('grade'),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique().on(t.nr, t.semester)]);

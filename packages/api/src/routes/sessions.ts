@@ -2,7 +2,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, notInArray } from 'drizzle-orm';
+import { vigilPractices } from '../db/vigil.ts';
 import { isRunaway, MIN_SESSION_MINUTES, sessionMinutes } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { activities, folders, sessions } from '../db/schema.ts';
@@ -43,7 +44,10 @@ export const sessionRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) =
     },
   }, async (request) => {
     const { from, to } = request.query;
+    // Sits belong to the Vigil, not the log.
+    const sits = (await vigilPractices(opts.db)).map((p) => p.id);
     const filters = [
+      notInArray(sessions.activityId, sits),
       ...(from ? [gte(sessions.startedAt, new Date(from))] : []),
       ...(to ? [lte(sessions.startedAt, new Date(to))] : []),
     ];
@@ -62,7 +66,7 @@ export const sessionRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) =
       .from(sessions)
       .innerJoin(activities, eq(sessions.activityId, activities.id))
       .innerJoin(folders, eq(activities.folderId, folders.id))
-      .where(filters.length ? and(...filters) : undefined)
+      .where(and(...filters))
       .orderBy(desc(sessions.startedAt));
 
     return rows.map(({ confirmedAt, ...r }) => {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
+import { vigilPractices } from '../db/vigil.ts';
 import type { Db } from '../db/client.ts';
 import {
   activities, folders, sessions, meta, habitEntries, habits, todos, device, books, chapters, marks,
@@ -111,9 +112,11 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
     );
 
     // A session under ten minutes is acked, so the device lets it go, but
-    // never stored: it was a mistaken start.
+    // never stored: it was a mistaken start. A sit is kept from a minute:
+    // five minutes of breathing is a whole practice.
+    const sits = new Set((await vigilPractices(db)).map((p) => p.id));
     const storable = request.events.filter((e) => known.has(e.activityId)
-      && sessionMinutes(e.startedAt, e.endedAt) >= MIN_SESSION_MINUTES);
+      && sessionMinutes(e.startedAt, e.endedAt) >= (sits.has(e.activityId) ? 1 : MIN_SESSION_MINUTES));
     for (const event of request.events) {
       (known.has(event.activityId) ? acked : rejected).push(event.uuid);
     }

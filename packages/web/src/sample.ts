@@ -1,6 +1,8 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
-import type { Device, Folder, Habit, Quote, Session, Stats, Todo } from './store';
+import type { Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil } from './store';
+import { sampleSits } from './vigil';
+import { sampleCourses } from './academy';
 
 const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const r = rng(1789);
@@ -147,13 +149,27 @@ let marks = [
   },
 ];
 
+// Half a year of sits, and the signs of the first gates kept.
+const vigil: Vigil = {
+  sits: sampleSits().map((s) => {
+    const at = new Date(); at.setHours(0, 0, 0, 0); at.setDate(at.getDate() - s.day);
+    at.setMinutes(Math.round(s.hour * 60));
+    return { practice: s.practice, startedAt: at.toISOString(), minutes: s.minutes };
+  }).sort((a, b) => a.startedAt.localeCompare(b.startedAt)),
+  signs: ['thirty days without a gap', 'twenty minutes, sat through', 'the breath told apart from thoughts about it',
+    'a whole sit without losing the breath', 'the first lucid dream', 'dullness caught before it catches you',
+    'sensations seen flickering', 'intention noticed before the movement', 'thoughts heard as sounds and images',
+    'warmth that comes on its own', 'a hard person seen clearly', 'a glow that feeds the breath', 'rapture entered on purpose'],
+};
+let courses: Course[] = sampleCourses();
+
 // The API's routes, in memory.
 export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
   const seg = route!.split('/').filter(Boolean);
   const id = Number(seg[1]);
   const second = seg[1] === undefined ? '' : /^\d+$/.test(seg[1]) ? '/:id' : `/${seg[1]}`;
-  const key = `${method} /${seg[0]}${second}${seg[2] ? `/${seg[2]}` : ''}`;
+  const key = `${method} /${seg[0]}${second}${seg[2] && !/^\d+$/.test(seg[2]) ? `/${seg[2]}` : ''}`;
   switch (key) {
     case 'GET /stats': return stats();
     case 'GET /folders': return structuredClone(folders);
@@ -222,6 +238,18 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'POST /activities': folders.find((f) => f.id === body.folderId)!.activities.push({ id: nextId++, name: body.name, archived: false }); return;
     case 'PATCH /activities/:id': { for (const f of folders) for (const a of f.activities) if (a.id === id) Object.assign(a, body); return; }
     case 'PUT /device/look': device.pendingLook = body.look; return;
+    case 'GET /vigil': return structuredClone(vigil);
+    case 'PUT /vigil/signs':
+      vigil.signs = body.kept ? [...new Set([...vigil.signs, body.sign])] : vigil.signs.filter((s) => s !== body.sign);
+      return;
+    case 'GET /academy': return structuredClone(courses);
+    case 'POST /academy/courses': throw new Error('the demo cannot reach u:find');
+    case 'PATCH /academy/courses': case 'DELETE /academy/courses': {
+      const cid = Number(seg[2]);
+      if (method === 'DELETE') courses = courses.filter((c) => c.id !== cid);
+      else courses = courses.map((c) => (c.id === cid ? { ...c, ...body } : c));
+      return;
+    }
     default: throw new Error(`demo: no route ${key}`);
   }
 }

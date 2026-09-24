@@ -7,31 +7,41 @@ import { computed, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Plate from '../components/Plate.vue';
 import { rand, starfield } from '../gl/plate';
-import { COURSES, GRADES, MODULES, TERM, WEEK, WEEK_OF, type Module } from '../academy';
+import { FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
+import { actions, state, type Course } from '../store';
 
 defineProps<{ active: boolean }>();
 
-const grades = ref<Record<string, number>>({});
-const cycle = (nr: string) => { const g = grades.value[nr]; grades.value = { ...grades.value, [nr]: g === undefined ? 1 : g === 5 ? undefined! : g + 1 }; };
-const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP3: 'Forschung', LA1: 'LA1', ANA1: 'ANA1' };
-const shortOf = (nr: string) => { const c = COURSES.find((x) => x.nr === nr)!; return `${SHORT[c.module]} ${c.type}`; };
-
-const tally = computed(() => {
-  const passed = MODULES.filter((m) => m.status === 'passed').reduce((a, m) => a + m.ects, 0);
-  const running = MODULES.filter((m) => m.status === 'running').reduce((a, m) => a + m.ects, 0);
-  const steop = MODULES.filter((m) => m.group === 'StEOP');
-  const graded = Object.entries(grades.value).filter(([, g]) => g);
-  const weight = graded.reduce((a, [nr]) => a + COURSES.find((c) => c.nr === nr)!.ects, 0);
-  const avg = weight ? graded.reduce((a, [nr, g]) => a + g * COURSES.find((c) => c.nr === nr)!.ects, 0) / weight : null;
-  return { passed, running, steop: `${steop.filter((m) => m.status === 'passed').reduce((a, m) => a + m.ects, 0)} of 18`, avg };
-});
+const MODULES = computed(() => modules(state.courses));
+const tally = computed(() => tallyOf(state.courses));
+// Grades cycle on a click: none, 1 to 5, none again.
+const cycle = (c: Course) => actions.gradeCourse(c, c.grade === null ? 1 : c.grade === 5 ? null : c.grade + 1);
+const TERM = termOf();
 // How far through the term: the rete's turn.
 const term = computed(() => {
-  const from = new Date(TERM.from).getTime(), to = new Date(TERM.to).getTime();
+  const from = TERM.from.getTime(), to = TERM.to.getTime();
   const u = (Date.now() - from) / (to - from);
-  const week = Math.floor((Date.now() - from) / 6048e5) + 1;
-  return { u: Math.max(0, Math.min(1, u)), label: u < 0 ? `begins in ${Math.ceil(-u * (to - from) / 864e5)} days` : u > 1 ? 'ended' : `week ${week} of 18` };
+  const n = Math.floor((Date.now() - from) / 6048e5) + 1;
+  return { u: Math.max(0, Math.min(1, u)), label: u < 0 ? `begins in ${Math.ceil(-u * (to - from) / 864e5)} days` : u > 1 ? 'ended' : `week ${n} of ${Math.ceil((to - from) / 6048e5)}` };
 });
+
+// Adding a course by its u:find number, in the term it is in.
+const nr = ref('');
+const adding = ref(false);
+async function add(nrs: string[], semester = TERM.name) {
+  adding.value = true;
+  await actions.addCourses(nrs, semester);
+  adding.value = false;
+  nr.value = '';
+}
+const firstTerm = () => add(FIRST_TERM.courses, FIRST_TERM.semester);
+// When a group's dates are listed, the first of them says which it is.
+const groupLabel = (g: Course['groups'][number]) => {
+  const e = g.events[0];
+  if (!e) return g.id;
+  const d = new Date(e.begin);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 // The instrument, in a 220 x 220 box centred on the pole.
 const R0 = 34, STEP = 12;
@@ -39,7 +49,7 @@ const ringR = (sem: number) => R0 + sem * STEP;
 const arcs = computed(() => {
   const out: (Module & { a0: number; a1: number; r: number })[] = [];
   for (let sem = 1; sem <= 6; sem++) {
-    const ms = MODULES.filter((m) => m.sem === sem);
+    const ms = MODULES.value.filter((m) => m.sem === sem);
     const total = ms.reduce((a, m) => a + m.ects, 0);
     let a = -Math.PI / 2;
     for (const m of ms) {
@@ -136,12 +146,15 @@ const labels = computed(() => arcs.value.map((m) => {
   return { ...m, x: Math.cos(mid) * (m.r - 5.2), y: Math.sin(mid) * (m.r - 5.2), rot: flip ? deg + 180 : deg };
 }));
 
-const termModules = MODULES.filter((m) => m.status === 'running');
+const termModules = computed(() => MODULES.value.filter((m) => state.courses.some((c) => c.module === m.code && c.semester === TERM.name)
+  || m.status === 'running'));
 const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
-const H0 = 8.75, H1 = 15;
+const H0 = 8.75, H1 = 17;
 const hm = (s: string) => { const [a, b] = s.split(':').map(Number); return a! + b! / 60; };
-const blocks = WEEK.map((e) => ({ ...e, top: ((hm(e.from) - H0) / (H1 - H0)) * 100, height: ((hm(e.to) - hm(e.from)) / (H1 - H0)) * 100, label: shortOf(e.nr), ue: !COURSES.find((c) => c.nr === e.nr)!.type.startsWith('VO') }));
-const dates = days.map((d, i) => { const x = new Date(WEEK_OF); x.setDate(x.getDate() + i); return `${d} ${x.getDate()}`; });
+const theWeek = computed(() => weekOf(state.courses));
+const blocks = computed(() => theWeek.value.slots.map((e) => ({ ...e, top: ((hm(e.from) - H0) / (H1 - H0)) * 100, height: ((hm(e.to) - hm(e.from)) / (H1 - H0)) * 100 })));
+const dates = computed(() => days.map((d, i) => { const x = new Date(theWeek.value.monday); x.setDate(x.getDate() + i); return `${d} ${x.getDate()}`; }));
+const weekTitle = computed(() => `the week of ${theWeek.value.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }).toLowerCase()} // as u:find has it`);
 </script>
 
 <template>
@@ -161,30 +174,44 @@ const dates = days.map((d, i) => { const x = new Date(WEEK_OF); x.setDate(x.getD
       <div class="big"><span class="tek">{{ tally.passed }}</span><span class="pix">of 180 ects<br>{{ tally.running }} this term</span></div>
       <div class="kv">
         <span>term</span><span>{{ TERM.name }} // {{ term.label }}</span>
-        <span>the first gate (steop)</span><span>{{ tally.steop }}</span>
+        <span>the first gate (steop)</span><span>{{ tally.steop }} of 18</span>
         <span>grade, weighted</span><span>{{ tally.avg ? tally.avg.toFixed(2) : 'none yet' }}</span>
         <span>exams</span><span>when u:find posts them</span>
       </div>
       <div class="courses">
-        <div class="pix">this term // click a grade to set it</div>
+        <form class="add" @submit.prevent="nr && add([nr])">
+          <label class="pix" for="course-nr">add a course by its u:find number</label>
+          <span><input id="course-nr" v-model="nr" inputmode="numeric" pattern="[0-9]{6}" placeholder="261600" :disabled="adding" /><button class="btn" :disabled="adding || nr.length !== 6">{{ adding ? 'asking u:find' : 'add' }}</button></span>
+          <span v-if="state.error" class="note err">{{ state.error }}</span>
+        </form>
+        <div v-if="!state.courses.length" class="empty">
+          <p class="note">Nothing kept yet. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
+          <button class="btn" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
+        </div>
         <div v-for="m in termModules" :key="m.code" class="module">
           <div class="mh"><span class="fell">{{ m.name }}</span><span class="pix">{{ m.code }} // {{ m.ects }} ects</span></div>
-          <div v-for="c in COURSES.filter((x) => x.module === m.code)" :key="c.nr" class="course">
-            <span class="pix">{{ c.type }}</span><span class="note">{{ c.nr }} // {{ c.ects }} ects</span>
-            <button class="grade" :class="{ set: grades[c.nr] }" :title="grades[c.nr] ? GRADES[grades[c.nr]! - 1] : 'no grade yet'" @click="cycle(c.nr)">{{ grades[c.nr] ?? '-' }}</button>
+          <div v-for="c in state.courses.filter((x) => x.module === m.code)" :key="c.id" class="course">
+            <span class="pix">{{ c.type }}</span>
+            <span class="note">{{ c.nr }} // {{ c.ects }} ects
+              <select v-if="c.groups.length > 1" :id="`group-${c.id}`" class="group" :value="c.groupId ?? ''" :aria-label="`group for ${c.name} ${c.type}`" @change="actions.groupCourse(c, ($event.target as HTMLSelectElement).value || null)">
+                <option value="">group ?</option>
+                <option v-for="(g, i) in c.groups" :key="g.id" :value="g.id">group {{ i + 1 }} // {{ groupLabel(g) }}</option>
+              </select>
+            </span>
+            <button class="grade" :class="{ set: c.grade }" :title="c.grade ? GRADES[c.grade - 1] : 'no grade yet'" @click="cycle(c)">{{ c.grade ?? '-' }}</button>
           </div>
         </div>
       </div>
     </div>
 
-    <Frame class="week" title="the week of 12 october // as u:find has it" flush>
+    <Frame class="week" :title="weekTitle" flush>
       <div class="grid">
-        <div class="hours" aria-hidden="true"><span v-for="h in [9, 10, 11, 12, 13, 14]" :key="h" :style="{ top: `${((h - H0) / (H1 - H0)) * 100}%` }">{{ h }}</span></div>
+        <div class="hours" aria-hidden="true"><span v-for="h in [9, 10, 11, 12, 13, 14, 15, 16]" :key="h" :style="{ top: `${((h - H0) / (H1 - H0)) * 100}%` }">{{ h }}</span></div>
         <div v-for="(d, i) in dates" :key="d" class="day">
           <span class="pix">{{ d }}</span>
           <div class="col">
-            <div v-for="b in blocks.filter((x) => x.day === i)" :key="b.nr + b.from" class="blk" :class="{ ue: b.ue }" :style="{ top: `${b.top}%`, height: `${b.height}%` }">
-              <b>{{ b.label }}</b><span>{{ b.from }} {{ b.room.replace('-Hörsaal', '') }}</span>
+            <div v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue }" :style="{ top: `${b.top}%`, height: `${b.height}%` }">
+              <b>{{ b.label }}</b><span>{{ b.from }} {{ b.room }}</span>
             </div>
           </div>
         </div>
@@ -226,6 +253,17 @@ const dates = days.map((d, i) => { const x = new Date(WEEK_OF); x.setDate(x.getD
 .grade { font: 800 14px var(--tek); color: var(--dim); min-width: 28px; text-align: center; border: 3px double var(--low); padding: 0 6px; }
 .grade.set { color: var(--hi); border-color: var(--dim); }
 .grade:hover { color: var(--hi); }
+.add { display: grid; gap: 4px; }
+.add > span { display: flex; gap: 8px; }
+.add input { flex: 1; min-width: 0; background: var(--deep); border: 2px solid var(--low); padding: 4px 8px; font: 800 15px var(--tek); color: var(--hi); letter-spacing: .06em; }
+.add input:focus { border-color: var(--dim); outline: none; }
+.add input::placeholder { color: var(--low); }
+.btn { font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--hi); border: 3px double var(--low); padding: 4px 10px; }
+.btn:hover:not(:disabled) { border-color: var(--dim); }
+.btn:disabled { color: var(--dim); }
+.err { color: var(--phos); }
+.empty { display: grid; gap: 8px; justify-items: start; }
+.group { background: var(--deep); color: var(--phos); border: 1px solid var(--low); font: 400 10px var(--pix); text-transform: uppercase; margin-left: 6px; }
 .week { grid-area: week; min-height: 0; }
 .grid { flex: 1; display: grid; grid-template-columns: 28px repeat(5, minmax(0, 1fr)); gap: 0 8px; padding: 8px 12px 12px; min-height: 0; }
 .hours { position: relative; margin-top: 18px; }

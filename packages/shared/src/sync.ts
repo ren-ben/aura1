@@ -74,6 +74,16 @@ export const todayDtoSchema = z.object({
   // history: the last HABIT_DAYS days, oldest first, '1' where done; today last.
   habits: z.array(z.object({ id: z.number().int(), name: z.string(), done: z.boolean(), history: z.string() })),
   quotes: z.array(z.object({ body: z.string(), source: z.string().nullable() })),
+  // The Vigil's practices, each a system activity: minutes is the default
+  // length (0: open), pacer the breath drawn while sitting, bell the minutes
+  // between interval bells (0: none).
+  vigil: z.array(z.object({
+    id: z.number().int(),
+    name: z.string(),
+    minutes: z.number().int().nonnegative(),
+    pacer: z.enum(['none', 'sigh', 'resonance']),
+    bell: z.number().int().nonnegative(),
+  })).default([]),
 });
 
 // Every book on the shelf, as the device lists them. Only what a list needs:

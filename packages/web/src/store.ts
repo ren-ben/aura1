@@ -29,6 +29,16 @@ export type Mark = {
   id: number; bookId: number; chapterIdx: number; start: number; end: number;
   body: string; note: string | null; source: 'web' | 'device'; createdAt: string;
 };
+// The Vigil: every sit kept (a session on one of its practices), and the
+// signs ticked off on the way up the gates.
+export type Sit = { practice: string; startedAt: string; minutes: number };
+export type Vigil = { sits: Sit[]; signs: string[] };
+// A course of the degree, as u:find had it when it was added.
+export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+export type Course = {
+  id: number; nr: string; semester: string; module: string; name: string; type: string; ects: number;
+  groups: CourseGroup[]; groupId: string | null; grade: number | null;
+};
 export type Device = {
   lastSyncAt: string | null; battery: number | null; millivolts: number | null;
   charging: boolean | null; look: string | null; pendingLook: string | null;
@@ -49,6 +59,8 @@ export const state = reactive({
   books: [] as Book[],
   marks: [] as Mark[],
   device: null as Device | null,
+  vigil: { sits: [], signs: [] } as Vigil,
+  courses: [] as Course[],
 });
 
 export function localDate(d = new Date()): string {
@@ -90,6 +102,7 @@ export async function load(): Promise<void> {
     call<Stats>('GET', '/stats'), call<Folder[]>('GET', '/folders'), call<Session[]>('GET', sessionsPath()),
     call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
     call<Device>('GET', '/device'), call<Book[]>('GET', '/books'), call<Mark[]>('GET', '/marks'),
+    call<Vigil>('GET', '/vigil'), call<Course[]>('GET', '/academy'),
   ]);
   let got;
   try {
@@ -100,7 +113,7 @@ export async function load(): Promise<void> {
     got = await all();
   }
   [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device,
-    state.books, state.marks] = got;
+    state.books, state.marks, state.vigil, state.courses] = got;
   state.ready = true;
 }
 
@@ -129,6 +142,8 @@ const reMarks = async () => { state.marks = await call<Mark[]>('GET', '/marks');
 // console: a book is far too big to keep in memory for the sake of a list.
 export const chapterOf = (bookId: number, idx: number) =>
   call<{ idx: number; title: string; body: string }>('GET', `/books/${bookId}/chapters/${idx}`);
+const reVigil = async () => { state.vigil = await call<Vigil>('GET', '/vigil'); };
+const reCourses = async () => { state.courses = await call<Course[]>('GET', '/academy'); };
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
 
 export const actions = {
@@ -161,6 +176,16 @@ export const actions = {
   renameActivity: (id: number, name: string) => act('PATCH', `/activities/${id}`, { name }, [reFolders, reStats]),
   archiveActivity: (id: number, archived: boolean) => act('PATCH', `/activities/${id}`, { archived }, [reFolders, reStats]),
   setLook: (look: string) => act('PUT', '/device/look', { look }, [reDevice]),
+  keepSign: (sign: string, kept: boolean) => act('PUT', '/vigil/signs', { sign, kept }, [reVigil]),
+  addCourse: (nr: string, semester: string) => act('POST', '/academy/courses', { nr, semester }, [reCourses]),
+  // Several at once, one after the other: u:find is asked once per course.
+  addCourses: async (nrs: string[], semester: string) => {
+    for (const nr of nrs) if (!(await act('POST', '/academy/courses', { nr, semester }, []))) break;
+    await reCourses();
+  },
+  gradeCourse: (c: Course, grade: number | null) => act('PATCH', `/academy/courses/${c.id}`, { grade }, [reCourses]),
+  groupCourse: (c: Course, groupId: string | null) => act('PATCH', `/academy/courses/${c.id}`, { groupId }, [reCourses]),
+  removeCourse: (c: Course) => act('DELETE', `/academy/courses/${c.id}`, undefined, [reCourses]),
 };
 
 // Hours per local day, the last n days, oldest first.

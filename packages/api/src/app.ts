@@ -11,10 +11,12 @@ import { quoteRoutes } from './routes/quotes.ts';
 import { statsRoutes } from './routes/stats.ts';
 import { deviceRoutes } from './routes/device.ts';
 import { bookRoutes } from './routes/books.ts';
+import { vigilRoutes } from './routes/vigil.ts';
+import { academyRoutes } from './routes/academy.ts';
 
 export function buildApp(
   db: Db,
-  opts: { logger?: boolean; webRoot?: string } = {},
+  opts: { logger?: boolean; webRoot?: string; fetchCourse?: (nr: string, semester: string) => Promise<string | null> } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? true });
   app.setValidatorCompiler(validatorCompiler);
@@ -29,6 +31,8 @@ export function buildApp(
   app.register(statsRoutes, { db, prefix: '/api/v1' });
   app.register(deviceRoutes, { db, prefix: '/api/v1' });
   app.register(bookRoutes, { db, prefix: '/api/v1' });
+  app.register(vigilRoutes, { db, prefix: '/api/v1' });
+  app.register(academyRoutes, { db, prefix: '/api/v1', fetchCourse: opts.fetchCourse });
 
   if (opts.webRoot) {
     app.register(fastifyStatic, { root: opts.webRoot });

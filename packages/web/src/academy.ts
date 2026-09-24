@@ -1,73 +1,104 @@
-// The Academy: Bachelor Physik at the University of Vienna, curriculum
-// version 2026 (180 ECTS), and the courses of the current term as u:find
-// publishes them (m1-ufind.univie.ac.at/courses/<nr>/<semester>). Sample data
-// until the API keeps it: the modules are the real curriculum, the week is
-// the real timetable of 2026W, the grades are yours to enter.
+// The Academy: the curriculum (packages/shared), the term, and what the
+// courses kept make of it: which modules are passed, which run this term,
+// the week's dates, the ECTS and the weighted grade.
+import { CURRICULUM, type CurriculumModule } from '@aura/shared';
+import type { Course } from './store';
 
+export { CURRICULUM, FIRST_TERM } from '@aura/shared';
 export type Status = 'passed' | 'running' | 'open' | 'locked';
-export type Module = { code: string; name: string; ects: number; sem: number; group: string; status: Status; grade?: number };
-
-// The recommended path through the degree, from the curriculum's appendix.
-export const MODULES: Module[] = [
-  { code: 'STEOP1', name: 'Experimentalphysik 1', ects: 8, sem: 1, group: 'StEOP', status: 'running' },
-  { code: 'STEOP2', name: 'Physikalische Rechenmethoden', ects: 8, sem: 1, group: 'StEOP', status: 'running' },
-  { code: 'STEOP3', name: 'Forschung und Studium', ects: 2, sem: 1, group: 'StEOP', status: 'running' },
-  { code: 'LA1', name: 'Lineare Algebra 1', ects: 4, sem: 1, group: 'Mathematik', status: 'running' },
-  { code: 'ANA1', name: 'Analysis 1', ects: 8, sem: 1, group: 'Mathematik', status: 'running' },
-  { code: 'EP2', name: 'Experimentalphysik 2', ects: 8, sem: 2, group: 'Experimentalphysik', status: 'open' },
-  { code: 'TP1', name: 'Klassische Mechanik', ects: 8, sem: 2, group: 'Theoretische Physik', status: 'locked' },
-  { code: 'LA2', name: 'Lineare Algebra 2', ects: 4, sem: 2, group: 'Mathematik', status: 'locked' },
-  { code: 'ANA2', name: 'Analysis 2', ects: 8, sem: 2, group: 'Mathematik', status: 'locked' },
-  { code: 'GEA', name: 'Experimentelles Arbeiten', ects: 2, sem: 2, group: 'Labor', status: 'open' },
-  { code: 'LP1', name: 'Laborpraktikum 1', ects: 5, sem: 3, group: 'Labor', status: 'locked' },
-  { code: 'TP2', name: 'Elektrodynamik', ects: 8, sem: 3, group: 'Theoretische Physik', status: 'locked' },
-  { code: 'ANA3', name: 'Analysis 3', ects: 8, sem: 3, group: 'Mathematik', status: 'locked' },
-  { code: 'PROG', name: 'Programmierung', ects: 6, sem: 3, group: 'Programmierung', status: 'locked' },
-  { code: 'WST', name: 'Wahrscheinlichkeit & Statistik', ects: 4, sem: 3, group: 'Mathematik', status: 'locked' },
-  { code: 'EP3', name: 'Quantenoptik, Atom, Kern', ects: 8, sem: 4, group: 'Experimentalphysik', status: 'locked' },
-  { code: 'TP3', name: 'Quantenmechanik 1', ects: 8, sem: 4, group: 'Theoretische Physik', status: 'locked' },
-  { code: 'LP2', name: 'Laborpraktikum 2', ects: 8, sem: 4, group: 'Labor', status: 'locked' },
-  { code: 'SCDS', name: 'Scientific Computing', ects: 6, sem: 4, group: 'Programmierung', status: 'locked' },
-  { code: 'EP4', name: 'Kondensierte Materie', ects: 8, sem: 5, group: 'Experimentalphysik', status: 'locked' },
-  { code: 'TP4', name: 'Statistische Mechanik', ects: 8, sem: 5, group: 'Theoretische Physik', status: 'locked' },
-  { code: 'WFach', name: 'Wahl-Fachbereiche', ects: 7, sem: 5, group: 'Wahl', status: 'locked' },
-  { code: 'EXT', name: 'Erweiterung', ects: 15, sem: 5, group: 'Erweiterung', status: 'locked' },
-  { code: 'TP5', name: 'Quantenmechanik 2', ects: 7, sem: 6, group: 'Theoretische Physik', status: 'locked' },
-  { code: 'WLab', name: 'Wahl-Laborpraktikum', ects: 6, sem: 6, group: 'Labor', status: 'locked' },
-  { code: 'BAPR', name: 'Bachelorprojekt', ects: 8, sem: 6, group: 'Bachelorprojekt', status: 'locked' },
-];
-
-export type Course = { nr: string; module: string; name: string; type: string; ects: number };
-export const COURSES: Course[] = [
-  { nr: '261600', module: 'STEOP1', name: 'Experimentalphysik 1', type: 'VO', ects: 5 },
-  { nr: '260162', module: 'STEOP1', name: 'Experimentalphysik 1', type: 'UE', ects: 3 },
-  { nr: '261603', module: 'STEOP2', name: 'Physikalische Rechenmethoden', type: 'VO', ects: 5 },
-  { nr: '261604', module: 'STEOP2', name: 'Physikalische Rechenmethoden', type: 'UE', ects: 3 },
-  { nr: '260041', module: 'STEOP3', name: 'Forschung und Studium in Physik', type: 'KU', ects: 2 },
-  { nr: '260022', module: 'LA1', name: 'Lineare Algebra 1', type: 'VU', ects: 4 },
-  { nr: '261608', module: 'ANA1', name: 'Analysis 1', type: 'VO', ects: 5 },
-  { nr: '261609', module: 'ANA1', name: 'Analysis 1', type: 'UE', ects: 3 },
-];
-
-// The week of 12 October 2026, as u:find has it (exercise groups: group 1).
-export type Event = { day: number; from: string; to: string; nr: string; room: string };
-export const WEEK_OF = '2026-10-12';
-export const WEEK: Event[] = [
-  { day: 0, from: '09:15', to: '10:45', nr: '261600', room: 'Lise-Meitner-Hörsaal' },
-  { day: 0, from: '11:00', to: '12:30', nr: '261608', room: 'Lise-Meitner-Hörsaal' },
-  { day: 0, from: '13:00', to: '14:30', nr: '261609', room: 'Ludwig-Boltzmann-Hörsaal' },
-  { day: 1, from: '09:15', to: '10:45', nr: '261600', room: 'Lise-Meitner-Hörsaal' },
-  { day: 1, from: '11:00', to: '12:30', nr: '261603', room: 'Lise-Meitner-Hörsaal' },
-  { day: 1, from: '13:00', to: '13:45', nr: '260022', room: 'Ludwig-Boltzmann-Hörsaal' },
-  { day: 2, from: '09:15', to: '10:45', nr: '261600', room: 'Lise-Meitner-Hörsaal' },
-  { day: 2, from: '10:45', to: '12:15', nr: '260041', room: 'Lise-Meitner-Hörsaal' },
-  { day: 2, from: '13:00', to: '14:30', nr: '261604', room: 'Lise-Meitner-Hörsaal' },
-  { day: 3, from: '11:00', to: '12:30', nr: '261608', room: 'Lise-Meitner-Hörsaal' },
-  { day: 3, from: '13:00', to: '14:30', nr: '260162', room: 'Lise-Meitner-Hörsaal' },
-  { day: 4, from: '11:00', to: '12:30', nr: '261603', room: 'Lise-Meitner-Hörsaal' },
-];
+export type Module = CurriculumModule & { status: Status };
 
 // The Austrian scale: 1 is the best, 5 is a fail.
 export const GRADES = ['sehr gut', 'gut', 'befriedigend', 'genügend', 'nicht genügend'];
-// 2026W runs from 1 October to 31 January.
-export const TERM = { from: '2026-10-01', to: '2027-01-31', name: '2026W' };
+
+// The term a date falls in: winter from October to January, summer from
+// March to June; between them, the one coming.
+export function termOf(d = new Date()): { name: string; from: Date; to: Date } {
+  const y = d.getFullYear(), m = d.getMonth();
+  if (m >= 7) return { name: `${y}W`, from: new Date(y, 9, 1), to: new Date(y + 1, 0, 31) };
+  if (m === 0) return { name: `${y - 1}W`, from: new Date(y - 1, 9, 1), to: new Date(y, 0, 31) };
+  return { name: `${y}S`, from: new Date(y, 2, 1), to: new Date(y, 5, 30) };
+}
+
+const passing = (c: Course) => c.grade !== null && c.grade <= 4;
+
+// A module is passed when its courses together carry its ECTS with passing
+// grades; it runs while any of its courses has no grade yet; the next
+// semester's modules are open, the rest not yet.
+export function modules(courses: Course[]): Module[] {
+  const running = CURRICULUM.filter((m) => courses.some((c) => c.module === m.code && c.grade === null));
+  const current = Math.max(1, ...running.map((m) => m.sem), ...CURRICULUM.filter((m) => courses.some((c) => c.module === m.code)).map((m) => m.sem));
+  return CURRICULUM.map((m) => {
+    const mine = courses.filter((c) => c.module === m.code);
+    const earned = mine.filter(passing).reduce((a, c) => a + c.ects, 0);
+    const status: Status = mine.length && earned >= m.ects ? 'passed'
+      : mine.some((c) => c.grade === null) ? 'running'
+      : m.sem <= current + 1 ? 'open' : 'locked';
+    return { ...m, status };
+  });
+}
+
+export function tally(courses: Course[]) {
+  const passed = courses.filter(passing).reduce((a, c) => a + c.ects, 0);
+  const running = courses.filter((c) => c.grade === null).reduce((a, c) => a + c.ects, 0);
+  const graded = courses.filter(passing);
+  const weight = graded.reduce((a, c) => a + c.ects, 0);
+  const avg = weight ? graded.reduce((a, c) => a + c.grade! * c.ects, 0) / weight : null;
+  const steop = courses.filter((c) => c.module.startsWith('STEOP') && passing(c)).reduce((a, c) => a + c.ects, 0);
+  return { passed, running, avg, steop };
+}
+
+export type Slot = { day: number; from: string; to: string; label: string; room: string; ue: boolean };
+const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP3: 'Forschung' };
+
+// The week to show: this one while the term runs, otherwise the first week
+// anything is on. Only the chosen group of each course.
+export function week(courses: Course[], now = new Date()): { monday: Date; slots: Slot[] } {
+  const events = courses.flatMap((c) => {
+    const g = c.groups.find((x) => x.id === c.groupId);
+    return (g?.events ?? []).map((e) => ({ c, begin: new Date(e.begin), end: new Date(e.end), room: e.room }));
+  });
+  const mondayOf = (d: Date) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
+  let monday = mondayOf(now);
+  const inWeek = (m: Date) => events.filter((e) => e.begin >= m && e.begin.getTime() < m.getTime() + 5 * 864e5);
+  if (!inWeek(monday).length) {
+    const next = events.map((e) => e.begin).filter((b) => b > now).sort((a, b) => a.getTime() - b.getTime())[0];
+    if (next) monday = mondayOf(next);
+  }
+  return {
+    monday,
+    slots: inWeek(monday).map((e) => ({
+      day: (e.begin.getDay() + 6) % 7, from: hm(e.begin), to: hm(e.end),
+      label: `${SHORT[e.c.module] ?? e.c.module} ${e.c.type}`, room: e.room.replace(/-?Hörsaal/, ''), ue: e.c.type !== 'VO',
+    })),
+  };
+}
+
+// The demo's first term: the real courses and their real slots of 2026W,
+// a lecture's dates weekly through the term, two groups for each exercise.
+export function sampleCourses(): Course[] {
+  const weekly = (weekday: number, from: string, to: string, room: string) => {
+    const out: { begin: string; end: string; room: string }[] = [];
+    for (let d = new Date(2026, 9, 5 + weekday); d < new Date(2027, 0, 30); d.setDate(d.getDate() + 7)) {
+      const at = (t: string) => { const x = new Date(d); const [h, m] = t.split(':').map(Number); x.setHours(h!, m!); return x.toISOString(); };
+      out.push({ begin: at(from), end: at(to), room });
+    }
+    return out;
+  };
+  const LM = 'Lise-Meitner-Hörsaal', LB = 'Ludwig-Boltzmann-Hörsaal';
+  const c = (id: number, nr: string, module: string, name: string, type: string, ects: number, slots: [number, string, string, string][][], groupId: string | null = `${nr}-1`): Course => ({
+    id, nr, semester: '2026W', module, name, type, ects, grade: null, groupId,
+    groups: slots.map((g, i) => ({ id: `${nr}-${i + 1}`, events: g.flatMap(([d, f, t, r]) => weekly(d, f, t, r)) })),
+  });
+  return [
+    c(1, '261600', 'STEOP1', 'Experimentalphysik 1', 'VO', 5, [[[0, '09:15', '10:45', LM], [1, '09:15', '10:45', LM], [2, '09:15', '10:45', LM]]]),
+    c(2, '260162', 'STEOP1', 'Experimentalphysik 1', 'UE', 3, [[[3, '13:00', '14:30', LM]], [[4, '09:15', '10:45', LB]]], null),
+    c(3, '261603', 'STEOP2', 'Physikalische Rechenmethoden', 'VO', 5, [[[1, '11:00', '12:30', LM], [4, '11:00', '12:30', LM]]]),
+    c(4, '261604', 'STEOP2', 'Physikalische Rechenmethoden', 'UE', 3, [[[2, '13:00', '14:30', LM]], [[3, '15:00', '16:30', LB]]], null),
+    c(5, '260041', 'STEOP3', 'Forschung und Studium in Physik', 'KU', 2, [[[2, '10:45', '12:15', LM]]]),
+    c(6, '260022', 'LA1', 'Lineare Algebra 1', 'VU', 4, [[[1, '13:00', '13:45', LB]]]),
+    c(7, '261608', 'ANA1', 'Analysis 1', 'VO', 5, [[[0, '11:00', '12:30', LM], [3, '11:00', '12:30', LM]]]),
+    c(8, '261609', 'ANA1', 'Analysis 1', 'UE', 3, [[[0, '13:00', '14:30', LB]], [[4, '13:00', '14:30', LM]]], null),
+  ];
+}
