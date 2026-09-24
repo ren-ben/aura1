@@ -8,7 +8,7 @@ import { computed, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
-import { catSprite, moonDisc, rand, starfield } from '../gl/plate';
+import { moonDisc, rand, starfield } from '../gl/plate';
 import { duration } from '../store';
 import { GATE_SPHERES, GATES, PATHS, sampleSits, SPHERES } from '../vigil';
 
@@ -40,14 +40,34 @@ const stats = computed(() => {
 
 // The tree is laid out in a 62 x 100 box; the canvas and the overlay both fit
 // it the same way (centred, whole), so a sphere drawn is a sphere clicked.
-const VB = { x: -30, y: -6, w: 122, h: 112 };
+const VB = { x: -16, y: -6, w: 132, h: 112 };
 const fit = (w: number, h: number) => {
   const s = Math.min(w / VB.w, h / VB.h);
   return { s, ox: (w - VB.w * s) / 2 - VB.x * s, oy: (h - VB.h * s) / 2 - VB.y * s };
 };
 
+// Him in negative, the way the device's dark looks show him: the fur lit,
+// the eyes and ear marks dark, nothing around him.
 const sprite = ref<HTMLCanvasElement | null>(null);
-catSprite(art.still, 360).then((c) => { sprite.value = c; });
+{
+  const img = new Image();
+  img.onload = () => {
+    const n = 300, c = document.createElement('canvas');
+    c.width = c.height = n;
+    const x = c.getContext('2d', { willReadFrequently: true })!;
+    x.drawImage(img, 0, 0, n, n);
+    const d = x.getImageData(0, 0, n, n);
+    for (let i = 0; i < n * n; i++) {
+      const p = i * 4, ink = d.data[p + 3]! > 128 && d.data[p]! < 128;
+      const v = ink ? 225 : 20;
+      d.data[p] = d.data[p + 1] = d.data[p + 2] = v;
+      if (d.data[p + 3]! < 128) d.data[p + 3] = 0;
+    }
+    x.putImageData(d, 0, 0);
+    sprite.value = c;
+  };
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(art.still.replace('<svg ', '<svg width="400" height="400" '))}`;
+}
 
 const drawTree = computed(() => {
   const him = sprite.value;
@@ -61,13 +81,13 @@ const drawTree = computed(() => {
     // The four worlds: great stippled circles stacked down the tree, each
     // torn open somewhere, the way the old diagrams draw them.
     const r = rand(8);
-    [[31, 18, 27], [31, 42, 27], [31, 66, 27], [31, 88, 22]].forEach(([cx, cy, rad], k) => {
+    [[50, 18, 27], [50, 42, 27], [50, 66, 27], [50, 88, 22]].forEach(([cx, cy, rad], k) => {
       for (let i = 0; i < 900; i++) {
         const a = r() * Math.PI * 2;
         if (Math.sin(a * 3 + k * 2) > 0.82) continue;
         const d = rad! + (r() - 0.5) * 1.6;
         g.fillStyle = grey(0.12 + r() * 0.2);
-        g.fillRect(X(cx! + Math.cos(a) * d), Y(cy! + Math.sin(a) * d), 1, 1);
+        g.fillRect(X(cx! + Math.cos(a) * d * 1.4), Y(cy! + Math.sin(a) * d), 1, 1);
       }
     });
 
@@ -79,7 +99,7 @@ const drawTree = computed(() => {
       const rad = 4 + Math.pow(k, 0.7) * 21;
       const wob = Math.sin(a * 5 + k * 20 + t * 0.3) * 0.9;
       g.fillStyle = grey((1 - k * 0.8) * 0.85 * (0.45 + r() * 0.55));
-      g.fillRect(X(dx + Math.cos(a) * (rad + wob)), Y(dy + Math.sin(a) * (rad + wob) * 0.9), 1, 1);
+      g.fillRect(X(dx + Math.cos(a) * (rad + wob) * 1.3), Y(dy + Math.sin(a) * (rad + wob) * 0.9), 1, 1);
     }
     g.fillStyle = '#000'; g.beginPath(); g.arc(X(dx), Y(dy), 4.2 * s, 0, 7); g.fill();
     g.strokeStyle = grey(0.9); g.lineWidth = Math.max(1, s * 0.3); g.beginPath(); g.arc(X(dx), Y(dy), 4.4 * s, 0, 7); g.stroke();
@@ -124,24 +144,22 @@ const drawTree = computed(() => {
     });
 
     // Yesod is the moon: it hangs over the tree's right shoulder, low.
-    moonDisc(g, X(78), Y(8), 5.2 * s, 11);
+    moonDisc(g, X(104), Y(6), 5.2 * s, 11);
 
-    // He sits at the foot of it, eyes shut, and incense goes up beside him.
+    // He sits apart from it in the lower right, over the count of stillness,
+    // eyes shut, and incense goes up beside him.
     if (him) {
-      const size = 44 * s, bx = X(-12), by = Y(106);
-      const back = g.createRadialGradient(bx, by - size * 0.42, size * 0.18, bx, by - size * 0.42, size * 0.56);
-      back.addColorStop(0, 'rgba(255,255,255,.26)'); back.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = back; g.fillRect(bx - size, by - size * 1.2, size * 2, size * 1.2);
+      const size = Math.min(h * 0.22, w * 0.17), bx = w - size * 0.5, by = h - 42;
       g.drawImage(him, bx - size / 2, by - size * 0.98, size, size);
-      const sx = bx + size * 0.46, base = by - size * 0.06;
-      g.fillStyle = grey(0.7); g.fillRect(sx - 3 * s * 0.4, base - 1, 6 * s * 0.4, Math.max(1, s * 0.5));
+      const base = by - size * 0.06;
+      const sx0 = bx - size * 0.52; g.fillStyle = grey(0.7); g.fillRect(sx0 - 3, base - 1, 6, Math.max(1, s * 0.5));
       g.strokeStyle = grey(0.6); g.lineWidth = Math.max(1, s * 0.25);
-      g.beginPath(); g.moveTo(sx, base); g.lineTo(sx + s * 0.8, base - 8 * s); g.stroke();
+      g.beginPath(); g.moveTo(sx0, base); g.lineTo(sx0 + s * 0.8, base - 8 * s); g.stroke();
       g.strokeStyle = grey(0.42);
       g.beginPath();
       for (let k = 0; k <= 40; k++) {
         const u = k / 40, yy = base - 8 * s - u * 36 * s;
-        const xx = sx + s * 0.8 + Math.sin(u * 9 - t * 0.9) * u * 3 * s;
+        const xx = sx0 + s * 0.8 + Math.sin(u * 9 - t * 0.9) * u * 3 * s;
         k ? g.lineTo(xx, yy) : g.moveTo(xx, yy);
       }
       g.stroke();
@@ -192,7 +210,7 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
         <g v-for="m in marks" :key="m.name" class="gate" :class="{ on: picked === m.i, past: m.i < reached, here: m.i === reached }" @click="picked = m.i">
           <circle :cx="m.at[0]" :cy="m.at[1]" r="6.5" />
           <circle v-if="m.twin" :cx="m.twin[0]" :cy="m.twin[1]" r="6.5" />
-          <text :x="m.at[0] + (m.at[0] < 31 ? -8 : 8)" :y="m.at[1] + 1.2" :text-anchor="m.at[0] < 31 ? 'end' : 'start'">{{ GATES[m.i]!.n }} {{ GATES[m.i]!.sephira.split(' ')[0]!.toLowerCase() }}</text>
+          <text :x="m.at[0] + (m.at[0] < 50 ? -8 : 8)" :y="m.at[1] + 1.2" :text-anchor="m.at[0] < 50 ? 'end' : 'start'">{{ GATES[m.i]!.n }} {{ GATES[m.i]!.sephira.split(' ')[0]!.toLowerCase() }}</text>
         </g>
       </svg>
       <div class="dist"><span class="pix">gate v of x // the sun</span><span class="tek">{{ duration(stats.minutes) }}</span><span class="pix">of stillness, kept apart from insight</span></div>

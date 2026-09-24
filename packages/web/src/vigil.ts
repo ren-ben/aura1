@@ -8,10 +8,10 @@ export type Gate = {
   work: Practice[]; signs: string[]; secret: string; shadow: string;
 };
 
-// Tree coordinates in a 62 x 100 box, the classical layout.
+// Tree coordinates in a 100 x 100 box: the classical layout, drawn wide.
 export const SPHERES: Record<string, [number, number]> = {
-  kether: [31, 5], chokmah: [55, 16], binah: [7, 16], daath: [31, 28], chesed: [55, 41], geburah: [7, 41],
-  tiphareth: [31, 53], netzach: [55, 66], hod: [7, 66], yesod: [31, 78], malkuth: [31, 94],
+  kether: [50, 5], chokmah: [85, 16], binah: [15, 16], daath: [50, 28], chesed: [85, 41], geburah: [15, 41],
+  tiphareth: [50, 53], netzach: [85, 66], hod: [15, 66], yesod: [50, 78], malkuth: [50, 94],
 };
 export const PATHS: [string, string][] = [
   ['kether', 'chokmah'], ['kether', 'binah'], ['kether', 'tiphareth'], ['chokmah', 'binah'], ['chokmah', 'tiphareth'],
