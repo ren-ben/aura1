@@ -5,7 +5,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { makePlate, type Draw } from '../gl/plate';
 
 const props = withDefaults(defineProps<{ draw: Draw; active: boolean; animated?: boolean; cell?: number; label?: string }>(), { cell: 3 });
-const cellFor = () => ((canvas.value?.clientWidth ?? 600) < 520 ? props.cell + 1 : props.cell);
+const cellFor = () => props.cell;
 const canvas = ref<HTMLCanvasElement | null>(null);
 let render: ((t: number) => void) | null = null;
 let raf = 0;

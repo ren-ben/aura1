@@ -52,8 +52,11 @@ const ports = computed(() => DIRS.map((d) => ({ ...d, pane: at(here.value.c + d.
 // A key pressed again before the glide ends steps on from where the glide is
 // going, not from where it started; the plane keeps its own easing, so a run
 // of presses reads as one long travel instead of a stutter.
+// The pane being left, kept on a phone only until the glide is over.
+const leaving = shallowRef<Pane | null>(null);
 function go(p: Pane | undefined) {
   if (!p || p === here.value) return;
+  leaving.value = here.value;
   here.value = p;
   try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
 }
@@ -63,12 +66,11 @@ const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r +
 // transition. Safari runs a transition on its compositor and does not paint
 // what comes into view until it has stopped, so every picture on the pane you
 // were going to arrived blank. Moved from script, it paints as it goes.
-// Nothing else draws while it moves: every picture holds its last frame, so a
-// frame of the glide costs one transform and nothing more. And the transform is
+// The pane left behind stops drawing at once and holds its last frame; the
+// pane being gone to starts the moment it is chosen. And the transform is
 // written in pixels, straight onto the world - a custom property there would
 // be inherited by every pane, and restyle all of them, every frame.
 const world = ref<HTMLElement | null>(null);
-const moving = ref(false);
 let pos = { x: here.value.c, y: here.value.r }, glideRaf = 0, span = { x: 0, y: 0 };
 // The console's ease, cubic-bezier(.72, 0, .18, 1), solved for x by Newton.
 const bez = (a: number, b: number, t: number) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
@@ -94,7 +96,6 @@ function place() {
 function glide() {
   cancelAnimationFrame(glideRaf);
   measure();
-  moving.value = true;
   const from = { ...pos }, to = { x: here.value.c, y: here.value.r }, t0 = performance.now();
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const frame = (now: number) => {
@@ -102,7 +103,7 @@ function glide() {
     pos = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
     place();
     if (k < 1) glideRaf = requestAnimationFrame(frame);
-    else moving.value = false;
+    else leaving.value = null;
   };
   glideRaf = requestAnimationFrame(frame);
 }
@@ -119,12 +120,15 @@ const lit = shallowRef<Pane | null>(null);
 // Five on a desk, three on a phone: every one of them is a blurred layer the
 // compositor carries for the whole drag.
 const BLOBS = matchMedia('(pointer: coarse), (max-width: 1500px)').matches ? 3 : 5;
-const glow = ref({ on: false, drops: Array.from({ length: BLOBS }, () => ({ x: -400, y: -400, r: 1 })) });
+// Written straight onto the drops, never through Vue: a reactive position
+// re-rendered the whole console on every frame of the drag.
+const pouring = ref(false);
+const drops = Array.from({ length: BLOBS }, () => ({ x: -400, y: -400, r: 1 }));
+const dropEls: HTMLElement[] = [];
 let want = { x: -400, y: -400 };
 let flow = 0;
 
 function pour() {
-  const drops = glow.value.drops.map((d) => ({ ...d }));
   let moved = 0;
   for (let i = 0; i < drops.length; i++) {
     const d = drops[i]!;
@@ -135,8 +139,8 @@ function pour() {
     // A drop being pulled stretches; a drop at rest is round again.
     d.r = 1 + Math.min(1.4, Math.hypot(dx, dy) / 90);
     moved += Math.abs(dx) + Math.abs(dy);
+    dropEls[i]?.style.setProperty('transform', `translate3d(${d.x}px, ${d.y}px, 0) scale(${(1 - i / BLOBS) * d.r})`);
   }
-  glow.value = { on: true, drops };
   findLit();
   flow = moved > 1.5 ? requestAnimationFrame(pour) : 0;
 }
@@ -145,9 +149,8 @@ function pour() {
 // a frame in pour() - a finger dragging fires far more moves than a phone can
 // composite, and doing this work per event is most of what made it crawl.
 function aim(x: number, y: number) {
-  const first = !glow.value.on;
   want = { x, y };
-  if (first) glow.value = { on: true, drops: glow.value.drops.map(() => ({ x, y, r: 1 })) };
+  if (!pouring.value) { pouring.value = true; for (const d of drops) { d.x = x; d.y = y; d.r = 1; } }
   if (!flow) flow = requestAnimationFrame(pour);
 }
 function trace(e: PointerEvent) { if (mapping.value) aim(e.clientX, e.clientY); }
@@ -167,7 +170,7 @@ function findLit() {
 function release(e?: PointerEvent) {
   if (!mapping.value) return;
   mapping.value = false;
-  glow.value = { ...glow.value, on: false };
+  pouring.value = false;
   cancelAnimationFrame(flow); flow = 0;
   const target = lit.value;
   lit.value = null;
@@ -184,6 +187,8 @@ function holdDown(e: PointerEvent) {
 }
 // A tap on a card goes there, for a finger that lifts and taps instead of drags.
 function pickPane(p: Pane) { mapping.value = false; lit.value = null; go(p); }
+// Worked out once each time the web opens, not on every render of it.
+const previews = computed(() => (mapping.value ? Object.fromEntries(PANES.map((p) => [p.id, preview(p.id)])) : {}));
 const mapBox = computed(() => {
   const cs = PANES.map((p) => p.c), rs = PANES.map((p) => p.r);
   return { c0: Math.min(...cs), r0: Math.min(...rs), cols: Math.max(...cs) - Math.min(...cs) + 1, rows: Math.max(...rs) - Math.min(...rs) + 1 };
@@ -236,7 +241,8 @@ function keyUp(e: KeyboardEvent) { if (e.key === ' ') release(); }
 // Swipes, away from anything that turns or scrolls.
 let touch: { x: number; y: number } | null = null;
 function tDown(e: PointerEvent) {
-  if (e.pointerType === 'mouse' || (e.target as HTMLElement).closest('canvas, input, textarea, select, button, .scroll')) return;
+  // A phone travels by the web alone.
+  if (narrow.value || e.pointerType === 'mouse' || (e.target as HTMLElement).closest('canvas, input, textarea, select, button, .scroll')) return;
   touch = { x: e.clientX, y: e.clientY };
 }
 function tUp(e: PointerEvent) {
@@ -249,7 +255,7 @@ function tUp(e: PointerEvent) {
 
 // A phone gets a different console: no wires between panes, no terminal, and
 // the web on a key under the thumb.
-const narrow = ref(false);
+const narrow = ref(matchMedia('(max-width: 860px)').matches);
 const seeWidth = () => { narrow.value = matchMedia('(max-width: 860px)').matches; };
 
 const clock = ref('');
@@ -273,7 +279,7 @@ onBeforeUnmount(() => {
     <div ref="world" class="world">
       <section v-for="p in PANES" :key="p.id" class="pane" :class="{ here: p === here }"
         :style="{ '--pc': p.c, '--pr': p.r }" :aria-hidden="p !== here" :inert="p !== here">
-        <component :is="p.component" v-if="state.ready" :active="p === here && !moving && !mapping" />
+        <component :is="p.component" v-if="state.ready && (!narrow || p === here || p === leaving)" :active="p === here && !mapping" />
       </section>
     </div>
   </div>
@@ -321,9 +327,8 @@ onBeforeUnmount(() => {
         <feBlend in="SourceGraphic" in2="welded" />
       </filter>
     </svg>
-    <div class="pour" :class="{ on: glow.on }" aria-hidden="true">
-      <i v-for="(d, i) in glow.drops" :key="i"
-        :style="{ left: `${d.x}px`, top: `${d.y}px`, '--r': d.r, '--k': 1 - i / glow.drops.length }"></i>
+    <div class="pour" :class="{ on: pouring }" aria-hidden="true">
+      <i v-for="i in BLOBS" :key="i" :ref="(el) => { if (el) dropEls[i - 1] = el as HTMLElement; }"></i>
     </div>
     <div class="sky"></div>
     <div class="grid" :style="{ gridTemplateColumns: `repeat(${mapBox.cols}, 1fr)`, gridTemplateRows: `repeat(${mapBox.rows}, 1fr)` }">
@@ -335,8 +340,8 @@ onBeforeUnmount(() => {
         @click="pickPane(p)">
         <b>{{ p.name }}</b>
         <span>{{ p.kind }}</span>
-        <span class="bars" aria-hidden="true"><i v-for="(v, k) in preview(p.id).bars" :key="k" :style="{ '--v': v }"></i></span>
-        <span class="stat">{{ preview(p.id).stat }}</span>
+        <span class="bars" aria-hidden="true"><i v-for="(v, k) in previews[p.id]?.bars" :key="k" :style="{ '--v': v }"></i></span>
+        <span class="stat">{{ previews[p.id]?.stat }}</span>
       </div>
     </div>
     <p class="pix say">{{ lit ? lit.name : 'let go over a pane to go there' }}</p>
@@ -438,9 +443,9 @@ onBeforeUnmount(() => {
 .map .pour { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
   filter: url(#goo) blur(7px); transition: opacity .34s var(--out); }
 .map .pour.on { opacity: .85; }
-.map .pour i { position: absolute; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+.map .pour i { position: absolute; left: 0; top: 0; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
   background: radial-gradient(circle, rgba(220, 213, 198, .95), rgba(197, 188, 171, .5) 58%, transparent 72%);
-  transform: scale(calc(var(--k) * var(--r))); }
+  transform: translate3d(-400px, -400px, 0); will-change: transform; }
 /* The card under the light fills from wherever the finger is, and leans. */
 .map .card.lit { border-color: var(--hi); border-style: solid; z-index: 2;
   transform: perspective(760px) rotateY(calc(var(--tx, 0) * 5deg)) rotateX(calc(var(--ty, 0) * -5deg)) scale(1.045);
@@ -469,14 +474,12 @@ onBeforeUnmount(() => {
   .map .card .bars i { transition: none; }
   .map .edges line { animation: none; }
 }
-.map.narrow { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
-.map.narrow .pour { filter: blur(11px); }
+/* A phone gets every pane on one screen, two by seven, since a finger that is
+   holding cannot also scroll. Nothing on it is blurred. */
 .map.narrow .pour i { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
-.map.narrow .card { animation-duration: .3s; }
-.map.narrow .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: none !important;
-  gap: 10px; align-content: start; overflow: auto; padding-bottom: 12px; scrollbar-width: none; }
-.map.narrow .grid::-webkit-scrollbar { width: 0; }
-.map.narrow .card { min-height: 116px; }
+.map.narrow .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: repeat(7, minmax(0, 1fr)) !important; gap: 8px; }
+.map.narrow .card { gap: 3px; padding: 6px; min-height: 0; }
+.map.narrow .card .bars { display: none; }
 
 /* The key for the web: top edge for a thumb reaching up, bottom for down. */
 .webkey { position: fixed; z-index: 30; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;
@@ -534,12 +537,11 @@ onBeforeUnmount(() => {
   /* Nothing is written along the top on a phone: the console is the pane. */
   .hud .where, .hud .mini { display: none; }
   .stage::after { height: 84px; }
-  .map { padding: calc(58px + env(safe-area-inset-top, 0px)) 14px calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .map { padding: calc(58px + env(safe-area-inset-top, 0px)) 14px calc(104px + env(safe-area-inset-bottom, 0px)); }
   .map .say { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
-  .map .card b { font-size: 21px; }
-  .map .card .bars { height: 18px; }
-  .map .card .bars i { width: 3px; height: calc(3px + var(--v) * 14px); }
+  .map .card b { font-size: clamp(16px, 2.6dvh, 21px); }
   .pane > * { overflow: auto; }
+  .pane .frame > .body.scroll { overflow: visible; }
   /* Narrow panes stack and scroll; nothing is squeezed onto its neighbour. */
   .pane > * > * { flex-shrink: 0; }
   .hud .where b { font-size: 22px; }

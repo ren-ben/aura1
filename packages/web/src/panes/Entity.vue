@@ -45,12 +45,14 @@ const draw = computed(() => {
     form.u += ((opening.value ? 1 : 0) - form.u) * 0.055;
     const drift_ = eye;
     const u = form.u < 0.002 ? 0 : form.u;
+    // Upright on a phone: he stands in the middle, larger, the moon over him.
+    const tall = w / h < 1;
     const horizon = h * 0.84;
     const sky = g.createLinearGradient(0, 0, 0, horizon);
     sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.58, 'rgb(6,6,6)'); sky.addColorStop(0.88, 'rgb(52,52,52)'); sky.addColorStop(1, 'rgb(158,158,158)');
     g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
     starfield(g, w, horizon * 0.72, Math.round((w * h) / 260), 17, drift_.x * -3, drift_.y * -2);
-    moonDisc(g, w * 0.78 + drift_.x * -5, h * 0.19 + drift_.y * -4, Math.min(w, h) * 0.09, 7);
+    moonDisc(g, w * (tall ? 0.8 : 0.78) + drift_.x * -5, h * (tall ? 0.15 : 0.19) + drift_.y * -4, Math.min(w, h) * (tall ? 0.11 : 0.09), 7);
     for (let k = 0; k < 3; k++) {
       const y = h * (0.2 + k * 0.13) + Math.sin(t * 0.05 + k) * 4;
       const band = g.createLinearGradient(0, y - 12, 0, y + 12);
@@ -74,8 +76,9 @@ const draw = computed(() => {
     g.fillStyle = 'rgb(10,10,10)'; g.fillRect(0, horizon, w, h - horizon);
     railing(g, w, horizon + 1, scale * 1.4);
     if (cat) {
-      const size = Math.min(h * 0.95, w * 0.66);
-      const cx = w * 0.62 + drift_.x * 5, cy = horizon - size * 0.45;
+      const size = tall ? Math.min(h * 0.82, w * 0.86) : Math.min(h * 0.95, w * 0.66);
+      const at = tall ? 0.5 : 0.62;
+      const cx = w * at + drift_.x * 5, cy = horizon - size * 0.45;
       if (u < 0.6) {
         const pool = g.createRadialGradient(cx, cy, size * 0.1, cx, cy, size * 0.62);
         pool.addColorStop(0, `rgba(0,0,0,${0.92 * (1 - u / 0.6)})`); pool.addColorStop(1, 'rgba(0,0,0,0)');
@@ -85,7 +88,7 @@ const draw = computed(() => {
       if (u > 0.01) { g.fillStyle = `rgba(0,0,0,${0.97 * u})`; g.fillRect(0, 0, w, h); }
       if (u < 0.55) {
         g.globalAlpha = 1 - u / 0.55;
-        g.drawImage(cat, w * 0.62 - size / 2 + drift_.x * 5, horizon - size * 0.93 + drift_.y * 3, size, size);
+        g.drawImage(cat, w * at - size / 2 + drift_.x * 5, horizon - size * 0.93 + drift_.y * 3, size, size);
         g.globalAlpha = 1;
       }
       if (u > 0.01) openHim(g, w, h, t, u, dots, size, cx, cy);
@@ -348,9 +351,8 @@ onBeforeUnmount(() => {
   .sym { grid-row: 3; grid-column: 1 / -1; }
   .chron { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) { .side { order: -1; } .scene { flex: none; height: 360px; } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .side { order: -1; } .scene { flex: none; height: min(118vw, 460px); } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .entity { display: flex; flex-direction: column; }
-  .scene { min-height: 340px; }
   .side { display: flex; }
   .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

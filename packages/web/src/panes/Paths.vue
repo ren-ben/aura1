@@ -125,6 +125,8 @@ header { display: flex; justify-content: space-between; align-items: end; gap: 2
 .err { color: var(--hi); }
 @media (max-width: 860px) {
   .paths { display: flex; flex-direction: column; }
+  /* The folders are part of the page on a phone, not a window inside it. */
+  .grid { flex: none; overflow: visible; }
   /* On a phone what he says under the walk is a caption, not a paragraph. */
   .walk .said { font-size: 11px; line-height: 1.35; max-width: 26ch; left: 10px; bottom: 8px; padding: 5px 7px; }
 }
