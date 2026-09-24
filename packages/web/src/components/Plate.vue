@@ -16,15 +16,17 @@ function loop(now: number) {
   render?.(now / 1000);
   if (props.animated && props.active && !reduced()) raf = requestAnimationFrame(loop);
 }
+// Stopping draws nothing: the canvas keeps its last frame, and the moment a
+// pane starts to move is the worst moment to spend one.
 function run() {
   cancelAnimationFrame(raf);
   if (props.active) raf = requestAnimationFrame(loop);
-  else render?.(performance.now() / 1000);
 }
 onMounted(() => {
   render = makePlate(canvas.value!, props.draw, cellFor());
   observer = new ResizeObserver(() => { render = makePlate(canvas.value!, props.draw, cellFor()); render(performance.now() / 1000); });
   observer.observe(canvas.value!);
+  render(performance.now() / 1000);
   run();
 });
 watch(() => props.active, run);

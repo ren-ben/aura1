@@ -7,23 +7,20 @@ const props = defineProps<{ build: Build; options?: Options; active: boolean; la
 const emit = defineEmits<{ ready: [SceneHandle] }>();
 const canvas = ref<HTMLCanvasElement | null>(null);
 let handle: SceneHandle | null = null;
-let timer = 0;
 
-// A still frame at once, so the pane arrives with its picture already in it;
-// the scene only starts moving once the pane has settled, so a quick walk
-// past a pane never pays for running it.
+// Drawn once as soon as it exists, so every pane already has its picture when
+// it slides in; it only runs once its pane has stopped moving.
 function run(on: boolean) {
-  clearTimeout(timer);
-  if (on) { handle?.draw(); timer = window.setTimeout(() => handle?.start(), 320); }
-  else handle?.stop();
+  if (on) handle?.start(); else handle?.stop();
 }
 onMounted(() => {
   handle = createScene(canvas.value!, props.build, props.options);
   emit('ready', handle);
+  handle.draw();
   run(props.active);
 });
 watch(() => props.active, run);
-onBeforeUnmount(() => { clearTimeout(timer); handle?.dispose(); });
+onBeforeUnmount(() => { handle?.dispose(); });
 </script>
 
 <template>

@@ -52,17 +52,8 @@ const ports = computed(() => DIRS.map((d) => ({ ...d, pane: at(here.value.c + d.
 // A key pressed again before the glide ends steps on from where the glide is
 // going, not from where it started; the plane keeps its own easing, so a run
 // of presses reads as one long travel instead of a stutter.
-// A pane that stops drawing the moment it stops being the one you are on goes
-// blank while it is still sliding past. It keeps drawing until the world has
-// finished moving.
-const leaving = shallowRef<Pane | null>(null);
-let leave = 0;
-
 function go(p: Pane | undefined) {
   if (!p || p === here.value) return;
-  leaving.value = here.value;
-  clearTimeout(leave);
-  leave = window.setTimeout(() => { leaving.value = null; }, 820);
   here.value = p;
   try { history.replaceState(null, '', `#/${p.id}`); } catch { /* sandboxed */ }
 }
@@ -72,8 +63,13 @@ const step = (dc: number, dr: number) => go(at(here.value.c + dc, here.value.r +
 // transition. Safari runs a transition on its compositor and does not paint
 // what comes into view until it has stopped, so every picture on the pane you
 // were going to arrived blank. Moved from script, it paints as it goes.
+// Nothing else draws while it moves: every picture holds its last frame, so a
+// frame of the glide costs one transform and nothing more. And the transform is
+// written in pixels, straight onto the world - a custom property there would
+// be inherited by every pane, and restyle all of them, every frame.
 const world = ref<HTMLElement | null>(null);
-let pos = { x: here.value.c, y: here.value.r }, glideRaf = 0;
+const moving = ref(false);
+let pos = { x: here.value.c, y: here.value.r }, glideRaf = 0, span = { x: 0, y: 0 };
 // The console's ease, cubic-bezier(.72, 0, .18, 1), solved for x by Newton.
 const bez = (a: number, b: number, t: number) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
 function ease(x: number) {
@@ -85,22 +81,33 @@ function ease(x: number) {
   }
   return bez(0, 1, t);
 }
+// Panes lie 108% of a screen apart; measured once, not on every frame.
+function measure() {
+  const pane = world.value?.firstElementChild as HTMLElement | null;
+  if (pane) span = { x: pane.offsetWidth * 1.08, y: pane.offsetHeight * 1.08 };
+}
 function place() {
-  world.value?.style.setProperty('--x', String(pos.x));
-  world.value?.style.setProperty('--y', String(pos.y));
+  // Whole device pixels, so the text never lands between two and blurs.
+  const r = devicePixelRatio, x = Math.round(-pos.x * span.x * r) / r, y = Math.round(-pos.y * span.y * r) / r;
+  if (world.value) world.value.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 }
 function glide() {
   cancelAnimationFrame(glideRaf);
+  measure();
+  moving.value = true;
   const from = { ...pos }, to = { x: here.value.c, y: here.value.r }, t0 = performance.now();
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const frame = (now: number) => {
-    const k = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : ease(Math.min(1, (now - t0) / 700));
+    const k = still ? 1 : ease(Math.min(1, (now - t0) / 700));
     pos = { x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k };
     place();
     if (k < 1) glideRaf = requestAnimationFrame(frame);
+    else moving.value = false;
   };
   glideRaf = requestAnimationFrame(frame);
 }
 watch(here, glide);
+const fit = () => { seeWidth(); measure(); place(); };
 
 // The web, only while held. A light follows the finger across it and settles
 // into whichever pane it is over; letting go there goes to that pane.
@@ -251,12 +258,12 @@ let timer = 0;
 onMounted(() => {
   addEventListener('keydown', key); addEventListener('keyup', keyUp);
   addEventListener('pointermove', trace, { passive: true });
-  addEventListener('resize', seeWidth); seeWidth(); place();
+  addEventListener('resize', fit); fit();
   tick(); timer = window.setInterval(tick, 20_000); load();
 });
 onBeforeUnmount(() => {
   removeEventListener('keydown', key); removeEventListener('keyup', keyUp);
-  removeEventListener('pointermove', trace); removeEventListener('resize', seeWidth);
+  removeEventListener('pointermove', trace); removeEventListener('resize', fit);
   cancelAnimationFrame(flow); cancelAnimationFrame(glideRaf); clearInterval(timer);
 });
 </script>
@@ -266,7 +273,7 @@ onBeforeUnmount(() => {
     <div ref="world" class="world">
       <section v-for="p in PANES" :key="p.id" class="pane" :class="{ here: p === here }"
         :style="{ '--pc': p.c, '--pr': p.r }" :aria-hidden="p !== here" :inert="p !== here">
-        <component :is="p.component" v-if="state.ready" :active="(p === here || p === leaving) && !mapping" />
+        <component :is="p.component" v-if="state.ready" :active="p === here && !moving && !mapping" />
       </section>
     </div>
   </div>
@@ -359,8 +366,7 @@ onBeforeUnmount(() => {
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
 .stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 74px; z-index: 5; pointer-events: none;
   background: linear-gradient(to top, var(--ground) 30%, rgba(18, 18, 18, .6) 62%, transparent); }
-.world { position: absolute; left: 0; top: 0; will-change: transform;
-  transform: translate(calc(var(--x) * -108vw), calc(var(--y) * -108dvh)); }
+.world { position: absolute; left: 0; top: 0; will-change: transform; }
 .pane { position: absolute; width: 100vw; height: 100dvh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108dvh); overflow: clip;
   background: radial-gradient(var(--faint) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--ground);
   /* Every edge is exactly as deep as what the console writes along it, and

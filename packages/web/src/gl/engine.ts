@@ -89,7 +89,8 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
     material.uniforms.res!.value.set(w * pr, h * pr);
     material.uniforms.px!.value = px * pr;
   }
-  const observer = new ResizeObserver(resize);
+  // Resizing wipes the canvas; a stopped scene paints itself again at once.
+  const observer = new ResizeObserver(() => { resize(); if (!running) paint(performance.now()); });
   observer.observe(canvas);
 
   let running = false, raf = 0, last = 0;
