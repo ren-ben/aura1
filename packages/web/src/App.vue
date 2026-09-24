@@ -244,8 +244,6 @@ onBeforeUnmount(() => {
   </nav>
 
   <div class="hud">
-    <div class="brand"><b>AURA-1</b><span class="pix">console{{ state.demo ? ' // sample data' : '' }}</span></div>
-    <div class="rec"><span class="clock">earth date {{ clock }}</span><span class="blink">recording</span></div>
     <div class="where"><span class="pix">{{ here.kind }}</span><b>{{ here.name }}</b></div>
     <div v-if="!narrow" class="tools">
       <button aria-label="Search, ctrl k" @click="openSearch">
@@ -257,7 +255,10 @@ onBeforeUnmount(() => {
         <span>hold for the web</span>
       </button>
     </div>
-    <div class="mini" v-if="state.device"><span>unit k-01</span><span>{{ state.device.battery ?? '--' }}%</span><span>{{ Math.floor(today.minutes / 60) }}h {{ String(Math.round(today.minutes % 60)).padStart(2, '0') }}m today</span></div>
+    <div class="mini">
+      <p><span><i>earth date </i>{{ clock }}</span><span class="blink">recording</span></p>
+      <p v-if="state.device || state.demo"><span v-if="state.demo">sample data</span><template v-if="state.device"><span>unit k-01</span><span>{{ state.device.battery ?? '--' }}%</span><span>{{ Math.floor(today.minutes / 60) }}h {{ String(Math.round(today.minutes % 60)).padStart(2, '0') }}m today</span></template></p>
+    </div>
   </div>
 
   <button v-for="side in (narrow ? ['top', 'bottom'] : [])" :key="side" class="webkey" :class="[side, { held: mapping }]"
@@ -320,16 +321,19 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+:root { --gt: 60px; --gx: clamp(52px, 5vw, 96px); --gb: 116px; }
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
 .stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 74px; z-index: 5; pointer-events: none;
   background: linear-gradient(to top, var(--ground) 30%, rgba(18, 18, 18, .6) 62%, transparent); }
 .world { position: absolute; left: 0; top: 0; transition: transform .7s var(--ease); will-change: transform;
-  transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108vh)); }
-.pane { position: absolute; width: 100vw; height: 100vh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108vh); overflow: clip;
+  transform: translate(calc(var(--c) * -108vw), calc(var(--r) * -108dvh)); }
+.pane { position: absolute; width: 100vw; height: 100dvh; left: calc(var(--pc) * 108vw); top: calc(var(--pr) * 108dvh); overflow: clip;
   background: radial-gradient(var(--faint) 1px, transparent 1.2px) 0 0 / 22px 22px, var(--ground);
-  /* The side gutters are as wide as the wires and their names, so nothing the
-     console says about itself ever lands on what a pane is showing. */
-  padding: 84px clamp(16px, 7.5vw, 116px) 132px; display: flex; flex-direction: column; }
+  /* Every edge is exactly as deep as what the console writes along it, and
+     the wires are cut to that depth, so nothing ever lands on a pane. dvh,
+     not vh: Safari's vh reaches under its own toolbar, and took the last row
+     of every pane down there with it. */
+  padding: var(--gt) var(--gx) var(--gb); display: flex; flex-direction: column; }
 /* A pane that holds more than fits used to spill into its own bottom padding
    and out under the keys, where the scrim finished it off. It scrolls now, so
    the last row of any pane is always above the keys and always readable. */
@@ -337,24 +341,27 @@ onBeforeUnmount(() => {
   overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .pane > *::-webkit-scrollbar { width: 0; height: 0; }
 
-.ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 10px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 8px; }
+.ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 6px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 6px; }
 .ports .port:hover { color: var(--hi); }
-.port .wire { width: 56px; height: 3px; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 0 50% / 8px 3px repeat-x; animation: wire 1s linear infinite; }
-.port.n .wire, .port.s .wire { width: 3px; height: 22px; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 50% 0 / 3px 8px repeat-y; animation-name: wirev; }
+.port .wire { flex: 1; min-width: 8px; min-height: 8px; height: 3px; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 0 50% / 8px 3px repeat-x; animation: wire 1s linear infinite; }
+.port.n .wire, .port.s .wire { width: 3px; height: auto; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 50% 0 / 3px 8px repeat-y; animation-name: wirev; }
 @keyframes wire { to { background-position: 8px 50%; } }
 @keyframes wirev { to { background-position: 50% 8px; } }
-.port.w { left: 4px; top: 50%; transform: translateY(-50%); flex-direction: row-reverse; }
+.port.w, .port.e { top: 50%; width: var(--gx); transform: translateY(-50%); }
+/* Names on the sides run up the edge like a spine, so a side wire only has to
+   cross the gutter, however long the name. */
+.port.w > span:last-child, .port.e > span:last-child { writing-mode: vertical-rl; }
+.port.w { left: 0; flex-direction: row-reverse; }
+.port.w > span:last-child { transform: rotate(180deg); }
 .port.w .wire { animation-direction: reverse; }
-.port.e { right: 4px; top: 50%; transform: translateY(-50%); }
-.port.n { top: 4px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; gap: 2px; }
+.port.e { right: 0; }
+.port.n, .port.s { left: 50%; transform: translateX(-50%); gap: 2px; }
+.port.n { top: env(safe-area-inset-top, 0px); height: var(--gt); flex-direction: column-reverse; }
 .port.n .wire { animation-direction: reverse; }
-.port.s { bottom: 52px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; gap: 2px; }
+.port.s { bottom: calc(56px + env(safe-area-inset-bottom, 0px)); height: calc(var(--gb) - 56px); flex-direction: column-reverse; }
 
 .hud { position: fixed; inset: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(10px + env(safe-area-inset-bottom, 0px)); pointer-events: none; z-index: 20; font: 400 10.5px var(--pix); text-transform: uppercase; }
 .hud > * { position: absolute; }
-.hud .brand { left: 0; top: 0; display: flex; gap: 12px; align-items: baseline; }
-.hud .brand b { font: 800 22px/1 var(--tek); color: var(--hi); letter-spacing: .06em; text-transform: none; }
-.hud .rec { right: 0; top: 4px; display: flex; gap: 14px; color: var(--phos); }
 .hud .blink::after { content: '...'; animation: blink 1.2s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .hud .where { left: 0; bottom: 0; display: grid; gap: 2px; }
@@ -363,7 +370,10 @@ onBeforeUnmount(() => {
 .hud .tools button { border: 2px solid var(--phos); background: var(--ground); padding: 9px 14px; display: flex; gap: 8px; align-items: center; user-select: none; -webkit-user-select: none; touch-action: none; text-transform: uppercase; }
 .hud .tools button:hover, .hud .tools button.held { background: var(--phos); color: var(--ground); }
 .hud .tools svg { width: 14px; height: 14px; }
-.hud .mini { right: 0; bottom: 4px; display: flex; gap: 14px; color: var(--dim); }
+.hud .mini { right: 0; bottom: 2px; display: grid; gap: 4px; justify-items: end; color: var(--dim); }
+.hud .mini p { margin: 0; display: flex; gap: 14px; }
+.hud .mini p:first-child { color: var(--phos); }
+.hud .mini i { font-style: normal; }
 
 .map { position: fixed; inset: 0; z-index: 25; background: rgba(12, 11, 10, .72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   padding: 60px clamp(16px, 5vw, 80px) 90px; animation: mapin .34s var(--ease) both; }
@@ -468,27 +478,19 @@ onBeforeUnmount(() => {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 @keyframes grain { 25% { transform: translate(-3%, 2%); } 50% { transform: translate(2%, -3%); } 75% { transform: translate(-2%, -2%); } }
 
-/* A tablet is not a small desk: the wires keep their dots and drop their
-   names well before the window is narrow, because at 1366 the names were
-   landing on the pane, and the pane keeps more room top and bottom so the
-   console's own labels never sit on what a pane is showing. */
-/* Below a wide desk the console says nothing about itself: no name, no earth
-   date, no wires across the glass. What is left is the pane and the two keys
-   under it, and the pane is given the room that frees up - top and bottom
-   equal, so what it holds sits in the middle of the screen. */
+/* A tablet keeps its wires, just cut shorter, and the name of where you are
+   gives way first when the foot of the screen gets crowded. */
 @media (max-width: 1500px) {
-  .ports { display: none; }
-  .hud .brand, .hud .rec, .hud .where { display: none; }
-  .pane { padding: 34px clamp(16px, 4.5vw, 64px) 104px; }
-  .hud .mini { font-size: 9.5px; bottom: 2px; }
-  .stage::after { height: 72px; }
+  :root { --gt: 54px; --gx: 56px; --gb: 104px; }
+  .hud .mini { font-size: 9.5px; }
 }
+@media (max-width: 1180px) { .hud .where, .hud .mini i { display: none; } }
 @media (max-width: 860px) {
   .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
                   calc(92px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
   .hud { inset: calc(8px + env(safe-area-inset-top, 0px)) 14px calc(8px + env(safe-area-inset-bottom, 0px)); }
   /* Nothing is written along the top on a phone: the console is the pane. */
-  .hud .where, .hud .rec, .hud .mini, .hud .brand { display: none; }
+  .hud .where, .hud .mini { display: none; }
   .stage::after { height: 84px; }
   .map { padding: calc(58px + env(safe-area-inset-top, 0px)) 14px calc(84px + env(safe-area-inset-bottom, 0px)); }
   .map .say { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
@@ -499,10 +501,7 @@ onBeforeUnmount(() => {
   /* Narrow panes stack and scroll; nothing is squeezed onto its neighbour. */
   .pane > * > * { flex-shrink: 0; }
   .hud .where b { font-size: 22px; }
-  .hud .mini, .hud .rec .clock, .hud .tools span { display: none; }
-  .port.n, .port.s { display: none; }
-  .port .wire { width: 24px; }
-  .port.w, .port.e { top: auto; bottom: 56px; transform: none; }
+  .hud .tools span { display: none; }
   .map .grid { gap: 8px; }
 }
 </style>
