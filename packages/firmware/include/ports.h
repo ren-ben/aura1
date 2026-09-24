@@ -18,6 +18,13 @@ public:
   virtual bool write(const std::string& path, const std::string& content) = 0;
   virtual bool remove(const std::string& path) = 0;
   virtual bool exists(const std::string& path) = 0;
+  // A whole file as it is, in one piece: a chapter read line by line is a
+  // thousand small allocations the device cannot spare.
+  virtual std::string read(const std::string& path) {
+    std::string out;
+    for (const auto& line : readLines(path)) out += line + '\n';
+    return out;
+  }
 };
 
 class Random {

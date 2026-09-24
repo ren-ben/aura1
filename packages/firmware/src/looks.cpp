@@ -1223,10 +1223,14 @@ std::vector<int> readerPages(const Look& look, const std::string& text, bool lar
   std::vector<int> starts{ 0 };
   int line = 0;
   size_t at = 0, lineStart = 0, lastBreak = 0;
-  std::string current;
+  // The width of the line so far, text[lineStart, at). Kept as a sum: a
+  // font's widths add up, so nothing is built or measured twice, and a
+  // long chapter cuts in a moment instead of a hundred thousand strings.
+  int wide = 0;
+  char one[2] = { 0, 0 };
 
   const auto endLine = [&](size_t next) {
-    current.clear();
+    wide = 0;
     lineStart = next;
     if (++line < b.lines) return;
     line = 0;
@@ -1237,7 +1241,7 @@ std::vector<int> readerPages(const Look& look, const std::string& text, bool lar
     const char ch = text[at];
     if (ch == '\n') {
       // A paragraph ends the line, and an empty one costs a line of its own.
-      const bool blank = current.empty();
+      const bool blank = at == lineStart;
       endLine(at + 1);
       if (blank && line != 0) endLine(at + 1);
       ++at;
@@ -1245,15 +1249,16 @@ std::vector<int> readerPages(const Look& look, const std::string& text, bool lar
       continue;
     }
     if (ch == ' ') lastBreak = at;
-    const std::string grown = current + ch;
-    if (measure.width(grown) > readerLineWidth(b, line) && lastBreak > lineStart) {
+    one[0] = ch;
+    const int grown = wide + measure.width(one);
+    if (grown > readerLineWidth(b, line) && lastBreak > lineStart) {
       // Back to the last space: the rest of the word begins the next line.
       at = lastBreak + 1;
       endLine(at);
       lastBreak = at;
       continue;
     }
-    current = grown;
+    wide = grown;
     ++at;
   }
   if (starts.size() > 1 && starts.back() >= static_cast<int>(text.size())) starts.pop_back();

@@ -54,10 +54,8 @@ void SyncClient::joinByScan() {
 }
 
 void SyncClient::radioOff() {
-  if (fetching_ || connected_) { http_.end(); tls_.stop(); }
-  fetching_ = false;
+  if (connected_) { http_.end(); tls_.stop(); }
   connected_ = false;
-  plan_.clear();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   bootloader_random_enable();
@@ -65,7 +63,12 @@ void SyncClient::radioOff() {
 }
 
 void SyncClient::abort() {
-  if (busy_) radioOff();
+  if (fetching_) {
+    stop_ = true;
+    const unsigned long from = millis();
+    while (fetching_ && millis() - from < 20000) delay(20);
+  }
+  if (busy_ && !fetching_) radioOff();
 }
 
 bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, SyncOutcome& result) {
@@ -106,64 +109,111 @@ bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, Syn
 
 void SyncClient::fetch(const std::vector<Fetch>& plan, int urgent) {
   if (!connected_) return;
-  if (!fetching_) {
-    tls_.setCACert(CLOUDFLARE_ROOTS);
-    tls_.setHandshakeTimeout(HANDSHAKE_TIMEOUT_S);
-    http_.setReuse(true);
-    fetchFrom_ = millis();
+  if (!lock_) {
+    lock_ = xSemaphoreCreateMutex();
+    news_ = xQueueCreate(8, sizeof(FetchProgress));
   }
+  xSemaphoreTake(lock_, portMAX_DELAY);
   plan_ = plan;
   urgent_ = urgent;
   next_ = 0;
-  fetching_ = !plan_.empty();
-  if (!fetching_) radioOff();
+  xSemaphoreGive(lock_);
+  // Already under way: the task takes the new order with its next piece.
+  if (fetching_) return;
+  if (plan.empty()) { radioOff(); return; }
+  tls_.setCACert(CLOUDFLARE_ROOTS);
+  tls_.setHandshakeTimeout(HANDSHAKE_TIMEOUT_S);
+  http_.setReuse(true);
+  fetchFrom_ = millis();
+  stop_ = false;
+  fetching_ = true;
+  // Core 0, with the radio: the loop and the buttons keep core 1 to themselves.
+  if (xTaskCreatePinnedToCore(run, "fetch", 16384, this, 1, nullptr, 0) != pdPASS) {
+    fetching_ = false;
+    radioOff();
+  }
 }
 
-bool SyncClient::step(FetchProgress& progress) {
-  if (!fetching_) return false;
-  if (WiFi.status() != WL_CONNECTED) {
-    progress = FetchProgress{};
-    progress.id = plan_[0].id;
-    progress.failed = progress.offline = true;
-    radioOff();
-    return true;
+void SyncClient::run(void* self) {
+  auto* client = static_cast<SyncClient*>(self);
+  FetchProgress progress;
+  bool more = true;
+  while (more) {
+    bool tell = false;
+    more = client->step(progress, tell);
+    if (tell) xQueueSend(client->news_, &progress, pdMS_TO_TICKS(2000));
   }
-  // Nobody is waiting on the rest of the shelf: it gets a while each sync.
-  if (plan_[0].id != urgent_ && millis() - fetchFrom_ > BACKGROUND_FETCH_MS) { radioOff(); return false; }
-  Fetch& book = plan_[0];
-  const std::string id = std::to_string(book.id);
+  client->radioOff();
+  // Last: busy() holds until the radio is down, so no sync starts under it.
+  client->fetching_ = false;
+  vTaskDelete(nullptr);
+}
+
+bool SyncClient::news(FetchProgress& progress) {
+  return news_ && xQueueReceive(news_, &progress, 0) == pdTRUE;
+}
+
+bool SyncClient::step(FetchProgress& progress, bool& tell) {
+  tell = false;
   progress = FetchProgress{};
+  if (stop_) return false;
+  if (WiFi.status() != WL_CONNECTED) {
+    progress.failed = progress.offline = true;
+    tell = true;
+    return false;
+  }
+  // What comes next, read under the lock: the loop may reorder it meanwhile.
+  xSemaphoreTake(lock_, portMAX_DELAY);
+  // Nobody is waiting on the rest of the shelf: it gets a while each sync.
+  if (plan_.empty() || (plan_[0].id != urgent_ && millis() - fetchFrom_ > BACKGROUND_FETCH_MS)) {
+    plan_.clear();
+    xSemaphoreGive(lock_);
+    return false;
+  }
+  Fetch book = plan_[0];
+  int next = next_;
+  xSemaphoreGive(lock_);
+
+  const std::string id = std::to_string(book.id);
   progress.id = book.id;
   const auto failed = [&]() {
-    Serial.printf("fetch failed: book %d, chapter %d\n", book.id, next_);
+    Serial.printf("fetch failed: book %d, chapter %d\n", book.id, next);
     progress.failed = true;
-    radioOff();
-    return true;
+    tell = true;
+    return false;
   };
+  // Moves the shared order on, if it is still this book at the front.
+  const auto advance = [&](bool whole) {
+    xSemaphoreTake(lock_, portMAX_DELAY);
+    if (!plan_.empty() && plan_[0].id == book.id) {
+      if (whole) { plan_.erase(plan_.begin()); next_ = 0; }
+      else next_ = next;
+    }
+    const bool more = !plan_.empty();
+    xSemaphoreGive(lock_);
+    return more;
+  };
+
   // The head first: the name, the chapters, where it was left.
   if (!storage_.exists(Book::headPath(book.id))) {
     if (!download("/books/" + id, Book::headPath(book.id))) return failed();
-    next_ = 0;
+    next = 0;
   }
-  if (next_ == 0) {
-    const auto head = storage_.readLines(Book::headPath(book.id));
-    if (!head.empty()) book.chapters = std::atoi(head[0].c_str());
-  }
-  while (next_ < book.chapters && storage_.exists(Book::partPath(book.id, next_))) ++next_;
+  const auto head = storage_.readLines(Book::headPath(book.id));
+  if (!head.empty()) book.chapters = std::atoi(head[0].c_str());
+  while (next < book.chapters && storage_.exists(Book::partPath(book.id, next))) ++next;
   progress.total = book.chapters;
-  if (next_ >= book.chapters) {
+  tell = true;
+  if (next >= book.chapters) {
     storage_.write(Book::donePath(book.id), "");
     Serial.printf("fetched book %d whole, %d chapters\n", book.id, book.chapters);
     progress.done = book.chapters;
     progress.whole = true;
-    plan_.erase(plan_.begin());
-    next_ = 0;
-    if (plan_.empty()) radioOff();
-    return true;
+    return advance(true);
   }
-  if (!download("/books/" + id + "/chapters/" + std::to_string(next_), Book::partPath(book.id, next_))) return failed();
-  progress.done = ++next_;
-  return true;
+  if (!download("/books/" + id + "/chapters/" + std::to_string(next), Book::partPath(book.id, next))) return failed();
+  progress.done = ++next;
+  return advance(false);
 }
 
 bool SyncClient::download(const std::string& path, const std::string& file) {

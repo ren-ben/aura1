@@ -7,15 +7,6 @@ namespace {
 
 const std::string NOTHING;
 
-std::string join(const std::vector<std::string>& lines) {
-  std::string out;
-  for (size_t i = 0; i < lines.size(); ++i) {
-    if (i) out += '\n';
-    out += lines[i];
-  }
-  return out;
-}
-
 // "<chapterIdx> <through>"; false when the card has nothing readable.
 bool readPlace(Storage& storage, const std::string& path, int& chapter, int& through) {
   const auto lines = storage.readLines(path);
@@ -158,7 +149,9 @@ bool Book::arrived(int bookId) {
 const std::string& Book::body(int idx) const {
   if (!holds(idx)) return NOTHING;
   if (idx != cached_) {
-    text_ = join(storage_.readLines(partPath(id_, idx)));
+    text_ = storage_.read(partPath(id_, idx));
+    // The card may have been written on a PC.
+    text_.erase(std::remove(text_.begin(), text_.end(), '\r'), text_.end());
     cached_ = idx;
   }
   return text_;

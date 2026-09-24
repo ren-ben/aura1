@@ -31,6 +31,22 @@ public:
   bool write(const std::string& path, const std::string& content) override {
     return put(path, content, "w");
   }
+  // One allocation the size of the file, which is large enough to be put in
+  // PSRAM rather than the internal RAM Wi-Fi and TLS need.
+  std::string read(const std::string& path) override {
+    std::string out;
+    FILE* f = fopen((std::string(SD_MOUNT) + path).c_str(), "rb");
+    if (!f) return out;
+    if (fseek(f, 0, SEEK_END) == 0) {
+      const long size = ftell(f);
+      if (size > 0 && fseek(f, 0, SEEK_SET) == 0) {
+        out.resize(static_cast<size_t>(size));
+        out.resize(fread(&out[0], 1, out.size(), f));
+      }
+    }
+    fclose(f);
+    return out;
+  }
   bool remove(const std::string& path) override { return SD_MMC.remove(path.c_str()); }
   bool exists(const std::string& path) override { return SD_MMC.exists(path.c_str()); }
 

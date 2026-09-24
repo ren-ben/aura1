@@ -204,17 +204,14 @@ void loop() {
     else if (machine.screen() == Screen::Stopped) { if (syncClient.busy()) nextSync = millis(); else startSync(); }
   }
 
-  if (syncClient.fetching()) {
-    // A chapter a pass through the loop, so the buttons still answer.
-    FetchProgress progress;
-    if (syncClient.step(progress)) {
-      if (progress.failed) machine.setSyncNote(progress.offline ? "NO WIFI" : "SERVER ERROR");
-      else if (progress.whole) machine.bookArrived(progress.id);
-      else machine.copying(progress.id, progress.done, progress.total);
-    }
-  } else if (syncClient.busy()) {
-    pollSync();
+  // Books arrive on a task of their own; here is only what it has to tell.
+  FetchProgress progress;
+  while (syncClient.news(progress)) {
+    if (progress.failed) machine.setSyncNote(progress.offline ? "NO WIFI" : "SERVER ERROR");
+    else if (progress.whole) machine.bookArrived(progress.id);
+    else machine.copying(progress.id, progress.done, progress.total);
   }
+  if (syncClient.busy() && !syncClient.fetching()) pollSync();
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
@@ -227,6 +224,8 @@ void loop() {
   // clock and millis() all survive light sleep, so a running session carries
   // on. Never while syncing, and never with a computer on the USB port: light
   // sleep also stops the port, which leaves the board unflashable.
+  // Busy, the loop still gives the radio's core room to breathe.
+  if (syncClient.busy()) delay(5);
   if (buttons.settled() && !syncClient.busy() && !usbHost()) {
     esp_sleep_enable_timer_wakeup(TICK_MS * 1000);
     esp_light_sleep_start();
