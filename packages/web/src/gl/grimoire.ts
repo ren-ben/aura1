@@ -59,6 +59,54 @@ function script(g: CanvasRenderingContext2D, x0: number, x1: number, y: number, 
   }
 }
 
+// The small things drawn in the margins of every page he keeps.
+const INK = 'rgba(26,20,14,.9)';
+function star(g: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  g.beginPath();
+  g.moveTo(x, y - s); g.lineTo(x + s * 0.25, y - s * 0.25); g.lineTo(x + s, y); g.lineTo(x + s * 0.25, y + s * 0.25);
+  g.lineTo(x, y + s); g.lineTo(x - s * 0.25, y + s * 0.25); g.lineTo(x - s, y); g.lineTo(x - s * 0.25, y - s * 0.25);
+  g.closePath(); g.fill();
+}
+// A constellation nobody has named: five stars in a corner and the lines between them.
+function constellation(g: CanvasRenderingContext2D, x: number, y: number, spread: number, r: () => number): void {
+  const pts = Array.from({ length: 5 }, () => [x + (r() - 0.5) * spread, y + (r() - 0.5) * spread] as const);
+  g.strokeStyle = 'rgba(26,20,14,.4)'; g.lineWidth = 0.9; g.setLineDash([2, 3]);
+  g.beginPath(); pts.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py))); g.stroke();
+  g.setLineDash([]); g.fillStyle = INK;
+  pts.forEach(([px, py], i) => star(g, px, py, i === 0 ? 5 : 2.6 + r() * 1.6));
+}
+// The moon at a phase: 0 new, .5 half, 1 full.
+function moonAt(g: CanvasRenderingContext2D, x: number, y: number, rad: number, p: number): void {
+  g.strokeStyle = INK; g.lineWidth = 1.2;
+  g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = INK; g.beginPath();
+  g.arc(x, y, rad, -Math.PI / 2, Math.PI / 2, false);
+  g.ellipse(x, y, rad * Math.abs(1 - 2 * p), rad, 0, Math.PI / 2, -Math.PI / 2, p < 0.5);
+  g.fill();
+}
+// The twelve houses, as a ring of small marks round whatever sits inside it.
+function zodiac(g: CanvasRenderingContext2D, cx: number, cy: number, inner: number, outer: number): void {
+  g.strokeStyle = INK; g.lineWidth = 1.4;
+  for (const rad of [inner, outer]) { g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke(); }
+  const mid = (inner + outer) / 2, s = (outer - inner) * 0.3;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner); g.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer); g.stroke();
+    const b = a + Math.PI / 12, x = cx + Math.cos(b) * mid, y = cy + Math.sin(b) * mid;
+    g.save(); g.translate(x, y); g.rotate(b + Math.PI / 2); g.lineWidth = 1.3; g.beginPath();
+    switch (i % 6) {
+      case 0: g.arc(0, 0, s, 0, 7); g.moveTo(s * 0.25, 0); g.arc(0, 0, s * 0.25, 0, 7); break;       // the sun
+      case 1: g.arc(0, 0, s, -1.2, 1.2); g.arc(s * 0.5, 0, s * 0.7, 1.5, -1.5, true); break;          // a crescent
+      case 2: g.moveTo(0, -s); g.lineTo(s, s); g.lineTo(-s, s); g.closePath(); break;                  // fire
+      case 3: g.moveTo(-s, -s * 0.3); g.lineTo(0, s * 0.3); g.lineTo(s, -s * 0.3); g.moveTo(-s, s * 0.4); g.lineTo(0, s); g.lineTo(s, s * 0.4); break; // the waters
+      case 4: g.moveTo(0, -s); g.lineTo(0, s); g.moveTo(-s * 0.7, -s * 0.2); g.lineTo(s * 0.7, -s * 0.2); break; // the cross
+      default: g.arc(0, -s * 0.3, s * 0.55, 0, 7); g.moveTo(0, s * 0.25); g.lineTo(0, s); break;      // the mirror
+    }
+    g.stroke(); g.restore();
+  }
+}
+
 // The left leaf: the seal of this book. Rings of script wound round an eye,
 // the way a page of the Necronomicon winds round whatever it is looking at.
 function sealPage(book: ShelfEntry, seed: number): HTMLCanvasElement {
@@ -68,10 +116,26 @@ function sealPage(book: ShelfEntry, seed: number): HTMLCanvasElement {
   const r = rng(seed);
   paper(g, seed);
 
-  const cx = S / 2, cy = S * 0.46;
+  // Its name at the head of the page, with a rule and a star under it.
+  g.fillStyle = '#1a140e';
+  g.font = `600 ${Math.round(S * 0.05)}px "IM Fell English", Georgia, serif`;
+  g.textAlign = 'center';
+  const title = book.title.length > 26 ? `${book.title.slice(0, 25)}…` : book.title;
+  g.fillText(title, S / 2, S * 0.09);
+  g.strokeStyle = INK; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(S * 0.3, S * 0.115); g.lineTo(S * 0.46, S * 0.115); g.moveTo(S * 0.54, S * 0.115); g.lineTo(S * 0.7, S * 0.115); g.stroke();
+  g.fillStyle = INK; star(g, S / 2, S * 0.115, 6);
+
+  // Stars in the corners, the houses round the seal.
+  constellation(g, S * 0.1, S * 0.1, S * 0.13, r);
+  constellation(g, S * 0.9, S * 0.1, S * 0.13, r);
+  constellation(g, S * 0.1, S * 0.9, S * 0.13, r);
+  constellation(g, S * 0.9, S * 0.9, S * 0.13, r);
+  const cx = S / 2, cy = S * 0.53;
+  zodiac(g, cx, cy, S * 0.315, S * 0.36);
   // The rings, each one a turn of script, thinning outward.
   for (let k = 0; k < 6; k++) {
-    const rad = S * (0.1 + k * 0.045);
+    const rad = S * (0.09 + k * 0.04);
     g.save();
     g.translate(cx, cy);
     const turns = 40 + k * 14;
@@ -124,14 +188,8 @@ function sealPage(book: ShelfEntry, seed: number): HTMLCanvasElement {
   }
   g.restore();
 
-  // Its name, under the seal, and a line of the text that names it.
-  script(g, S * 0.14, S * 0.86, S * 0.78, 13, r);
-  script(g, S * 0.2, S * 0.8, S * 0.83, 13, r);
-  g.fillStyle = '#1a140e';
-  g.font = `600 ${Math.round(S * 0.042)}px "IM Fell English", Georgia, serif`;
-  g.textAlign = 'center';
-  const title = book.title.length > 28 ? `${book.title.slice(0, 27)}…` : book.title;
-  g.fillText(title, cx, S * 0.72);
+  // A line of the text that names it, under the seal.
+  script(g, S * 0.24, S * 0.76, S * 0.935, 12, r);
   return c;
 }
 
@@ -157,6 +215,21 @@ function treePage(book: ShelfEntry, seed: number): HTMLCanvasElement {
 
   const at = (i: number) => [S * 0.16 + TREE[i]![0] * S * 0.68, S * 0.08 + TREE[i]![1] * S * 0.8] as const;
   const read = Math.max(0, Math.min(1, book.through / 100));
+
+  // The sky behind the tree: pricked stars, an orbit round it with its three
+  // bodies, and the moon across the head of the page in all its phases.
+  g.fillStyle = 'rgba(26,20,14,.28)';
+  for (let i = 0; i < 110; i++) g.fillRect(r() * S, r() * S, 1.4, 1.4);
+  g.fillStyle = INK;
+  for (let i = 0; i < 9; i++) star(g, S * (0.05 + r() * 0.9), S * (0.12 + r() * 0.8), 2 + r() * 2.5);
+  g.strokeStyle = 'rgba(26,20,14,.45)'; g.lineWidth = 1.1; g.setLineDash([3, 5]);
+  g.beginPath(); g.ellipse(S / 2, S * 0.5, S * 0.46, S * 0.42, 0, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  [0.4, 2.3, 4.1].forEach((a, i) => {
+    const x = S / 2 + Math.cos(a) * S * 0.46, y = S * 0.5 + Math.sin(a) * S * 0.42;
+    g.fillStyle = '#1a140e'; g.beginPath(); g.arc(x, y, 4 + i * 1.5, 0, 7); g.fill();
+    if (i === 1) { g.strokeStyle = INK; g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, 13, 4, -0.4, 0, 7); g.stroke(); }
+  });
+  for (let i = 0; i < 7; i++) moonAt(g, S * (0.2 + i * 0.1), S * 0.038, 6.5, i / 6);
 
   g.strokeStyle = 'rgba(26,20,14,.5)';
   g.lineWidth = 1.6;

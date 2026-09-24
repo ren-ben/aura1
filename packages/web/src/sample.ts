@@ -120,7 +120,18 @@ let books = [{
   readAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
   chapters: BOOK_CHAPTERS.map((title, idx) => ({ idx, title, words: 5900 })),
   marks: 2,
-}];
+},
+...([
+  [901, 'The King in Yellow', 'R. W. Chambers', 10, 3, 400, 3],
+  [902, 'The Hill of Dreams', 'Arthur Machen', 7, 6, 900, 0],
+  [903, 'Parerga and Paralipomena', 'Arthur Schopenhauer', 31, 20, 100, 9],
+  [904, 'De Occulta Philosophia', 'H. C. Agrippa', 27, 0, 60, 0],
+] as const).map(([id, title, author, n, chapterIdx, through, kept]) => ({
+  id, title, author, format: (id % 2 ? 'epub' : 'pdf') as 'epub', words: n * 5200, chapterIdx, through,
+  readAt: new Date(Date.now() - id * 3600_000).toISOString(),
+  chapters: Array.from({ length: n }, (_, idx) => ({ idx, title: `Part ${idx + 1}`, words: 5200 })),
+  marks: kept,
+}))];
 let marks = [
   {
     id: 901, bookId: 900, chapterIdx: 2, start: 0, end: 118,

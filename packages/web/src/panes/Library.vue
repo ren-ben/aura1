@@ -16,7 +16,7 @@ import type { Build } from '../gl/engine';
 import { readBook } from '../books';
 import { actions, chapterOf, duration, state, type Book, type Mark } from '../store';
 
-defineProps<{ active: boolean }>();
+const props = defineProps<{ active: boolean }>();
 
 const open = ref<Book | null>(null);
 const chapter = ref<{ idx: number; title: string; body: string } | null>(null);
@@ -141,11 +141,23 @@ const pulled = ref<Book | null>(null);
 
 let hall: Stacks | null = null;
 let drift: { hold: boolean } | null = null;
-let held: { mesh: THREE.Mesh; grim: Grimoire; holder: THREE.Group; u: number; dir: 1 | -1 } | null = null;
+// A book taken from the pile comes in at the left edge of the glass, where the
+// pile is, and goes back out there; one taken off the shelf goes back to it.
+let held: { mesh: THREE.Mesh; grim: Grimoire; holder: THREE.Group; u: number; dir: 1 | -1; hand: boolean } | null = null;
 let world: THREE.Scene | null = null;
+let eye: THREE.PerspectiveCamera | null = null;
+const HOLD = 1.62;
+const fwd = new THREE.Vector3(), side = new THREE.Vector3(), lift = new THREE.Vector3();
+function edge(out: THREE.Vector3) {
+  if (!eye) return out;
+  eye.getWorldDirection(fwd);
+  side.set(1, 0, 0).applyQuaternion(eye.quaternion);
+  const half = Math.tan(THREE.MathUtils.degToRad(eye.fov / 2)) * HOLD * eye.aspect;
+  return out.copy(eye.position).addScaledVector(fwd, HOLD).addScaledVector(side, -half * 1.4);
+}
 let walkTo = 0, walkAt = 0;
 
-function pull(i: number) {
+function pull(i: number, hand = false) {
   if (!hall || !world) return;
   const mesh = hall.mine[i], entry = entries.value[i], book = state.books[i];
   if (!mesh || !entry) return;
@@ -154,11 +166,14 @@ function pull(i: number) {
   grim.open(0);
   const holder = new THREE.Group();
   holder.add(grim.group);
-  mesh.getWorldPosition(holder.position);
-  holder.quaternion.copy(mesh.getWorldQuaternion(new THREE.Quaternion()));
+  if (hand && eye) { edge(holder.position); holder.quaternion.copy(eye.quaternion); }
+  else {
+    mesh.getWorldPosition(holder.position);
+    holder.quaternion.copy(mesh.getWorldQuaternion(new THREE.Quaternion()));
+  }
   world.add(holder);
   mesh.visible = false;
-  held = { mesh, grim, holder, u: 0, dir: 1 };
+  held = { mesh, grim, holder, u: 0, dir: 1, hand };
   if (drift) drift.hold = true;
   pulled.value = book ?? null;
 }
@@ -171,6 +186,7 @@ const walk = (d: number) => { walkTo = Math.max(-0.3, Math.min(GALLERIES - 1.6, 
 
 const build: Build = ({ scene, camera, turn, canvas }) => {
   world = scene;
+  eye = camera;
   drift = turn;
   held = null;
   pulled.value = null;
@@ -218,7 +234,7 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
 
-  const fwd = new THREE.Vector3();
+  const back = new THREE.Vector3();
   return (t, dt) => {
     hall?.update(t);
     walkAt += (walkTo - walkAt) * Math.min(1, dt * 2.6);
@@ -230,12 +246,19 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
     if (!held) return;
     held.u = Math.max(0, Math.min(1, held.u + dt * (held.dir > 0 ? 0.85 : -1.9)));
     camera.getWorldDirection(fwd);
-    const to = camera.position.clone().addScaledVector(fwd, 1.62).add(new THREE.Vector3(0, -0.02, 0));
+    const to = camera.position.clone().addScaledVector(fwd, HOLD).add(new THREE.Vector3(0, -0.02, 0));
     const k = 1 - Math.pow(0.0025, dt);
-    // Out of the shelf, round to face you, and only then open.
-    held.holder.position.lerp(held.dir > 0 ? to : held.mesh.position, k);
-    held.holder.quaternion.slerp(held.dir > 0 ? camera.quaternion : held.mesh.quaternion, k);
+    // Out of the shelf, or in from the pile, round to face you, and only then open.
+    const home = held.hand ? edge(back) : held.mesh.position;
+    held.holder.position.lerp(held.dir > 0 ? to : home, k);
+    held.holder.quaternion.slerp(held.dir > 0 || held.hand ? camera.quaternion : held.mesh.quaternion, k);
     held.grim.open(Math.max(0, (held.u - 0.32) / 0.68));
+    // The prompt rides just over the top of the book, wherever it is on the glass.
+    if (prompt.value && held.dir > 0) {
+      lift.set(0, 0.64, 0).applyQuaternion(camera.quaternion).add(held.holder.position).project(camera);
+      prompt.value.style.setProperty('--px', `${(lift.x + 1) * 50}%`);
+      prompt.value.style.setProperty('--py', `${(1 - lift.y) * 50}%`);
+    }
     if (held.dir < 0 && held.u <= 0.001) {
       held.holder.removeFromParent();
       held.grim.dispose();
@@ -245,7 +268,13 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
   };
 };
 
-function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && pulled.value) shut(); }
+function onKey(e: KeyboardEvent) {
+  const b = pulled.value;
+  if (!b || !props.active || (e.target as HTMLElement).closest?.('input, textarea, select')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'e' || k === 'enter') { e.preventDefault(); openBook(b); }
+  else if (k === 'q' || k === 'escape') shut();
+}
 onMounted(() => addEventListener('keydown', onKey));
 onBeforeUnmount(() => removeEventListener('keydown', onKey));
 
@@ -259,6 +288,55 @@ async function saveNote() {
 }
 
 const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Math.max(1, b.chapters.length)) * 100);
+
+// ---- The pile ------------------------------------------------------------
+// Your books lie on top of each other the way a scholar leaves them: the last
+// one given on top, none of them square to the one under it. Each has its own
+// lean, reach and length, worked out from its id so the pile is the same pile
+// every time it is looked at.
+const SIGILS = [
+  'M12 3 21 19H3ZM7.5 13.5Q12 9.5 16.5 13.5 12 17.5 7.5 13.5ZM12 12.2v2.6',
+  'M12 2.5a9.5 9.5 0 1 0 .01 0ZM12 3.5 17 18.9 3.9 9.4H20.1L7 18.9Z',
+  'M15 4A8.5 8.5 0 1 0 15 20 6.5 6.5 0 1 1 15 4ZM19 8v5M16.5 10.5h5',
+  'M19.5 9A8 8 0 1 1 15.5 4.6L19.5 9 20.8 4.8M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0',
+  'M8 3h7M11.5 3v11Q11.5 9 15.5 10 19.5 12 16 16 13.5 19 16.5 21',
+  'M12 3 20 17H4ZM12 21 4 7H20Z',
+];
+const hash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+const pile = computed(() => state.books.map((b, i) => {
+  const h = hash(`${b.id}:${b.title}`), f = (k: number) => ((h >>> k) & 255) / 255;
+  return { b, i, tilt: (f(0) - 0.5) * 4.4, shift: (f(8) - 0.5) * 40, width: 70 + f(16) * 30,
+    thick: 40 + Math.min(16, b.chapters * 0.6), sigil: SIGILS[h % SIGILS.length]!, read: through(b) };
+}).reverse());
+// The moon over a book fills as it is read: new, waxing, full.
+function phase(pct: number) {
+  const p = pct / 100, r = 8, rx = r * Math.abs(1 - 2 * p);
+  return `M12 ${12 - r}A${r} ${r} 0 0 1 12 ${12 + r}A${rx} ${r} 0 0 ${p < 0.5 ? 0 : 1} 12 ${12 - r}Z`;
+}
+
+const glHost = ref<HTMLElement | null>(null);
+const prompt = ref<HTMLElement | null>(null);
+// Out of the pile and into your hands: the spine slides off to the right, into
+// the glass, and is gone by the time the book comes in at the glass's edge.
+function fromPile(s: { i: number; tilt: number }, e: MouseEvent) {
+  if (pulled.value?.id === state.books[s.i]?.id) return;
+  const spine = e.currentTarget as HTMLElement, host = glHost.value;
+  if (host) {
+    const r = spine.getBoundingClientRect(), to = host.getBoundingClientRect();
+    const w = spine.offsetWidth, h = spine.offsetHeight, cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const ghost = spine.cloneNode(true) as HTMLElement;
+    Object.assign(ghost.style, { position: 'fixed', left: `${cx - w / 2}px`, top: `${cy - h / 2}px`, width: `${w}px`, height: `${h}px`,
+      margin: '0', zIndex: '19', pointerEvents: 'none', transition: 'none' });
+    document.body.appendChild(ghost);
+    const dx = to.left + Math.min(to.width * 0.2, 160) - cx, dy = to.top + to.height * 0.5 - cy;
+    ghost.animate([
+      { transform: `rotate(${s.tilt}deg)`, opacity: 1 },
+      { transform: `translate(${dx * 0.55}px, ${dy * 0.55}px) rotate(${s.tilt * 0.4}deg)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(.9)`, opacity: 0 },
+    ], { duration: 560, easing: 'cubic-bezier(.45, 0, .6, 1)' }).onfinish = () => ghost.remove();
+  }
+  pull(s.i, true);
+}
 </script>
 
 <template>
@@ -266,7 +344,7 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
     <!-- The shelf -->
     <div v-if="!open" class="shelf" @drop.prevent="onDrop" @dragover.prevent>
       <Frame class="stacksFrame" title="the stacks // gallery of the hexagon, shelf of your own" flush>
-        <div class="glHost">
+        <div ref="glHost" class="glHost">
           <Gl :key="shelfKey" :build="build" :active="active"
             :options="{ px: 2, fov: 74, distance: 2.45, drift: 0.0004, tilt: 0, yaw: 0 }"
             label="The stacks: hexagonal galleries of shelves, your own volumes on the near wall"
@@ -274,6 +352,17 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
           <div class="walk">
             <button class="btn quiet" aria-label="Back one gallery" @click="walk(-1)">&lt;&lt; back</button>
             <button class="btn quiet" aria-label="Deeper into the stacks" @click="walk(1)">deeper &gt;&gt;</button>
+          </div>
+          <div v-if="pulled" ref="prompt" class="prompt">
+            <div class="card">
+              <b>{{ pulled.title }}</b>
+              <span class="m">{{ pulled.author ?? 'unattributed' }} // {{ pulled.chapters.length }} chapters // {{ through(pulled) }}% // {{ pulled.marks }} kept</span>
+              <div class="acts">
+                <button class="act go" @click="openBook(pulled!)"><kbd>E</kbd>read it</button>
+                <button class="act" @click="shut()"><kbd>Q</kbd>shelve it</button>
+              </div>
+            </div>
+            <i class="tether" aria-hidden="true"></i>
           </div>
         </div>
       </Frame>
@@ -286,18 +375,6 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
         <p class="note">Everything he has been given to read, standing where he put it. Drop an epub, a pdf or a
           text file anywhere here; it is taken apart where you stand, and only the words are sent on.</p>
 
-        <div v-if="pulled" class="pulled">
-          <div class="what">
-            <b class="fell">{{ pulled.title }}</b>
-            <span class="pix">{{ pulled.author ?? 'unattributed' }} // {{ pulled.chapters.length }} chapters //
-              {{ through(pulled) }}% // {{ pulled.marks }} kept</span>
-          </div>
-          <div class="row">
-            <button class="btn" @click="openBook(pulled!)">read it</button>
-            <button class="btn quiet" @click="shut()">shelve it</button>
-          </div>
-        </div>
-
         <div class="take" :class="{ busy: taking }">
           <label class="btn">
             <input type="file" accept=".epub,.pdf,.txt,.md" hidden @change="take(($event.target as HTMLInputElement).files)">
@@ -307,15 +384,20 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
         </div>
         <p v-if="failed" class="note err">{{ failed }}</p>
 
-        <div class="books">
-          <div v-for="(b, i) in shelf" :key="b.id" class="book" :class="{ out: pulled?.id === b.id }">
-            <button class="what" @click="pull(i)">
-              <b>{{ b.title }}</b>
-              <span class="note">{{ b.author ?? 'unattributed' }} // {{ b.chapters.length }} chapters // {{ Math.round(b.words / 1000) }}k words</span>
-              <span class="bar"><i :style="{ width: `${through(b)}%` }"></i></span>
-              <span class="pix">{{ through(b) }}% read // {{ b.marks }} kept // {{ b.format }}</span>
-            </button>
-            <button class="btn quiet open" @click="openBook(b)">read</button>
+        <div class="pile">
+          <div v-for="s in pile" :key="s.b.id" class="slot" :class="{ out: pulled?.id === s.b.id }">
+            <div class="clip">
+              <button class="spine" :style="{ '--tilt': `${s.tilt}deg`, '--shift': `${s.shift}px`, width: `${s.width}%`, height: `${s.thick}px` }"
+                :aria-label="`Take ${s.b.title} from the pile`" @click="fromPile(s, $event)">
+                <svg class="sig" viewBox="0 0 24 24" aria-hidden="true"><path :d="s.sigil" /></svg>
+                <span class="t">
+                  <b>{{ s.b.title }}</b>
+                  <span>{{ s.b.author ?? 'unattributed' }} // {{ s.b.chapters.length }} ch // {{ s.b.marks }} kept // {{ s.b.format }}</span>
+                </span>
+                <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path :d="phase(s.read)" /></svg>
+                <span class="pct">{{ s.read }}%</span>
+              </button>
+            </div>
           </div>
           <p v-if="!shelf.length" class="empty">The shelf is bare. He notices.</p>
         </div>
@@ -387,8 +469,10 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 <style scoped>
 .library { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.6fr) minmax(300px, .9fr); min-height: 0; }
 /* The hall: the stacks take the room, the ledger stands beside them. */
-.shelf { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .85fr);
+.shelf { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(300px, .85fr) minmax(0, 1.45fr);
   grid-template-rows: minmax(0, 1fr); gap: 18px; min-height: 0; }
+/* The pile on the left, the hall on the right: a book leaves the one for the other. */
+.shelf .ledger { order: -1; }
 .stacksFrame { min-height: 0; }
 /* The glass takes what is left after the strip under it, rather than the
    strip being pushed out of the bottom of the frame. */
@@ -397,14 +481,26 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 .glHost :deep(.hint) { bottom: 8px; left: 12px; }
 .walk { position: absolute; top: 10px; right: 10px; z-index: 4; display: flex; gap: 8px; }
 .walk .btn { background: rgba(18, 18, 18, .82); }
-/* What is in your hands, while it is in your hands. */
-/* What is out of the shelf, said in words under the glass it is held over. */
-.pulled { display: grid; gap: 10px; border: 3px solid var(--phos); padding: 12px 14px;
-  animation: pulledin .45s var(--out) both; }
-.pulled .what { display: grid; gap: 4px; min-width: 0; }
-.pulled .row { gap: 10px; }
-.pulled b { font: 400 25px/1.1 var(--goth); color: var(--hi); }
-@keyframes pulledin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* What is in your hands: a prompt over the book, the way a game asks. */
+.prompt { position: absolute; z-index: 5; left: var(--px, 50%); top: max(var(--py, 30%), 128px);
+  transform: translate(-50%, -100%); display: grid; justify-items: center; animation: promptin .45s var(--out) .35s both; }
+@keyframes promptin { from { opacity: 0; transform: translate(-50%, calc(-100% + 10px)); } }
+.prompt .card { position: relative; border: 1px solid var(--phos); background: rgba(18, 18, 18, .88); padding: 10px 16px 12px;
+  display: grid; gap: 7px; justify-items: center; text-align: center; min-width: 250px; max-width: min(380px, 86vw); }
+.prompt .card::before, .prompt .card::after { content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--hi); }
+.prompt .card::before { left: -5px; top: -5px; border-right: 0; border-bottom: 0; }
+.prompt .card::after { right: -5px; bottom: -5px; border-left: 0; border-top: 0; }
+.prompt b { font: 400 24px/1.05 var(--goth); color: var(--hi); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prompt .m { font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; }
+.prompt .acts { display: flex; gap: 8px; margin-top: 2px; }
+.prompt .act { display: flex; gap: 7px; align-items: center; border: 1px solid var(--low); padding: 6px 11px; font: 400 10px var(--pix);
+  text-transform: uppercase; color: var(--phos); transition: background .2s var(--out), color .2s var(--out), border-color .2s var(--out); }
+.prompt .act:hover, .prompt .act.go { border-color: var(--phos); background: var(--phos); color: var(--ground); }
+.prompt .act.go:hover { background: var(--hi); }
+.prompt kbd { font: 400 9px var(--pix); border: 1px solid currentColor; padding: 0 4px; }
+.prompt .tether { display: block; width: 1px; height: 24px; background: repeating-linear-gradient(to bottom, var(--phos) 0 2px, transparent 2px 5px); position: relative; }
+.prompt .tether::after { content: ''; position: absolute; left: -3px; bottom: -4px; width: 7px; height: 7px; background: var(--phos); transform: rotate(45deg); }
+@media (pointer: coarse) { .prompt kbd { display: none; } }
 .ledger { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .head { display: flex; align-items: center; gap: 16px; }
 .head .title { margin: 0; }
@@ -413,22 +509,39 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 .take { display: flex; align-items: center; gap: 14px; border: 3px dotted var(--low); padding: 14px 16px; }
 .take.busy { border-color: var(--phos); }
 .take .btn { cursor: pointer; }
-.books { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; overflow: auto; min-height: 0; padding-right: 4px; }
-.book { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; text-align: left;
-  border: 3px dotted var(--faint); padding: 12px 14px;
-  transition: border-color .3s var(--out), transform .3s var(--out); }
-.book:hover { border-color: var(--phos); transform: translateY(-2px); }
-/* The one standing open in the hall is marked in the ledger as out. */
-.book.out { border-color: var(--phos); border-style: solid; }
-.book.out b::after { content: ' // out'; font: 400 10px var(--pix); color: var(--phos); vertical-align: 5px; }
-.book .open { align-self: center; }
-.book b { font: 400 23px/1.1 var(--goth); color: var(--hi); display: block; }
-.spine { display: grid; gap: 3px; align-content: start; padding-top: 4px; }
-.spine i { display: block; width: 14px; height: 4px; background: var(--low); }
-.what { display: grid; gap: 7px; min-width: 0; }
-.bar { height: 5px; background: radial-gradient(circle, var(--low) 1px, transparent 1.4px) 0 50% / 5px 5px repeat-x; }
-.bar i { display: block; height: 5px; background: radial-gradient(circle, var(--phos) 1.4px, transparent 1.8px) 0 50% / 5px 5px repeat-x; }
-.kept { flex: none; max-height: 28vh; }
+/* The pile is built from the floor up, oldest at the bottom, so it sits on
+   the floor of its column, a tall one runs off the top rather than the
+   bottom, and pulling one out lets the ones above it come down into the gap. */
+.pile { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column-reverse; padding: 6px 2px 4px; scrollbar-width: none; }
+.pile::-webkit-scrollbar { width: 0; }
+.slot { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .5s var(--ease) .3s; }
+.slot.out { grid-template-rows: 0fr; transition-delay: .2s; }
+.clip { min-height: 0; overflow: hidden; padding: 3px 16px; transition: transform .55s var(--out) .45s, opacity .45s var(--out) .45s; }
+.slot.out .clip { opacity: 0; transform: translateX(40%); transition: opacity .08s linear, transform 0s linear .08s; }
+/* A spine: leather, a dotted tooling rule at the head and foot, two raised
+   bands, a few stars pricked into it, his sigil at one end and the moon of
+   how far you are at the other. */
+.spine { position: relative; display: flex; align-items: center; gap: 10px; margin: 0 auto; padding: 0 12px; text-align: left; color: var(--phos);
+  transform: translateX(var(--shift)) rotate(var(--tilt)); border: 1px solid #3a3733;
+  background:
+    radial-gradient(1px 1px at 22% 30%, rgba(197, 188, 171, .35), transparent),
+    radial-gradient(1px 1px at 61% 72%, rgba(197, 188, 171, .3), transparent),
+    radial-gradient(1px 1px at 83% 22%, rgba(197, 188, 171, .25), transparent),
+    linear-gradient(to right, transparent 40px, rgba(197, 188, 171, .12) 40px 43px, transparent 43px calc(100% - 64px),
+      rgba(197, 188, 171, .12) calc(100% - 64px) calc(100% - 61px), transparent calc(100% - 61px)),
+    linear-gradient(to bottom, #2e2b28, #1d1c1a 22%, #181716 60%, #25231f 88%, #302d29);
+  box-shadow: 0 2px 0 #0c0c0c, inset 0 1px 0 rgba(197, 188, 171, .12);
+  transition: transform .3s var(--out), border-color .3s var(--out); }
+.spine::before { content: ''; position: absolute; inset: 4px 6px; pointer-events: none;
+  border-top: 1px dotted rgba(197, 188, 171, .28); border-bottom: 1px dotted rgba(197, 188, 171, .28); }
+.spine:hover { transform: translateX(calc(var(--shift) + 8px)) rotate(var(--tilt)); border-color: var(--dim); }
+.spine .t { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.spine .t b { font: 400 20px/1 var(--goth); color: var(--hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spine .t span { font: 400 8.5px var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spine svg { flex: none; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.spine .moon path { fill: currentColor; stroke: none; }
+.spine .pct { flex: none; font: 400 9px var(--pix); }
+.kept { flex: none; max-height: min(20vh, 150px); }
 .keeprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-bottom: 3px dotted var(--faint); }
 .keeprow .fell { font-size: 15px; font-style: italic; color: var(--dim); }
 
@@ -459,14 +572,17 @@ const through = (b: Book) => Math.round(((b.chapterIdx + b.through / 1000) / Mat
 
 @media (max-aspect-ratio: 5/4) { .library { grid-template-columns: minmax(0, 1fr); } .read, .aside { grid-column: 1; } .aside { max-height: 34vh; }
   .shelf { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(260px, 1fr) auto; }
+  .shelf .ledger { order: 0; }
   .ledger { max-height: 42vh; } }
 @media (max-width: 860px) {
   .library { display: flex; flex-direction: column; }
   .read { min-height: 62vh; }
   .reader { width: 56px; height: 52px; bottom: 52px; }
-  .books { grid-template-columns: minmax(0, 1fr); }
   .shelf { display: flex; flex-direction: column; }
   .stacksFrame { min-height: 300px; }
-  .pulled { bottom: 30px; }
+  /* On a phone the page scrolls, so the pile and the passages take all the room they need. */
+  .pile { flex: none; overflow: visible; }
+  .kept { max-height: none; }
+  .spine .pct { display: none; }
 }
 </style>
