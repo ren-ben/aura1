@@ -1,10 +1,13 @@
 #include "eink_renderer.h"
 #include <algorithm>
+#include <cmath>
 #include <SD_MMC.h>
 #include <SPI.h>
 #include <esp_random.h>
 #include <GxEPD2_BW.h>
 #include "buttons.h"
+
+void breathRings(Canvas& c, int breath, uint8_t ink);
 
 // SSD1681, 200x200. GxEPD2_154_D67 defaults BUSY to active HIGH, which is this panel.
 static GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
@@ -157,13 +160,13 @@ bool EinkRenderer::playScene(const ArtScene* scene, bool fullLast, bool negative
 // The canvas, with its corner, to the glass. Partial refresh everywhere for no
 // flashing; partials leave stuck pixels behind, so every so often, and always
 // at power-off, a full one.
-void EinkRenderer::push(bool full) {
-  if (full || partials_ >= PARTIALS_BEFORE_FULL) {
+void EinkRenderer::push(bool full, bool counted) {
+  if (full || (counted && partials_ >= PARTIALS_BEFORE_FULL)) {
     display.setFullWindow();
     partials_ = 0;
   } else {
     display.setPartialWindow(0, 0, display.width(), display.height());
-    ++partials_;
+    if (counted) ++partials_;
   }
   display.firstPage();
   do {
@@ -227,18 +230,29 @@ void EinkRenderer::render(const ViewModel& vm) {
       if (!scene) fallback({ vm.screen == Screen::Celebrate ? "!" : "AURA-1" });
       break;
     case Screen::Running: {
-      // His scene for this folder (or the ritual's candles), or any session
-      // scene for a folder the pack does not know.
-      const bool rite = !vm.moment.empty();
-      const ArtScene* s = pickScene(art_, rite ? vm.moment : sessionMoment(vm.folder), esp_random());
+      // His scene for this folder (or the ritual's candles, or the sit), or
+      // any session scene for a folder the pack does not know.
+      const bool rite = !vm.moment.empty() && !vm.sit;
+      const std::string moment = vm.moment.empty() ? sessionMoment(vm.folder) : vm.moment;
+      const ArtScene* s = running_ && moment == runningMoment_ ? running_ : pickScene(art_, moment, esp_random());
+      if (!s && vm.sit) s = pickScene(art_, "vigil", esp_random());
       if (!s) s = pickScene(art_, "session-axiom", esp_random());
+      running_ = s;
+      runningMoment_ = moment;
       scene = drawScene(s, lk.negative());
-      if (scene) lk.caption(base_, vm, rite ? "The Rite" : vm.activity);
-      else fallback({ vm.folder, vm.activity, "IN PROGRESS" });
+      const uint8_t ink = lk.negative() ? PAPER : INK;
+      if (vm.breath >= 0) breathRings(base_, vm.breath, ink);
+      const std::string words = vm.breath >= 0 ? vm.cue
+        : vm.left >= 0 ? std::to_string(vm.left) + " min left"
+        : rite ? "The Rite" : vm.activity;
+      if (scene) lk.caption(base_, vm, words);
+      else fallback({ vm.sit ? "VIGIL" : vm.folder, vm.activity, vm.sit ? words : "IN PROGRESS" });
       break;
     }
     case Screen::Stopped: {
-      const std::string took = vm.minutes < MIN_SESSION_MINUTES ? "too short"
+      running_ = nullptr;
+      const std::string took = vm.sit ? std::to_string(vm.minutes) + " min kept"
+        : vm.minutes < MIN_SESSION_MINUTES ? "too short"
         : std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m";
       scene = drawScene(pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random()), lk.negative());
       if (scene) lk.caption(base_, vm, took);
@@ -251,7 +265,7 @@ void EinkRenderer::render(const ViewModel& vm) {
   cornered_ = true;
   out_ = base_;
   drawCorner(out_, corner_.y, status_, corner_.ink);
-  push(false);
+  push(false, vm.breath < 0);
 }
 
 void EinkRenderer::setStatus(const Status& status) {
@@ -274,6 +288,21 @@ void EinkRenderer::drawStatus() {
     display.drawBitmap(0, 0, out_.bits(), Canvas::W, Canvas::H, GxEPD_BLACK);
   } while (display.nextPage());
   display.powerOff();
+}
+
+// The pacer: two dotted rings round him that swell with the breath, from
+// close about him (0) to the edge of the glass (100).
+void breathRings(Canvas& c, int breath, uint8_t ink) {
+  const int cx = 100, cy = 104;
+  for (int k = 0; k < 2; ++k) {
+    const int r = 62 + breath * 30 / 100 + k * 12;
+    const int dots = 40 + k * 8;
+    for (int i = 0; i < dots; ++i) {
+      const float a = 6.2831853f * i / dots;
+      const int x = cx + static_cast<int>(r * cosf(a)), y = cy + static_cast<int>(r * sinf(a));
+      c.fillRect(x - 1, y - 1, 2 + k, 2 + k, ink);
+    }
+  }
 }
 
 static void centered(Adafruit_GFX& g, int y, int size, const char* text) {

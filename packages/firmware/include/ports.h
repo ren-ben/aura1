@@ -27,6 +27,13 @@ public:
   }
 };
 
+// The speaker: a short sound from the card, by name ("open", "bell", "close").
+class Sound {
+public:
+  virtual ~Sound() = default;
+  virtual void play(const std::string& name) = 0;
+};
+
 class Random {
 public:
   virtual ~Random() = default;

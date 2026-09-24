@@ -123,7 +123,6 @@ export const GATES: Gate[] = [
   },
 ];
 
-export const PRACTICES = ['Cyclic Sigh', 'Resonance', 'The Stages', 'Nidra', 'Noting', 'Metta', 'Jhana', 'Kasina', 'Middle Pillar', 'Fire', 'Orbit', 'Do Nothing'];
 
 export type Sit = { day: number; hour: number; minutes: number; practice: string };
 // Half a year of sits, sparse at first and steadier since: the sample record.

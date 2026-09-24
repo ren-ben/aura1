@@ -31,7 +31,9 @@ private:
   bool goodnight(const ArtScene& scene, const Look& lk);
   // A whole-screen scene into the canvas; false when the pack has none.
   bool drawScene(const ArtScene* scene, bool negative, int frame = 0);
-  void push(bool full);
+  // counted: whether this partial counts toward the next full refresh. The
+  // breath of a sit does not, or a five minute sit would flash every 40 s.
+  void push(bool full, bool counted = true);
   void drawStatus();
 
   Status status_;
@@ -45,6 +47,10 @@ private:
   std::string env_;
   std::vector<std::vector<uint8_t>> watch_;  // left, up, right
   int watchSize_ = 0;
+  // The scene of the running session: kept while it runs, so a redraw (the
+  // minutes left, the breath) never swaps it for another.
+  const ArtScene* running_ = nullptr;
+  std::string runningMoment_;
 
   static constexpr int PARTIALS_BEFORE_FULL = 40;
   int partials_ = 0;

@@ -5,7 +5,7 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe, Vigil };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -40,4 +40,9 @@ struct ViewModel {
   int copied = 0;
   int toCopy = 0;
   std::string note;
+  // A sit of the Vigil, while it runs and when it is kept.
+  bool sit = false;
+  int left = -1;       // minutes left, in fives; -1 for an open sit
+  int breath = -1;     // the pacer's swell, 0 to 100; -1 without one
+  std::string cue;     // the pacer's word: "in", "out"
 };

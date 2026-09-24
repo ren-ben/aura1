@@ -18,6 +18,7 @@ bool Daily::parse(const std::string& json) {
   todos_.clear();
   habits_.clear();
   quotes_.clear();
+  vigil_.clear();
   for (JsonObjectConst t : doc["todos"].as<JsonArrayConst>()) {
     todos_.push_back({ t["id"] | 0, t["body"] | "", t["done"] | false });
   }
@@ -27,7 +28,17 @@ bool Daily::parse(const std::string& json) {
   for (JsonObjectConst q : doc["quotes"].as<JsonArrayConst>()) {
     quotes_.push_back({ q["body"] | "", q["source"] | "" });
   }
+  for (JsonObjectConst v : doc["vigil"].as<JsonArrayConst>()) {
+    const std::string pacer = v["pacer"] | "none";
+    vigil_.push_back({ v["id"] | 0, v["name"] | "", v["minutes"] | 0,
+                       pacer == "sigh" ? Pacer::Sigh : pacer == "resonance" ? Pacer::Resonance : Pacer::None, v["bell"] | 0 });
+  }
   return true;
+}
+
+bool Daily::isSit(int activityId) const {
+  for (const auto& v : vigil_) if (v.id == activityId) return true;
+  return false;
 }
 
 void Daily::load() {
@@ -113,7 +124,8 @@ bool Daily::allTodosDone() const {
 // on every press. A session under ten minutes is dropped by the server, so it
 // does not count here either.
 void Daily::sessionEnded(uint64_t endedAt, int activityId, int minutes) {
-  if (minutes < MIN_SESSION_MINUTES) return;
+  // Stillness does not keep him: only work, and the rite, do.
+  if (minutes < MIN_SESSION_MINUTES || isSit(activityId)) return;
   const bool rite = activityId == resurrectionId_ && resurrectionId_ > 0 && minutes >= 60;
   last_ = std::to_string(endedAt) + (rite ? " 1" : " 0");
   storage_.write(LAST, last_ + "\n");

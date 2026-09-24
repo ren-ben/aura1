@@ -20,6 +20,7 @@
 #include "device/sd_storage.h"
 #include "device/sync_client.h"
 #include "device/esp_random.h"
+#include "device/speaker.h"
 
 static SdStorage storage;
 static RtcClock rtc;
@@ -31,6 +32,7 @@ static EspRandom random_;
 static SessionMachine machine(carousel, queue, rtc, storage, renderer, random_);
 static SyncClient syncClient(queue, rtc, storage, machine.daily());
 static BatteryGauge gauge;
+static Speaker speaker;
 
 static int configVersion = 0;
 static unsigned long lastTick = 0;
@@ -164,6 +166,7 @@ void setup() {
   if (!full.empty()) gauge.setFullRaw(std::atoi(full[0].c_str()));
   checkBattery();
   loadConfigFromSd(storage, carousel, configVersion);
+  machine.setSound(&speaker);
   machine.begin();
   startSync();
 }

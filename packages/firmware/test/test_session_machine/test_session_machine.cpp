@@ -823,9 +823,9 @@ void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
-  // Up to the menu, along to READ, into the shelf, the book and its page.
+  // Up to the menu, along to READ (past the Vigil), into the shelf, the book and its page.
   m.handle(Input::SunLong);
-  for (int i = 0; i < 3; ++i) m.handle(Input::SunShort);
+  for (int i = 0; i < 4; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
@@ -848,6 +848,160 @@ void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
   // Outside the book it switches off as before.
   m.handle(Input::PowerLong);
   TEST_ASSERT_TRUE(m.screen() == Screen::Dormant);
+}
+
+// ------------------------------------------------------------------ the Vigil
+
+class FakeSound : public Sound {
+public:
+  std::vector<std::string> played;
+  void play(const std::string& name) override { played.push_back(name); }
+  int count(const std::string& name) const {
+    int n = 0;
+    for (const auto& p : played) n += p == name;
+    return n;
+  }
+};
+
+static const char* VIGIL_BUNDLE =
+  "{\"date\":\"2026-09-19\",\"level\":1,\"lastSessionAt\":null,\"resurrectionId\":40,"
+  "\"todos\":[],\"habits\":[],\"quotes\":[],"
+  "\"vigil\":[{\"id\":50,\"name\":\"Cyclic Sigh\",\"minutes\":5,\"pacer\":\"sigh\",\"bell\":0},"
+  "{\"id\":51,\"name\":\"Noting\",\"minutes\":30,\"pacer\":\"none\",\"bell\":5},"
+  "{\"id\":52,\"name\":\"Do Nothing\",\"minutes\":0,\"pacer\":\"none\",\"bell\":0}]}";
+
+void test_the_vigil_picks_a_practice_then_a_length_and_sits() {
+  Rig rig;
+  FakeSound sound;
+  auto m = rig.machine();
+  m.setSound(&sound);
+  m.begin();
+  m.daily().replace(VIGIL_BUNDLE);
+  m.handle(Input::SunLong);  // from the activities up to the folders
+  openNamed(rig, m, "VIGIL");
+  const ViewModel& list = rig.renderer.last();
+  TEST_ASSERT_TRUE(list.place == Place::Vigil);
+  TEST_ASSERT_EQUAL_STRING("Cyclic Sigh", list.items[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("5 MIN", list.values[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("OPEN", list.values[2].c_str());
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);  // Noting: its lengths, at its own 30
+  TEST_ASSERT_EQUAL_STRING("Noting", rig.renderer.last().title.c_str());
+  TEST_ASSERT_EQUAL_STRING("30 MIN", rig.renderer.last().items[rig.renderer.last().cursor].c_str());
+  m.handle(Input::SunShort);    // 45
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  const ViewModel& vm = rig.renderer.last();
+  TEST_ASSERT_TRUE(vm.sit);
+  TEST_ASSERT_EQUAL_INT(45, vm.left);
+  TEST_ASSERT_EQUAL_INT(-1, vm.breath);
+  TEST_ASSERT_EQUAL_STRING("vigil", vm.moment.c_str());
+  TEST_ASSERT_EQUAL_INT(1, sound.count("open"));
+}
+
+void test_a_sit_rings_its_bells_counts_down_in_fives_and_ends_itself() {
+  Rig rig;
+  FakeSound sound;
+  auto m = rig.machine();
+  m.setSound(&sound);
+  m.begin();
+  m.daily().replace(VIGIL_BUNDLE);
+  m.handle(Input::SunLong);  // from the activities up to the folders
+  openNamed(rig, m, "VIGIL");
+  m.handle(Input::SunShort);
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);  // Noting, 30 minutes, a bell every 5
+  const size_t before = rig.renderer.frames.size();
+  std::vector<int> shown;
+  for (int t = 0; t < 30 * 60; ++t) {
+    rig.clock.now += 1;
+    m.handle(Input::Tick);
+    if (m.screen() == Screen::Running && rig.renderer.frames.size() > before + shown.size()) shown.push_back(rig.renderer.last().left);
+  }
+  TEST_ASSERT_EQUAL_INT(5, sound.count("bell"));   // at 5, 10, 15, 20, 25
+  TEST_ASSERT_EQUAL_INT(1, sound.count("close"));
+  TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+  const int expected[] = { 25, 20, 15, 10, 5 };
+  TEST_ASSERT_EQUAL_INT(5, (int)shown.size());
+  for (int i = 0; i < 5; ++i) TEST_ASSERT_EQUAL_INT(expected[i], shown[i]);
+  const ViewModel& kept = rig.renderer.last();
+  TEST_ASSERT_TRUE(kept.sit);
+  TEST_ASSERT_EQUAL_INT(30, kept.minutes);
+  TEST_ASSERT_EQUAL_STRING("vigil-kept", kept.moment.c_str());
+  auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_INT(51, pending[0].activityId);
+  // Stillness does not keep him: the sit leaves his decay alone.
+  TEST_ASSERT_FALSE(rig.storage.exists("/last.txt"));
+}
+
+void test_the_breath_is_drawn_every_second_for_the_breathing_practices() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(VIGIL_BUNDLE);
+  m.handle(Input::SunLong);  // from the activities up to the folders
+  openNamed(rig, m, "VIGIL");
+  m.handle(Input::PowerShort);
+  m.handle(Input::PowerShort);  // Cyclic Sigh, 5 minutes
+  TEST_ASSERT_EQUAL_STRING("vigil-breath", rig.renderer.last().moment.c_str());
+  const int swell[] = { 35, 70, 100, 80, 60, 40, 20, 0 };
+  for (int t = 0; t < 8; ++t) {
+    rig.clock.now += 1;
+    m.handle(Input::Tick);
+    TEST_ASSERT_EQUAL_INT(swell[t], rig.renderer.last().breath);
+    TEST_ASSERT_EQUAL_STRING((t + 1) % 8 < 3 ? "in" : "out", rig.renderer.last().cue.c_str());
+  }
+}
+
+void test_an_open_sit_is_ended_by_power_and_the_length_is_remembered() {
+  Rig rig;
+  FakeSound sound;
+  {
+    auto m = rig.machine();
+    m.setSound(&sound);
+    m.begin();
+    m.daily().replace(VIGIL_BUNDLE);
+    m.handle(Input::SunLong);  // from the activities up to the folders
+  openNamed(rig, m, "VIGIL");
+    m.handle(Input::SunShort);
+    m.handle(Input::SunShort);    // Do Nothing
+    m.handle(Input::PowerShort);  // at OPEN
+    m.handle(Input::PowerShort);
+    TEST_ASSERT_EQUAL_INT(-1, rig.renderer.last().left);
+    rig.clock.now += 3 * 3600;    // open: nothing ends it but the hand
+    m.handle(Input::Tick);
+    TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+    m.handle(Input::PowerShort);
+    TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+    TEST_ASSERT_EQUAL_INT(1, sound.count("close"));
+    m.handle(Input::SunShort);
+    TEST_ASSERT_FALSE(rig.renderer.last().sit);
+    // Cyclic Sigh, set to 10 this time.
+    m.handle(Input::SunShort);
+    m.handle(Input::PowerShort);
+    m.handle(Input::SunShort);
+    m.handle(Input::PowerShort);
+    m.handle(Input::PowerShort);
+  }
+  auto again = rig.machine();
+  again.begin();
+  again.daily().replace(VIGIL_BUNDLE);
+  again.handle(Input::SunLong);
+  openNamed(rig, again, "VIGIL");
+  TEST_ASSERT_EQUAL_STRING("10 MIN", rig.renderer.last().values[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("30 MIN", rig.renderer.last().values[1].c_str());
+}
+
+void test_the_vigil_before_the_first_sync_says_so() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::SunLong);  // from the activities up to the folders
+  openNamed(rig, m, "VIGIL");
+  TEST_ASSERT_EQUAL_STRING("SYNC FIRST", rig.renderer.last().items[0].c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
 }
 
 int main() {
@@ -899,5 +1053,10 @@ int main() {
   RUN_TEST(test_power_short_on_a_reset_rtc_stays_idle_and_writes_nothing);
   RUN_TEST(test_power_short_on_a_zero_clock_stays_idle_and_writes_nothing);
   RUN_TEST(test_power_short_at_exactly_the_clock_floor_starts_the_session);
+  RUN_TEST(test_the_vigil_picks_a_practice_then_a_length_and_sits);
+  RUN_TEST(test_a_sit_rings_its_bells_counts_down_in_fives_and_ends_itself);
+  RUN_TEST(test_the_breath_is_drawn_every_second_for_the_breathing_practices);
+  RUN_TEST(test_an_open_sit_is_ended_by_power_and_the_length_is_remembered);
+  RUN_TEST(test_the_vigil_before_the_first_sync_says_so);
   return UNITY_END();
 }

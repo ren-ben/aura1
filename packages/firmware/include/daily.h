@@ -18,6 +18,18 @@ struct DailyItem {
   std::string history;
 };
 
+// A practice of the Vigil (packages/shared/src/vigil.ts): a system activity,
+// its default length (0: open), the breath drawn while sitting, and the
+// minutes between interval bells (0: none).
+enum class Pacer { None, Sigh, Resonance };
+struct VigilPractice {
+  int id = 0;
+  std::string name;
+  int minutes = 0;
+  Pacer pacer = Pacer::None;
+  int bell = 0;
+};
+
 struct DailyQuote {
   std::string body;
   std::string source;
@@ -42,6 +54,9 @@ public:
   const std::vector<DailyItem>& todos() const { return todos_; }
   const std::vector<DailyItem>& habits() const { return habits_; }
   const std::vector<DailyQuote>& quotes() const { return quotes_; }
+  const std::vector<VigilPractice>& vigil() const { return vigil_; }
+  // A sit: a session on one of the Vigil's practices.
+  bool isSit(int activityId) const;
 
   // Flips an item and queues the tick. False if out of range or unsaved.
   bool toggleTodo(size_t i);
@@ -84,4 +99,5 @@ private:
   std::vector<DailyItem> todos_;
   std::vector<DailyItem> habits_;
   std::vector<DailyQuote> quotes_;
+  std::vector<VigilPractice> vigil_;
 };

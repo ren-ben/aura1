@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <map>
 #include <string>
 #include "carousel.h"
 #include "book.h"
@@ -49,6 +50,8 @@ public:
   // The look by name, as chosen on the web; unknown names change nothing.
   void setLook(const std::string& name);
   const char* lookName() const;
+  // The speaker, for the Vigil's sounds. Without one a sit is silent.
+  void setSound(Sound* sound) { sound_ = sound; }
 
 private:
   void draw(int minutes = 0);
@@ -65,6 +68,12 @@ private:
   void turn(int pages);          // forward or back, over chapter ends
   std::string pageText() const;
   void enter(Place place);
+  void vigil(Input input);       // the Vigil: a practice, then a length
+  void startSit();
+  void sitTick(uint64_t now);    // bells, the minutes left, the breath
+  int sitLength(const VigilPractice& p) const;  // the last length chosen, or its own
+  int leftInFives(uint64_t now) const;
+  void chime(const char* name) { if (sound_) sound_->play(name); }
   void loadSettings();
   void saveSettings();
   void redrawSettings();
@@ -72,6 +81,7 @@ private:
   static constexpr const char* MARKER = "/session.open";
   static constexpr const char* NAV = "/nav.txt";  // last started activity id
   static constexpr const char* SETTINGS = "/settings.txt";  // "<large 0|1> <skin>", then the look name
+  static constexpr const char* SITS = "/vigil.txt";  // "<practice id> <minutes>", the length last chosen
   static constexpr uint64_t HEARTBEAT_SECONDS = 300;
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
   static constexpr uint64_t CELEBRATE_SECONDS = 5;
@@ -120,4 +130,17 @@ private:
   bool syncRequested_ = false;
   int look_ = 0;
   std::string syncNote_ = "NOW";
+
+  // The Vigil.
+  size_t vigilCursor_ = 0;
+  bool choosingLength_ = false;
+  size_t lengthCursor_ = 0;
+  bool sit_ = false;             // the session running, or just kept, is a sit
+  int sitMinutes_ = 0;           // 0: open, ended by hand
+  int sitBell_ = 0;
+  Pacer sitPacer_ = Pacer::None;
+  int shownLeft_ = -1;
+  int lastBell_ = 0;
+  std::map<int, int> lengths_;   // practice id to the length last chosen
+  Sound* sound_ = nullptr;
 };

@@ -8,6 +8,9 @@
 #include <cstdlib>
 #include <vector>
 
+// The lengths a sit can be, in minutes; 0 is open, ended by hand.
+static const int SIT_LENGTHS[] = { 5, 10, 15, 20, 25, 30, 45, 60, 0 };
+
 // Entropy comes from the Random port: esp_random() on the device, a deterministic
 // fake in tests. Never seed from the clock: two sessions ending in the same second
 // would get the same id, and the server silently keeps only the first.
@@ -103,6 +106,10 @@ void SessionMachine::begin() {
   book_.begin();
   daily_.load();
   loadSettings();
+  for (const auto& line : storage_.readLines(SITS)) {
+    const size_t space = line.find(' ');
+    if (space != std::string::npos) lengths_[std::atoi(line.c_str())] = std::atoi(line.c_str() + space + 1);
+  }
   lastInput_ = clock_.nowEpochSeconds();
   screen_ = Screen::Waking;
   moment_ = wakeMoment(daily_.form(lastInput_));
@@ -190,12 +197,12 @@ void SessionMachine::startSession(int activityId) {
   if (activityId_ == 0) return;
   // The ritual shows its candles instead of the folder's scene.
   ritual_ = activityId_ == daily_.resurrectionId();
-  moment_ = ritual_ ? "ritual-0" : "";
+  moment_ = ritual_ ? "ritual-0" : sit_ ? (sitPacer_ == Pacer::None ? "vigil" : "vigil-breath") : "";
   sessionUuid_ = uuidV4(random_);
   startedAt_ = clock_.nowEpochSeconds();
   if (!writeMarker(startedAt_)) return;  // first write failed: stay Idle
   // Where the next boot reopens. Losing it only costs the resume position.
-  if (!ritual_) storage_.write(NAV, std::to_string(activityId_) + "\n");
+  if (!ritual_ && !sit_) storage_.write(NAV, std::to_string(activityId_) + "\n");
   screen_ = Screen::Running;
   draw();
 }
@@ -209,7 +216,7 @@ void SessionMachine::stopSession() {
   storage_.remove(MARKER);
   const int minutes = static_cast<int>((endedAt - startedAt_) / 60);
   daily_.sessionEnded(endedAt, activityId_, minutes);
-  moment_ = ritual_ && minutes >= 60 ? "resurrected" : "";
+  moment_ = ritual_ && minutes >= 60 ? "resurrected" : sit_ ? "vigil-kept" : "";
   screen_ = Screen::Stopped;
   stoppedAt_ = endedAt;
   draw(static_cast<int>((endedAt - startedAt_) / 60));
@@ -263,10 +270,11 @@ void SessionMachine::handle(Input input) {
     case Screen::Running:
       // Sun is deliberately inert while running. Changing activity mid-session
       // would make the logged block a lie.
-      if (input == Input::PowerShort) { stopSession(); }
+      if (input == Input::PowerShort) { stopSession(); if (sit_ && screen_ == Screen::Stopped) chime("close"); }
       else if (input == Input::Tick) {
         const uint64_t now = clock_.nowEpochSeconds();
         if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) appendHeartbeat(now);
+        if (sit_) { sitTick(now); break; }
         // The ritual lights a candle every 15 minutes: the one redraw allowed.
         if (ritual_) {
           const std::string stage = "ritual-" + std::to_string(std::min<uint64_t>(4, (now - startedAt_) / RITUAL_STAGE_SECONDS));
@@ -280,10 +288,12 @@ void SessionMachine::handle(Input input) {
     case Screen::Stopped:
       if (input == Input::PowerShort || input == Input::SunShort || input == Input::SunDouble) {
         screen_ = Screen::Idle;
+        sit_ = false;
         draw();
       } else if (input == Input::Tick) {
         if (clock_.nowEpochSeconds() - stoppedAt_ >= STOPPED_HOLD_SECONDS) {
           screen_ = Screen::Idle;
+          sit_ = false;
           draw();
         }
       }
@@ -311,6 +321,9 @@ void SessionMachine::browse(Input input) {
       break;
     }
     case Place::Resurrect:
+      break;
+    case Place::Vigil:
+      vigil(input);
       break;
     case Place::Activities:
       if (input == Input::SunShort) { carousel_.next(); draw(); }
@@ -505,7 +518,7 @@ void SessionMachine::redrawSettings() {
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Habits }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Vigil }) places.push_back(p);
   // Always offered, empty or not: a menu that hides the library until a sync
   // has been through is a menu with a missing item as far as anyone holding
   // the device is concerned.
@@ -639,6 +652,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
           case Place::Shelf: vm.items.push_back("READ"); break;
+          case Place::Vigil: vm.items.push_back("VIGIL"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
@@ -727,12 +741,132 @@ void SessionMachine::draw(int minutes) {
       vm.cursor = static_cast<int>(listCursor_);
       break;
     }
+    case Place::Vigil: {
+      const auto& ps = daily_.vigil();
+      vm.items.clear();
+      vm.values.clear();
+      const auto length = [](int m) { return m ? std::to_string(m) + " MIN" : std::string("OPEN"); };
+      if (ps.empty()) {
+        // Its practices come with the first sync.
+        vm.title = "VIGIL";
+        vm.items.push_back("SYNC FIRST");
+        vm.values.push_back("");
+        vm.cursor = 0;
+      } else if (!choosingLength_) {
+        vm.title = "VIGIL";
+        for (const auto& p : ps) { vm.items.push_back(p.name); vm.values.push_back(length(sitLength(p))); }
+        vm.cursor = static_cast<int>(vigilCursor_ % ps.size());
+      } else {
+        vm.title = ps[vigilCursor_ % ps.size()].name;
+        for (int m : SIT_LENGTHS) vm.items.push_back(length(m));
+        vm.cursor = static_cast<int>(lengthCursor_);
+      }
+      break;
+    }
     case Place::Activities:
       break;
+  }
+  vm.sit = sit_;
+  if (sit_ && screen_ == Screen::Running) {
+    const uint64_t now = clock_.nowEpochSeconds();
+    vm.left = sitMinutes_ ? leftInFives(now) : -1;
+    if (sitPacer_ != Pacer::None) {
+      // The breath, sampled once a second. Resonance: five seconds in, five
+      // out. Cyclic sighing: two inhales, the second topping up the first,
+      // then one long exhale.
+      const uint64_t t = now - startedAt_;
+      if (sitPacer_ == Pacer::Resonance) {
+        const int p = static_cast<int>(t % 10);
+        vm.breath = (p < 5 ? p : 10 - p) * 20;
+        vm.cue = p < 5 ? "in" : "out";
+      } else {
+        static const int SIGH[] = { 0, 35, 70, 100, 80, 60, 40, 20 };
+        const int p = static_cast<int>(t % 8);
+        vm.breath = SIGH[p];
+        vm.cue = p < 3 ? "in" : "out";
+      }
+    }
   }
   vm.largeText = largeText_;
   vm.look = look_;
   // Running never carries elapsed time. Design decision, not an omission.
   vm.minutes = (screen_ == Screen::Stopped) ? minutes : 0;
   renderer_.render(vm);
+}
+
+// The Vigil. SUN walks the practices, POWER picks one; then SUN walks the
+// lengths and POWER sits. Holding SUN goes back a step.
+void SessionMachine::vigil(Input input) {
+  const auto& ps = daily_.vigil();
+  if (ps.empty()) {
+    if (input == Input::SunLong || input == Input::PowerShort) { place_ = Place::Menu; draw(); }
+    return;
+  }
+  const size_t n = ps.size(), lengths = sizeof(SIT_LENGTHS) / sizeof(SIT_LENGTHS[0]);
+  if (!choosingLength_) {
+    if (input == Input::SunShort) { vigilCursor_ = (vigilCursor_ + 1) % n; draw(); }
+    else if (input == Input::SunDouble) { vigilCursor_ = (vigilCursor_ + 2 * n - 2) % n; draw(); }
+    else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+    else if (input == Input::PowerShort) {
+      const int want = sitLength(ps[vigilCursor_ % n]);
+      lengthCursor_ = 0;
+      for (size_t i = 0; i < lengths; ++i) if (SIT_LENGTHS[i] == want) lengthCursor_ = i;
+      choosingLength_ = true;
+      draw();
+    }
+    return;
+  }
+  if (input == Input::SunShort) { lengthCursor_ = (lengthCursor_ + 1) % lengths; draw(); }
+  else if (input == Input::SunDouble) { lengthCursor_ = (lengthCursor_ + 2 * lengths - 2) % lengths; draw(); }
+  else if (input == Input::SunLong) { choosingLength_ = false; draw(); }
+  else if (input == Input::PowerShort) startSit();
+}
+
+int SessionMachine::sitLength(const VigilPractice& p) const {
+  const auto it = lengths_.find(p.id);
+  return it == lengths_.end() ? p.minutes : it->second;
+}
+
+void SessionMachine::startSit() {
+  const auto& ps = daily_.vigil();
+  const VigilPractice p = ps[vigilCursor_ % ps.size()];
+  const int minutes = SIT_LENGTHS[lengthCursor_];
+  // The length chosen is remembered for next time, for this practice alone.
+  lengths_[p.id] = minutes;
+  std::string lines;
+  for (const auto& [id, m] : lengths_) lines += std::to_string(id) + " " + std::to_string(m) + "\n";
+  storage_.write(SITS, lines);
+  sit_ = true;
+  sitMinutes_ = minutes;
+  sitBell_ = p.bell;
+  sitPacer_ = p.pacer;
+  lastBell_ = 0;
+  startSession(p.id);
+  if (screen_ != Screen::Running) { sit_ = false; return; }
+  choosingLength_ = false;
+  shownLeft_ = sitMinutes_ ? leftInFives(startedAt_) : -1;
+  chime("open");
+}
+
+// The minutes left, rounded up to the next five: 20, then 15, then 10.
+int SessionMachine::leftInFives(uint64_t now) const {
+  const uint64_t total = static_cast<uint64_t>(sitMinutes_) * 60, gone = now - startedAt_;
+  if (gone >= total) return 0;
+  const uint64_t left = total - gone;
+  return static_cast<int>((left + 299) / 300) * 5;
+}
+
+// Once a second while sitting. The glass changes only when the minutes left
+// pass a five, or with the breath for the two breathing practices.
+void SessionMachine::sitTick(uint64_t now) {
+  if (sitMinutes_ && now - startedAt_ >= static_cast<uint64_t>(sitMinutes_) * 60) {
+    stopSession();
+    // Rung once it is kept: a sit that could not be saved yet keeps sitting.
+    if (screen_ == Screen::Stopped) chime("close");
+    return;
+  }
+  const int minute = static_cast<int>((now - startedAt_) / 60);
+  if (sitBell_ && minute > 0 && minute % sitBell_ == 0 && minute != lastBell_) { lastBell_ = minute; chime("bell"); }
+  const int left = sitMinutes_ ? leftInFives(now) : -1;
+  if (sitPacer_ != Pacer::None || left != shownLeft_) { shownLeft_ = left; draw(); }
 }

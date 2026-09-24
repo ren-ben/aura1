@@ -21,12 +21,14 @@ import {
   penQuill, tentacles, windowMoon, type Arm,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
+import { vigilScenes } from './vigil.ts';
 
 export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
   | 'sealed' | 'sealed-long' | 'sealed-short' | 'sealed-marathon' | 'levelup' | 'todos-done' | 'neglected'
   | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch'
-  | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected' | 'transcribe';
+  | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected' | 'transcribe'
+  | 'vigil' | 'vigil-breath' | 'vigil-kept';
 
 export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween';
 export type Scene = { id: string; moment: Moment; size: number; frames: string[]; env?: Env };
@@ -267,6 +269,8 @@ export function scenes(): Scene[] {
     ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
       scene(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35)
         + hideBelow(392))], undefined, 64)),
+    // The Vigil: sitting still (src/vigil.ts).
+    ...vigilScenes().map((v) => scene(v.id, v.moment, v.frames)),
   ];
 }
 

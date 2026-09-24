@@ -55,6 +55,16 @@ cannot be switched off from the middle of a book; go to the menu first.
 - **At midnight** (the server's time zone) todos you finished drop off and habits open
   for the new day, even before the next sync.
 - **Ticks work offline.** They go out with the next sync, and the web shows them after.
+- **VIGIL** is a sit. SUN walks the practices (each with its length beside it), POWER
+  picks one; SUN walks the lengths (5 to 60 minutes, or OPEN), POWER sits, holding SUN
+  goes back a step. A knock opens the sit. He sits still in one of four places; the
+  caption says the minutes left in fives (20, 15, 10...), redrawn only when it drops.
+  Cyclic Sigh and Resonance draw breathing rings instead, swelling and falling each
+  second, with *in* and *out*. Noting, Metta, Kasina and the Middle Pillar ring a faint
+  bell between stages. At the end the low swell and the knock close it; POWER ends it
+  early and still keeps it. OPEN sits run until POWER. The length you pick is remembered
+  per practice. Sits sync like sessions, but they are Stillness: no Insight, and they do
+  not keep him from decaying (the hour-long RESURRECTION still does).
 - **Left alone for three minutes** he takes over the screen with a scene of his own, or
   his decay if you have been away. Any press brings the list back without acting.
 
@@ -98,7 +108,16 @@ with Kael'thos at its centre.
   the button to lay it flat and read it), Rituals (habits: click any dot to set that
   day), Intercept (the quotes he says on the device: write them in here), The Vessel
   (the device as it last reported, and its looks: send one and it wears it at the next
-  sync), The Orrery, The Pact, and four sealed rooms for the phases to come.
+  sync), The Orrery, The Pact, The Library, The Vigil, The Academy, and one sealed room.
+- **The Vigil:** the ten gates of [the ascent](vigil/ASCENT.md) on the Tree of Life,
+  every sit as a star in the night record, and Stillness counted apart from Insight.
+  Click a gate for its practices, the signs to tick off, its secret and its shadow. The
+  gate you stand on is the first with a sign still open.
+- **The Academy:** the physics degree (curriculum 2026) as an astrolabe, a ring per
+  semester. Add a course by its u:find number (or the whole first term in one click);
+  the server reads its dates and rooms from u:find. Pick your exercise group when you
+  know it; click a grade to set it (1 to 5, the Austrian scale). The ECTS, the StEOP
+  and the weighted grade follow.
 - **Everything 3D turns** when dragged, and runs only while its pane is on screen.
 
 ### Sync
@@ -159,8 +178,9 @@ tunnel already on your Pi; you do not create a new one.
 
 The device draws him from an art pack on the SD card. Build it and copy it over:
 
-1. `pnpm --filter @aura/art bake` (writes `packages/art/out/sd/art/`).
-2. Copy the `art` folder to the root of the SD card, so the card has `/art/index.txt`.
+1. `pnpm --filter @aura/art bake` (writes `packages/art/out/sd/art/` and `sound/`).
+2. Copy the `art` and `sound` folders to the root of the SD card, so the card has
+   `/art/index.txt` and `/sound/close.wav`.
 
 Without the pack the device still works and shows plain text screens. Rebake and recopy
 whenever the art changes. The look is fixed in `packages/art/STYLE.md`, his moods and
@@ -178,7 +198,7 @@ Kael'thos as its icon. The shell opens offline; data needs a connection.
 
 ## What to test
 
-These eight checks cover what the software tests on the PC cannot reach. The full list is
+These ten checks cover what the software tests on the PC cannot reach. The full list is
 in [hardware-checklist.md](hardware-checklist.md).
 
 | # | Do this | It passes when |
@@ -191,6 +211,8 @@ in [hardware-checklist.md](hardware-checklist.md).
 | 6 | Start, wait 2 min, hold POWER to switch off, switch on | One ~2 min session is queued |
 | 7 | Pull power ~2 s into a sync, then reboot | Exactly one row on the page, no duplicate |
 | 8 | Power off for 10 min, then compare the clock | Tells us whether the clock survives power-off |
+| 9 | VIGIL, Cyclic Sigh, 5 MIN, with a speaker on the header | A knock at the start, rings breathing each second, the swell and knock at 5 minutes |
+| 10 | VIGIL, Noting, 10 MIN | A faint bell at 5 minutes, the caption goes 10 then 5 MIN LEFT, the sit shows on The Vigil after sync |
 
 **Send back:**
 
@@ -236,10 +258,9 @@ in [hardware-checklist.md](hardware-checklist.md).
 
 6. **Phase 6, reader:** books on the card, chapter jumps, saved progress, highlights
    picked and annotated on the web, Kael'thos reading in the corner.
-7. **Phase 7, meditation:** sits started on the device with a chime to open and close
-   them, practices taught and tracked on the web, Kael'thos in meditation poses.
-8. **Phase 8, university:** courses, ECTS, grades and exams for physics at the
-   University of Vienna, course data pulled from u:find.
+7. **Phase 7, the Vigil:** built. Sits on the device with its sounds, the ascent on the
+   web. Still to check on the hardware: the speaker (tests 9 and 10).
+8. **Phase 8, the Academy:** built. Exam dates will follow once u:find posts them.
 9. **Phase 9, workout tracker:** weights and cardio. Details to come.
 
 **Open along the way:** the Bloodborne and Halloween skins (phase 4b, planned); check the
