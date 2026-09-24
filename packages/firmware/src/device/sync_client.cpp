@@ -2,9 +2,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <vector>
-#include <HTTPClient.h>
+#include <SD_MMC.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <bootloader_random.h>
 #include "cloudflare_roots.h"
 #include "config_store.h"
@@ -55,6 +54,10 @@ void SyncClient::joinByScan() {
 }
 
 void SyncClient::radioOff() {
+  if (fetching_ || connected_) { http_.end(); tls_.stop(); }
+  fetching_ = false;
+  connected_ = false;
+  plan_.clear();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   bootloader_random_enable();
@@ -66,7 +69,7 @@ void SyncClient::abort() {
 }
 
 bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, SyncOutcome& result) {
-  if (!busy_) return false;
+  if (!busy_ || connected_) return false;
   const wl_status_t status = WiFi.status();
   if (status != WL_CONNECTED) {
     // The hotspot moved channel, or another phone: scan after all.
@@ -95,8 +98,93 @@ bool SyncClient::poll(int& configVersion, Carousel& carousel, bool setClock, Syn
   const auto saved = storage_.readLines(WIFI_FILE);
   if (saved.empty() || saved[0] != where) storage_.write(WIFI_FILE, std::string(where) + "\n");
   result = post(configVersion, carousel, setClock);
-  radioOff();
+  // Up for the books that are still to come; fetch() says whether there are any.
+  if (result == SyncOutcome::Ok) connected_ = true;
+  else radioOff();
   return true;
+}
+
+void SyncClient::fetch(const std::vector<Fetch>& plan, int urgent) {
+  if (!connected_) return;
+  if (!fetching_) {
+    tls_.setCACert(CLOUDFLARE_ROOTS);
+    tls_.setHandshakeTimeout(HANDSHAKE_TIMEOUT_S);
+    http_.setReuse(true);
+    fetchFrom_ = millis();
+  }
+  plan_ = plan;
+  urgent_ = urgent;
+  next_ = 0;
+  fetching_ = !plan_.empty();
+  if (!fetching_) radioOff();
+}
+
+bool SyncClient::step(FetchProgress& progress) {
+  if (!fetching_) return false;
+  if (WiFi.status() != WL_CONNECTED) { radioOff(); return false; }
+  // Nobody is waiting on the rest of the shelf: it gets a while each sync.
+  if (plan_[0].id != urgent_ && millis() - fetchFrom_ > BACKGROUND_FETCH_MS) { radioOff(); return false; }
+  Fetch& book = plan_[0];
+  const std::string id = std::to_string(book.id);
+  progress = FetchProgress{};
+  progress.id = book.id;
+  const auto failed = [&]() {
+    Serial.printf("fetch failed: book %d, chapter %d\n", book.id, next_);
+    progress.failed = true;
+    radioOff();
+    return true;
+  };
+  // The head first: the name, the chapters, where it was left.
+  if (!storage_.exists(Book::headPath(book.id))) {
+    if (!download("/books/" + id + "/device", Book::headPath(book.id))) return failed();
+    next_ = 0;
+  }
+  if (next_ == 0) {
+    const auto head = storage_.readLines(Book::headPath(book.id));
+    if (!head.empty()) book.chapters = std::atoi(head[0].c_str());
+  }
+  while (next_ < book.chapters && storage_.exists(Book::partPath(book.id, next_))) ++next_;
+  progress.total = book.chapters;
+  if (next_ >= book.chapters) {
+    storage_.write(Book::donePath(book.id), "");
+    Serial.printf("fetched book %d whole, %d chapters\n", book.id, book.chapters);
+    progress.done = book.chapters;
+    progress.whole = true;
+    plan_.erase(plan_.begin());
+    next_ = 0;
+    if (plan_.empty()) radioOff();
+    return true;
+  }
+  if (!download("/books/" + id + "/chapters/" + std::to_string(next_) + "/text", Book::partPath(book.id, next_))) return failed();
+  progress.done = ++next_;
+  return true;
+}
+
+bool SyncClient::download(const std::string& path, const std::string& file) {
+  // The API lives beside the sync endpoint.
+  std::string url = SYNC_URL;
+  url = url.substr(0, url.rfind('/')) + path;
+  http_.begin(tls_, url.c_str());
+  http_.addHeader("CF-Access-Client-Id", CF_ACCESS_ID);
+  http_.addHeader("CF-Access-Client-Secret", CF_ACCESS_SECRET);
+  const int code = http_.GET();
+  bool ok = false;
+  if (code == 200) {
+    SD_MMC.mkdir("/books");
+    SD_MMC.mkdir(file.substr(0, file.rfind('/')).c_str());
+    File out = SD_MMC.open(file.c_str(), FILE_WRITE);
+    if (out) {
+      const int want = http_.getSize();
+      const int wrote = http_.writeToStream(&out);
+      out.close();
+      ok = wrote >= 0 && (want < 0 || wrote == want);
+    }
+    if (!ok) SD_MMC.remove(file.c_str());
+  } else {
+    Serial.printf("fetch: http %d\n", code);
+  }
+  http_.end();
+  return ok;
 }
 
 SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClock) {
@@ -105,7 +193,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   // before TLS needs the heap.
   const auto pending = queue_.pending();
   const std::string body = buildRequest(DEVICE_ID, configVersion, pending, daily_.ticks(), daily_.hash(),
-                                       &status_, reading_.bookId > 0 ? &reading_ : nullptr);
+                                       &status_, readings_);
   if (body.empty()) return SyncOutcome::Failed;
 
   WiFiClientSecure client;
@@ -137,9 +225,8 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
 
   queue_.prune(result.settled);
   look_ = result.look;
-  // The marks went with the request: the card can forget them now.
-  tookMarks_ = !reading_.marks.empty();
-  if (result.hasBook) book_ = result.book;
+  // The places and the marks went with the request: the card can forget them.
+  tookReadings_ = !readings_.empty();
   if (result.hasShelf) shelf_ = result.shelf;
   // Never set the RTC from an unparseable time: every later session would carry it.
   if (result.hasServerTime && setClock) clock_.setEpochSeconds(result.serverTime);

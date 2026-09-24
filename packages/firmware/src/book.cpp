@@ -1,7 +1,7 @@
 #include "book.h"
+#include <algorithm>
 #include <ArduinoJson.h>
 #include <sstream>
-#include "ports.h"
 
 namespace {
 
@@ -16,27 +16,25 @@ std::string join(const std::vector<std::string>& lines) {
   return out;
 }
 
-std::string partPath(int idx) { return "/bk" + std::to_string(idx) + ".txt"; }
+// "<chapterIdx> <through>"; false when the card has nothing readable.
+bool readPlace(Storage& storage, const std::string& path, int& chapter, int& through) {
+  const auto lines = storage.readLines(path);
+  if (lines.empty()) return false;
+  std::istringstream in(lines[0]);
+  return static_cast<bool>(in >> chapter >> through);
+}
+
+bool parseMark(const std::string& line, BookMark& m) {
+  std::istringstream in(line);
+  if (!(in >> m.chapterIdx >> m.start >> m.end)) return false;
+  std::getline(in, m.body);
+  if (!m.body.empty() && m.body[0] == ' ') m.body.erase(0, 1);
+  return true;
+}
 
 }  // namespace
 
 void Book::begin() {
-  // "<id> <chapter> <through>", the title, the author, then a chapter a line.
-  const auto lines = storage_.readLines(FILE);
-  if (lines.size() < 3) return;
-  std::istringstream head(lines[0]);
-  if (!(head >> id_ >> chapter_ >> through_)) { id_ = 0; return; }
-  title_ = lines[1];
-  author_ = lines[2];
-  titles_.assign(lines.begin() + 3, lines.end());
-
-  // Whichever chapters are still on the card.
-  for (size_t idx = 0; idx < titles_.size(); ++idx) {
-    const std::string path = partPath(static_cast<int>(idx));
-    if (!storage_.exists(path)) continue;
-    parts_.emplace_back(static_cast<int>(idx), join(storage_.readLines(path)));
-  }
-
   for (const auto& line : storage_.readLines(SHELF)) {
     std::istringstream in(line);
     ShelfBook book;
@@ -45,23 +43,53 @@ void Book::begin() {
     if (!book.title.empty() && book.title[0] == ' ') book.title.erase(0, 1);
     shelf_.push_back(book);
   }
-
-  for (const auto& line : storage_.readLines(MARKS)) {
-    // "<chapter> <start> <end> <text>"
-    std::istringstream in(line);
-    BookMark m;
-    if (!(in >> m.chapterIdx >> m.start >> m.end)) continue;
-    std::getline(in, m.body);
-    if (!m.body.empty() && m.body[0] == ' ') m.body.erase(0, 1);
-    marks_.push_back(m);
+  for (const auto& line : storage_.readLines(DIRTY)) {
+    const int id = std::atoi(line.c_str());
+    if (id > 0 && std::find(dirty_.begin(), dirty_.end(), id) == dirty_.end()) dirty_.push_back(id);
   }
+  const auto open = storage_.readLines(OPEN);
+  if (!open.empty()) load(std::atoi(open[0].c_str()));
 }
 
-void Book::shelve(const std::string& json) {
+bool Book::load(int bookId) {
+  const auto head = storage_.readLines(headPath(bookId));
+  if (bookId <= 0 || head.size() < 3) return false;
+  int count = 0, chapter = 0, through = 0;
+  std::istringstream first(head[0]);
+  if (!(first >> count >> chapter >> through)) return false;
+
+  id_ = bookId;
+  title_ = head[1];
+  author_ = head[2];
+  titles_.assign(head.begin() + 3, head.end());
+  titles_.resize(static_cast<size_t>(std::max(0, count)), "-");
+  // The place kept here outranks the one the book arrived with.
+  readPlace(storage_, placePath(bookId), chapter, through);
+  chapter_ = std::max(0, std::min(chapter, static_cast<int>(titles_.size()) - 1));
+  through_ = std::max(0, std::min(through, 1000));
+  marks_.clear();
+  for (const auto& line : storage_.readLines(marksPath(bookId))) {
+    BookMark m;
+    if (parseMark(line, m)) marks_.push_back(m);
+  }
+  cached_ = -1;
+  text_.clear();
+  refresh();
+  return true;
+}
+
+void Book::refresh() {
+  held_.assign(titles_.size(), false);
+  for (size_t idx = 0; idx < titles_.size(); ++idx) held_[idx] = storage_.exists(partPath(id_, static_cast<int>(idx)));
+  cached_ = -1;
+}
+
+bool Book::shelve(const std::string& json) {
   JsonDocument doc;
-  if (deserializeJson(doc, json) || !doc.is<JsonArrayConst>()) return;
+  if (deserializeJson(doc, json) || !doc.is<JsonArrayConst>()) return false;
   shelf_.clear();
   std::string out;
+  bool moved = false;
   for (JsonObjectConst b : doc.as<JsonArrayConst>()) {
     ShelfBook book{
       b["id"] | 0, b["title"] | "", b["author"] | "",
@@ -72,75 +100,72 @@ void Book::shelve(const std::string& json) {
     // hold spaces worth keeping.
     out += std::to_string(book.id) + " " + std::to_string(book.chapters) + " "
          + std::to_string(book.chapterIdx) + " " + std::to_string(book.through) + " " + book.title + "\n";
+    // Read on the web since, and not here: the web's place is the newer one.
+    const bool readHere = std::find(dirty_.begin(), dirty_.end(), book.id) != dirty_.end();
+    if (!readHere && storage_.exists(headPath(book.id))) {
+      int chapter = -1, through = -1;
+      readPlace(storage_, placePath(book.id), chapter, through);
+      if (book.id == id_) { chapter = chapter_; through = through_; }
+      if (chapter != book.chapterIdx || through != book.through) {
+        storage_.write(placePath(book.id), std::to_string(book.chapterIdx) + " " + std::to_string(book.through) + "\n");
+        if (book.id == id_) {
+          goTo(book.chapterIdx, book.through);
+          moved = true;
+        }
+      }
+    }
     shelf_.push_back(std::move(book));
   }
   storage_.write(SHELF, out);
+  return moved;
 }
 
-void Book::open(int bookId) {
-  wanted_ = bookId;
-  if (bookId == id_) return;
-  // The chapters of the one being closed are no use until it is opened again.
-  for (const auto& part : parts_) storage_.remove("/bk" + std::to_string(part.first) + ".txt");
-  parts_.clear();
+bool Book::whole(int bookId) { return bookId > 0 && storage_.exists(donePath(bookId)); }
+
+bool Book::open(int bookId) {
+  if (bookId == id_ && has()) { wanted_ = 0; return true; }
+  if (!whole(bookId) || !load(bookId)) { wanted_ = bookId; return false; }
+  wanted_ = 0;
+  storage_.write(OPEN, std::to_string(bookId) + "\n");
+  return true;
 }
 
-void Book::accept(const std::string& json) {
-  JsonDocument doc;
-  if (deserializeJson(doc, json) || !doc.is<JsonObjectConst>()) return;
-  const int id = doc["id"] | 0;
-  if (id <= 0) return;
-
-  std::vector<std::string> titles;
-  for (JsonVariantConst t : doc["chapters"].as<JsonArrayConst>()) titles.push_back(t.as<std::string>());
-  if (titles.empty()) return;
-
-  // A different book starts where the server says; the one being read keeps
-  // its place, which is ahead of whatever the server last heard.
-  const bool same = id == id_;
-  if (wanted_ == id) wanted_ = 0;
-  id_ = id;
-  title_ = doc["title"] | "";
-  author_ = doc["author"] | "";
-  titles_ = std::move(titles);
-  if (!same) {
-    chapter_ = doc["chapterIdx"] | 0;
-    through_ = doc["through"] | 0;
-    parts_.clear();
-    marks_.clear();
-    storage_.remove(MARKS);
-  }
-
-  for (JsonObjectConst part : doc["parts"].as<JsonArrayConst>()) {
-    const int idx = part["idx"] | -1;
-    const std::string body = part["body"] | "";
-    if (idx < 0 || body.empty()) continue;
-    storage_.write(partPath(idx), body);
-    bool held = false;
-    for (auto& have : parts_) {
-      if (have.first != idx) continue;
-      have.second = body;
-      held = true;
+std::vector<Fetch> Book::toFetch() {
+  std::vector<Fetch> out;
+  const auto add = [&](int bookId) {
+    if (bookId <= 0 || whole(bookId)) return;
+    for (const auto& f : out) {
+      if (f.id == bookId) return;
     }
-    if (!held) parts_.emplace_back(idx, body);
-  }
-  // Only the chapters near the reading are worth the card's space.
-  for (auto it = parts_.begin(); it != parts_.end();) {
-    if (it->first < chapter_ - 1 || it->first > chapter_ + 2) {
-      storage_.remove(partPath(it->first));
-      it = parts_.erase(it);
-    } else {
-      ++it;
+    int chapters = bookId == id_ ? static_cast<int>(titles_.size()) : 0;
+    for (const auto& b : shelf_) {
+      if (b.id == bookId) chapters = b.chapters;
     }
-  }
-  write();
+    out.push_back({ bookId, chapters });
+  };
+  add(wanted_);
+  add(id_);
+  for (const auto& b : shelf_) add(b.id);
+  return out;
+}
+
+bool Book::arrived(int bookId) {
+  if (bookId == wanted_) return open(bookId);
+  if (bookId == id_) refresh();
+  return false;
 }
 
 const std::string& Book::body(int idx) const {
-  for (const auto& part : parts_) {
-    if (part.first == idx) return part.second;
+  if (!holds(idx)) return NOTHING;
+  if (idx != cached_) {
+    text_ = join(storage_.readLines(partPath(id_, idx)));
+    cached_ = idx;
   }
-  return NOTHING;
+  return text_;
+}
+
+bool Book::holds(int idx) const {
+  return idx >= 0 && idx < static_cast<int>(held_.size()) && held_[static_cast<size_t>(idx)];
 }
 
 void Book::goTo(int chapterIdx, int through) {
@@ -149,26 +174,29 @@ void Book::goTo(int chapterIdx, int through) {
   through_ = std::max(0, std::min(through, 1000));
 }
 
-void Book::save() { write(); }
+void Book::save() {
+  if (!has()) return;
+  storage_.write(placePath(id_), std::to_string(chapter_) + " " + std::to_string(through_) + "\n");
+  touch(id_);
+}
 
-void Book::write() {
-  if (id_ <= 0) return;
-  std::string out = std::to_string(id_) + " " + std::to_string(chapter_) + " " + std::to_string(through_) + "\n";
-  out += title_ + "\n" + author_ + "\n";
-  for (const auto& t : titles_) out += t + "\n";
-  storage_.write(FILE, out);
+void Book::touch(int bookId) {
+  if (std::find(dirty_.begin(), dirty_.end(), bookId) != dirty_.end()) return;
+  dirty_.push_back(bookId);
+  storage_.append(DIRTY, std::to_string(bookId));
 }
 
 void Book::mark(int chapterIdx, int start, int end, const std::string& body) {
-  if (marked(chapterIdx, start)) return;
+  if (!has() || marked(chapterIdx, start)) return;
   // One line on the card: the text cannot carry a newline into it.
   std::string flat = body.substr(0, 400);
   for (char& c : flat) {
     if (c == '\n' || c == '\r') c = ' ';
   }
   marks_.push_back({ chapterIdx, start, end, flat });
-  storage_.append(MARKS, std::to_string(chapterIdx) + " " + std::to_string(start) + " "
-                           + std::to_string(end) + " " + flat);
+  storage_.append(marksPath(id_), std::to_string(chapterIdx) + " " + std::to_string(start) + " "
+                                    + std::to_string(end) + " " + flat);
+  touch(id_);
 }
 
 bool Book::marked(int chapterIdx, int start) const {
@@ -178,7 +206,21 @@ bool Book::marked(int chapterIdx, int start) const {
   return false;
 }
 
-void Book::clearMarks() {
+std::vector<ReadingState> Book::readings() {
+  std::vector<ReadingState> out;
+  for (const int bookId : dirty_) {
+    ReadingState r{ bookId, 0, 0, {} };
+    if (bookId == id_) { r.chapterIdx = chapter_; r.through = through_; }
+    else if (!readPlace(storage_, placePath(bookId), r.chapterIdx, r.through)) continue;
+    r.marks = storage_.readLines(marksPath(bookId));
+    out.push_back(std::move(r));
+  }
+  return out;
+}
+
+void Book::synced() {
+  for (const int bookId : dirty_) storage_.remove(marksPath(bookId));
+  dirty_.clear();
+  storage_.remove(DIRTY);
   marks_.clear();
-  storage_.remove(MARKS);
 }

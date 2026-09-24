@@ -10,7 +10,7 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<std::string>& ticks,
                          const std::string& todayHash,
                          const DeviceStatus* status,
-                         const ReadingState* reading) {
+                         const std::vector<ReadingState>& readings) {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["configVersion"] = configVersion;
@@ -47,13 +47,19 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     s["charging"] = status->charging;
     s["look"] = status->look;
   }
-  if (reading && reading->bookId > 0) {
-    JsonObject r = doc["reading"].to<JsonObject>();
-    r["bookId"] = reading->bookId;
-    r["chapterIdx"] = reading->chapterIdx;
-    r["through"] = reading->through;
+  // The server takes thirty books, and fifty passages of each, at a time.
+  JsonArray read;
+  if (!readings.empty()) read = doc["readings"].to<JsonArray>();
+  for (size_t n = 0; n < readings.size() && n < 30; ++n) {
+    const ReadingState& reading = readings[n];
+    if (reading.bookId <= 0) continue;
+    JsonObject r = read.add<JsonObject>();
+    r["bookId"] = reading.bookId;
+    r["chapterIdx"] = reading.chapterIdx;
+    r["through"] = reading.through;
     JsonArray kept = r["marks"].to<JsonArray>();
-    for (const auto& line : reading->marks) {
+    for (const auto& line : reading.marks) {
+      if (kept.size() >= 50) break;
       std::istringstream in(line);
       int chapterIdx = 0, start = 0, end = 0;
       std::string body;
@@ -107,10 +113,6 @@ SyncResult parseResponse(const std::string& body) {
   if (doc["books"].is<JsonArrayConst>()) {
     result.hasShelf = true;
     serializeJson(doc["books"], result.shelf);
-  }
-  if (doc["book"].is<JsonObjectConst>()) {
-    result.hasBook = true;
-    serializeJson(doc["book"], result.book);
   }
   if (doc["today"].is<JsonObjectConst>()) {
     result.hasToday = true;

@@ -100,8 +100,8 @@ bool EinkRenderer::draw(Canvas& c, const std::string& id, int x, int y, uint8_t 
   return true;
 }
 
-bool EinkRenderer::drawScene(const ArtScene* scene, bool negative) {
-  if (!scene || !loadFrame(framePath(*scene, 0), scene->size)) return false;
+bool EinkRenderer::drawScene(const ArtScene* scene, bool negative, int frame) {
+  if (!scene || !loadFrame(framePath(*scene, frame % std::max(1, scene->frames)), scene->size)) return false;
   if (negative) base_.clear(INK);
   const int at = (200 - scene->size) / 2;
   base_.bitmap(at, at, frameBits, scene->size, scene->size, negative ? PAPER : INK);
@@ -113,17 +113,16 @@ bool EinkRenderer::play(const std::string& moment, bool fullLast, bool negative)
   return playScene(pickScene(art_, moment, esp_random(), env_), fullLast, negative);
 }
 
-// The still that says the button took: the first frame of the sleep with a
-// word over it, by partial refresh, before anything slow is allowed to
-// happen. Powering off syncs, and a sync is seconds; without this the glass
-// stayed as it was and there was no knowing whether to keep holding.
-bool EinkRenderer::goodnight(const ArtScene& scene, const Look& lk, const ViewModel& vm) {
+// The still that says the button took: the first frame of the sleep, by
+// partial refresh, before anything slow is allowed to happen. Powering off
+// syncs, and a sync is seconds; without this the glass stayed as it was and
+// there was no knowing whether the press had taken.
+bool EinkRenderer::goodnight(const ArtScene& scene, const Look& lk) {
   if (!loadFrame(framePath(scene, 0), scene.size)) return false;
   const bool negative = lk.negative();
   base_.clear(negative ? INK : PAPER);
   const int at = (200 - scene.size) / 2;
   base_.bitmap(at, at, frameBits, scene.size, scene.size, negative ? PAPER : INK);
-  lk.caption(base_, vm, "LET GO");
   cornered_ = false;
   out_ = base_;
   push(false);
@@ -184,7 +183,7 @@ void EinkRenderer::render(const ViewModel& vm) {
     // to be the same cat going to sleep in the same place.
     const ArtScene* s = pickScene(art_, "sleep", esp_random(), env_);
     if (s) {
-      goodnight(*s, lk, vm);
+      goodnight(*s, lk);
       if (playScene(s, true, lk.negative())) { partials_ = 0; return; }
     }
   }
@@ -210,6 +209,15 @@ void EinkRenderer::render(const ViewModel& vm) {
   };
   switch (vm.screen) {
     case Screen::Idle:
+      if (vm.place == Place::Transcribe) {
+        // He copies the book out a chapter a frame, round and round, the
+        // count of them under him.
+        const std::string count = vm.toCopy ? std::to_string(vm.copied) + " of " + std::to_string(vm.toCopy) : "the head";
+        scene = drawScene(pickScene(art_, "transcribe", 0), lk.negative(), vm.copied);
+        if (scene) lk.caption(base_, vm, vm.note.empty() ? count : vm.note);
+        else fallback({ "COPYING", vm.book, vm.note.empty() ? count : vm.note });
+        break;
+      }
       env_.clear();  // a page is no place
       drawPage(base_, lk, vm, status_, *this);
       break;

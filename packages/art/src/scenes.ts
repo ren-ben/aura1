@@ -16,9 +16,9 @@ import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
 import {
-  amygdala, bat, bonfire, book, bubble, candle, cleaver, containmentBox, containmentLid, deadTree, desk, DITHER, eyesInTheDark,
+  amygdala, bat, bonfire, book, bubble, candle, cleaver, containmentBox, containmentLid, copyBook, deadTree, desk, DITHER, eyesInTheDark,
   ghost, gothicTown, laptop, messenger, moon, mug, heldBook, pumpkin, quill, rain, runes, scaled, skyEye, tentacledMoon,
-  tentacles, windowMoon, type Arm,
+  penQuill, tentacles, windowMoon, type Arm,
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Wear } from './rig.ts';
 
@@ -26,7 +26,7 @@ export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
   | 'sealed' | 'sealed-long' | 'sealed-short' | 'sealed-marathon' | 'levelup' | 'todos-done' | 'neglected'
   | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch'
-  | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected';
+  | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected' | 'transcribe';
 
 export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween';
 export type Scene = { id: string; moment: Moment; size: number; frames: string[]; env?: Env };
@@ -161,6 +161,19 @@ export function scenes(): Scene[] {
     // Forbidden reading: the tentacles come up to look over his shoulder.
     scene('heresy-tentacles', 'session-heresy', [svg(atDesk('determined', book(200, DESK_Y - 4, P, 54) + candle(334, DESK_Y, P, true, 74),
       { behind: scaled(tentacles(P, 191, [96, 322]), 200, 400, 1.5), paws: [118, 282] }))], 'desk'),
+    // A book being copied onto the card: he writes it out by hand, the book
+    // he reads from giving up its words, which rise off its pages as he goes.
+    // One frame a chapter, round and round until the last one is down.
+    scene('transcribe', 'transcribe', [0, 1, 2, 3].map((k) => {
+      const paw = (x: number, seed: number) => `<path d="${toPath(wobble(ellipse(x, DESK_Y - 8, 20, 12, 28), seed, 0.8))}" fill="${P.ink}"/>`;
+      // The words leave the book on the left and rise up the edge of the glass.
+      const rising = [[38, 250], [70, 196], [42, 142], [74, 88]].map(([x, y], i) =>
+        runes(x!, y! - k * 14, P, 227 + i * 3 + (k % 2), 1)).join('');
+      const nib = 286 + k * 11;
+      return svg(atDesk({ ...face('determined'), look: [10, 14] },
+        book(112, DESK_Y - 4, P, 57) + paw(140, 311) + copyBook(282, DESK_Y - 4, P, k + 1)
+        + penQuill(nib, DESK_Y - 12, P) + paw(nib + 8, 312), { paws: [], behind: rising }));
+    }), 'desk'),
     scene('dream-moon', 'session-dream', [svg(atDesk('content', book(200, DESK_Y - 4, P), { behind: windowMoon(292, 20, 94, 110, P, 'crescent', 96) }))], 'desk'),
     scene('sleep-desk', 'sleep', [
       svg(atDesk('content', book(200, DESK_Y - 4, P) + mug(335, DESK_Y, P, 61), { paws: [120, 262] })),

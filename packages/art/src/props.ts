@@ -343,6 +343,25 @@ export function scaled(svg: string, x: number, y: number, k: number): string {
   return `<g transform="translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})">${svg}</g>`;
 }
 
+// A quill in the hand, its nib at (x, y), leaning away up to the right.
+export function penQuill(x: number, y: number, p: Palette, seed = 90): string {
+  const vane = outline([[x + 6, y - 14], [x + 20, y - 52], [x + 38, y - 96], [x + 32, y - 58], [x + 14, y - 20]], 4);
+  return drawn(vane, p, { seed, w: 4 }) + inkLine([[x, y], [x + 36, y - 94]], p, { seed: seed + 1, w: 2.5 });
+}
+
+// The book he copies into, open on the desk: its right leaf fills with a line
+// of his script for every `lines`, left to right, top to bottom.
+export function copyBook(x: number, y: number, p: Palette, lines: number, seed = 95): string {
+  const left = outline([[x, y - 6], [x - 30, y - 16], [x - 62, y - 10], [x - 66, y + 4], [x, y + 6]], 3);
+  const right = outline([[x, y - 6], [x + 30, y - 16], [x + 62, y - 10], [x + 66, y + 4], [x, y + 6]], 3);
+  const written = [-44, -30].map((dx, i) => inkLine([[x + dx, y - 6], [x + dx + 22, y - 10]], p, { seed: seed + i, w: 2.5 }));
+  for (let i = 0; i < lines; i++) {
+    const dx = 8 + i * 13;
+    written.push(inkLine([[x + dx, y - 8 - i * 0.6], [x + dx + 9, y - 11 - i * 0.6]], p, { seed: seed + 10 + i, w: 2.5 }));
+  }
+  return drawn(left, p, { seed }) + drawn(right, p, { seed: seed + 1 }) + written.join('');
+}
+
 // A book held up to read, seen from its cover, a moon sigil on the front.
 export function heldBook(x: number, y: number, p: Palette, seed = 250): string {
   const cover = outline([[x - 38, y - 56], [x + 38, y - 60], [x + 40, y + 2], [x - 36, y + 4]], 2);

@@ -347,7 +347,7 @@ void SessionMachine::browse(Input input) {
       break;
     }
     // The shelf. SUN walks the books, POWER opens one; one that is not on
-    // the card yet is asked for and arrives at the next sync.
+    // the card yet is copied onto it first, and he is seen doing it.
     case Place::Shelf: {
       const auto& shelf = book_.shelf();
       const size_t count = shelf.size();
@@ -363,12 +363,15 @@ void SessionMachine::browse(Input input) {
       else if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
       else if (input == Input::PowerShort) {
         const ShelfBook& chosen = shelf[listCursor_ % count];
-        if (chosen.id == book_.id() && book_.has()) {
+        if (book_.open(chosen.id)) {
           place_ = Place::Book;
           listCursor_ = static_cast<size_t>(book_.chapterIdx());
           repaginate();
         } else {
-          book_.open(chosen.id);
+          place_ = Place::Transcribe;
+          copied_ = 0;
+          toCopy_ = chosen.chapters;
+          syncNote_ = "";
           syncRequested_ = true;
         }
         draw();
@@ -398,6 +401,13 @@ void SessionMachine::browse(Input input) {
     }
     case Place::Reading:
       read(input);
+      break;
+
+    // He is copying a book onto the card. SUN goes back to the shelf and
+    // leaves him to it; POWER tries again after the hotspot was not there.
+    case Place::Transcribe:
+      if (input == Input::SunShort || input == Input::SunLong) { place_ = Place::Shelf; draw(); }
+      else if (input == Input::PowerShort) { syncNote_ = ""; syncRequested_ = true; draw(); }
       break;
 
     // SUN moves, POWER changes the line: text size, look, skin, or a sync now.
@@ -445,6 +455,25 @@ bool SessionMachine::takeSyncRequest() {
 void SessionMachine::setSyncNote(const std::string& note) {
   syncNote_ = note;
   redrawSettings();
+  if (screen_ == Screen::Idle && place_ == Place::Transcribe) draw();
+}
+
+void SessionMachine::copying(int bookId, int done, int total) {
+  if (bookId == book_.id()) book_.refresh();
+  if (bookId != book_.wanted()) return;
+  copied_ = done;
+  toCopy_ = total;
+  if (screen_ == Screen::Idle && place_ == Place::Transcribe) draw();
+}
+
+void SessionMachine::bookArrived(int bookId) {
+  const bool opened = book_.arrived(bookId);
+  if (opened && place_ == Place::Transcribe) {
+    place_ = Place::Book;
+    listCursor_ = static_cast<size_t>(book_.chapterIdx());
+  }
+  if (opened || bookId == book_.id()) repaginate();
+  if (screen_ == Screen::Idle && (place_ == Place::Book || place_ == Place::Shelf || place_ == Place::Reading)) draw();
 }
 
 void SessionMachine::setLook(const std::string& name) {
@@ -493,14 +522,8 @@ void SessionMachine::repaginate() {
 }
 
 void SessionMachine::bookChanged() {
-  if (place_ != Place::Reading && place_ != Place::Book && place_ != Place::Shelf) return;
   repaginate();
-  // A book asked for on the shelf opens as soon as it lands.
-  if (place_ == Place::Shelf && book_.has() && !book_.waiting()) {
-    place_ = Place::Book;
-    listCursor_ = static_cast<size_t>(book_.chapterIdx());
-  }
-  draw();
+  if (screen_ == Screen::Idle && (place_ == Place::Reading || place_ == Place::Book)) draw();
 }
 
 std::string SessionMachine::pageText() const {
@@ -648,7 +671,9 @@ void SessionMachine::draw(int minutes) {
         const int through = b.chapters > 0
           ? ((b.chapterIdx * 1000 + b.through) * 100) / (b.chapters * 1000)
           : 0;
-        vm.values.push_back(book_.waiting() && b.id == book_.wanted() ? "ASKING"
+        // One still to come onto the card says so; he copies it when opened.
+        vm.values.push_back(book_.waiting() && b.id == book_.wanted() ? "COPYING"
+                            : !book_.whole(b.id) ? "AWAY"
                             : through > 0 ? std::to_string(through) + "%" : "NEW");
         vm.checks.push_back(b.id == book_.id());
       }
@@ -675,6 +700,17 @@ void SessionMachine::draw(int minutes) {
       vm.pages = static_cast<int>(pageStarts_.size());
       const int start = pageStarts_.empty() ? 0 : pageStarts_[std::min(page_, pageStarts_.size() - 1)];
       vm.kept = book_.marked(idx, start);
+      break;
+    }
+    case Place::Transcribe: {
+      vm.title = "TRANSCRIBING";
+      for (const ShelfBook& b : book_.shelf()) {
+        if (b.id == book_.wanted()) vm.book = b.title;
+      }
+      vm.copied = copied_;
+      vm.toCopy = toCopy_;
+      // Only a sync that failed has anything to say here.
+      if (syncNote_ == "NO WIFI" || syncNote_ == "SERVER ERROR") vm.note = syncNote_;
       break;
     }
     case Place::Settings: {

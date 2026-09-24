@@ -13,8 +13,8 @@
 // attempt, forever. The append-only queue copes with a partial drain.
 constexpr size_t MAX_SYNC_EVENTS = 200;
 
-// Where the reading is, and anything kept while it was there. Sent with the
-// sync; the server answers with the chapter it is on and the one after it.
+// Where the reading got to in one book, and anything kept there. One is sent
+// for every book read since the last sync.
 struct ReadingState {
   int bookId = 0;
   int chapterIdx = 0;
@@ -41,7 +41,7 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<std::string>& ticks = {},
                          const std::string& todayHash = "",
                          const DeviceStatus* status = nullptr,
-                         const ReadingState* reading = nullptr);
+                         const std::vector<ReadingState>& readings = {});
 
 struct SyncResult {
   bool ok = false;                    // well formed; otherwise apply nothing
@@ -54,8 +54,6 @@ struct SyncResult {
   std::string today;                  // today's bundle, re-serialised
   std::string todayHash;              // the server's bundle, sent or not
   std::string look;                   // a look chosen on the web, to wear
-  bool hasBook = false;
-  std::string book;                   // the book and its chapters, re-serialised
   bool hasShelf = false;
   std::string shelf;                  // every book he has, re-serialised
 };

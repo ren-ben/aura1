@@ -74,6 +74,32 @@ export const bookRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {
     return { idx: row.idx, title: row.title, body: row.body };
   });
 
+  // For the device, which keeps every book whole on its card: a book's head
+  // as plain lines - "<chapters> <chapterIdx> <through>", the title, the
+  // author, then a chapter's name a line - and each chapter as plain text,
+  // written straight to the card as it arrives.
+  const oneLine = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
+  r.get('/books/:id/device', {
+    schema: { params: z.object({ id: z.coerce.number().int().positive() }) },
+  }, async (request, reply) => {
+    const [book] = await db.select().from(books).where(eq(books.id, request.params.id));
+    if (!book) return reply.code(404).send();
+    const names = await db.select({ title: chapters.title }).from(chapters)
+      .where(eq(chapters.bookId, book.id)).orderBy(asc(chapters.idx));
+    const head = [`${names.length} ${book.chapterIdx} ${book.through}`, oneLine(book.title), oneLine(book.author ?? ''),
+      ...names.map((c) => oneLine(c.title) || '-')];
+    return reply.type('text/plain; charset=utf-8').send(`${head.join('\n')}\n`);
+  });
+
+  r.get('/books/:id/chapters/:idx/text', {
+    schema: { params: z.object({ id: z.coerce.number().int().positive(), idx: z.coerce.number().int().nonnegative() }) },
+  }, async (request, reply) => {
+    const [row] = await db.select({ body: chapters.body }).from(chapters)
+      .where(and(eq(chapters.bookId, request.params.id), eq(chapters.idx, request.params.idx)));
+    if (!row) return reply.code(404).send();
+    return reply.type('text/plain; charset=utf-8').send(row.body);
+  });
+
   r.post('/books', {
     schema: {
       body: z.object({

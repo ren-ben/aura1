@@ -5,7 +5,7 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -35,4 +35,9 @@ struct ViewModel {
   int page = 0;                    // which page of the chapter
   int pages = 1;
   bool kept = false;               // this page is one he was told to keep
+  // A book coming onto the card: how many of its chapters are there so far,
+  // and a word when the copying has stopped.
+  int copied = 0;
+  int toCopy = 0;
+  std::string note;
 };

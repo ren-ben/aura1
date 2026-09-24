@@ -29,8 +29,13 @@ public:
   void celebrate(const std::string& moment);
   Daily& daily() { return daily_; }
   Book& book() { return book_; }
-  // A book arrived with a sync: its pages are set again for this look.
+  // The open book moved under the reader (its place came from the web): its
+  // pages are set again, where it now is.
   void bookChanged();
+  // A chapter of a book came onto the card; the screen waiting on it counts.
+  void copying(int bookId, int done, int total);
+  // A book came onto the card whole: the one waited on opens.
+  void bookArrived(int bookId);
   // SYNC NOW in the settings asks for a sync; the main loop takes the ask
   // and reports back with a word for the list.
   bool takeSyncRequest();
@@ -104,6 +109,8 @@ private:
   std::string moment_;
   bool ritual_ = false;
 
+  int copied_ = 0;     // chapters of the book waited on, on the card so far
+  int toCopy_ = 0;
   bool largeText_ = false;
   std::string skin_ = "jiji";
   bool syncRequested_ = false;

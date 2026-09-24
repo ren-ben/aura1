@@ -25,6 +25,9 @@ export const syncRequestSchema = z.object({
   todayHash: z.string().max(64).optional(),
   // Where it got to in the book it is reading, and what it marked there.
   reading: z.lazy(() => readingSchema).optional(),
+  // The same for every book read on it since the last sync: every book is
+  // on the card whole, so several can be read between two syncs.
+  readings: z.array(z.lazy(() => readingSchema)).max(30).optional(),
   // How the device is: its battery and the look on its glass.
   status: z.object({
     battery: z.number().int().min(0).max(100),
@@ -74,7 +77,7 @@ export const todayDtoSchema = z.object({
 });
 
 // Every book on the shelf, as the device lists them. Only what a list needs:
-// the chapter names and the text itself come with whichever one is open.
+// the device fetches each book whole, apart from the sync, and keeps it.
 export const shelfBookSchema = z.object({
   id: z.number().int(),
   title: z.string(),
@@ -82,20 +85,6 @@ export const shelfBookSchema = z.object({
   chapters: z.number().int(),
   chapterIdx: z.number().int(),
   through: z.number().int(),
-});
-
-// What the device is given of the book it is reading: the chapter it is on
-// and the one after it, so the end of a chapter is never a wall, plus the
-// names of all of them for the contents page.
-export const bookPartSchema = z.object({
-  id: z.number().int(),
-  title: z.string(),
-  author: z.string().nullable(),
-  chapterIdx: z.number().int(),
-  through: z.number().int(),
-  chapters: z.array(z.string()),
-  // idx -> body, for the chapter it is on and the next one.
-  parts: z.array(z.object({ idx: z.number().int(), body: z.string() })),
 });
 
 // Where the device got to, and anything it marked while it was there.
@@ -121,9 +110,8 @@ export const syncResponseSchema = z.object({
   today: todayDtoSchema.optional(),
   // A look chosen on the web, for the device to take on.
   look: z.string().optional(),
-  // Everything on the shelf, and the one it has open.
+  // Everything on the shelf, with where each one was left.
   books: z.array(shelfBookSchema).max(60).optional(),
-  book: bookPartSchema.optional(),
 });
 
 export type SessionEnded = z.infer<typeof sessionEndedSchema>;
@@ -133,6 +121,5 @@ export type SyncResponse = z.infer<typeof syncResponseSchema>;
 export type ConfigDto = z.infer<typeof configDtoSchema>;
 export type Tick = z.infer<typeof tickSchema>;
 export type TodayDto = z.infer<typeof todayDtoSchema>;
-export type BookPart = z.infer<typeof bookPartSchema>;
 export type ShelfBook = z.infer<typeof shelfBookSchema>;
 export type Reading = z.infer<typeof readingSchema>;

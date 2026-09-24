@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, type SyncResponse, type Tick } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import {
@@ -62,11 +62,10 @@ async function recordDevice(db: Db, status: SyncRequest['status']): Promise<stri
   return pending && status?.look !== pending ? pending : null;
 }
 
-// What the device was reading when it last synced, brought up to date with
-// where it says it is now, and sent back the chapter it needs next.
-async function readerFor(db: Db, said: SyncRequest['reading']):
-Promise<{ books: SyncResponse['books']; book: SyncResponse['book'] }> {
-  if (said) {
+// Where the device says it got to in each book it read since the last sync,
+// and what it kept there; then the shelf, with where each book was left.
+async function readerFor(db: Db, readings: NonNullable<SyncRequest['readings']>): Promise<SyncResponse['books']> {
+  for (const said of readings) {
     await db.update(books)
       .set({ chapterIdx: said.chapterIdx, through: said.through, readAt: new Date() })
       .where(eq(books.id, said.bookId));
@@ -82,11 +81,11 @@ Promise<{ books: SyncResponse['books']; book: SyncResponse['book'] }> {
 
   const shelf = await db.select().from(books).where(isNull(books.archivedAt))
     .orderBy(desc(books.readAt), desc(books.addedAt)).limit(60);
-  if (!shelf.length) return { books: [], book: undefined };
+  if (!shelf.length) return [];
 
   const counts = await db.select({ bookId: chapters.bookId, n: sql<number>`count(*)::int` })
     .from(chapters).groupBy(chapters.bookId);
-  const listed = shelf.map((b) => ({
+  return shelf.map((b) => ({
     id: b.id,
     title: b.title,
     author: b.author,
@@ -95,24 +94,6 @@ Promise<{ books: SyncResponse['books']; book: SyncResponse['book'] }> {
     through: b.through,
   }));
 
-  // The one the device says it has open, or the one read most recently.
-  const book = shelf.find((b) => b.id === said?.bookId) ?? shelf[0]!;
-  const parts = await db.select().from(chapters).where(eq(chapters.bookId, book.id)).orderBy(asc(chapters.idx));
-  if (!parts.length) return { books: listed, book: undefined };
-  const here = Math.min(book.chapterIdx, parts.length - 1);
-  return {
-    books: listed,
-    book: {
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      chapterIdx: here,
-      through: book.through,
-      chapters: parts.map((c) => c.title),
-      // The one it is on, and the next: the end of a chapter is never a wall.
-      parts: parts.slice(here, here + 2).map((c) => ({ idx: c.idx, body: c.body })),
-    },
-  };
 }
 
 export async function applySync(db: Db, request: SyncRequest): Promise<SyncResponse> {
@@ -164,7 +145,7 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
 
   const stale = request.configVersion !== version;
   const look = await recordDevice(db, request.status);
-  const reader = await readerFor(db, request.reading);
+  const shelf = await readerFor(db, [...(request.reading ? [request.reading] : []), ...(request.readings ?? [])]);
   const today = await buildToday(db);
   const todayHash = createHash('sha1').update(JSON.stringify(today)).digest('hex').slice(0, 16);
   return {
@@ -176,7 +157,6 @@ export async function applySync(db: Db, request: SyncRequest): Promise<SyncRespo
     todayHash,
     ...(request.todayHash === todayHash ? {} : { today }),
     ...(look ? { look } : {}),
-    ...(reader.books?.length ? { books: reader.books } : {}),
-    ...(reader.book ? { book: reader.book } : {}),
+    ...(shelf?.length ? { books: shelf } : {}),
   };
 }

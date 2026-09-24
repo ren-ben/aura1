@@ -27,10 +27,10 @@ private:
   // Plays a scene's frames in order; the last one gets a full refresh if asked.
   bool play(const std::string& moment, bool fullLast, bool negative);
   bool playScene(const ArtScene* scene, bool fullLast, bool negative);
-  // The first frame of the sleep, captioned: the press has taken, let go.
-  bool goodnight(const ArtScene& scene, const Look& lk, const ViewModel& vm);
+  // The first frame of the sleep: the press has taken.
+  bool goodnight(const ArtScene& scene, const Look& lk);
   // A whole-screen scene into the canvas; false when the pack has none.
-  bool drawScene(const ArtScene* scene, bool negative);
+  bool drawScene(const ArtScene* scene, bool negative, int frame = 0);
   void push(bool full);
   void drawStatus();
 

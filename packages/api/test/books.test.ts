@@ -82,40 +82,36 @@ test('where the reading is survives, and a passage can be kept and annotated', a
     assert.equal(mark.source, 'web');
 });
 
-test('the device is sent the chapter it is on and the one after it', async () => {
+test('the sync carries the shelf and no text; what the device read comes back with it', async () => {
     const { id } = (await app.inject({ method: 'POST', url: '/api/v1/books', payload: BOOK })).json() as { id: number };
 
-    const first = await app.inject({
+    const first = (await app.inject({
       method: 'POST',
       url: '/api/v1/sync',
       payload: { deviceId: 'aura-1', configVersion: 0, events: [] },
-    });
-    const book = (first.json() as { book?: { id: number; parts: { idx: number }[]; chapters: string[] } }).book;
-    assert.ok(book, 'the sync carries the book');
-    assert.equal(book.id, id);
-    assert.equal(book.chapters.length, 3);
-    assert.deepEqual(book.parts.map((p) => p.idx), [0, 1]);
+    })).json() as { books: { id: number; chapters: number }[]; book?: unknown };
+    assert.equal(first.books.length, 1);
+    assert.equal(first.books[0]!.chapters, 3);
+    assert.equal(first.book, undefined, 'the text is fetched apart from the sync');
 
     // It reads on, marks a passage, and says so at the next sync.
-    const second = await app.inject({
+    const second = (await app.inject({
       method: 'POST',
       url: '/api/v1/sync',
       payload: {
         deviceId: 'aura-1',
         configVersion: 0,
         events: [],
-        reading: {
+        readings: [{
           bookId: id,
           chapterIdx: 1,
           through: 500,
           marks: [{ chapterIdx: 1, start: 9, end: 33, body: 'You, sir, should unmask.' }],
-        },
+        }],
       },
-    });
-    const moved = (second.json() as { book: { chapterIdx: number; through: number; parts: { idx: number }[] } }).book;
-    assert.equal(moved.chapterIdx, 1);
-    assert.equal(moved.through, 500);
-    assert.deepEqual(moved.parts.map((p) => p.idx), [1, 2]);
+    })).json() as { books: { chapterIdx: number; through: number }[] };
+    assert.equal(second.books[0]!.chapterIdx, 1);
+    assert.equal(second.books[0]!.through, 500);
 
     const marks = (await app.inject({ method: 'GET', url: '/api/v1/marks' })).json() as { source: string; body: string }[];
     assert.equal(marks.length, 1);
@@ -129,19 +125,19 @@ test('the device is sent the chapter it is on and the one after it', async () =>
         deviceId: 'aura-1',
         configVersion: 0,
         events: [],
-        reading: {
+        readings: [{
           bookId: id,
           chapterIdx: 1,
           through: 600,
           marks: [{ chapterIdx: 1, start: 9, end: 33, body: 'You, sir, should unmask.' }],
-        },
+        }],
       },
     });
     const again = (await app.inject({ method: 'GET', url: '/api/v1/marks' })).json() as unknown[];
     assert.equal(again.length, 1);
 });
 
-test('every book is on the shelf, and the device opens whichever it asks for', async () => {
+test('several books read between two syncs all come back', async () => {
     const first = (await app.inject({ method: 'POST', url: '/api/v1/books', payload: BOOK })).json() as { id: number };
     const second = (await app.inject({
       method: 'POST',
@@ -149,32 +145,40 @@ test('every book is on the shelf, and the device opens whichever it asks for', a
       payload: { ...BOOK, title: 'The Dream-Quest', chapters: [{ title: 'Kadath', body: 'Three times Randolph Carter dreamed of the marvellous city.' }] },
     })).json() as { id: number };
 
-    // Both are listed; the one opened is the one it asked for, not the newest.
-    const said = await app.inject({
+    const body = (await app.inject({
       method: 'POST',
       url: '/api/v1/sync',
       payload: {
         deviceId: 'aura-1', configVersion: 0, events: [],
-        reading: { bookId: first.id, chapterIdx: 0, through: 0, marks: [] },
+        readings: [
+          { bookId: first.id, chapterIdx: 2, through: 100, marks: [] },
+          { bookId: second.id, chapterIdx: 0, through: 750, marks: [{ chapterIdx: 0, start: 0, end: 13, body: 'Three times.' }] },
+        ],
       },
-    });
-    const body = said.json() as {
-      books: { id: number; title: string; chapters: number }[];
-      book: { id: number; chapters: string[] };
-    };
+    })).json() as { books: { id: number; chapterIdx: number; through: number }[] };
     assert.equal(body.books.length, 2);
-    assert.ok(body.books.some((b) => b.id === second.id && b.chapters === 1));
-    assert.equal(body.book.id, first.id);
-    assert.equal(body.book.chapters.length, 3);
+    assert.equal(body.books.find((b) => b.id === first.id)!.chapterIdx, 2);
+    assert.equal(body.books.find((b) => b.id === second.id)!.through, 750);
+    const marks = (await app.inject({ method: 'GET', url: '/api/v1/marks' })).json() as { bookId: number }[];
+    assert.deepEqual(marks.map((m) => m.bookId), [second.id]);
+});
 
-    // Asking for the other one opens that instead.
-    const swapped = await app.inject({
-      method: 'POST',
-      url: '/api/v1/sync',
-      payload: {
-        deviceId: 'aura-1', configVersion: 0, events: [],
-        reading: { bookId: second.id, chapterIdx: 0, through: 0, marks: [] },
-      },
-    });
-    assert.equal((swapped.json() as { book: { id: number } }).book.id, second.id);
+test('the device fetches a book whole: its head, then each chapter as plain text', async () => {
+    const { id } = (await app.inject({ method: 'POST', url: '/api/v1/books', payload: BOOK })).json() as { id: number };
+    await app.inject({ method: 'PUT', url: `/api/v1/books/${id}/reading`, payload: { chapterIdx: 1, through: 250 } });
+
+    const head = await app.inject({ method: 'GET', url: `/api/v1/books/${id}/device` });
+    assert.equal(head.statusCode, 200);
+    assert.match(head.headers['content-type'] as string, /^text\/plain/);
+    assert.deepEqual(head.body.trimEnd().split('\n'), [
+      '3 1 250', 'The King in Yellow', 'Robert W. Chambers',
+      'The Repairer of Reputations', 'The Mask', 'In the Court of the Dragon',
+    ]);
+
+    const text = await app.inject({ method: 'GET', url: `/api/v1/books/${id}/chapters/1/text` });
+    assert.equal(text.statusCode, 200);
+    assert.ok(text.body.startsWith('Camilla: You, sir, should unmask.'));
+
+    assert.equal((await app.inject({ method: 'GET', url: `/api/v1/books/${id}/chapters/9/text` })).statusCode, 404);
+    assert.equal((await app.inject({ method: 'GET', url: '/api/v1/books/999/device' })).statusCode, 404);
 });

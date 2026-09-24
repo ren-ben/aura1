@@ -71,6 +71,7 @@ Each moment has several scenes; the device picks one at random.
 | Decay | thinning: lonely under the moon. Fragmenting: dithered away. Dormant: a void loaf, eyes watching |
 | Lore screensavers | the hunter's dream (bare, at the bonfire, bonfire and tree, the messengers), Yharnam, the cathedral alone, Amygdala, rain, the eye in the sky, insight (eyes and tentacles in the dark), the moon presence, his true form |
 | Halloween | the blood moon with the ghost friend, the halo and a pumpkin, holding a pumpkin |
+| A book copied onto the device | at the desk, copying it out by quill from the book beside him, its words rising off the page; a chapter a frame until it is all down |
 | Cameos | 13 small busts for quotes and overlays; a watcher peeking from a corner, eyes left, up, right |
 
 ## Batches

@@ -172,8 +172,26 @@ void test_request_carries_the_status_and_response_a_look() {
   TEST_ASSERT_EQUAL_STRING("CARMILLA", r.look.c_str());
 }
 
+void test_request_carries_every_book_read_since_the_last_sync() {
+  const std::vector<ReadingState> readings = {
+    { 7, 2, 400, { "2 10 40 You, sir, should unmask.", "not a mark" } },
+    { 9, 0, 750, {} },
+  };
+  JsonDocument doc;
+  TEST_ASSERT_FALSE(deserializeJson(doc, buildRequest("aura-1", 1, {}, {}, "", nullptr, readings)));
+  TEST_ASSERT_EQUAL_INT(2, doc["readings"].size());
+  TEST_ASSERT_EQUAL_INT(7, doc["readings"][0]["bookId"].as<int>());
+  TEST_ASSERT_EQUAL_INT(400, doc["readings"][0]["through"].as<int>());
+  TEST_ASSERT_EQUAL_INT(1, doc["readings"][0]["marks"].size());
+  TEST_ASSERT_EQUAL_STRING("You, sir, should unmask.", doc["readings"][0]["marks"][0]["body"].as<const char*>());
+  TEST_ASSERT_EQUAL_INT(750, doc["readings"][1]["through"].as<int>());
+  // Nothing read: no readings at all.
+  TEST_ASSERT_TRUE(buildRequest("aura-1", 1, {}).find("readings") == std::string::npos);
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_request_carries_every_book_read_since_the_last_sync);
   RUN_TEST(test_request_has_the_exact_wire_shape);
   RUN_TEST(test_request_with_nothing_pending_sends_an_empty_array);
   RUN_TEST(test_request_is_capped_at_200_events_in_queue_order);

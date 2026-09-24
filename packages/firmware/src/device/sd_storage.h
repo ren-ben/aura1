@@ -42,6 +42,13 @@ private:
   // stdio on the same mount reports that flush through fclose().
   static bool put(const std::string& path, const std::string& data, const char* mode) {
     FILE* f = fopen((std::string(SD_MOUNT) + path).c_str(), mode);
+    // A book keeps its files in a folder of its own, made the first time.
+    if (!f) {
+      for (size_t at = path.find('/', 1); at != std::string::npos; at = path.find('/', at + 1)) {
+        SD_MMC.mkdir(path.substr(0, at).c_str());
+      }
+      f = fopen((std::string(SD_MOUNT) + path).c_str(), mode);
+    }
     if (!f) return false;
     const bool buffered = fwrite(data.data(), 1, data.size(), f) == data.size();
     const bool flushed = fclose(f) == 0;

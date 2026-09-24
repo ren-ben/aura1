@@ -76,16 +76,9 @@ static void startSync(unsigned long connectMs = 20000, bool forceScan = false) {
   knownAtSync = !machine.daily().date().empty();
   levelAtSync = machine.daily().level();
   syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName() });
-  // Where the reading is, and whatever was kept since the last sync.
-  Book& book = machine.book();
-  if (book.has() || book.waiting()) {
-    ReadingState reading{ book.wanted(), book.chapterIdx(), book.through(), {} };
-    for (const auto& m : book.marks()) {
-      reading.marks.push_back(std::to_string(m.chapterIdx) + " " + std::to_string(m.start) + " "
-                              + std::to_string(m.end) + " " + m.body);
-    }
-    syncClient.setReading(reading);
-  }
+  // Where the reading got to in every book read since the last sync, and
+  // whatever was kept in them.
+  syncClient.setReadings(machine.book().readings());
   syncClient.start(connectMs, forceScan);
   linkState = Link::Syncing;
   showStatus();
@@ -96,6 +89,7 @@ static void startSync(unsigned long connectMs = 20000, bool forceScan = false) {
 static void finishSync(SyncOutcome outcome) {
   const bool ok = outcome == SyncOutcome::Ok;
   linkState = ok ? Link::Online : Link::Offline;
+  Book& book = machine.book();
   retryMs = ok ? 0 : retryMs ? std::min(retryMs * 2, MAX_RETRY_MS) : FIRST_RETRY_MS;
   nextSync = millis() + (ok ? SYNCED_MS : retryMs);
   machine.setSyncNote(ok ? "SYNCED" : outcome == SyncOutcome::NoWifi ? "NO WIFI" : "SERVER ERROR");
@@ -103,12 +97,13 @@ static void finishSync(SyncOutcome outcome) {
   if (!ok) return;
   const std::string look = syncClient.takeLook();
   if (!look.empty()) machine.setLook(look);
-  // The book it is reading, brought up to date.
-  if (syncClient.tookMarks()) machine.book().clearMarks();
+  // The server has the places and the passages now; the shelf comes back
+  // with where every book was left, and whatever is not on the card yet is
+  // fetched while the radio is still up, the book being waited on first.
+  if (syncClient.tookReadings()) book.synced();
   const std::string shelf = syncClient.takeShelf();
-  if (!shelf.empty()) machine.book().shelve(shelf);
-  const std::string book = syncClient.takeBook();
-  if (!book.empty()) { machine.book().accept(book); machine.bookChanged(); }
+  if (!shelf.empty() && book.shelve(shelf)) machine.bookChanged();
+  syncClient.fetch(book.toFetch(), book.wanted());
   // A level up is his to celebrate, but never over a running session. The
   // first bundle ever is not a level up.
   const Screen screen = machine.screen();
@@ -127,6 +122,8 @@ static void pollSync() {
 // Going off: one last sync, so the dashboard has everything. It waits for
 // the hotspot a little less long than usual; SUN skips it.
 static void syncBeforePowerOff() {
+  // Books still arriving can wait for the next time it is on.
+  if (syncClient.fetching()) syncClient.abort();
   startSync(POWER_OFF_CONNECT_MS);
   while (syncClient.busy()) {
     if (digitalRead(PIN_SUN_BTN) == LOW) { syncClient.abort(); break; }
@@ -196,12 +193,28 @@ void loop() {
       esp_deep_sleep_start();
     }
     machine.handle(input);
-    // A session just sealed, or SYNC NOW in the settings.
-    if (machine.takeSyncRequest()) { retryMs = 0; startSync(25000, true); }
-    else if (machine.screen() == Screen::Stopped) startSync();
+    // A session just sealed, SYNC NOW in the settings, or a book to copy.
+    // Mid-fetch, a book just opened goes to the front of what is fetched.
+    // Whatever asked for a sync while books were arriving gets one as soon
+    // as they have: a sealed session is not left for the hourly one.
+    if (machine.takeSyncRequest()) {
+      if (syncClient.fetching()) { syncClient.fetch(machine.book().toFetch(), machine.book().wanted()); nextSync = millis(); }
+      else { retryMs = 0; startSync(25000, true); }
+    }
+    else if (machine.screen() == Screen::Stopped) { if (syncClient.busy()) nextSync = millis(); else startSync(); }
   }
 
-  if (syncClient.busy()) pollSync();
+  if (syncClient.fetching()) {
+    // A chapter a pass through the loop, so the buttons still answer.
+    FetchProgress progress;
+    if (syncClient.step(progress)) {
+      if (progress.failed) machine.setSyncNote("NO WIFI");
+      else if (progress.whole) machine.bookArrived(progress.id);
+      else machine.copying(progress.id, progress.done, progress.total);
+    }
+  } else if (syncClient.busy()) {
+    pollSync();
+  }
 
   const unsigned long now = millis();
   if (now - lastTick >= TICK_MS) { lastTick = now; machine.handle(Input::Tick); }
