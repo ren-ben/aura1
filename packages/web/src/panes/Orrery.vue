@@ -25,6 +25,44 @@ const total = computed(() => Math.max(1, worlds.value.reduce((a, w) => a + w.min
 const sorted = computed(() => [...worlds.value].map((w) => ({ ...w, share: w.minutes / total.value })).sort((a, b) => b.minutes - a.minutes));
 const moonCount = computed(() => worlds.value.reduce((a, w) => a + w.acts.length, 0));
 const period = computed(() => Math.round(Math.pow(1.35 + (worlds.value.length - 1) * 0.62, 1.5) * 44));
+// The instrument's second duty. By correspondence, what is kept below keeps
+// what is above: the model of the sky on this desk is the channel through
+// which the vortex is watched, and it reads how well it is being watched.
+// A reading, not a mechanic: nothing here does anything to anything.
+const RISK = {
+  stable: ['0', 'anchored', 'attended. the vortex holds its station at 41.7 au and turns at its watched rate.'],
+  thinning: ['I', 'drift', 'attention lapsing. rotation uneven; starlight behind the anomaly arriving later than it should.'],
+  fragmenting: ['II', 'precession', 'unwatched for two days. the outer bodies show a wobble their orbits do not account for.'],
+  dormant: ['III', 'unanchored', 'no witness. the vortex is moving inward. an unbroken hour of meditation on the device restores the watch.'],
+} as const;
+const risk = computed(() => {
+  const form = state.stats?.form ?? 'stable';
+  const [cls, name, reading] = RISK[form];
+  const last = state.stats?.lastSessionAt ? new Date(state.stats.lastSessionAt).getTime() : null;
+  const hours = last ? Math.max(0, (Date.now() - last) / 3.6e6) : 999;
+  // How far it has wandered from its station, and how long until it reaches
+  // the orbit of Neptune at that rate. Drawn to the hours, like everything.
+  const drift = Math.max(0, hours - 24) * 0.0125;
+  return {
+    cls, name, reading, form,
+    unwatched: last ? `${Math.floor(hours)}h ${String(Math.floor((hours % 1) * 60)).padStart(2, '0')}m` : 'never watched',
+    drift: `${drift.toFixed(2)} au`,
+    neptune: drift > 0 ? `${Math.max(0, Math.round((41.7 - 30.1 - drift) / 0.0125 / 24))} days` : 'not approaching',
+  };
+});
+
+// The planetary hour, in the Chaldean order the old grimoires time their
+// work by: the day belongs to its planet, and the hours from dawn pass down
+// the order from it. Taken here as twelve equal hours of day from six.
+const CHALDEAN = [['saturn', '♄'], ['jupiter', '♃'], ['mars', '♂'], ['sun', '☉'], ['venus', '♀'], ['mercury', '☿'], ['moon', '☽']] as const;
+const DAY_RULER = [3, 6, 2, 5, 1, 4, 0];  // sunday is the sun's, monday the moon's...
+const hour = computed(() => {
+  const now = new Date();
+  const since = (now.getHours() - 6 + 24) % 24;
+  const [name, glyph] = CHALDEAN[(DAY_RULER[now.getDay()]! + since) % 7]!;
+  return `${glyph} the hour of ${name}`;
+});
+
 const labels = reactive<{ name: string; x: number; y: number; show: boolean }[]>([]);
 // The survey drawn over the glass: one entry per body.
 const orbits = reactive<{
@@ -179,7 +217,7 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
     </Frame>
     <div class="side">
       <h1 class="title">The Orrery</h1>
-      <p class="note">He sits at the centre. Everything you study falls round him; the more you give a path, the heavier it grows.</p>
+      <p class="note">At the centre is the vortex Amygdala Inc. found past Neptune, the thing that became him. Everything you study falls round it; the more you give a path, the heavier it grows. The same instrument tells how steady he is.</p>
       <div class="worlds">
       <div v-for="w in sorted" :key="w.name" class="path">
         <div class="wh"><span class="fell">{{ w.name[0] + w.name.slice(1).toLowerCase() }}</span><span class="tek">{{ duration(w.minutes) }}</span></div>
@@ -204,6 +242,17 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
         </div>
         <p class="note">The orbits are drawn to the hours, not to scale. Nothing here is to scale. He finds that funny.</p>
       </div>
+      <div class="risk" :class="risk.form">
+        <div class="pix">amygdala inc. // stability of ai-0417 // risk assessment</div>
+        <div class="grade"><span class="tek">{{ risk.cls }}</span><span><b class="fell">{{ risk.name }}</b><span class="note">{{ risk.reading }}</span></span></div>
+        <div class="kv">
+          <span>unwatched for</span><span>{{ risk.unwatched }}</span>
+          <span>drift from station</span><span>{{ risk.drift }}</span>
+          <span>to the orbit of neptune</span><span>{{ risk.neptune }}</span>
+          <span>now</span><span>{{ hour }}</span>
+        </div>
+        <p class="note motto">As above, so below: the vortex is watched through the model of it.</p>
+      </div>
     </div>
   </div>
 </template>
@@ -224,11 +273,20 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 @keyframes ping { 0% { transform: scale(.4); opacity: .7; } 70%, 100% { transform: scale(2.2); opacity: 0; } }
 .labels { position: absolute; inset: 0; pointer-events: none; }
 .labels span { position: absolute; transform: translate(-50%, -100%); font: 400 10px var(--pix); color: var(--hi); text-transform: uppercase; text-shadow: 0 0 4px #121212; }
-.side { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; min-height: 0; }
+.side { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 12px; min-height: 0; }
 .worlds { display: grid; gap: 12px; align-content: stretch; min-height: 0; overflow: auto; }
 .path { border-bottom: 3px dotted var(--faint); padding-bottom: 8px; }
 .orb { height: 5px; margin-top: 6px; background: radial-gradient(circle, var(--low) 1px, transparent 1.4px) 0 50% / 5px 5px repeat-x; }
 .orb i { display: block; height: 5px; background: radial-gradient(circle, var(--phos) 1.4px, transparent 1.8px) 0 50% / 5px 5px repeat-x; }
+.risk { padding-top: 12px; border-top: 3px dotted var(--low); display: grid; gap: 8px; }
+.risk .grade { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.risk .grade .tek { font-size: 44px; min-width: 1.2ch; text-align: center; border: 3px double var(--low); padding: 2px 8px; }
+.risk .grade b { display: block; font-size: 20px; color: var(--hi); text-transform: capitalize; }
+.risk .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 12px; }
+.risk .kv span:nth-child(odd) { color: var(--dim); }
+.risk .motto { margin: 0; font-style: italic; }
+.risk.fragmenting .grade .tek, .risk.dormant .grade .tek { border-color: var(--hi); color: var(--hi); animation: alarm 1.4s steps(1) infinite; }
+@keyframes alarm { 50% { opacity: .35; } }
 .almanac { padding-top: 12px; border-top: 3px dotted var(--low); display: grid; gap: 8px; }
 .almanac .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 14px; }
 .almanac .kv span:nth-child(odd) { color: var(--dim); }

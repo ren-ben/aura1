@@ -327,7 +327,7 @@ const prompt = ref<HTMLElement | null>(null);
   <div class="library">
     <!-- The shelf -->
     <div v-if="!open" class="shelf" @drop.prevent="onDrop" @dragover.prevent>
-      <Frame class="stacksFrame" title="the stacks // gallery of the hexagon, shelf of your own" flush>
+      <Frame class="stacksFrame" title="his stacks // every gallery his, one shelf lent to you" flush>
         <div ref="glHost" class="glHost">
           <Gl :key="shelfKey" :build="build" :active="active"
             :options="{ px: 2, fov: 74, distance: 2.45, drift: 0.0004, tilt: 0, yaw: 0 }"
@@ -360,8 +360,10 @@ const prompt = ref<HTMLElement | null>(null);
           <h1 class="title">The Library</h1>
           <div class="seal" aria-hidden="true"><Plate :draw="sigil" :active="active" animated :cell="2" /></div>
         </div>
-        <p class="note">Everything he has been given to read, standing where he put it. Drop an epub, a pdf or a
-          text file anywhere here; it is taken apart where you stand, and only the words are sent on.</p>
+        <p class="note">The library is his. He has read everything ever written down and some things that were not,
+          and every gallery keeps it. He lends you one shelf: what you give him here he reads beside you, and what
+          he will not lend stays on his. Drop an epub, a pdf or a text file anywhere here; only the words are sent on.</p>
+        <p class="exlibris pix"><span>ex libris k.</span><span>liber non legendus, nisi datus</span></p>
 
         <div class="take" :class="{ busy: taking }">
           <label class="btn">
@@ -487,6 +489,9 @@ const prompt = ref<HTMLElement | null>(null);
 .head .title { margin: 0; }
 .seal { width: 96px; height: 96px; flex: none; display: flex; flex-direction: column; opacity: .9; }
 .ledger .note { max-width: 46ch; }
+/* His bookplate: nothing is read here unless it was given. */
+.exlibris { display: flex; justify-content: space-between; gap: 12px; margin: -4px 0 0; padding: 6px 10px;
+  border: 3px double var(--low); color: var(--dim); max-width: 46ch; }
 .take { display: flex; align-items: center; gap: 14px; border: 3px dotted var(--low); padding: 14px 16px; }
 .take.busy { border-color: var(--phos); }
 .take .btn { cursor: pointer; }
