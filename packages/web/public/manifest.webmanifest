@@ -2,10 +2,11 @@
   "name": "AURA-1",
   "short_name": "AURA-1",
   "description": "Kael'thos keeps count of your focused hours.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#121212",
   "theme_color": "#121212",
   "icons": [
