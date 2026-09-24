@@ -321,7 +321,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-:root { --gt: 60px; --gx: clamp(52px, 5vw, 96px); --gb: 116px; }
+:root { --gt: 60px; --gx: clamp(52px, 5vw, 96px); --gb: 116px; --air: 14px; }
 .stage { position: fixed; inset: 0; overflow: clip; touch-action: pan-y; }
 .stage::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: 74px; z-index: 5; pointer-events: none;
   background: linear-gradient(to top, var(--ground) 30%, rgba(18, 18, 18, .6) 62%, transparent); }
@@ -341,13 +341,13 @@ onBeforeUnmount(() => {
   overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .pane > *::-webkit-scrollbar { width: 0; height: 0; }
 
-.ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 6px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 6px; }
+.ports .port { position: fixed; z-index: 15; display: flex; align-items: center; gap: 4px; font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--dim); padding: 4px; }
 .ports .port:hover { color: var(--hi); }
 .port .wire { flex: 1; min-width: 8px; min-height: 8px; height: 3px; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 0 50% / 8px 3px repeat-x; animation: wire 1s linear infinite; }
 .port.n .wire, .port.s .wire { width: 3px; height: auto; background: radial-gradient(circle, var(--phos) 1.2px, transparent 1.6px) 50% 0 / 3px 8px repeat-y; animation-name: wirev; }
 @keyframes wire { to { background-position: 8px 50%; } }
 @keyframes wirev { to { background-position: 50% 8px; } }
-.port.w, .port.e { top: 50%; width: var(--gx); transform: translateY(-50%); }
+.port.w, .port.e { top: 50%; width: calc(var(--gx) - var(--air)); transform: translateY(-50%); }
 /* Names on the sides run up the edge like a spine, so a side wire only has to
    cross the gutter, however long the name. */
 .port.w > span:last-child, .port.e > span:last-child { writing-mode: vertical-rl; }
@@ -356,9 +356,11 @@ onBeforeUnmount(() => {
 .port.w .wire { animation-direction: reverse; }
 .port.e { right: 0; }
 .port.n, .port.s { left: 50%; transform: translateX(-50%); gap: 2px; }
-.port.n { top: env(safe-area-inset-top, 0px); height: var(--gt); flex-direction: column-reverse; }
+.port.n { top: env(safe-area-inset-top, 0px); height: calc(var(--gt) - var(--air)); flex-direction: column-reverse; }
 .port.n .wire { animation-direction: reverse; }
-.port.s { bottom: calc(56px + env(safe-area-inset-bottom, 0px)); height: calc(var(--gb) - 56px); flex-direction: column-reverse; }
+/* The foot's name sits on the keys, the wire above it reaching for the pane,
+   the same way round as every other edge. */
+.port.s { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); height: calc(var(--gb) - 52px - var(--air) - env(safe-area-inset-bottom, 0px)); flex-direction: column; }
 
 .hud { position: fixed; inset: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(10px + env(safe-area-inset-bottom, 0px)); pointer-events: none; z-index: 20; font: 400 10.5px var(--pix); text-transform: uppercase; }
 .hud > * { position: absolute; }
@@ -481,7 +483,7 @@ onBeforeUnmount(() => {
 /* A tablet keeps its wires, just cut shorter, and the name of where you are
    gives way first when the foot of the screen gets crowded. */
 @media (max-width: 1500px) {
-  :root { --gt: 54px; --gx: 56px; --gb: 104px; }
+  :root { --gt: 60px; --gx: 60px; --gb: 120px; }
   .hud .mini { font-size: 9.5px; }
 }
 @media (max-width: 1180px) { .hud .where, .hud .mini i { display: none; } }

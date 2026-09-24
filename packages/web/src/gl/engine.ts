@@ -73,9 +73,14 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', up);
 
+  // Sizing a canvas wipes it, so it is only done when the size has changed:
+  // a scene that is sized again every time it starts is blank until its first
+  // frame, and on an iPad that blank is what slid onto the screen.
+  let sw = 0, sh = 0;
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h || (w === sw && h === sh)) return;
+    sw = w; sh = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -89,8 +94,7 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
 
   let running = false, raf = 0, last = 0;
   const start = performance.now();
-  function frame(now: number) {
-    if (!running) return;
+  function paint(now: number) {
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
     last = now;
     if (!drag && !turn.hold && !reduced()) turn.y += drift;
@@ -104,6 +108,10 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
     } else {
       renderer.render(scene, camera);
     }
+  }
+  function frame(now: number) {
+    if (!running) return;
+    paint(now);
     raf = requestAnimationFrame(frame);
   }
 
@@ -111,6 +119,8 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
     scene, group, camera, turn, canvas,
     start() { if (running) return; running = true; last = 0; resize(); raf = requestAnimationFrame(frame); },
     stop() { running = false; cancelAnimationFrame(raf); },
+    // One still frame, so a pane has its picture before it is scrolled into view.
+    draw() { resize(); last = 0; paint(performance.now()); },
     dispose() {
       running = false; cancelAnimationFrame(raf); observer.disconnect();
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up);

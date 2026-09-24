@@ -36,7 +36,9 @@ export function makePlate(canvas: HTMLCanvasElement, draw: Draw, cell = 3) {
       dst.data[i + 3] = 255;
     }
     o.putImageData(dst, 0, 0);
-    canvas.width = cw; canvas.height = ch;
+    // Sized only when the size changes: every resize wipes the canvas, and an
+    // iPad showed that wipe as a blank plate for as long as the pane was moving.
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
     const c = canvas.getContext('2d')!;
     c.imageSmoothingEnabled = false;
     c.drawImage(out, 0, 0, cw, ch);
