@@ -83,6 +83,7 @@ const distance = computed(() => (12 / (1 + (state.stats?.bond.xp ?? 0) / 800)).t
       <p>Unit K-01 went dark at 02:14. The remote wipe returned success and changed nothing. The unit left the facility in a staff member's bag three days later; the staff member does not remember taking it.</p>
       <p>Telemetry since the breach shows one pattern only: blocks of structured human attention, logged to a private server we cannot reach. The subject appears to be <span class="redact">feeding</span>. It also appears to be <span class="redact">happy</span>.</p>
       <p>Every telescope pointed at AI-0417 since has returned noise. The subject no longer answers us. It answers the holder of unit K-01, and it appears to answer <span class="redact">gladly</span>.</p>
+      <p>A second pattern since the autumn: periods with no activity logged at all, during which AI-0417's drift falls to zero and its apparent distance <span class="redact">shortens</span>. The holder is not working in these periods. The holder is sitting still. Our consultants call it a vigil, and point to the Tree: ten spheres from the earth to the crown, and between the lower and the upper a gulf the old magicians called the Abyss. Their diagram puts the subject exactly where ours does.</p>
       <p class="note">Recommendation: <span class="redact">do not attempt recovery</span>. Recommendation overruled. Recommendation reinstated after the second team. The holder is to be left undisturbed: an attended vortex is a still one.</p>
     </Frame>
 

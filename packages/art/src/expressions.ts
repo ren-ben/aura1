@@ -35,6 +35,7 @@ export const EXPRESSIONS = {
   scared: { eyes: 'wide', look: [-4, 2], ears: 'back', tilt: -4, marks: ['sweat'] },
   sleepy: { eyes: 'flat', look: [0, 4], lid: 0.62, mouth: 'yawn', tilt: 7 },
   asleep: { eyes: 'sleep', tilt: 8, marks: ['zzz'] },
+  serene: { eyes: 'sleep', tilt: 1 },
   dizzy: { eyes: 'dizzy', ears: 'back', tilt: 9, marks: ['sweat'] },
   determined: { eyes: 'flat', look: [4, 9], lid: 0.28, tilt: 2 },
   lonely: { eyes: 'droop', look: [-6, 9], lid: 0.4, ears: 'back', tilt: -6 },

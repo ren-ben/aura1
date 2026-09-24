@@ -36,11 +36,13 @@ around the head. No brows.
 | dizzy | spiral eyes | a 6-hour session |
 | determined | low flat lids, looking down | starting a session |
 | lonely | lids drooping to the outer corners, eyes down | decay: thinning, fragmenting |
+| serene | closed lids, lowered, head level, no marks | sitting still: every Vigil sit |
 
 ## Scenes (the body kit and props)
 
 Poses (`src/body.ts`): sit (turned a little, the usual), front (square to
-us, for variety), wave (animated paw), loaf, peek over an edge, reach (both
+us, for variety), still (square to us, the tail wrapped round his feet, for
+the Vigil), wave (animated paw), loaf, peek over an edge, reach (both
 paws up, yay), hold (something against his chest). The hunter's tricorn is
 worn (`wear.hat`) in the Hunter's Dream and on the hunt. Props
 (`src/props.ts`) are line art; anything he holds gets a paper halo so it reads

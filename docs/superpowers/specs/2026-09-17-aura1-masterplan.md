@@ -171,7 +171,8 @@ contract has exactly one definition.
   noting (Mahasi, Shinzen Young's See Hear Feel), the jhanas by the pleasant
   sensation (Brasington), do-nothing (Taft, shikantaza). Kael'thos gets
   meditation poses. Sits sync like sessions; the web keeps the record (hours,
-  streak, depth by practice, stage reached) and teaches each practice.
+  streak, depth by practice, stage reached) and teaches each practice. The
+  full path, gate by gate: `docs/vigil/ASCENT.md`.
 - **Phase 8** University (replaces the mood tracker). Physics at the
   University of Vienna: courses, ECTS, grades, exam dates, progress through
   the curriculum. Course data comes from u:find's public XML

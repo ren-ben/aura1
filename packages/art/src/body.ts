@@ -76,12 +76,28 @@ const STAND_BODY = sampleCubics([
   'C 208 232, 192 232, 178 238',
 ].join(' '), 10);
 
-export type Pose = 'sit' | 'front' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold';
+export type Pose = 'sit' | 'front' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold' | 'still';
 
 const paperLine = (pts: Pt[], p: Palette, seed: number) => shape(wobble(stroke(curve(pts), () => 4), seed, 0.4), p.paper);
 const sitting = (p: Palette) => tail(TURNED_TAIL, p, 5) + ink(TURNED_BODY, p, 3) + paperLine(TURNED_LEG, p, 9);
 const sittingFront = (p: Palette) => tail(FRONT_TAIL, p, 5) + ink(FRONT_BODY, p, 3);
 const paw = (x: number, y: number, p: Palette, seed: number, rx = 13, ry = 11) => outlined(ellipse(x, y, rx, ry, 24), p, seed);
+
+// Sitting still, for the Vigil: square to us, the tail grown out of the right
+// haunch and wrapped round the front of his feet, lying on the floor. It is
+// one ink shape with the body; a paper line along its top edge, only where it
+// crosses in front of him, makes it read as lying over him, not cut off.
+const STILL_TAIL: Pt[] = [[236, 360], [262, 368], [274, 380], [258, 390], [214, 392], [170, 391], [138, 384], [124, 370], [128, 354]];
+function stillTail(p: Palette): string {
+  const line = curve(STILL_TAIL, 10);
+  const w = (t: number) => 18 - 8 * t;
+  const n = line.length;
+  const rim = line.map((pt, i) => [pt, i] as const)
+    .filter(([[x, y], i]) => x < 250 && x > 146 && y > 382 && i > n * 0.3)
+    .map(([[x, y], i]) => [x, y - w(i / (n - 1)) / 2 - 2] as Pt);
+  return shape(wobble(stroke(line, w), 6, 0.8), p.ink) + shape(ellipse(128, 354, 5, 5, 16), p.ink)
+    + (rim.length > 1 ? shape(wobble(stroke(rim, () => 4), 7, 0.3), p.paper) : '');
+}
 
 // Where a held thing sits: against his chest, between the paws.
 export const HOLD: Pt = [200, 318];
@@ -107,6 +123,8 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
       return sitting(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'front':
       return sittingFront(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
+    case 'still':
+      return ink(FRONT_BODY, p, 3) + stillTail(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'wave': {
       // His near paw raised beside his cheek, swinging between frames.
       const swing = frame % 2 === 0 ? 0 : 12;

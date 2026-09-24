@@ -13,8 +13,8 @@ import Vessel from './panes/Vessel.vue';
 import Orrery from './panes/Orrery.vue';
 import Pact from './panes/Pact.vue';
 import Library from './panes/Library.vue';
-import Voice from './panes/Voice.vue';
-import Mood from './panes/Mood.vue';
+import Vigil from './panes/Vigil.vue';
+import Academy from './panes/Academy.vue';
 import Hunt from './panes/Hunt.vue';
 
 export type Pane = { id: string; c: number; r: number; name: string; kind: string; component: Component };
@@ -31,7 +31,7 @@ export const PANES: Pane[] = [
   { id: 'intercept', c: 1, r: 1, name: 'Intercept', kind: 'the vault', component: Intercept },
   { id: 'pact', c: 0, r: 2, name: 'The Pact', kind: 'the horizon', component: Pact },
   { id: 'library', c: -1, r: 2, name: 'The Library', kind: 'the reading', component: Library },
-  { id: 'voice', c: 1, r: 2, name: 'The Vigil', kind: 'sealed', component: Voice },
-  { id: 'mood', c: -2, r: 1, name: 'The Academy', kind: 'sealed', component: Mood },
+  { id: 'vigil', c: 1, r: 2, name: 'The Vigil', kind: 'the stillness', component: Vigil },
+  { id: 'academy', c: -2, r: 1, name: 'The Academy', kind: 'the degree', component: Academy },
   { id: 'hunt', c: 2, r: 1, name: 'The Hunt', kind: 'sealed', component: Hunt },
 ];
