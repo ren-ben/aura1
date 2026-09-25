@@ -151,7 +151,7 @@ const drawTree = computed(() => {
     const { s, ox, oy } = fit(w, h);
     const X = (x: number) => ox + x * s, Y = (y: number) => oy + y * s;
     // The far things drift against the cursor; the tree stays where it is.
-    starfield(g, w, h, Math.round((w * h) / 90), 61, live.mx * -6, live.my * -4);
+    starfield(g, w, h / 0.8, Math.round((w * h) / 90), 61, live.mx * -6, live.my * -4);
 
     // The four worlds: great stippled circles stacked down the tree, each
     // torn open somewhere, the way the old diagrams draw them.
@@ -286,7 +286,7 @@ const px = (day: number, hour: number, w: number, h: number, k = 1) => [
 ] as const;
 const drawRecord = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   const r = rand(3), k = 2;
-  starfield(g, w, h, Math.round((w * h) / 500), 23, live.mx * -3, 0);
+  starfield(g, w, h / 0.8, Math.round((w * h) / 500), 23, live.mx * -3, 0);
   // The weeks, as faint verticals; the hours of the axis, as faint rules.
   g.fillStyle = 'rgb(38,38,38)';
   for (let wk = 0; wk < 26; wk++) {
@@ -395,7 +395,7 @@ function breathe() {
 const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; canvas: HTMLCanvasElement }) => {
   // Framed whole, from the foot of the dish to the top of the smoke, centred.
   const fitCam = () => {
-    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.1, halfW = 0.8;
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.75, halfW = 1.25;
     const d = Math.max(halfH / f, halfW / (f * camera.aspect)) + 0.2;
     camera.position.set(0, -0.08, d); camera.lookAt(0, -0.08, 0);
   };

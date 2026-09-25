@@ -146,7 +146,7 @@ const drawAstrolabe = computed(() => {
     const { s, cx, cy } = fit(w, h);
     const grey = (v: number) => { const c = Math.max(0, Math.min(255, v * 255)) | 0; return `rgb(${c},${c},${c})`; };
     const P = (a: number, r: number) => [cx + Math.cos(a) * r * s, cy + Math.sin(a) * r * s] as const;
-    starfield(g, w, h, Math.round((w * h) / 110), 71, live.mx * -6, live.my * -4);
+    starfield(g, w, h / 0.8, Math.round((w * h) / 110), 71, live.mx * -6, live.my * -4);
     // The mater: a worn plate, lit a little from the upper left.
     const plate = g.createRadialGradient(cx - 30 * s, cy - 30 * s, 10 * s, cx, cy, 110 * s);
     plate.addColorStop(0, grey(0.045)); plate.addColorStop(1, grey(0.0));
