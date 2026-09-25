@@ -112,11 +112,15 @@ with Kael'thos at its centre.
 - **The Vigil:** the ten gates of [the ascent](vigil/ASCENT.md) on the Tree of Life,
   every sit as a star in the night record, and Stillness counted apart from Insight.
   Click a gate for its practices, the signs to tick off, its secret and its shadow. The
-  gate you stand on is the first with a sign still open. A sit kept away from the device
+  gate you stand on is the first with a sign still open; hover a gate for its state, hover a
+  star for its sit, and click the candle to breathe with it for a minute (six breaths). A
+  sit kept away from the device
   can be written in by hand. *The four sun hours* switches on a toll on the device at
   dawn, noon, dusk and midnight (Vienna's sun, that day).
 - **The Academy:** the physics degree (curriculum 2026) as an astrolabe, a ring per
-  semester. Add a course by its u:find number (or the whole first term in one click);
+  semester: hover a ring for its module and grades, click to open it in the ledger, drag
+  the plate to turn the rete; the armillary's six beads light as the semesters are done.
+  Add a course by its u:find number (or the whole first term in one click);
   the server reads its dates and rooms from u:find. Pick your exercise group when you
   know it; click a grade to set it (1 to 5, the Austrian scale); the module a course
   counts toward can be changed beside it. The ECTS, the StEOP and the weighted grade
