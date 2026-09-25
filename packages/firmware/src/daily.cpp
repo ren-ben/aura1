@@ -19,6 +19,8 @@ bool Daily::parse(const std::string& json) {
   habits_.clear();
   quotes_.clear();
   vigil_.clear();
+  hours_.clear();
+  for (int h : doc["hours"].as<JsonArrayConst>()) hours_.push_back(h);
   for (JsonObjectConst t : doc["todos"].as<JsonArrayConst>()) {
     todos_.push_back({ t["id"] | 0, t["body"] | "", t["done"] | false });
   }
@@ -33,6 +35,15 @@ bool Daily::parse(const std::string& json) {
     vigil_.push_back({ v["id"] | 0, v["name"] | "", v["minutes"] | 0,
                        pacer == "sigh" ? Pacer::Sigh : pacer == "resonance" ? Pacer::Resonance : Pacer::None, v["bell"] | 0 });
   }
+  return true;
+}
+
+bool Daily::sunHour(uint64_t now) {
+  if (hours_.empty()) return false;
+  const int64_t minute = (static_cast<int64_t>(now) + utcOffsetMinutes_ * 60) / 60;
+  const int ofDay = static_cast<int>(((minute % 1440) + 1440) % 1440);
+  if (minute == lastHour_ || std::find(hours_.begin(), hours_.end(), ofDay) == hours_.end()) return false;
+  lastHour_ = minute;
   return true;
 }
 

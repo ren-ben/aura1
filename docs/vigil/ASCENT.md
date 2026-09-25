@@ -469,8 +469,9 @@ sleep yoga.
 - **Rigpa.** The Dzogchen recognition of the knowing that was never absent. It
   is pointed out by a teacher, then rested in, then carried into everything.
 - **Liber Resh** (Thelema). Four times a day, at dawn, noon, sunset and
-  midnight, stop and salute the sun where it is. The device can mark the four
-  hours with the bell.
+  midnight, stop and salute the sun where it is. Switch on *the four sun hours*
+  on The Vigil and the device tolls each one, dawn and dusk as they fall in
+  Vienna that day.
 
 **The signs.** Awareness knows itself. The practice and the day are the same
 thing.
@@ -499,7 +500,7 @@ the last length used is remembered per practice.
 | Jhana | V | 45 min | none | open, close | sit |
 | Kasina | V | 30 min | none | every 2 min (open, gaze, close) | sit, candle |
 | Middle Pillar | V | 15 min | none | at each sphere | stand |
-| Fire | VI | 15 min | 30 breaths, hold, hold | per round | sit or lie, dry land |
+| Fire | VI | 15 min | none (count your own rounds) | open, close | sit or lie, dry land |
 | Orbit | VII | 20 min | up the back, down the front | open, close | sit |
 | Do Nothing | X | open | none | close only | anything |
 | Resurrection | any | 60 min | none | open, close | sit |
@@ -524,8 +525,8 @@ he is dormant) and now also counts as a sit.
 - **The streak:** days in a row with at least one kept sit.
 - **The gate:** your current gate, set by the signs you tick off, not by hours.
 - **Per practice:** hours, sits, longest, average.
-- **The dream book and the sign log:** dated notes of what happened, to see the
-  cycles over months.
+- **Sits away from the device:** written in by hand, and counted the same.
+- **The four sun hours:** a switch; the device tolls dawn, noon, dusk and midnight.
 
 ## The library
 

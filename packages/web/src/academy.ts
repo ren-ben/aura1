@@ -77,6 +77,13 @@ export function week(courses: Course[], now = new Date()): { monday: Date; slots
 
 // The demo's first term: the real courses and their real slots of 2026W,
 // a lecture's dates weekly through the term, two groups for each exercise.
+// The demo's exams, invented for it: u:find posts the real ones later in the term.
+const DEMO_EXAMS: Record<string, Course['exams']> = {
+  STEOP1: [{ id: 'd1', begin: '2027-01-22T13:00:00+01:00', end: '2027-01-22T16:00:00+01:00', title: 'STEOP 1: Modulprüfung Experimentalphysik I', room: 'Lise-Meitner-Hörsaal' }],
+  STEOP2: [{ id: 'd2', begin: '2027-01-15T11:00:00+01:00', end: '2027-01-15T13:00:00+01:00', title: 'STEOP 2: Modulprüfung Physikalische Rechenmethoden', room: 'Lise-Meitner-Hörsaal' }],
+  ANA1: [{ id: 'd3', begin: '2027-01-27T09:45:00+01:00', end: '2027-01-27T11:45:00+01:00', title: 'Analysis 1, Prüfung', room: 'Ludwig-Boltzmann-Hörsaal' }],
+};
+
 export function sampleCourses(): Course[] {
   const weekly = (weekday: number, from: string, to: string, room: string) => {
     const out: { begin: string; end: string; room: string }[] = [];
@@ -88,7 +95,8 @@ export function sampleCourses(): Course[] {
   };
   const LM = 'Lise-Meitner-Hörsaal', LB = 'Ludwig-Boltzmann-Hörsaal';
   const c = (id: number, nr: string, module: string, name: string, type: string, ects: number, slots: [number, string, string, string][][], groupId: string | null = `${nr}-1`): Course => ({
-    id, nr, semester: '2026W', module, name, type, ects, grade: null, groupId,
+    id, nr, semester: '2026W', module, name, type, ects, grade: null, groupId, refreshedAt: new Date().toISOString(),
+    exams: type !== 'VO' ? [] : (DEMO_EXAMS[module] ?? []),
     groups: slots.map((g, i) => ({ id: `${nr}-${i + 1}`, events: g.flatMap(([d, f, t, r]) => weekly(d, f, t, r)) })),
   });
   return [

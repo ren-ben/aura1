@@ -84,6 +84,9 @@ export const todayDtoSchema = z.object({
     pacer: z.enum(['none', 'sigh', 'resonance']),
     bell: z.number().int().nonnegative(),
   })).default([]),
+  // The four sun hours to ring, as minutes after local midnight (dawn, noon,
+  // dusk, midnight); empty when they are off.
+  hours: z.array(z.number().int().min(0).max(1439)).max(4).default([]),
 });
 
 // Every book on the shelf, as the device lists them. Only what a list needs:

@@ -10,7 +10,8 @@ import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
 import { moonDisc, rand, starfield } from '../gl/plate';
 import { actions, duration, state } from '../store';
-import { GATE_SPHERES, GATES, PATHS, SPHERES, type Sit } from '../vigil';
+import { VIGIL_PRACTICES } from '@aura/shared';
+import { GATE_SPHERES, GATES, PATHS, signId, SPHERES, type Sit } from '../vigil';
 
 defineProps<{ active: boolean }>();
 
@@ -25,12 +26,25 @@ const sits = computed<Sit[]>(() => {
 });
 const kept = computed(() => new Set(state.vigil.signs));
 const reached = computed(() => {
-  const i = GATES.findIndex((g) => g.signs.some((x) => !kept.value.has(x)));
+  const i = GATES.findIndex((g) => g.signs.some((_, k) => !kept.value.has(signId(g, k))));
   return i < 0 ? GATES.length - 1 : i;
 });
 const picked = ref(reached.value);
 const gate = computed(() => GATES[picked.value]!);
 const toggle = (x: string) => actions.keepSign(x, !kept.value.has(x));
+
+// A sit kept away from the device, written in by hand: the practice, when it
+// began (now, less its length, unless changed) and how long.
+const pad = (n: number) => String(n).padStart(2, '0');
+const localInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const byHand = ref({ practice: 'The Stages', minutes: 20, at: localInput(new Date(Date.now() - 20 * 60_000)) });
+const writing = ref(false);
+async function keepByHand() {
+  writing.value = true;
+  await actions.addSit(byHand.value.practice, new Date(byHand.value.at), byHand.value.minutes);
+  writing.value = false;
+}
+const clockOf = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 
 const stats = computed(() => {
   const list = sits.value;
@@ -243,7 +257,7 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
         </div>
         <div class="signs">
           <div class="pix">the signs</div>
-          <button v-for="s in gate.signs" :key="s" class="sign" :class="{ on: kept.has(s) }" @click="toggle(s)"><i></i>{{ s }}</button>
+          <button v-for="(s, k) in gate.signs" :key="signId(gate, k)" class="sign" :class="{ on: kept.has(signId(gate, k)) }" @click="toggle(signId(gate, k))"><i></i>{{ s }}</button>
         </div>
         <p class="secret fell">{{ gate.secret }}</p>
         <p class="note shadow"><span class="pix">the shadow</span> {{ gate.shadow }}</p>
@@ -256,6 +270,20 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
           <span>this week</span><span>{{ duration(stats.week) }}</span>
           <span>longest sit</span><span>{{ stats.longest }} min</span>
         </div>
+        <div class="hours">
+          <button class="toll" :class="{ on: state.vigil.hours.on }" :aria-pressed="state.vigil.hours.on" @click="actions.setSunHours(!state.vigil.hours.on)"><i></i>the four sun hours</button>
+          <span class="note">{{ state.vigil.hours.today.map(clockOf).join('  ') }}</span>
+        </div>
+        <form class="byhand" @submit.prevent="keepByHand">
+          <label class="pix" for="sit-practice">a sit away from the vessel</label>
+          <span>
+            <select id="sit-practice" v-model="byHand.practice"><option v-for="p in VIGIL_PRACTICES" :key="p.name">{{ p.name }}</option></select>
+            <input id="sit-at" v-model="byHand.at" type="datetime-local" aria-label="when it began" />
+            <input id="sit-minutes" v-model.number="byHand.minutes" type="number" min="1" max="600" aria-label="minutes" />
+            <button class="btn" :disabled="writing || !byHand.at || byHand.minutes < 1">keep</button>
+          </span>
+          <span v-if="state.error" class="note">{{ state.error }}</span>
+        </form>
       </div>
     </div>
 
@@ -311,6 +339,22 @@ const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'bi
 .almanac { padding-top: 12px; border-top: 3px dotted var(--low); }
 .almanac .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 14px; }
 .almanac .kv span:nth-child(odd) { color: var(--dim); }
+.almanac { display: grid; gap: 10px; }
+.hours { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toll { display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 12.5px; }
+.toll i { width: 10px; height: 10px; border: 2px solid var(--low); }
+.toll.on { color: var(--phos); }
+.toll.on i { background: var(--phos); border-color: var(--phos); }
+.hours .note { font-size: 11px; font-variant-numeric: tabular-nums; }
+.byhand { display: grid; gap: 4px; }
+.byhand > span { display: flex; gap: 6px; flex-wrap: wrap; }
+.byhand select, .byhand input { background: var(--deep); color: var(--phos); border: 2px solid var(--low); padding: 3px 6px; font: 400 12px var(--mono); min-width: 0; }
+.byhand select { flex: 1 1 110px; }
+.byhand input[type=number] { width: 58px; }
+.byhand select:focus, .byhand input:focus { border-color: var(--dim); outline: none; }
+.btn { font: 400 10.5px var(--pix); text-transform: uppercase; color: var(--hi); border: 3px double var(--low); padding: 3px 10px; }
+.btn:hover:not(:disabled) { border-color: var(--dim); }
+.btn:disabled { color: var(--dim); }
 .record { grid-area: record; min-height: 0; }
 .record :deep(.flush) { flex-direction: row; }
 .sky { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }

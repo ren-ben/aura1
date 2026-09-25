@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { VIGIL_PRACTICES, type Practice } from '@aura/shared';
 import type { Db } from './client.ts';
-import { activities } from './schema.ts';
+import { activities, meta } from './schema.ts';
 import { resurrectionId } from './resurrection.ts';
 
 // The Vigil's practices: system activities in the ritual's VESSEL folder,
@@ -28,4 +28,11 @@ export async function vigilPractices(db: Db): Promise<(Practice & { id: number }
     });
   }
   return VIGIL_PRACTICES.map((p) => ({ ...p, id: rows.find((r) => r.name === p.name)!.id }));
+}
+
+// Whether the device rings the four sun hours (set on the web).
+export const SUN_HOURS_KEY = 'sun_hours';
+export async function sunHoursOn(db: Db): Promise<boolean> {
+  const [row] = await db.select().from(meta).where(eq(meta.key, SUN_HOURS_KEY));
+  return row?.value === 1;
 }

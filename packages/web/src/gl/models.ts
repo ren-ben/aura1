@@ -233,7 +233,7 @@ export function aura1(screen: HTMLCanvasElement): { group: THREE.Group; texture:
   texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter;
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshBasicMaterial({ map: texture }));
   glass.position.z = 0.21; g.add(glass);
-  for (const [y, len] of [[0.35, 0.16], [0.05, 0.16]]) {
+  for (const [y, len] of [[0.35, 0.16], [0.05, 0.16]] as const) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, len, 0.12), standard(0x8d877c, 0.35));
     b.position.set(0.86, y, 0); g.add(b);
   }

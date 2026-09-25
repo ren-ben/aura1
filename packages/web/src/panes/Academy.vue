@@ -3,11 +3,11 @@
 // modules laid round each as arcs as long as their ECTS; the rete turns with
 // the term. Beside it the tally, the courses and their grades, and the week
 // as u:find has it.
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Plate from '../components/Plate.vue';
 import { rand, starfield } from '../gl/plate';
-import { FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
+import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
 import { actions, state, type Course } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -17,6 +17,34 @@ const tally = computed(() => tallyOf(state.courses));
 // Grades cycle on a click: none, 1 to 5, none again.
 const cycle = (c: Course) => actions.gradeCourse(c, c.grade === null ? 1 : c.grade === 5 ? null : c.grade + 1);
 const TERM = termOf();
+
+// u:find moves rooms and dates and posts exams as the term goes on: asked
+// again by hand, and on its own once a day when the pane opens.
+const refreshing = ref(false);
+async function refresh() {
+  refreshing.value = true;
+  await actions.refreshCourses(TERM.name);
+  refreshing.value = false;
+}
+onMounted(() => {
+  const term = state.courses.filter((c) => c.semester === TERM.name);
+  if (!state.demo && term.some((c) => Date.now() - Date.parse(c.refreshedAt) > 864e5)) refresh();
+});
+const lastAsked = computed(() => {
+  const times = state.courses.filter((c) => c.semester === TERM.name).map((c) => Date.parse(c.refreshedAt));
+  return times.length ? new Date(Math.min(...times)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase() : '';
+});
+
+// Every exam ahead, across the courses kept; the same module exam listed by
+// two of its courses is shown once.
+const exams = computed(() => {
+  const seen = new Map<string, { begin: Date; title: string; room: string }>();
+  for (const c of state.courses) for (const e of c.exams) {
+    if (Date.parse(e.end) > Date.now()) seen.set(e.id, { begin: new Date(e.begin), title: e.title, room: e.room.replace(/-?Hörsaal/, '') });
+  }
+  return [...seen.values()].sort((a, b) => a.begin.getTime() - b.begin.getTime());
+});
+const examDay = (d: Date) => `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 // How far through the term: the rete's turn.
 const term = computed(() => {
   const from = TERM.from.getTime(), to = TERM.to.getTime();
@@ -176,14 +204,19 @@ const weekTitle = computed(() => `the week of ${theWeek.value.monday.toLocaleDat
         <span>term</span><span>{{ TERM.name }} // {{ term.label }}</span>
         <span>the first gate (steop)</span><span>{{ tally.steop }} of 18</span>
         <span>grade, weighted</span><span>{{ tally.avg ? tally.avg.toFixed(2) : 'none yet' }}</span>
-        <span>exams</span><span>when u:find posts them</span>
+        <span>next exam</span><span>{{ exams[0] ? examDay(exams[0].begin) : 'none posted yet' }}</span>
       </div>
       <div class="courses">
         <form class="add" @submit.prevent="nr && add([nr])">
           <label class="pix" for="course-nr">add a course by its u:find number</label>
           <span><input id="course-nr" v-model="nr" inputmode="numeric" pattern="[0-9]{6}" placeholder="261600" :disabled="adding" /><button class="btn" :disabled="adding || nr.length !== 6">{{ adding ? 'asking u:find' : 'add' }}</button></span>
           <span v-if="state.error" class="note err">{{ state.error }}</span>
+          <span v-if="state.courses.length" class="asked note">u:find last asked {{ lastAsked }} <button type="button" class="btn" :disabled="refreshing" @click="refresh">{{ refreshing ? 'asking' : 'ask again' }}</button></span>
         </form>
+        <div v-if="exams.length" class="exams">
+          <div class="pix">exams ahead</div>
+          <div v-for="e in exams.slice(0, 6)" :key="e.title + e.begin.getTime()" class="exam"><span class="tek">{{ examDay(e.begin) }}</span><span class="note">{{ e.title }} // {{ e.room }}</span></div>
+        </div>
         <div v-if="!state.courses.length" class="empty">
           <p class="note">Nothing kept yet. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
           <button class="btn" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
@@ -196,6 +229,9 @@ const weekTitle = computed(() => `the week of ${theWeek.value.monday.toLocaleDat
               <select v-if="c.groups.length > 1" :id="`group-${c.id}`" class="group" :value="c.groupId ?? ''" :aria-label="`group for ${c.name} ${c.type}`" @change="actions.groupCourse(c, ($event.target as HTMLSelectElement).value || null)">
                 <option value="">group ?</option>
                 <option v-for="(g, i) in c.groups" :key="g.id" :value="g.id">group {{ i + 1 }} // {{ groupLabel(g) }}</option>
+              </select>
+              <select :id="`module-${c.id}`" class="group" :value="c.module" :aria-label="`module ${c.name} ${c.type} counts toward`" @change="actions.moduleCourse(c, ($event.target as HTMLSelectElement).value)">
+                <option v-for="cm in CURRICULUM" :key="cm.code" :value="cm.code">{{ cm.code }}</option>
               </select>
             </span>
             <button class="grade" :class="{ set: c.grade }" :title="c.grade ? GRADES[c.grade - 1] : 'no grade yet'" @click="cycle(c)">{{ c.grade ?? '-' }}</button>
@@ -263,6 +299,11 @@ const weekTitle = computed(() => `the week of ${theWeek.value.monday.toLocaleDat
 .btn:disabled { color: var(--dim); }
 .err { color: var(--phos); }
 .empty { display: grid; gap: 8px; justify-items: start; }
+.asked { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.exams { display: grid; gap: 4px; border-bottom: 3px dotted var(--faint); padding-bottom: 8px; }
+.exam { display: grid; grid-template-columns: 94px 1fr; gap: 10px; align-items: baseline; }
+.exam .tek { font-size: 13px; }
+.exam .note { font-size: 12px; }
 .group { background: var(--deep); color: var(--phos); border: 1px solid var(--low); font: 400 10px var(--pix); text-transform: uppercase; margin-left: 6px; }
 .week { grid-area: week; min-height: 0; }
 .grid { flex: 1; display: grid; grid-template-columns: 28px repeat(5, minmax(0, 1fr)); gap: 0 8px; padding: 8px 12px 12px; min-height: 0; }

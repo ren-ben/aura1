@@ -1004,6 +1004,24 @@ void test_the_vigil_before_the_first_sync_says_so() {
   TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
 }
 
+void test_the_sun_hours_toll_once_each_while_they_are_on() {
+  Rig rig;
+  FakeSound sound;
+  auto m = rig.machine();
+  m.setSound(&sound);
+  m.begin();
+  // Two minutes from now, in the bundle's time zone (UTC+2).
+  const int soon = static_cast<int>(((rig.clock.now / 60) + 120 + 2) % 1440);
+  m.daily().replace(std::string("{\"date\":\"2026-09-19\",\"utcOffset\":120,\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],\"quotes\":[],")
+                    + "\"hours\":[" + std::to_string(soon) + ",0]}");
+  for (int t = 0; t < 4 * 60; ++t) { rig.clock.now += 1; m.handle(Input::Tick); }
+  TEST_ASSERT_EQUAL_INT(1, sound.count("hour"));
+  m.daily().replace("{\"date\":\"2026-09-19\",\"utcOffset\":120,\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],\"quotes\":[]}");
+  rig.clock.now += 86400 - 4 * 60;
+  for (int t = 0; t < 4 * 60; ++t) { rig.clock.now += 1; m.handle(Input::Tick); }
+  TEST_ASSERT_EQUAL_INT(1, sound.count("hour"));  // off: nothing more
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles);
@@ -1058,5 +1076,6 @@ int main() {
   RUN_TEST(test_the_breath_is_drawn_every_second_for_the_breathing_practices);
   RUN_TEST(test_an_open_sit_is_ended_by_power_and_the_length_is_remembered);
   RUN_TEST(test_the_vigil_before_the_first_sync_says_so);
+  RUN_TEST(test_the_sun_hours_toll_once_each_while_they_are_on);
   return UNITY_END();
 }

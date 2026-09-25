@@ -131,6 +131,8 @@ export const vigilSigns = pgTable('vigil_signs', {
 // groups and their dates, kept whole so the week works offline. The module
 // is the curriculum code it counts toward; the grade is the Austrian 1 to 5.
 export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+// An exam u:find lists for the course or for its module in this degree.
+export type CourseExam = { id: string; begin: string; end: string; title: string; room: string };
 export const courses = pgTable('courses', {
   id: serial('id').primaryKey(),
   nr: text('nr').notNull(),
@@ -142,5 +144,7 @@ export const courses = pgTable('courses', {
   groups: jsonb('groups').$type<CourseGroup[]>().notNull(),
   groupId: text('group_id'),
   grade: integer('grade'),
+  exams: jsonb('exams').$type<CourseExam[]>().notNull().default([]),
+  refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull().defaultNow(),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.nr, t.semester)]);

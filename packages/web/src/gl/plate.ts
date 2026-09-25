@@ -161,7 +161,10 @@ function rose(g: CanvasRenderingContext2D, cx: number, cy: number, rad: number, 
 }
 
 // A street lamp: the iron post, the lantern, and the pool of light it throws.
-function lamp(g: CanvasRenderingContext2D, x: number, base: number, h: number, ink: Ink): void {
+// The ink may be given as a depth instead: scenes that only know how far
+// away the lamp stands.
+function lamp(g: CanvasRenderingContext2D, x: number, base: number, h: number, ink: Ink | number): void {
+  if (typeof ink === 'number') ink = inkFor(0.2);
   g.fillStyle = ink.body;
   g.fillRect(x - 0.5, base - h, Math.max(1, h * 0.05), h);
   g.fillStyle = ink.edge;

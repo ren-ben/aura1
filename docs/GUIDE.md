@@ -112,12 +112,17 @@ with Kael'thos at its centre.
 - **The Vigil:** the ten gates of [the ascent](vigil/ASCENT.md) on the Tree of Life,
   every sit as a star in the night record, and Stillness counted apart from Insight.
   Click a gate for its practices, the signs to tick off, its secret and its shadow. The
-  gate you stand on is the first with a sign still open.
+  gate you stand on is the first with a sign still open. A sit kept away from the device
+  can be written in by hand. *The four sun hours* switches on a toll on the device at
+  dawn, noon, dusk and midnight (Vienna's sun, that day).
 - **The Academy:** the physics degree (curriculum 2026) as an astrolabe, a ring per
   semester. Add a course by its u:find number (or the whole first term in one click);
   the server reads its dates and rooms from u:find. Pick your exercise group when you
-  know it; click a grade to set it (1 to 5, the Austrian scale). The ECTS, the StEOP
-  and the weighted grade follow.
+  know it; click a grade to set it (1 to 5, the Austrian scale); the module a course
+  counts toward can be changed beside it. The ECTS, the StEOP and the weighted grade
+  follow. Exams appear as u:find posts them: the course's own and its module's (the
+  StEOP module exams). u:find is asked again once a day when the pane opens, or with
+  *ask again*; grades, groups and modules you set are kept.
 - **Everything 3D turns** when dragged, and runs only while its pane is on screen.
 
 ### Sync
@@ -198,7 +203,7 @@ Kael'thos as its icon. The shell opens offline; data needs a connection.
 
 ## What to test
 
-These ten checks cover what the software tests on the PC cannot reach. The full list is
+These eleven checks cover what the software tests on the PC cannot reach. The full list is
 in [hardware-checklist.md](hardware-checklist.md).
 
 | # | Do this | It passes when |
@@ -213,6 +218,7 @@ in [hardware-checklist.md](hardware-checklist.md).
 | 8 | Power off for 10 min, then compare the clock | Tells us whether the clock survives power-off |
 | 9 | VIGIL, Cyclic Sigh, 5 MIN, with a speaker on the header | A knock at the start, rings breathing each second, the swell and knock at 5 minutes |
 | 10 | VIGIL, Noting, 10 MIN | A faint bell at 5 minutes, the caption goes 10 then 5 MIN LEFT, the sit shows on The Vigil after sync |
+| 11 | Cyclic Sigh for its whole 5 minutes, watching the glass | The rings keep time without smearing, and there is no full-screen flash |
 
 **Send back:**
 

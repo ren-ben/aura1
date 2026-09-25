@@ -124,6 +124,10 @@ export const GATES: Gate[] = [
 ];
 
 
+// A sign is kept by where it stands, its gate and its place in the list,
+// never by its wording: reword one freely, but add new signs at the end.
+export const signId = (g: Gate, i: number) => `${g.n}.${i + 1}`;
+
 export type Sit = { day: number; hour: number; minutes: number; practice: string };
 // Half a year of sits, sparse at first and steadier since: the sample record.
 export function sampleSits(days = 182): Sit[] {

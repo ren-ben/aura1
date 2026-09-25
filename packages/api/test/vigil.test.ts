@@ -8,11 +8,18 @@ import { createDb, type Db } from '../src/db/client.ts';
 import { seed } from '../src/db/seed.ts';
 import { activities } from '../src/db/schema.ts';
 import { buildApp } from '../src/app.ts';
-import { parseCourse } from '../src/routes/academy.ts';
+import { parseCourse, parseExams } from '../src/routes/academy.ts';
 
 const url = process.env.TEST_DATABASE_URL
   ?? 'postgres://aura:aura@localhost:15434/aura_test';
-const fixture = (nr: string) => readFileSync(new URL(`./fixtures/ufind-${nr}-2026W.xml`, import.meta.url), 'utf8');
+const read = (name: string) => readFileSync(new URL(`./fixtures/${name}.xml`, import.meta.url), 'utf8');
+const fixture = (nr: string) => read(`ufind-${nr}-2026W`);
+// What u:find is asked for: a course by number, or a search for its exams.
+const ufind = async (path: string) => {
+  const nr = path.match(/^courses\/(\d+)\//)?.[1];
+  if (nr) return ['261600', '260162'].includes(nr) ? fixture(nr) : '<empty/>';
+  return read('ufind-exams-ep1-2025W');
+};
 
 let db: Db;
 let close: () => Promise<void>;
@@ -25,7 +32,7 @@ before(async () => {
   await migrate(db, { migrationsFolder: './drizzle' });
   app = buildApp(db, {
     logger: false,
-    fetchCourse: async (nr) => (['261600', '260162'].includes(nr) ? fixture(nr) : '<empty/>'),
+    ufind,
   });
   await app.ready();
 });
@@ -116,4 +123,53 @@ test('a course is added by its number, graded, and its group chosen', async () =
   assert.equal((await call('POST', '/academy/courses', { nr: '999999', semester: '2026W' })).statusCode, 404);
   assert.equal((await call('PATCH', `/academy/courses/${ex.id}`, { grade: 7 })).statusCode, 400);
   assert.equal((await call('DELETE', `/academy/courses/${ex.id}`)).statusCode, 204);
+});
+
+test('exams: the course and its module in this degree, each once', () => {
+  const steop = parseExams(read('ufind-exams-ep1-2025W'), '261600');
+  // Four programmes share the StEOP 1 exams; only Bachelor Physik counts.
+  assert.equal(steop.length, 2);
+  assert.match(steop[0]!.title, /Modulprüfung Experimentalphysik I/);
+  assert.equal(steop[0]!.room, 'Lise-Meitner-Hörsaal');
+  assert.ok(steop[0]!.begin < steop[1]!.begin);
+  const lecture = parseExams(read('ufind-exams-analysis-2025W'), '250011');
+  assert.ok(lecture.length >= 3);
+  assert.equal(parseExams(read('ufind-exams-analysis-2025W'), '999999').length, 0);
+});
+
+test('a course comes with its exams, and a refresh keeps what was set by hand', async () => {
+  const lecture = (await call('POST', '/academy/courses', { nr: '261600', semester: '2026W' })).json();
+  assert.equal(lecture.exams.length, 2);
+  const ex = (await call('POST', '/academy/courses', { nr: '260162', semester: '2026W' })).json();
+  await call('PATCH', `/academy/courses/${ex.id}`, { groupId: ex.groups[2].id, grade: 3, module: 'EXT' });
+  const res = await call('POST', '/academy/refresh', { semester: '2026W' });
+  assert.deepEqual(res.json(), { refreshed: 2, of: 2 });
+  const after = (await call('GET', '/academy')).json().find((c: { id: number }) => c.id === ex.id);
+  assert.equal(after.grade, 3);
+  assert.equal(after.module, 'EXT');
+  assert.equal(after.groupId, ex.groups[2].id);
+  assert.ok(Date.parse(after.refreshedAt) > 0);
+});
+
+test('a sit written in by hand is kept, and an unknown practice is refused', async () => {
+  const startedAt = new Date(Date.now() - 3600_000).toISOString();
+  assert.equal((await call('POST', '/vigil/sits', { practice: 'Metta', startedAt, minutes: 20 })).statusCode, 201);
+  assert.equal((await call('POST', '/vigil/sits', { practice: 'Levitation', startedAt, minutes: 20 })).statusCode, 400);
+  const [sit] = (await call('GET', '/vigil')).json().sits;
+  assert.deepEqual([sit.practice, sit.minutes, sit.source], ['Metta', 20, 'manual']);
+  assert.equal((await call('GET', '/stats')).json().bond.xp, 0);
+});
+
+test('the sun hours reach the device only while they are on', async () => {
+  const bundle = async () => (await call('POST', '/sync', { deviceId: 'aura-1', configVersion: 0, events: [] })).json().today;
+  assert.deepEqual((await bundle()).hours, []);
+  await call('PUT', '/vigil/hours', { on: true });
+  const hours = (await bundle()).hours;
+  assert.equal(hours.length, 4);
+  assert.ok(hours[0] > 180 && hours[0] < 600, 'dawn between 03:00 and 10:00');
+  assert.ok(hours[1] > 600 && hours[1] < 840, 'noon near midday');
+  assert.equal(hours[3], 0);
+  assert.equal((await call('GET', '/vigil')).json().hours.on, true);
+  await call('PUT', '/vigil/hours', { on: false });
+  assert.deepEqual((await bundle()).hours, []);
 });

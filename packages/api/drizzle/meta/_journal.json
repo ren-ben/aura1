@@ -43,6 +43,13 @@
       "when": 1790285802967,
       "tag": "0005_vigil_academy",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790318720344,
+      "tag": "0006_exams",
+      "breakpoints": true
     }
   ]
 }

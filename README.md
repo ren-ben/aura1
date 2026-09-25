@@ -92,7 +92,8 @@ Cloudflare Access guards everything. The device's service token opens
 pnpm --filter @aura/art bake
 ```
 
-Copy `packages/art/out/sd/art` to the root of the card, so it holds `/art/index.txt`.
+Copy `packages/art/out/sd/art` and `sound` to the root of the card, so it holds
+`/art/index.txt` and `/sound/close.wav`.
 Without it the device still works, in plain text.
 
 **Dashboard, locally:** `pnpm install`, then `pnpm --filter @aura/web dev`. The demo
@@ -103,6 +104,7 @@ build, `pnpm --filter @aura/web demo`, runs on sample data with no server.
 ```bash
 pnpm db:up && pnpm test   # api, shared, art
 pnpm firmware:test        # firmware logic, natively, in Docker
+pnpm --filter @aura/web typecheck   # the dashboard, .vue files included
 ```
 
 More in [docs/GUIDE.md](docs/GUIDE.md): the buttons, the looks, the sync, and what

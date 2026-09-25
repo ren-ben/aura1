@@ -5,6 +5,8 @@
 //   bell   between stages: a faint glassy tone beating against itself.
 //   close  a low tone a little out of tune with itself swells out of
 //          nothing, and is cut off by the knock.
+//   hour   the sun hours: two slow, dark strikes whose partials do not
+//          agree, the second fainter.
 // The speaker is small: nothing much below 150 Hz would be heard.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -52,6 +54,20 @@ function bell(): Float32Array {
   return out;
 }
 
+function hour(): Float32Array {
+  const out = new Float32Array(RATE * 4.2);
+  for (const [at, gain] of [[0, 0.34], [1.6, 0.22]] as const) {
+    const start = Math.round(at * RATE);
+    for (let i = 0; start + i < out.length; i++) {
+      const t = i / RATE;
+      const env = Math.min(1, t / 0.004);
+      out[start + i]! += gain * env * (tone(233, t) * Math.exp(-t * 1.1) + 0.6 * tone(277.6, t) * Math.exp(-t * 1.5)
+        + 0.4 * tone(351.2, t) * Math.exp(-t * 2.2) + 0.25 * tone(611, t) * Math.exp(-t * 4));
+    }
+  }
+  return out;
+}
+
 function close(): Float32Array {
   const swell = 3.4, len = swell + 1.4;
   const out = new Float32Array(Math.round(RATE * len));
@@ -68,7 +84,7 @@ function close(): Float32Array {
 
 export function writeSounds(dir: string) {
   mkdirSync(dir, { recursive: true });
-  for (const [name, make] of [['open', open], ['bell', bell], ['close', close]] as const) {
+  for (const [name, make] of [['open', open], ['bell', bell], ['close', close], ['hour', hour]] as const) {
     writeFileSync(resolve(dir, `${name}.wav`), wav(make()));
   }
 }

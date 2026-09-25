@@ -1,6 +1,6 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
-import type { Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil } from './store';
+import type { Book, Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 
@@ -111,7 +111,7 @@ const BOOK_CHAPTERS = [
   'The Silver Key', 'The White Ship', 'The Doom That Came to Sarnath', 'Celephais',
   'The Cats of Ulthar', 'The Other Gods', 'The Quest of Iranon',
 ];
-let books = [{
+let books: Book[] = [{
   id: 900,
   title: 'The Dream-Quest of Unknown Kadath',
   author: 'H. P. Lovecraft',
@@ -154,12 +154,10 @@ const vigil: Vigil = {
   sits: sampleSits().map((s) => {
     const at = new Date(); at.setHours(0, 0, 0, 0); at.setDate(at.getDate() - s.day);
     at.setMinutes(Math.round(s.hour * 60));
-    return { practice: s.practice, startedAt: at.toISOString(), minutes: s.minutes };
+    return { practice: s.practice, startedAt: at.toISOString(), minutes: s.minutes, source: 'device' as const };
   }).sort((a, b) => a.startedAt.localeCompare(b.startedAt)),
-  signs: ['thirty days without a gap', 'twenty minutes, sat through', 'the breath told apart from thoughts about it',
-    'a whole sit without losing the breath', 'the first lucid dream', 'dullness caught before it catches you',
-    'sensations seen flickering', 'intention noticed before the movement', 'thoughts heard as sounds and images',
-    'warmth that comes on its own', 'a hard person seen clearly', 'a glow that feeds the breath', 'rapture entered on purpose'],
+  signs: ['I.1', 'I.2', 'I.3', 'II.1', 'II.2', 'II.3', 'III.1', 'III.2', 'III.3', 'IV.1', 'IV.2', 'IV.3', 'V.1'],
+  hours: { on: false, today: [406, 766, 1131, 0] },
 };
 let courses: Course[] = sampleCourses();
 
@@ -239,6 +237,12 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'PATCH /activities/:id': { for (const f of folders) for (const a of f.activities) if (a.id === id) Object.assign(a, body); return; }
     case 'PUT /device/look': device.pendingLook = body.look; return;
     case 'GET /vigil': return structuredClone(vigil);
+    case 'POST /vigil/sits':
+      vigil.sits.push({ practice: body.practice, startedAt: body.startedAt, minutes: body.minutes, source: 'manual' });
+      vigil.sits.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+      return;
+    case 'PUT /vigil/hours': vigil.hours.on = body.on; return;
+    case 'POST /academy/refresh': return { refreshed: courses.length, of: courses.length };
     case 'PUT /vigil/signs':
       vigil.signs = body.kept ? [...new Set([...vigil.signs, body.sign])] : vigil.signs.filter((s) => s !== body.sign);
       return;

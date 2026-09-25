@@ -241,6 +241,8 @@ void SessionMachine::handle(Input input) {
 
   const uint64_t now = clock_.nowEpochSeconds();
   if (input != Input::Tick) lastInput_ = now;
+  // The sun hours, if they are on: dawn, noon, dusk and midnight.
+  if (input == Input::Tick && daily_.sunHour(now)) chime("hour");
   // Past midnight the day's lists move on; an open list shows it at once.
   if (daily_.rollover(now) && input == Input::Tick && screen_ == Screen::Idle) draw();
 

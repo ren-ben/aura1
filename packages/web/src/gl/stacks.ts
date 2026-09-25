@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rng } from './engine';
 
-export type ShelfEntry = { id: string; title: string; through: number; chapters: number; marks: number };
+export type ShelfEntry = { id: number; title: string; through: number; chapters: number; marks: number };
 
 const stone = (v: number) => new THREE.MeshLambertMaterial({ color: new THREE.Color(v, v, v) });
 const flat = (v: number) => new THREE.MeshBasicMaterial({ color: new THREE.Color(v, v, v) });

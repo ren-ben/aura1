@@ -31,13 +31,17 @@ export type Mark = {
 };
 // The Vigil: every sit kept (a session on one of its practices), and the
 // signs ticked off on the way up the gates.
-export type Sit = { practice: string; startedAt: string; minutes: number };
-export type Vigil = { sits: Sit[]; signs: string[] };
+export type Sit = { practice: string; startedAt: string; minutes: number; source: 'device' | 'manual' };
+// hours: whether the device tolls the four sun hours, and today's, in local
+// minutes after midnight.
+export type Vigil = { sits: Sit[]; signs: string[]; hours: { on: boolean; today: number[] } };
 // A course of the degree, as u:find had it when it was added.
 export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+export type CourseExam = { id: string; begin: string; end: string; title: string; room: string };
 export type Course = {
   id: number; nr: string; semester: string; module: string; name: string; type: string; ects: number;
   groups: CourseGroup[]; groupId: string | null; grade: number | null;
+  exams: CourseExam[]; refreshedAt: string;
 };
 export type Device = {
   lastSyncAt: string | null; battery: number | null; millivolts: number | null;
@@ -59,7 +63,7 @@ export const state = reactive({
   books: [] as Book[],
   marks: [] as Mark[],
   device: null as Device | null,
-  vigil: { sits: [], signs: [] } as Vigil,
+  vigil: { sits: [], signs: [], hours: { on: false, today: [] } } as Vigil,
   courses: [] as Course[],
 });
 
@@ -177,6 +181,11 @@ export const actions = {
   archiveActivity: (id: number, archived: boolean) => act('PATCH', `/activities/${id}`, { archived }, [reFolders, reStats]),
   setLook: (look: string) => act('PUT', '/device/look', { look }, [reDevice]),
   keepSign: (sign: string, kept: boolean) => act('PUT', '/vigil/signs', { sign, kept }, [reVigil]),
+  addSit: (practice: string, startedAt: Date, minutes: number) =>
+    act('POST', '/vigil/sits', { practice, startedAt: startedAt.toISOString(), minutes }, [reVigil]),
+  setSunHours: (on: boolean) => act('PUT', '/vigil/hours', { on }, [reVigil]),
+  refreshCourses: (semester: string) => act('POST', '/academy/refresh', { semester }, [reCourses]),
+  moduleCourse: (c: Course, module: string) => act('PATCH', `/academy/courses/${c.id}`, { module }, [reCourses]),
   addCourse: (nr: string, semester: string) => act('POST', '/academy/courses', { nr, semester }, [reCourses]),
   // Several at once, one after the other: u:find is asked once per course.
   addCourses: async (nrs: string[], semester: string) => {

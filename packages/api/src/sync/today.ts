@@ -4,7 +4,8 @@ import type { Db } from '../db/client.ts';
 import { habitEntries, habits, quotes, todos } from '../db/schema.ts';
 import { computeStats } from '../stats/compute.ts';
 import { resurrectionId } from '../db/resurrection.ts';
-import { vigilPractices } from '../db/vigil.ts';
+import { sunHoursOn, vigilPractices } from '../db/vigil.ts';
+import { sunHours } from '../sun.ts';
 
 // The user's calendar day: the device's clock is UTC, the lists are local.
 export const TIME_ZONE = process.env.AURA_TZ ?? 'Europe/Vienna';
@@ -35,7 +36,7 @@ export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
   const date = localDate(now);
   const ritual = await resurrectionId(db);
   const days = daysUpTo(date, HABIT_DAYS);
-  const [todoRows, habitRows, doneRows, quoteRows, stats, practices] = await Promise.all([
+  const [todoRows, habitRows, doneRows, quoteRows, stats, practices, hours] = await Promise.all([
     db.select().from(todos)
       .where(and(lte(todos.dueDate, date), or(isNull(todos.doneAt), sql`${todos.doneAt} >= now() - interval '1 day'`)))
       .orderBy(asc(todos.dueDate), asc(todos.sortOrder), asc(todos.id)),
@@ -44,6 +45,7 @@ export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
     db.select().from(quotes).orderBy(desc(quotes.createdAt)).limit(MAX_QUOTES),
     computeStats(db, now),
     vigilPractices(db),
+    sunHoursOn(db),
   ]);
   const done = new Set(doneRows.map((e) => `${e.habitId} ${e.date}`));
   return {
@@ -64,5 +66,6 @@ export async function buildToday(db: Db, now = new Date()): Promise<TodayDto> {
     })),
     quotes: quoteRows.map((q) => ({ body: q.body, source: q.source })),
     vigil: practices.map(({ id, name, minutes, pacer, bell }) => ({ id, name, minutes, pacer, bell })),
+    hours: hours ? sunHours(date, utcOffset(now)) : [],
   };
 }

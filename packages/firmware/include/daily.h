@@ -57,6 +57,11 @@ public:
   const std::vector<VigilPractice>& vigil() const { return vigil_; }
   // A sit: a session on one of the Vigil's practices.
   bool isSit(int activityId) const;
+  // The four sun hours to toll (minutes after local midnight), when they
+  // are on; and whether now is one of them, to the minute. Each is answered
+  // yes once only.
+  const std::vector<int>& hours() const { return hours_; }
+  bool sunHour(uint64_t now);
 
   // Flips an item and queues the tick. False if out of range or unsaved.
   bool toggleTodo(size_t i);
@@ -100,4 +105,6 @@ private:
   std::vector<DailyItem> habits_;
   std::vector<DailyQuote> quotes_;
   std::vector<VigilPractice> vigil_;
+  std::vector<int> hours_;
+  int64_t lastHour_ = -1;  // the local minute last tolled, since the epoch
 };
