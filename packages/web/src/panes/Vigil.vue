@@ -91,7 +91,7 @@ async function toggle(i: number, k: number) {
 
 // The tree is laid out in a 100 x 100 box; the canvas, the overlay and the
 // labels all fit it the same way, centred and whole.
-const VB = { x: -16, y: -6, w: 132, h: 112 };
+const VB = { x: -20, y: -16, w: 140, h: 132 };
 const fit = (w: number, h: number) => {
   const s = Math.min(w / VB.w, h / VB.h);
   return { s, ox: (w - VB.w * s) / 2 - VB.x * s, oy: (h - VB.h * s) / 2 - VB.y * s };
@@ -228,7 +228,7 @@ const drawTree = computed(() => {
         if (live.pulse.i === i && since >= 0 && since < 1.4) {
           const u = since / 1.4;
           g.strokeStyle = grey(1 - u); g.lineWidth = Math.max(1, s * 0.5 * (1 - u));
-          g.beginPath(); g.arc(X(x), Y(y), R * (1.4 + u * 5), 0, 7); g.stroke();
+          g.beginPath(); g.arc(X(x), Y(y), R * (1.3 + u * 2.4), 0, 7); g.stroke();
         }
       }
     });
@@ -272,22 +272,37 @@ const drawTree = computed(() => {
 const marks = GATE_SPHERES.map((name, i) => ({ i, name, at: SPHERES[name === 'binah' ? 'binah' : name]!, twin: name === 'binah' ? SPHERES.chokmah! : null }));
 
 // ---- the night record -----------------------------------------------------
-// Every sit a star: across by day (today at the right), down by the hour it
-// was kept, as large as it was long. Hover one to read it.
-const PAD = 6;
+// Every sit a star: across, the last half year (today at the right); down,
+// the hour it began; as large as it was long. Hover one to read it. The
+// plot is laid out in CSS pixels and drawn at half that (the plate's cell).
+const PLOT = { l: 38, r: 14, t: 12, b: 12 };
+const HOURS = [0, 6, 12, 18, 24];
 const sky = ref<HTMLElement | null>(null);
+const px = (day: number, hour: number, w: number, h: number, k = 1) => [
+  (PLOT.l + ((181 - day) / 181) * (w * k - PLOT.l - PLOT.r)) / k,
+  (PLOT.t + (hour / 24) * (h * k - PLOT.t - PLOT.b)) / k,
+] as const;
 const drawRecord = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
-  const r = rand(3);
-  starfield(g, w, h, Math.round((w * h) / 400), 23, live.mx * -3, 0);
-  for (let k = 0; k < 26; k++) {
-    const x = PAD + ((182 - k * 7) / 182) * (w - PAD * 2);
-    g.fillStyle = 'rgb(40,40,40)';
-    for (let y = 0; y < h; y += 3) g.fillRect(x, y, 1, 1);
+  const r = rand(3), k = 2;
+  starfield(g, w, h, Math.round((w * h) / 500), 23, live.mx * -3, 0);
+  // The weeks, as faint verticals; the hours of the axis, as faint rules.
+  g.fillStyle = 'rgb(38,38,38)';
+  for (let wk = 0; wk < 26; wk++) {
+    const [x] = px(wk * 7, 0, w, h, k);
+    for (let y = PLOT.t / k; y < h - PLOT.b / k; y += 3) g.fillRect(x, y, 1, 1);
   }
+  for (const hr of HOURS) {
+    const [, y] = px(0, hr, w, h, k);
+    g.fillStyle = hr % 12 ? 'rgb(44,44,44)' : 'rgb(64,64,64)';
+    for (let x = PLOT.l / k; x < w - PLOT.r / k; x += 2) g.fillRect(x, y, 1, 1);
+  }
+  // Today, at the right edge of the plot.
+  const [tx] = px(0, 0, w, h, k);
+  g.fillStyle = 'rgb(120,120,120)';
+  for (let y = PLOT.t / k; y < h - PLOT.b / k; y += 2) g.fillRect(tx, y, 1, 1);
   const list = sits.value;
   list.forEach((sit, i) => {
-    const x = PAD + ((181 - sit.day) / 181) * (w - PAD * 2);
-    const y = 4 + (sit.hour / 24) * (h - 8);
+    const [x, y] = px(sit.day, sit.hour, w, h, k);
     const dim = live.practice && live.practice !== sit.practice ? 0.25 : 1;
     const size = (0.5 + Math.sqrt(sit.minutes) * 0.28) * (live.star === i ? 1.8 : 1);
     const tw = (0.75 + 0.25 * Math.sin(t * 1.3 + r() * 40)) * dim;
@@ -300,26 +315,30 @@ const drawRecord = (g: CanvasRenderingContext2D, w: number, h: number, t: number
   const since = now() - live.ping.t;
   const p = list[live.ping.i];
   if (p && since >= 0 && since < 2) {
-    const x = PAD + ((181 - p.day) / 181) * (w - PAD * 2), y = 4 + (p.hour / 24) * (h - 8);
+    const [x, y] = px(p.day, p.hour, w, h, k);
     g.strokeStyle = grey(1 - since / 2); g.lineWidth = 1;
-    g.beginPath(); g.arc(x, y, 3 + since * 18, 0, 7); g.stroke();
+    g.beginPath(); g.arc(x, y, 3 + since * 12, 0, 7); g.stroke();
   }
 };
 const starTip = ref<{ left: number; top: number; s: Star } | null>(null);
+const skyBox = ref({ w: 1, h: 1 });
 function overSky(e: PointerEvent) {
   const el = sky.value;
   if (!el) return;
-  const b = el.getBoundingClientRect(), W = b.width, H = b.height - 16;
-  const px = e.clientX - b.left, py = e.clientY - b.top;
+  const b = el.getBoundingClientRect(), H = b.height - 22;
+  skyBox.value = { w: b.width, h: H };
+  const mx = e.clientX - b.left, my = e.clientY - b.top;
   let best = -1, dist = 14;
   sits.value.forEach((s, i) => {
-    const x = PAD * 2 + ((181 - s.day) / 181) * (W - PAD * 4), y = 8 + (s.hour / 24) * (H - 16);
-    const d = Math.hypot(x - px, y - py);
+    const [x, y] = px(s.day, s.hour, b.width, H);
+    const d = Math.hypot(x - mx, y - my);
     if (d < dist) { dist = d; best = i; }
   });
   live.star = best;
   const s = sits.value[best];
-  starTip.value = s ? { left: PAD * 2 + ((181 - s.day) / 181) * (W - PAD * 4), top: 8 + (s.hour / 24) * (H - 16), s } : null;
+  if (!s) { starTip.value = null; return; }
+  const [x, y] = px(s.day, s.hour, b.width, H);
+  starTip.value = { left: x, top: y, s };
 }
 function leaveSky() { live.star = -1; starTip.value = null; }
 // Hovering a practice lights its stars and dims the rest.
@@ -337,7 +356,7 @@ const months = computed(() => {
   const today = new Date();
   for (let d = 181; d >= 0; d--) {
     const day = new Date(today); day.setDate(today.getDate() - d);
-    if (day.getDate() === 1) out.push({ label: day.toLocaleDateString('en-GB', { month: 'short' }).toLowerCase(), left: ((181 - d) / 181) * 100 });
+    if (day.getDate() === 1) out.push({ label: day.toLocaleDateString('en-GB', { month: 'short' }).toLowerCase(), left: (181 - d) / 181 });
   }
   return out;
 });
@@ -372,7 +391,12 @@ function breathe() {
   breathStart = now();
 }
 const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; canvas: HTMLCanvasElement }) => {
-  camera.position.set(0, 0.3, 4.1); camera.lookAt(0, -0.25, 0);
+  // Framed whole, from the foot of the dish to the top of the smoke, centred.
+  const fitCam = () => {
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.22, halfW = 0.8;
+    const d = Math.max(halfH / f, halfW / (f * camera.aspect)) + 0.2;
+    camera.position.set(0, -0.12, d); camera.lookAt(0, -0.18, 0);
+  };
   const wax = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.85, emissive: 0x5a554c });
   const iron = new THREE.MeshStandardMaterial({ color: 0x4a4640, roughness: 0.5, metalness: 0.6 });
   // The dish, the candle with a drip down it, the wick.
@@ -397,6 +421,7 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
   group.add(new THREE.Points(smoke, new THREE.PointsMaterial({ size: 0.05, vertexColors: true })));
   canvas.addEventListener('click', breathe);
   return (t: number) => {
+    fitCam();
     let height = 1;
     if (breathing.value) {
       const u = now() - breathStart;
@@ -501,16 +526,18 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
       </div>
     </div>
 
-    <Frame class="record" title="the night record // every sit a star, by the day and the hour" flush>
+    <Frame class="record" title="the night record // across, the half year; down, the hour; a star a sit" flush>
       <div ref="sky" class="sky" @pointermove="overSky" @pointerleave="leaveSky">
         <p v-if="!sits.length" class="none note">No sits yet. Choose VIGIL on the vessel, a practice and a length, and sit.</p>
         <Plate :draw="drawRecord" :active="active" animated :cell="2" label="Half a year of sits as stars: across by day, down by hour, larger the longer." />
-        <div class="months" aria-hidden="true"><span v-for="m in months" :key="m.left" :style="{ left: `${m.left}%` }">{{ m.label }}</span></div>
+        <div class="axis" aria-hidden="true"><span v-for="hr in HOURS" :key="hr" :style="{ top: `calc(${PLOT.t}px + (100% - ${PLOT.t + PLOT.b}px) * ${hr / 24})` }">{{ String(hr).padStart(2, '0') }}</span></div>
+        <div class="months" aria-hidden="true"><span v-for="m in months" :key="m.left" :style="{ left: `calc(${PLOT.l}px + (100% - ${PLOT.l + PLOT.r}px) * ${m.left})` }">{{ m.label }}</span><span class="now" :style="{ left: `calc(100% - ${PLOT.r}px)` }">today</span></div>
         <div v-if="starTip" class="stip" :class="{ flip: starTip.left > 220 }" :style="{ left: `${starTip.left}px`, top: `${starTip.top}px` }">
           <b class="fell">{{ starTip.s.practice }}</b><span class="pix">{{ starTip.s.minutes }} min{{ starTip.s.manual ? ' // by hand' : '' }}</span><span class="note">{{ whenOf(starTip.s.at) }}</span>
         </div>
       </div>
       <div class="by">
+        <p v-if="!stats.practices.length" class="note fell empty">Each practice gathers its hours here, from the first sit on.</p>
         <button v-for="p in stats.practices" :key="p.name" class="row" :class="{ lit: lit === p.name }"
                 @pointerenter="light(p.name)" @pointerleave="light('')" @focus="light(p.name)" @blur="light('')">
           <span class="pix">{{ p.name }}</span>
@@ -521,7 +548,7 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
     </Frame>
 
     <Frame class="flame" title="the kasina candle" flush>
-      <Gl :build="candle" :active="active" :options="{ drift: 0.002, tilt: 0.08, distance: 4.1 }" label="A lit candle, smoke rising. Click it to breathe with the flame for a minute." hint="drag to turn // click to breathe" />
+      <Gl :build="candle" :active="active" :options="{ drift: 0.002, tilt: 0 }" label="A lit candle, smoke rising. Click it to breathe with the flame for a minute." hint="drag to turn // click to breathe" />
       <Transition name="said">
         <div v-if="breathing || cue" class="cue" aria-live="polite">
           <span class="tek">{{ cue || 'in' }}</span>
@@ -621,13 +648,16 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
 .record :deep(.flush) { flex-direction: row; }
 .sky { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; cursor: crosshair; }
 .none { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-style: italic; font-family: var(--fell); font-size: 16px; pointer-events: none; text-align: center; padding: 0 16px; }
-.months { height: 16px; position: relative; border-top: 3px dotted var(--faint); }
-.months span { position: absolute; top: 3px; font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; transform: translateX(-50%); }
+.months { height: 22px; position: relative; border-top: 3px dotted var(--faint); flex: none; }
+.axis { position: absolute; left: 0; top: 0; bottom: 22px; width: 34px; pointer-events: none; }
+.axis span { position: absolute; right: 6px; transform: translateY(-50%); font: 400 9px var(--pix); color: var(--dim); }
+.months span { position: absolute; top: 6px; font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; transform: translateX(-50%); }
 .stip { position: absolute; transform: translate(12px, -50%); display: grid; gap: 1px; padding: 6px 9px; background: rgba(12, 11, 10, .92); border: 3px double var(--low); pointer-events: none; white-space: nowrap; }
 .stip.flip { transform: translate(calc(-100% - 12px), -50%); }
 .stip b { font-weight: 400; font-size: 15px; color: var(--hi); }
 .stip .note { font-size: 11px; }
 .by { width: 220px; flex: none; padding: 10px 12px; display: grid; align-content: center; gap: 3px; border-left: 3px dotted var(--low); }
+.by .empty { margin: 0; font-style: italic; font-size: 14px; color: var(--dim); }
 .by .row { display: grid; grid-template-columns: 88px 1fr 52px; gap: 8px; align-items: center; text-align: left; padding: 2px 0; }
 .by .row:hover .pix, .by .row.lit .pix { color: var(--hi); }
 .by .note { font-size: 11.5px; text-align: right; }

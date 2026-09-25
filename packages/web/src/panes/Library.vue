@@ -144,7 +144,8 @@ let hall: Stacks | null = null;
 let drift: { hold: boolean } | null = null;
 // A book taken from the pile comes in at the left edge of the glass, where the
 // pile is, and goes back out there; one taken off the shelf goes back to it.
-let held: { mesh: THREE.Mesh; grim: Grimoire; holder: THREE.Group; u: number; dir: 1 | -1; hand: boolean } | null = null;
+let held: { mesh: THREE.Mesh; grim: Grimoire; holder: THREE.Group; u: number; dir: 1 | -1; hand: boolean;
+  from: { p: THREE.Vector3; q: THREE.Quaternion } | null } | null = null;
 let world: THREE.Scene | null = null;
 let eye: THREE.PerspectiveCamera | null = null;
 const HOLD = 1.62;
@@ -174,7 +175,7 @@ function pull(i: number, hand = false) {
   }
   world.add(holder);
   mesh.visible = false;
-  held = { mesh, grim, holder, u: 0, dir: 1, hand };
+  held = { mesh, grim, holder, u: 0, dir: 1, hand, from: null };
   if (drift) drift.hold = true;
   pulled.value = book ?? null;
 }
@@ -240,15 +241,27 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
     camera.rotation.set(pitch, yaw, 0, 'YXZ');
     camera.position.set(Math.sin(yaw) * 0.3, EYE + Math.sin(t * 0.45) * 0.012, 2.45 - walkAt * CELL);
     if (!held) return;
-    held.u = Math.max(0, Math.min(1, held.u + dt * (held.dir > 0 ? 0.5 : -1.1)));
+    // Shut in two movements: the covers close in front of you, and only then
+    // does the closed book go back to its place, on an eased path of its own.
+    const SHUT = 0.26;
+    const closing = held.dir < 0;
+    held.u = Math.max(0, Math.min(1, held.u + dt * (!closing ? 0.5 : held.u > SHUT ? -1.1 : -0.55)));
     camera.getWorldDirection(fwd);
     const to = camera.position.clone().addScaledVector(fwd, HOLD).add(new THREE.Vector3(0, -0.02, 0));
     const k = 1 - Math.pow(0.0025, dt);
-    // Out of the shelf, or in from the pile, round to face you, and only then open.
     const home = held.hand ? edge(back) : held.mesh.position;
-    held.holder.position.lerp(held.dir > 0 ? to : home, k);
-    held.holder.quaternion.slerp(held.dir > 0 || held.hand ? camera.quaternion : held.mesh.quaternion, k);
-    held.grim.open(Math.max(0, (held.u - 0.26) / 0.74));
+    if (!closing || held.u > SHUT) {
+      // Out of the shelf, or in from the pile, round to face you, and only then open.
+      held.from = null;
+      held.holder.position.lerp(to, k);
+      held.holder.quaternion.slerp(camera.quaternion, k);
+    } else {
+      held.from ??= { p: held.holder.position.clone(), q: held.holder.quaternion.clone() };
+      const p = 1 - held.u / SHUT, e = p * p * (3 - 2 * p);
+      held.holder.position.lerpVectors(held.from.p, home, e);
+      held.holder.quaternion.slerpQuaternions(held.from.q, held.hand ? camera.quaternion : held.mesh.quaternion, e);
+    }
+    held.grim.open(Math.max(0, (held.u - SHUT) / (1 - SHUT)));
     // The prompt rides just over the top of the book, wherever it is on the glass.
     if (prompt.value && held.dir > 0) {
       lift.set(0, 0.64, 0).applyQuaternion(camera.quaternion).add(held.holder.position).project(camera);

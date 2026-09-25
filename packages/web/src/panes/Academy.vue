@@ -24,13 +24,12 @@ const TERM = termOf();
 const coursesOf = (code: string) => state.courses.filter((c) => c.module === code);
 
 // ---- grades, sealed ------------------------------------------------------
-// A click presses the next grade in like a seal: none, 1 to 5, none again.
+// A grade is pressed in like a seal, and its word shown as it lands.
 const sealed = ref<{ id: number; word: string } | null>(null);
-async function cycle(c: Course) {
-  const next = c.grade === null ? 1 : c.grade === 5 ? null : c.grade + 1;
-  sealed.value = { id: c.id, word: next ? GRADES[next - 1]! : 'unsealed' };
+async function seal(c: Course, grade: number | null) {
+  sealed.value = { id: c.id, word: grade ? GRADES[grade - 1]! : 'unsealed' };
   setTimeout(() => { if (sealed.value?.id === c.id) sealed.value = null; }, 1100);
-  await actions.gradeCourse(c, next);
+  await actions.gradeCourse(c, grade === c.grade ? null : grade);
 }
 
 // ---- u:find --------------------------------------------------------------
@@ -126,7 +125,6 @@ const offArc = () => { hovered.value = ''; live.hover = ''; };
 function choose(code: string) {
   chosen.value = chosen.value === code ? '' : code;
   live.sel = chosen.value;
-  if (chosen.value) document.getElementById(`module-${code}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 const moduleOf = (code: string) => MODULES.value.find((m) => m.code === code);
 const STATUS = { passed: 'passed', running: 'this term', open: 'open to you', locked: 'not yet' } as const;
@@ -258,9 +256,174 @@ const card = computed(() => {
   return { m, cs, earned: cs.filter((c) => c.grade !== null && c.grade <= 4).reduce((a, c) => a + c.ects, 0) };
 });
 
-// ---- the ledger ----------------------------------------------------------
-const termModules = computed(() => MODULES.value.filter((m) => state.courses.some((c) => c.module === m.code && c.semester === TERM.name)
-  || m.status === 'running'));
+// ---- the stacks of the faculty ----------------------------------------------
+// The courses kept stand as volumes on a shelf, the way the books do in the
+// library: this term's on the upper shelf in the order of their modules,
+// the rest below; as thick as their ECTS, a lecture taller than its
+// exercise; a graded one carries its seal on the spine. Hover one to read
+// it, click it to take it down and grade it.
+const volumeKey = computed(() => state.courses.map((c) => `${c.id}:${c.grade}:${c.module}:${c.semester}`).join(','));
+const pulledId = ref<number | null>(null);
+const pulled = computed(() => state.courses.find((c) => c.id === pulledId.value) ?? null);
+const spineTip = ref<{ x: number; y: number; c: Course } | null>(null);
+// A catalogue tag under every volume, drawn crisp over the dithered shelf.
+const tags = ref<{ id: number; x: number; y: number; label: string; out: boolean }[]>([]);
+const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'RM', STEOP3: 'FSP' };
+
+function spineTexture(c: Course): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 96; cv.height = 384;
+  const g = cv.getContext('2d')!;
+  const passed = c.grade !== null && c.grade <= 4;
+  g.fillStyle = passed ? '#e8e2d4' : c.grade === 5 ? '#3a3834' : '#9a948a';
+  g.fillRect(0, 0, 96, 384);
+  const ink = passed ? '#141414' : '#f4f0e8';
+  g.fillStyle = ink;
+  // Head and tail bands, and two raised bands.
+  for (const y of [14, 22, 350, 358]) g.fillRect(0, y, 96, 4);
+  for (const y of [70, 290]) g.fillRect(0, y, 96, 8);
+  // The title, running up the spine the way continental spines do.
+  g.save(); g.translate(66, 270); g.rotate(-Math.PI / 2);
+  g.font = '800 58px Tektur, monospace';
+  g.fillText(`${SHORT[c.module] ?? c.module}`, 0, 0);
+  g.restore();
+  g.font = '800 26px Tektur, monospace';
+  g.textAlign = 'center';
+  g.fillText(c.type, 48, 118);
+  // The seal: a disc with the grade in it.
+  if (c.grade !== null) {
+    g.beginPath(); g.arc(48, 322, 20, 0, 7); g.fillStyle = ink; g.fill();
+    g.fillStyle = passed ? '#e8e2d4' : '#3a3834';
+    g.font = '800 26px Tektur, monospace'; g.fillText(String(c.grade), 48, 331);
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; turn: { x: number; y: number }; canvas: HTMLCanvasElement }) => {
+  camera.position.set(0, 0.12, 3.35); camera.lookAt(0, 0.05, 0);
+  const wood = new THREE.MeshLambertMaterial({ color: 0x5a554c });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x2a2825 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.35, metalness: 0.6, emissive: 0x2a2620 });
+  const paper = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
+  const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); group.add(b); return b;
+  };
+  // The case: a back, two sides, a cornice, and a shelf for this term; a
+  // second one below only once there are other terms to put on it.
+  const term = state.courses.filter((c) => c.semester === TERM.name);
+  const rest = state.courses.filter((c) => c.semester !== TERM.name);
+  const order = (list: Course[]) => [...list].sort((a, b) => CURRICULUM.findIndex((m) => m.code === a.module) - CURRICULUM.findIndex((m) => m.code === b.module) || a.nr.localeCompare(b.nr));
+  const thickOf = (c: Course) => 0.16 + c.ects * 0.03;
+  // As wide as the longer row, with room at the end for the hourglass.
+  const span = (list: Course[]) => list.reduce((a, c, i, all) => a + thickOf(c) + 0.012 + (i && c.module !== all[i - 1]!.module ? 0.1 : 0), 0);
+  const W = Math.max(2.4, span(order(term)), span(order(rest))) + 0.75;
+  const TOP = 0, LOW = -0.98, floor = rest.length ? LOW : TOP;
+  const tall = 0.98 - floor + 0.1, mid = (0.98 + floor - 0.1) / 2;
+  box(W + 0.2, tall, 0.05, dark, 0, mid, -0.2);
+  for (const x of [-W / 2 - 0.07, W / 2 + 0.07]) box(0.12, tall + 0.05, 0.5, wood, x, mid, 0.02);
+  box(W + 0.4, 0.1, 0.6, wood, 0, 0.98, 0.04);
+  for (const y of rest.length ? [TOP, LOW] : [TOP]) box(W + 0.1, 0.06, 0.46, wood, 0, y - 0.03, 0.02);
+  const books: THREE.Mesh[] = [];
+  const shelve = (list: Course[], y: number) => {
+    let x = -W / 2 + 0.1, last = '';
+    for (const c of order(list)) {
+      // A brass bookend between one module and the next.
+      if (last && c.module !== last) { box(0.025, 0.36, 0.3, brass, x + 0.045, y + 0.18, 0.04); x += 0.1; }
+      last = c.module;
+      const thick = thickOf(c), tall = c.type === 'VO' ? 0.74 : 0.62;
+      const face = new THREE.MeshLambertMaterial({ map: spineTexture(c) });
+      const side = new THREE.MeshLambertMaterial({ color: 0x8a847a });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, 0.36), [side, side, side, side, face, side]);
+      b.position.set(x + thick / 2, y + tall / 2, 0.04);
+      b.userData = { id: c.id, module: c.module, home: b.position.clone(), out: 0, shelf: y };
+      group.add(b); books.push(b);
+      x += thick + 0.012;
+    }
+    return x;
+  };
+  const end = shelve(term, TOP);
+  shelve(rest, LOW);
+  // On the upper shelf's free end, an hourglass; below, a pile of papers with
+  // a lens on it: the instruments of a faculty that measures things.
+  const hx = Math.max(end + 0.25, W / 2 - 0.3);
+  const glass = new THREE.Group(); glass.position.set(hx, TOP + 0.3, 0.05); group.add(glass);
+  for (const s of [1, -1]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.24, 20, 1, true), paper); cone.rotation.x = s > 0 ? Math.PI : 0; cone.position.y = s * 0.12; glass.add(cone);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 24), brass); cap.position.y = s * 0.255; glass.add(cap);
+  }
+  for (let k = 0; k < 3; k++) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), brass); const a = (k / 3) * Math.PI * 2; post.position.set(Math.cos(a) * 0.16, 0, Math.sin(a) * 0.16); glass.add(post); }
+  // On top of the case, papers with a lens on them.
+  for (let k = 0; k < 6; k++) { const sheet = box(0.62, 0.012, 0.4, paper, 0.8 + (k % 2) * 0.03, 1.04 + k * 0.014, 0.03); sheet.rotation.y = (k - 2.5) * 0.04; }
+  const lens = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.014, 8, 32), brass); lens.rotation.x = Math.PI / 2; lens.position.set(0.85, 1.15, 0.05); group.add(lens);
+  const handle = box(0.18, 0.025, 0.025, brass, 1.03, 1.15, 0.05); handle.rotation.y = 0.2;
+  // A lamp over the case, and dust in its light.
+  const lamp = new THREE.PointLight(0xfff4e0, 5, 6, 1.4); lamp.position.set(-0.4, 1.4, 1.2); group.add(lamp);
+  lights(scene, 0.5, 0.35, 0.18);
+  const D = 90, dr = rand(4), dust = new Float32Array(D * 3);
+  for (let i = 0; i < D; i++) dust.set([(dr() - 0.5) * 3, dr() * 2 - 1, dr() * 0.8 + 0.1], i * 3);
+  const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dust, 3));
+  const motes = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.012 })); group.add(motes);
+  // Hover and click. A drag that moved is a look round, not a pick.
+  const ray = new THREE.Raycaster(), v = new THREE.Vector3();
+  let from = { x: 0, y: 0, moved: false }, hover: THREE.Mesh | null = null;
+  const pick = (e: PointerEvent) => {
+    const b = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    return (ray.intersectObjects(books, false)[0]?.object as THREE.Mesh | undefined) ?? null;
+  };
+  canvas.addEventListener('pointerdown', (e) => { from = { x: e.clientX, y: e.clientY, moved: false }; });
+  canvas.addEventListener('pointermove', (e) => {
+    if (Math.abs(e.clientX - from.x) + Math.abs(e.clientY - from.y) > 6) from.moved = true;
+    hover = pick(e);
+    canvas.style.cursor = hover ? 'pointer' : '';
+  });
+  canvas.addEventListener('pointerleave', () => { hover = null; spineTip.value = null; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (from.moved) return;
+    const hit = pick(e);
+    pulledId.value = hit ? (pulledId.value === hit.userData.id ? null : hit.userData.id) : null;
+  });
+  // The camera is set back just far enough to take in the case at whatever
+  // shape the frame is.
+  // A strip is left free along the bottom, for the tags and the hint.
+  const halfW = W / 2 + 0.25, halfH = (1.2 - floor) / 2 + 0.16, lookY = (1.2 + floor) / 2 - 0.14;
+  return (t: number) => {
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const d = Math.max(halfW / (f * camera.aspect), halfH / f) + 0.5;
+    camera.position.set(0, lookY + 0.05, d); camera.lookAt(0, lookY, 0);
+    // The case turns only a little, however far it is dragged.
+    group.rotation.set(Math.max(-0.12, Math.min(0.12, turn.x * 0.3)), Math.max(-0.35, Math.min(0.35, turn.y * 0.5)), 0);
+    for (const b of books) {
+      const d = b.userData as { id: number; module: string; home: THREE.Vector3; out: number };
+      const want = d.id === pulledId.value ? 0.34 : b === hover ? 0.08 : d.module === (live.hover || live.sel) ? 0.05 : 0;
+      d.out += (want - d.out) * 0.14;
+      b.position.set(d.home.x, d.home.y + d.out * 0.25, d.home.z + d.out);
+      b.rotation.x = -d.out * 0.35;
+    }
+    if (Math.round(t * 20) % 2 === 0) {
+      const r = canvas.getBoundingClientRect();
+      // One tag a module, under the middle of its volumes, on the shelf's edge.
+      const byModule = new Map<string, THREE.Mesh[]>();
+      for (const b of books) { const k = `${b.userData.module}@${b.userData.shelf}`; byModule.set(k, [...(byModule.get(k) ?? []), b]); }
+      tags.value = [...byModule.values()].map((row) => {
+        const d = row[0]!.userData as { id: number; module: string; home: THREE.Vector3 };
+        const x = row.reduce((a, b) => a + b.userData.home.x, 0) / row.length;
+        v.set(x, (row[0]!.userData.shelf as number) - 0.05, 0.25).applyMatrix4(group.matrixWorld).project(camera);
+        return { id: d.id, x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height, label: SHORT[d.module] ?? d.module, out: row.some((b) => b.userData.id === pulledId.value) };
+      });
+    }
+    motes.position.y = Math.sin(t * 0.1) * 0.05;
+    motes.rotation.y = t * 0.02;
+    if (hover) {
+      const r = canvas.getBoundingClientRect();
+      v.copy(hover.position).add(new THREE.Vector3(0, (hover.geometry as THREE.BoxGeometry).parameters.height / 2 + 0.04, 0)).applyMatrix4(group.matrixWorld).project(camera);
+      const c = state.courses.find((x) => x.id === hover!.userData.id);
+      spineTip.value = c ? { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height, c } : null;
+    } else if (spineTip.value) spineTip.value = null;
+  };
+};
 
 // ---- the week ------------------------------------------------------------
 const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
@@ -297,7 +460,8 @@ const moduleFor = (label: string) => ({ EP1: 'STEOP1', 'Rechenm.': 'STEOP2', For
 // the colures, turning on a stand. Six beads ride the ecliptic, one per
 // semester, as bright as that semester is done; the current one pulses.
 const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera }) => {
-  camera.position.set(0, 0.1, 4.2); camera.lookAt(0, -0.25, 0);
+  camera.position.set(0, 0.1, 5.2); camera.lookAt(0, -0.3, 0);
+  group.scale.setScalar(0.78);
   const brass = new THREE.MeshStandardMaterial({ color: 0xf0e8d8, roughness: 0.3, metalness: 0.45, emissive: 0x3a362e });
   const dark = new THREE.MeshStandardMaterial({ color: 0x5a554c, roughness: 0.6, metalness: 0.4 });
   const ring = (r: number, tube: number, mat = brass) => new THREE.Mesh(new THREE.TorusGeometry(r, tube, 10, 96), mat);
@@ -371,19 +535,10 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     </Frame>
 
     <div class="side">
-      <div class="crest">
-        <svg class="seal" viewBox="-50 -50 100 100" aria-hidden="true">
-          <defs><path id="seal-ring" d="M 0 -38 A 38 38 0 1 1 -0.1 -38" /></defs>
-          <circle r="47" class="rim" /><circle r="44" class="rim dot" /><circle r="31" class="rim" />
-          <text class="ring"><textPath href="#seal-ring">UNIVERSITAS VINDOBONENSIS // MCCCLXV // </textPath></text>
-          <path d="M 0 -22 L 19 11 L -19 11 Z" class="tri" />
-          <path d="M -11 3 Q 0 -8 11 3 Q 0 13 -11 3 Z" class="eye" /><circle cx="0" cy="3" r="3.2" class="pupil" />
-          <path d="M 0 -30 L 1.6 -26 L 6 -26 L 2.4 -23.4 L 3.8 -19 L 0 -21.6 L -3.8 -19 L -2.4 -23.4 L -6 -26 L -1.6 -26 Z" class="star" />
-        </svg>
-        <div>
-          <h1 class="title">The Academy</h1>
-          <p class="motto fell">Sapere aude.</p>
-        </div>
+      <div class="head">
+        <span class="pix">universitas vindobonensis // est. mccclxv // facultas physicae</span>
+        <h1 class="title">The Academy</h1>
+        <p class="motto fell">Sapere aude.</p>
       </div>
       <p class="note">Physics at the University of Vienna, curriculum 2026. The registrar keeps every course as a volume and every grade as a seal, the way Miskatonic kept its stacks; he says the mathematics is the telescope.</p>
       <div class="big"><span class="tek"><Num :value="tally.passed" /></span><span class="pix">of 180 ects<br>{{ tally.running }} this term</span><span class="bar"><i :style="{ width: `${(tally.passed / 180) * 100}%` }"></i><i class="run" :style="{ width: `${(tally.running / 180) * 100}%` }"></i></span></div>
@@ -393,7 +548,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
         <span>grade, weighted</span><span>{{ tally.avg ? tally.avg.toFixed(2) : 'none yet' }}</span>
         <span>next exam</span><span>{{ exams[0] ? `${examDay(exams[0].begin)} // in ${daysTo(exams[0].begin)} days` : 'none posted yet' }}</span>
       </div>
-      <div class="courses">
+      <div class="desk">
         <form class="add" :class="{ asking: adding }" @submit.prevent="nr && add([nr])">
           <label class="pix" for="course-nr">add a course by its u:find number</label>
           <span><input id="course-nr" v-model="nr" inputmode="numeric" pattern="[0-9]{6}" placeholder="261600" :disabled="adding" /><button class="btn" :class="{ busy: adding }" :disabled="adding || nr.length !== 6">{{ adding ? 'asking u:find' : 'add' }}</button></span>
@@ -402,71 +557,85 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
         </form>
         <div v-if="exams.length" class="exams">
           <div class="pix">exams ahead</div>
-          <button v-for="e in exams.slice(0, 6)" :key="e.title + e.begin.getTime()" class="exam" @pointerenter="overArc(e.module)" @pointerleave="offArc" @click="choose(e.module)">
+          <button v-for="e in exams.slice(0, 3)" :key="e.title + e.begin.getTime()" class="exam" @pointerenter="overArc(e.module)" @pointerleave="offArc" @click="choose(e.module)">
             <span class="tek">{{ examDay(e.begin) }}</span><span class="note">{{ e.title }} // {{ e.room }}</span><span class="pix">{{ daysTo(e.begin) }}d</span>
           </button>
         </div>
-        <div v-if="!state.courses.length" class="empty">
-          <p class="note">Nothing kept yet. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
-          <button class="btn" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
-        </div>
-        <TransitionGroup name="vol" tag="div" class="volumes">
-          <div v-for="(m, n) in termModules" :id="`module-${m.code}`" :key="m.code" class="module" :class="{ sel: chosen === m.code, hot: hovered === m.code }" :style="{ '--i': n }">
-            <button class="mh" @click="choose(m.code)" @pointerenter="overArc(m.code)" @pointerleave="offArc"><span class="fell">{{ m.name }}</span><span class="pix">{{ m.code }} // {{ m.ects }} ects</span></button>
-            <div v-for="c in coursesOf(m.code)" :key="c.id" class="course">
-              <span class="pix">{{ c.type }}</span>
-              <span class="note">{{ c.nr }} // {{ c.ects }} ects
-                <select v-if="c.groups.length > 1" :id="`group-${c.id}`" class="pick" :class="{ unset: !c.groupId }" :value="c.groupId ?? ''" :aria-label="`group for ${c.name} ${c.type}`" @change="actions.groupCourse(c, ($event.target as HTMLSelectElement).value || null)">
-                  <option value="">group ?</option>
-                  <option v-for="(g, i) in c.groups" :key="g.id" :value="g.id">group {{ i + 1 }} // {{ groupLabel(g) }}</option>
-                </select>
-                <select :id="`module-of-${c.id}`" class="pick" :value="c.module" :aria-label="`module ${c.name} ${c.type} counts toward`" @change="actions.moduleCourse(c, ($event.target as HTMLSelectElement).value)">
-                  <option v-for="cm in CURRICULUM" :key="cm.code" :value="cm.code">{{ cm.code }}</option>
-                </select>
-              </span>
-              <button class="grade" :class="{ set: c.grade, press: sealed?.id === c.id, fail: c.grade === 5 }" :title="c.grade ? GRADES[c.grade - 1] : 'no grade yet'" :aria-label="`grade for ${c.name} ${c.type}: ${c.grade ?? 'none'}`" @click="cycle(c)">
-                {{ c.grade ?? '-' }}<em v-if="sealed?.id === c.id" class="word pix">{{ sealed.word }}</em>
+      </div>
+
+      <Frame class="week" :title="weekTitle" flush>
+        <div class="grid">
+          <div class="hours" aria-hidden="true"><span v-for="h in hourMarks" :key="h" :style="{ top: `${at(h)}%` }">{{ h }}</span></div>
+          <div v-for="(d, i) in dates" :key="d.label" class="day" :class="{ today: d.today }">
+            <span class="pix">{{ d.label }}</span>
+            <div class="col">
+              <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
+                      :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}`"
+                      @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="choose(moduleFor(b.module))">
+                <b>{{ b.label }}</b><span>{{ b.short ? b.from : `${b.from} ${b.room}` }}</span>
               </button>
+              <i v-if="d.today && nowLine >= 0" class="now" :style="{ top: `${nowLine}%` }"></i>
             </div>
           </div>
-        </TransitionGroup>
-      </div>
+          <p v-if="!blocks.length" class="nothing note fell">No dates this week. Add a course, or pick its group.</p>
+        </div>
+      </Frame>
     </div>
 
-    <Frame class="week" :title="weekTitle" flush>
-      <div class="grid">
-        <div class="hours" aria-hidden="true"><span v-for="h in hourMarks" :key="h" :style="{ top: `${at(h)}%` }">{{ h }}</span></div>
-        <div v-for="(d, i) in dates" :key="d.label" class="day" :class="{ today: d.today }">
-          <span class="pix">{{ d.label }}</span>
-          <div class="col">
-            <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
-                    :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}`"
-                    @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="choose(moduleFor(b.module))">
-              <b>{{ b.label }}</b><span>{{ b.short ? b.from : `${b.from} ${b.room}` }}</span>
-            </button>
-            <i v-if="d.today && nowLine >= 0" class="now" :style="{ top: `${nowLine}%` }"></i>
-          </div>
-        </div>
-        <p v-if="!blocks.length" class="nothing note fell">No dates this week. Add a course, or pick its group.</p>
+
+    <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
+      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
+      <div v-if="!state.courses.length" class="bare">
+        <p class="note fell">The shelf is bare. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
+        <button class="btn" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
       </div>
+      <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
+    <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${spineTip.x}px`, top: `${spineTip.y}px` }">
+        <b class="fell">{{ spineTip.c.name }}</b><span class="pix">{{ spineTip.c.type }} // {{ spineTip.c.ects }} ects // {{ spineTip.c.grade ? GRADES[spineTip.c.grade - 1] : 'no grade yet' }}</span>
+      </div>
+      <Transition name="card">
+        <div v-if="pulled" :key="pulled.id" class="volume">
+          <span class="pix">{{ pulled.nr }} // {{ pulled.type }} // {{ pulled.ects }} ects // {{ pulled.semester.toLowerCase() }}</span>
+          <b class="fell">{{ pulled.name }}</b>
+          <div class="seals" role="group" aria-label="grade">
+            <button v-for="g in 5" :key="g" class="grade" :class="{ set: pulled.grade === g, press: sealed?.id === pulled.id && pulled.grade === g, fail: g === 5 }" :title="GRADES[g - 1]" @click="seal(pulled!, g)">{{ g }}</button>
+            <em v-if="sealed?.id === pulled.id" class="word pix">{{ sealed.word }}</em>
+          </div>
+          <span class="rows">
+            <label class="pix" :for="`module-of-${pulled.id}`">counts toward</label>
+            <select :id="`module-of-${pulled.id}`" class="pick" :value="pulled.module" @change="actions.moduleCourse(pulled!, ($event.target as HTMLSelectElement).value)">
+              <option v-for="cm in CURRICULUM" :key="cm.code" :value="cm.code">{{ cm.code }} // {{ cm.name }}</option>
+            </select>
+            <template v-if="pulled.groups.length > 1">
+              <label class="pix" :for="`group-${pulled.id}`">group</label>
+              <select :id="`group-${pulled.id}`" class="pick" :class="{ unset: !pulled.groupId }" :value="pulled.groupId ?? ''" @change="actions.groupCourse(pulled!, ($event.target as HTMLSelectElement).value || null)">
+                <option value="">not yet told</option>
+                <option v-for="(g, i) in pulled.groups" :key="g.id" :value="g.id">group {{ i + 1 }} // {{ groupLabel(g) }}</option>
+              </select>
+            </template>
+          </span>
+          <span class="acts"><button class="btn" @click="pulledId = null">shelve it</button><button class="btn quiet" @click="actions.removeCourse(pulled!); pulledId = null">strike it</button></span>
+        </div>
+      </Transition>
     </Frame>
 
     <Frame class="sphere" title="the rector's armillary" flush>
-      <Gl :build="armillary" :active="active" :options="{ drift: 0.003, tilt: 0.18, distance: 4.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
+      <Gl :build="armillary" :active="active" :options="{ drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
   </div>
 </template>
 
 <style scoped>
-.academy { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.12fr) minmax(0, .4fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) minmax(210px, .44fr);
-  grid-template-areas: "instrument instrument side" "week sphere side"; }
+.academy { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.12fr) minmax(0, .4fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) minmax(250px, .52fr);
+  grid-template-areas: "instrument instrument side" "stacks sphere side"; }
 .instrument { grid-area: instrument; min-height: 0; }
 .instrument :deep(.flush) { overflow: hidden; }
 .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; cursor: grab; touch-action: none; }
 .stage:active { cursor: grabbing; }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; cursor: pointer; outline: none; }
-.arc text { font: 400 4.4px var(--pix); fill: var(--dim); text-transform: uppercase; letter-spacing: .04em; pointer-events: none; transition: fill .25s var(--out); }
+.arc text { font: 400 4.8px var(--pix); fill: var(--dim); text-transform: uppercase; letter-spacing: .04em; pointer-events: none; transition: fill .25s var(--out);
+  paint-order: stroke; stroke: #0c0b0a; stroke-width: 2.2px; stroke-linejoin: round; }
 .arc.running text, .arc.passed text { fill: var(--hi); }
 .arc.open text { fill: var(--phos); }
 .arc.hot text, .arc.sel text { fill: #fff; }
@@ -487,19 +656,9 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .card-leave-active { transition: opacity .12s linear; }
 .card-enter-from { opacity: 0; transform: translateY(8px); }
 .card-leave-to { opacity: 0; }
-.side { grid-area: side; display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr); gap: 12px; min-height: 0; }
-.crest { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
-.crest .title { font-size: clamp(38px, 4.4vw, 74px); white-space: nowrap; }
-.seal { width: 88px; height: 88px; transition: transform 1.2s var(--out); }
-.crest:hover .seal { transform: rotate(-24deg); }
-.seal .rim { fill: none; stroke: var(--phos); stroke-width: 1.2; }
-.seal .rim.dot { stroke-dasharray: 1 3; stroke: var(--dim); }
-.seal .ring { font: 400 6.4px var(--pix); fill: var(--phos); letter-spacing: .08em; }
-.seal .tri { fill: none; stroke: var(--hi); stroke-width: 1.4; }
-.seal .eye { fill: var(--hi); }
-.seal .pupil { fill: var(--ground); animation: look 7s var(--ease) infinite; }
-.seal .star { fill: var(--hi); }
-@keyframes look { 0%, 40% { transform: translateX(0); } 50%, 65% { transform: translateX(-3px); } 75%, 90% { transform: translateX(3px); } 100% { transform: translateX(0); } }
+.side { grid-area: side; display: grid; grid-template-rows: auto auto auto auto auto minmax(210px, 1fr); gap: 12px; min-height: 0; }
+.head { display: grid; gap: 4px; }
+.head .pix { color: var(--dim); }
 .motto { margin: 2px 0 0; font-style: italic; color: var(--dim); font-size: 16px; }
 .big { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 6px 14px; align-items: end; padding-top: 12px; border-top: 3px dotted var(--low); }
 .big .tek { font-size: 76px; }
@@ -510,7 +669,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 13px; }
 .kv span:nth-child(odd) { color: var(--dim); }
 .kv span:nth-child(even) { text-align: right; }
-.courses { min-height: 0; overflow: auto; display: grid; align-content: start; gap: 8px; padding-top: 12px; border-top: 3px dotted var(--low); scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
+.desk { display: grid; gap: 8px; padding-top: 12px; border-top: 3px dotted var(--low); }
 .add { display: grid; gap: 4px; position: relative; }
 .add > span { display: flex; gap: 8px; align-items: center; }
 .add input { flex: 1; min-width: 0; background: var(--deep); border: 2px solid var(--low); padding: 4px 8px; font: 800 15px var(--tek); color: var(--hi); letter-spacing: .06em; transition: border-color .2s var(--out); }
@@ -532,18 +691,24 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .exam { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: baseline; text-align: left; padding: 2px 4px; margin: 0 -4px; transition: background .2s var(--out); }
 .exam:hover { background: var(--faint); }
 .exam .tek { font-size: 13px; }
-.exam .note { font-size: 12px; }
-.volumes { display: grid; gap: 8px; }
-.module { display: grid; gap: 4px; border-bottom: 3px dotted var(--faint); padding: 4px 6px 8px; margin: 0 -6px; transition: background .3s var(--out), box-shadow .3s var(--out); }
-.module.hot { background: rgba(197, 188, 171, .04); }
-.module.sel { box-shadow: inset 3px 0 0 var(--phos); background: rgba(197, 188, 171, .06); }
-.vol-enter-active { transition: opacity .4s var(--out), transform .5s var(--out); transition-delay: calc(var(--i) * 50ms); }
-.vol-enter-from { opacity: 0; transform: translateY(10px); }
-.mh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; text-align: left; }
-.mh .fell { font-size: 18px; color: var(--hi); transition: letter-spacing .3s var(--out); }
-.mh:hover .fell { letter-spacing: .01em; color: #fff; }
-.course { display: grid; grid-template-columns: 30px 1fr auto; gap: 0 10px; align-items: center; }
-.course .note { font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.exam .note { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stacks { grid-area: stacks; min-height: 0; }
+.stacks :deep(.flush) { overflow: hidden; }
+.stacks :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
+.bare { position: absolute; inset: auto 16px 44px; display: grid; gap: 8px; justify-items: start; }
+.bare .note { margin: 0; font-style: italic; font-size: 15px; max-width: 44ch; }
+.tags span { position: absolute; transform: translate(-50%, 2px); font: 400 8.5px var(--pix); color: var(--phos); text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px #0c0b0a, 0 0 3px #0c0b0a; }
+.tags span.out { color: var(--hi); }
+.vtip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); display: grid; gap: 2px; padding: 6px 10px; background: rgba(12, 11, 10, .92); border: 3px double var(--low); pointer-events: none; white-space: nowrap; }
+.vtip b { font-weight: 400; font-size: 16px; color: var(--hi); }
+.volume { position: absolute; right: 12px; width: min(360px, 58%); top: 40px; display: grid; gap: 8px; padding: 12px 14px; background: rgba(12, 11, 10, .94); border: 3px double var(--dim); }
+.volume b { font-size: 21px; font-weight: 400; color: var(--hi); line-height: 1.1; }
+.seals { display: flex; gap: 6px; align-items: center; position: relative; }
+.seals .word { position: static; transform: none; margin-left: 6px; }
+.rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+.rows .pick { width: 100%; }
+.acts { display: flex; gap: 8px; }
+.btn.quiet { color: var(--dim); }
 .pick { background: var(--deep); color: var(--phos); border: 1px solid var(--low); font: 400 10px var(--pix); text-transform: uppercase; transition: border-color .2s var(--out); }
 .pick:hover { border-color: var(--dim); }
 .pick.unset { color: var(--hi); border-style: dashed; border-color: var(--dim); }
@@ -554,9 +719,9 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .grade.fail { text-decoration: line-through; }
 .grade.press { animation: press .45s var(--out); }
 @keyframes press { 0% { transform: scale(1.5) rotate(-10deg); background: var(--phos); color: var(--ground); } 100% { transform: scale(1); } }
-.word { position: absolute; right: calc(100% + 8px); top: 50%; white-space: nowrap; font-style: normal; color: var(--hi); animation: word 1.1s var(--out) both; }
-@keyframes word { from { opacity: 0; transform: translate(6px, -50%); } 25% { opacity: 1; transform: translate(0, -50%); } 80% { opacity: 1; } to { opacity: 0; transform: translate(0, -50%); } }
-.week { grid-area: week; min-height: 0; }
+.word { white-space: nowrap; font-style: normal; color: var(--hi); animation: word 1.1s var(--out) both; }
+@keyframes word { from { opacity: 0; transform: translateX(6px); } 25% { opacity: 1; transform: none; } 80% { opacity: 1; } to { opacity: 0; } }
+.week { min-height: 0; }
 .grid { flex: 1; display: grid; grid-template-columns: 26px repeat(5, minmax(0, 1fr)); gap: 0 8px; padding: 8px 12px 14px; min-height: 0; position: relative; }
 .hours { position: relative; margin-top: 18px; }
 .hours span { position: absolute; right: 2px; font: 400 9px var(--pix); color: var(--low); transform: translateY(-50%); }
@@ -578,7 +743,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .sphere { grid-area: sphere; min-height: 0; }
 .sphere :deep(.flush) { overflow: hidden; }
 .sphere :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
-@media (max-aspect-ratio: 5/4) { .academy { grid-template-columns: minmax(0, 1fr) minmax(0, .6fr); grid-template-rows: minmax(0, 1.2fr) auto minmax(220px, .6fr); grid-template-areas: "instrument instrument" "side side" "week sphere"; } }
+@media (max-aspect-ratio: 5/4) { .academy { grid-template-columns: minmax(0, 1fr) minmax(0, .6fr); grid-template-rows: minmax(0, 1.2fr) auto minmax(260px, .6fr); grid-template-areas: "instrument instrument" "side side" "stacks sphere"; } }
 @media (max-width: 860px) { .academy { display: flex; flex-direction: column; } .instrument { min-height: 420px; } .week { min-height: 340px; overflow-x: auto; } .grid { min-width: 560px; } .sphere { min-height: 280px; } .mcard { width: auto; right: 14px; } }
-@media (prefers-reduced-motion: reduce) { .seal, .seal .pupil, .grade.press, .word, .vol-enter-active, .card-enter-active, .add.asking input, .now::before { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .grade.press, .word, .card-enter-active, .add.asking input, .now::before { animation: none; transition: none; } }
 </style>
