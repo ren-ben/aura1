@@ -11,11 +11,24 @@ import { duration, state } from '../store';
 
 defineProps<{ active: boolean }>();
 
-// The side reads as one column and scrolls as one, its bar hidden; while more
-// of it lies below, its foot fades out, so the cut reads as a way on.
+// The side reads as one column and scrolls as one. Its bar is the console's
+// own: a dotted wire down the gutter, the part in view lit along it, and it
+// can be dragged. While more lies below, the foot fades out.
 const side = ref<HTMLElement | null>(null);
 const more = ref(false);
-const seeMore = () => { const el = side.value; more.value = !!el && el.scrollTop + el.clientHeight < el.scrollHeight - 4; };
+const thumb = reactive({ top: 0, size: 1 });
+function seeMore() {
+  const el = side.value;
+  if (!el) return;
+  more.value = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+  thumb.size = Math.min(1, el.clientHeight / el.scrollHeight);
+  thumb.top = el.scrollTop / el.scrollHeight;
+}
+function railTo(e: PointerEvent) {
+  const el = side.value, r = (e.currentTarget as HTMLElement).firstElementChild!.getBoundingClientRect();
+  if (el) el.scrollTop = ((e.clientY - r.top) / r.height - thumb.size / 2) * el.scrollHeight;
+}
+function railDown(e: PointerEvent) { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); railTo(e); }
 let grows: ResizeObserver | null = null;
 onMounted(() => {
   grows = new ResizeObserver(seeMore);
@@ -228,7 +241,8 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
         <span v-for="l in labels" v-show="l.show" :key="l.name" :style="{ left: `${l.x * 100}%`, top: `${l.y * 100}%` }">{{ l.name.toLowerCase() }}</span>
       </div>
     </Frame>
-    <div ref="side" class="side scroll" :class="{ more }" @scroll.passive="seeMore">
+    <div class="column">
+    <div ref="side" class="side" :class="{ more }" @scroll.passive="seeMore">
       <h1 class="title">The Orrery</h1>
       <p class="note">At the centre is the vortex Amygdala Inc. found past Neptune, the thing that became him. Everything you study falls round it; the more you give a path, the heavier it grows. The same instrument tells how steady he is.</p>
       <div class="worlds">
@@ -267,6 +281,10 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
         <p class="note motto">As above, so below: the vortex is watched through the model of it.</p>
       </div>
     </div>
+    <div v-if="thumb.size < 1" class="rail" aria-hidden="true" @pointerdown="railDown" @pointermove="(e) => e.buttons && railTo(e)">
+      <b><i :style="{ top: `${thumb.top * 100}%`, height: `${thumb.size * 100}%` }"></i></b>
+    </div>
+    </div>
   </div>
 </template>
 
@@ -286,7 +304,18 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 @keyframes ping { 0% { transform: scale(.4); opacity: .7; } 70%, 100% { transform: scale(2.2); opacity: 0; } }
 .labels { position: absolute; inset: 0; pointer-events: none; }
 .labels span { position: absolute; transform: translate(-50%, -100%); font: 400 10px var(--pix); color: var(--hi); text-transform: uppercase; text-shadow: 0 0 4px #121212; }
-.side { display: grid; align-content: start; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.column { position: relative; min-height: 0; display: grid; }
+.side { display: grid; align-content: start; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 26px; scrollbar-width: none; }
+.side::-webkit-scrollbar { width: 0; height: 0; }
+/* The rail: capped at both ends like a frame's corner mark, the wire dim,
+   the stretch in view lit and a little wider. */
+.rail { position: absolute; top: 6px; bottom: 6px; right: 0; width: 11px; cursor: pointer; touch-action: none; }
+.rail::before, .rail::after { content: ''; position: absolute; left: 2px; width: 7px; height: 7px; background: var(--low); }
+.rail::before { top: 0; } .rail::after { bottom: 0; }
+.rail b { position: absolute; inset: 12px 0; background: radial-gradient(circle, var(--low) 1.2px, transparent 1.6px) 50% 0 / 3px 7px repeat-y; }
+.rail i { position: absolute; left: 2px; right: 2px; transition: top .12s linear;
+  background: radial-gradient(circle, var(--phos) 1.3px, transparent 1.7px) 0 0 / 3.5px 4px repeat; }
+.rail:hover i { filter: brightness(1.25); }
 .side.more { mask-image: linear-gradient(#000 calc(100% - 64px), transparent); -webkit-mask-image: linear-gradient(#000 calc(100% - 64px), transparent); }
 .worlds { display: grid; gap: 12px; }
 .path { border-bottom: 3px dotted var(--faint); padding-bottom: 8px; }
@@ -316,6 +345,6 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 .moon .note { font-size: 12px; min-width: 52px; text-align: right; }
 /* Upright, the sky keeps most of the glass and the pane itself scrolls on
    down through the side: one scroll, never a box scrolling inside another. */
-@media (max-aspect-ratio: 5/4) { .orrery { display: flex; flex-direction: column; } .sky { flex: none; height: 58dvh; } .side { flex: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } }
-@media (max-width: 860px) { .side { order: -1; } .sky { height: auto; min-height: 380px; } }
+@media (max-aspect-ratio: 5/4) { .orrery { display: flex; flex-direction: column; } .sky { flex: none; height: 58dvh; } .column, .side { flex: none; overflow: visible; mask-image: none; -webkit-mask-image: none; padding-right: 0; } .rail { display: none; } }
+@media (max-width: 860px) { .column { order: -1; } .sky { height: auto; min-height: 380px; } }
 </style>
