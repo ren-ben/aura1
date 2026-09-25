@@ -11,6 +11,7 @@ import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
+import { narrow } from '../screen';
 import { lights } from '../gl/models';
 import { rand, starfield } from '../gl/plate';
 import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
@@ -512,7 +513,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
   <div class="academy">
     <Frame class="instrument" title="the degree as an astrolabe // hover a ring, drag to turn the rete" flush>
       <div class="stage" @pointerdown="grab" @pointermove="turnRete" @pointerup="letGo" @pointercancel="letGo">
-        <Plate :draw="drawAstrolabe" :active="active" animated :cell="2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
+        <Plate :draw="drawAstrolabe" :active="active" animated :cell="narrow ? 1 : 2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
         <svg class="arcs" viewBox="-112 -112 224 224" preserveAspectRatio="xMidYMid meet">
           <g v-for="l in labels" :key="l.code" class="arc" :class="[l.status, { hot: hovered === l.code, sel: chosen === l.code }]">
             <path class="hit" :d="l.d" tabindex="0" role="button" :aria-label="`${l.name}, ${l.ects} ECTS, ${STATUS[l.status]}`"
@@ -584,7 +585,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 
 
     <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
-      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
+      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
       <div v-if="!state.courses.length" class="bare">
         <p class="note fell">The shelf is bare. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
         <button class="btn" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
@@ -620,7 +621,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     </Frame>
 
     <Frame class="sphere" title="the rector's armillary" flush>
-      <Gl :build="armillary" :active="active" :options="{ drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
+      <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
   </div>
 </template>
@@ -744,6 +745,6 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .sphere :deep(.flush) { overflow: hidden; }
 .sphere :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
 @media (max-aspect-ratio: 5/4) { .academy { grid-template-columns: minmax(0, 1fr) minmax(0, .6fr); grid-template-rows: minmax(0, 1.2fr) auto minmax(260px, .6fr); grid-template-areas: "instrument instrument" "side side" "stacks sphere"; } }
-@media (max-width: 860px) { .academy { display: flex; flex-direction: column; } .instrument { min-height: 420px; } .week { min-height: 340px; overflow-x: auto; } .grid { min-width: 560px; } .sphere { min-height: 280px; } .mcard { width: auto; right: 14px; } }
+@media (max-width: 860px) { .academy { display: flex; flex-direction: column; } .instrument { min-height: 480px; } .legend { grid-template-columns: auto auto; gap: 4px 18px; bottom: 10px; } .week { min-height: 340px; overflow-x: auto; } .grid { min-width: 560px; } .sphere { min-height: 280px; } .mcard { width: auto; right: 14px; } }
 @media (prefers-reduced-motion: reduce) { .grade.press, .word, .card-enter-active, .add.asking input, .now::before { animation: none; transition: none; } }
 </style>

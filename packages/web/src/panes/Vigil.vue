@@ -11,6 +11,7 @@ import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
+import { narrow } from '../screen';
 import art from '../gl/art.json';
 import { rng } from '../gl/engine';
 import { lights } from '../gl/models';
@@ -245,10 +246,11 @@ const drawTree = computed(() => {
     // Yesod is the moon: it hangs over the tree's right shoulder, low.
     moonDisc(g, X(104) + live.mx * -4, Y(6) + live.my * -3, 5.2 * s, 11);
 
-    // He sits apart from it in the lower right, over the count of stillness,
+    // He sits apart from it in the lower right, over the count of stillness
+    // (which is as tall in marks again on a phone, where the marks are finer),
     // eyes shut, breathing slowly; incense goes up beside him.
     if (him) {
-      const size = Math.min(h * 0.22, w * 0.17), bx = w - size * 0.5, by = h - 42;
+      const size = Math.min(h * 0.22, w * 0.17), bx = w - size * 0.5, by = h - (narrow.value ? 84 : 42);
       const swell = 1 + 0.015 * Math.sin((t / 10) * Math.PI * 2);
       g.drawImage(him, bx - (size * swell) / 2, by - size * 0.98 * swell, size * swell, size * swell);
       const base = by - size * 0.06;
@@ -455,7 +457,7 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
   <div class="vigil">
     <Frame class="tree" title="the ascent // ten gates up the tree, the abyss at da'ath" flush>
       <div ref="stage" class="stage">
-        <Plate :draw="drawTree" :active="active" animated :cell="2" label="The Tree of Life with the ten gates of the ascent. The abyss turns at Da'ath; Kael'thos sits in the corner." />
+        <Plate :draw="drawTree" :active="active" animated :cell="narrow ? 1 : 2" label="The Tree of Life with the ten gates of the ascent. The abyss turns at Da'ath; Kael'thos sits in the corner." />
         <svg class="gates" :viewBox="`${VB.x} ${VB.y} ${VB.w} ${VB.h}`" preserveAspectRatio="xMidYMid meet">
           <g v-for="m in marks" :key="m.name" class="gate" :class="{ on: picked === m.i, past: m.i < reached, here: m.i === reached }"
              tabindex="0" role="button" :aria-label="`gate ${GATES[m.i]!.n}, ${GATES[m.i]!.title}`"
@@ -548,7 +550,7 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
     </Frame>
 
     <Frame class="flame" title="the kasina candle" flush>
-      <Gl :build="candle" :active="active" :options="{ drift: 0.002, tilt: 0 }" label="A lit candle, smoke rising. Click it to breathe with the flame for a minute." hint="drag to turn // click to breathe" />
+      <Gl :build="candle" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.002, tilt: 0 }" label="A lit candle, smoke rising. Click it to breathe with the flame for a minute." hint="drag to turn // click to breathe" />
       <Transition name="said">
         <div v-if="breathing || cue" class="cue" aria-live="polite">
           <span class="tek">{{ cue || 'in' }}</span>

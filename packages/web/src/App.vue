@@ -4,34 +4,30 @@
 // shows the whole constellation while held; ctrl k or slash searches.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { PANES, type Pane } from './panes';
+import Sigil from './components/Sigil.vue';
 import { dailyMinutes, duration, load, state, today } from './store';
 
 // What a pane is worth right now, for its card on the web: a line of its own
-// figures and twelve marks of its own history.
-function preview(id: string): { stat: string; bars: number[] } {
+// figures under its sigil.
+function preview(id: string): string {
   const days = twelveWeeks();
-  const weeks = Array.from({ length: 12 }, (_, i) => days.slice(i * 7, i * 7 + 7).reduce((a, b) => a + b, 0));
-  const top = Math.max(1, ...weeks);
-  const shape = weeks.map((v) => v / top);
-  const flat = (v: number) => Array.from({ length: 12 }, () => v);
   switch (id) {
-    case 'today': return { stat: duration(today.value.minutes), bars: today.value.sessions.length ? shape : flat(0.12) };
-    case 'insight': return { stat: `${Math.round(days.reduce((a, b) => a + b, 0) / 60)}h in twelve weeks`, bars: shape };
-    case 'rituals': {
-      const kept = state.habits.filter((h) => h.done.includes(new Date().toISOString().slice(0, 10))).length;
-      return { stat: `${kept} of ${state.habits.length} kept today`, bars: state.habits.length ? shape.map((v) => 0.35 + v * 0.65) : flat(0.2) };
-    }
-    case 'paths': return { stat: `${state.folders.length} paths open`, bars: shape };
-    case 'kael': return { stat: `bond ${state.stats?.bond.level ?? 0} // form ${state.stats?.form ?? '--'}`, bars: shape };
-    case 'orrery': return { stat: `${state.folders.length} bodies in orbit`, bars: shape.map((v) => 1 - v * 0.6) };
-    case 'vessel': return { stat: state.device ? `${state.device.battery ?? '--'}% // ${(state.device.look ?? '').toLowerCase()}` : 'no report', bars: flat(0.5) };
-    case 'pact': return { stat: `${days.filter(Boolean).length} of 84 days fed`, bars: shape };
-    case 'log': return { stat: `${state.sessions.length} sessions kept`, bars: shape };
-    case 'intercept': return { stat: `${state.quotes.length} of his lines`, bars: flat(0.3) };
-    default: return { stat: 'sealed until it is built', bars: flat(0.08) };
+    case 'today': return duration(today.value.minutes);
+    case 'insight': return `${Math.round(days.reduce((a, b) => a + b, 0) / 60)}h in twelve weeks`;
+    case 'rituals': return `${state.habits.filter((h) => h.done.includes(new Date().toISOString().slice(0, 10))).length} of ${state.habits.length} kept today`;
+    case 'paths': return `${state.folders.length} paths open`;
+    case 'kael': return `bond ${state.stats?.bond.level ?? 0} // form ${state.stats?.form ?? '--'}`;
+    case 'orrery': return `${state.folders.length} bodies in orbit`;
+    case 'vessel': return state.device ? `${state.device.battery ?? '--'}% // ${(state.device.look ?? '').toLowerCase()}` : 'no report';
+    case 'pact': return `${days.filter(Boolean).length} of 84 days fed`;
+    case 'log': return `${state.sessions.length} sessions kept`;
+    case 'intercept': return `${state.quotes.length} of his lines`;
+    case 'library': return `${state.books.length} volumes shelved`;
+    case 'vigil': return `${state.vigil.sits.length} sits kept`;
+    case 'academy': return `${state.courses.length} courses this term`;
+    default: return 'sealed until it is built';
   }
 }
-
 // Twelve weeks of minutes, worked out once for a whole pass over the cards
 // rather than twice for each of the fourteen of them.
 let weeksCache: { at: number; days: number[] } | null = null;
@@ -189,6 +185,12 @@ function holdDown(e: PointerEvent) {
 function pickPane(p: Pane) { mapping.value = false; lit.value = null; go(p); }
 // Worked out once each time the web opens, not on every render of it.
 const previews = computed(() => (mapping.value ? Object.fromEntries(PANES.map((p) => [p.id, preview(p.id)])) : {}));
+// The twelve weeks, for the range on the Insight card.
+const weeks = computed(() => {
+  if (!mapping.value) return [];
+  const days = twelveWeeks();
+  return Array.from({ length: 12 }, (_, i) => days.slice(i * 7, i * 7 + 7).reduce((a, b) => a + b, 0));
+});
 const mapBox = computed(() => {
   const cs = PANES.map((p) => p.c), rs = PANES.map((p) => p.r);
   return { c0: Math.min(...cs), r0: Math.min(...rs), cols: Math.max(...cs) - Math.min(...cs) + 1, rows: Math.max(...rs) - Math.min(...rs) + 1 };
@@ -338,10 +340,10 @@ onBeforeUnmount(() => {
       <div v-for="(p, i) in PANES" :key="p.id" class="card" :class="{ here: p === here, sealed: p.kind === 'sealed', lit: p === lit }" :data-pane="p.id"
         :style="narrow ? { '--i': i } : { gridColumn: p.c - mapBox.c0 + 1, gridRow: p.r - mapBox.r0 + 1, '--i': i }"
         @click="pickPane(p)">
+        <Sigil :id="p.id" :weeks="weeks" />
         <b>{{ p.name }}</b>
         <span>{{ p.kind }}</span>
-        <span class="bars" aria-hidden="true"><i v-for="(v, k) in previews[p.id]?.bars" :key="k" :style="{ '--v': v }"></i></span>
-        <span class="stat">{{ previews[p.id]?.stat }}</span>
+        <span class="stat">{{ previews[p.id] }}</span>
       </div>
     </div>
     <p class="pix say">{{ lit ? lit.name : 'let go over a pane to go there' }}</p>
@@ -435,9 +437,8 @@ onBeforeUnmount(() => {
   animation: cardin .44s var(--ease) both; animation-delay: calc(var(--i) * 22ms); }
 @keyframes cardin { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 .map .card:hover { transform: translateY(-3px); }
-.map .card .bars { display: flex; align-items: flex-end; justify-content: center; gap: 2px; height: 26px; margin-top: 2px; }
-.map .card .bars i { width: 4px; height: calc(4px + var(--v) * 22px); background: var(--low); transition: height .5s var(--ease); }
-.map .card:hover .bars i, .map .card.here .bars i { background: var(--phos); }
+.map .card .sigil { width: clamp(34px, 3.3vw, 52px); height: clamp(34px, 3.3vw, 52px); margin: 0 auto 6px; color: var(--phos); pointer-events: none; transition: color .3s, transform .44s var(--out); }
+.map .card:hover .sigil, .map .card.here .sigil, .map .card.lit .sigil { color: var(--hi); transform: scale(1.12); }
 .map .card .stat { color: var(--phos); }
 .weld { position: fixed; width: 0; height: 0; }
 .map .pour { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
@@ -471,7 +472,6 @@ onBeforeUnmount(() => {
   .map .card { animation: none; transition: border-color .2s linear, transform .2s linear; }
   .map .card.lit { box-shadow: none; transform: scale(1.03); }
   .map .card::after { transition: opacity .2s linear; transform: none; }
-  .map .card .bars i { transition: none; }
   .map .edges line { animation: none; }
 }
 /* A phone gets every pane on one screen, two by seven, since a finger that is
@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
 .map.narrow .pour i { width: 120px; height: 120px; margin: -60px 0 0 -60px; }
 .map.narrow .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: repeat(7, minmax(0, 1fr)) !important; gap: 8px; }
 .map.narrow .card { gap: 3px; padding: 6px; min-height: 0; }
-.map.narrow .card .bars { display: none; }
+.map.narrow .card .sigil { width: 26px; height: 26px; margin-bottom: 2px; }
 
 /* The key for the web: top edge for a thumb reaching up, bottom for down. */
 .webkey { position: fixed; z-index: 30; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;

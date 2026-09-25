@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The orrery: every folder a planet round Kael'thos, as large as the hours
 // given it, its activities its moons, a galaxy turning far behind.
-import { computed, reactive } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
@@ -10,6 +10,19 @@ import { blackHole, constellation, galaxy, lights, planet, stars } from '../gl/m
 import { duration, state } from '../store';
 
 defineProps<{ active: boolean }>();
+
+// The side reads as one column and scrolls as one, its bar hidden; while more
+// of it lies below, its foot fades out, so the cut reads as a way on.
+const side = ref<HTMLElement | null>(null);
+const more = ref(false);
+const seeMore = () => { const el = side.value; more.value = !!el && el.scrollTop + el.clientHeight < el.scrollHeight - 4; };
+let grows: ResizeObserver | null = null;
+onMounted(() => {
+  grows = new ResizeObserver(seeMore);
+  grows.observe(side.value!);
+  for (const c of side.value!.children) grows.observe(c);
+});
+onBeforeUnmount(() => grows?.disconnect());
 
 const worlds = computed(() => {
   const by = new Map<string, { minutes: number; acts: { name: string; minutes: number; level: number }[] }>();
@@ -215,7 +228,7 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
         <span v-for="l in labels" v-show="l.show" :key="l.name" :style="{ left: `${l.x * 100}%`, top: `${l.y * 100}%` }">{{ l.name.toLowerCase() }}</span>
       </div>
     </Frame>
-    <div class="side">
+    <div ref="side" class="side scroll" :class="{ more }" @scroll.passive="seeMore">
       <h1 class="title">The Orrery</h1>
       <p class="note">At the centre is the vortex Amygdala Inc. found past Neptune, the thing that became him. Everything you study falls round it; the more you give a path, the heavier it grows. The same instrument tells how steady he is.</p>
       <div class="worlds">
@@ -273,8 +286,9 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 @keyframes ping { 0% { transform: scale(.4); opacity: .7; } 70%, 100% { transform: scale(2.2); opacity: 0; } }
 .labels { position: absolute; inset: 0; pointer-events: none; }
 .labels span { position: absolute; transform: translate(-50%, -100%); font: 400 10px var(--pix); color: var(--hi); text-transform: uppercase; text-shadow: 0 0 4px #121212; }
-.side { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 12px; min-height: 0; }
-.worlds { display: grid; gap: 12px; align-content: stretch; min-height: 0; overflow: auto; }
+.side { display: grid; align-content: start; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.side.more { mask-image: linear-gradient(#000 calc(100% - 64px), transparent); -webkit-mask-image: linear-gradient(#000 calc(100% - 64px), transparent); }
+.worlds { display: grid; gap: 12px; }
 .path { border-bottom: 3px dotted var(--faint); padding-bottom: 8px; }
 .orb { height: 5px; margin-top: 6px; background: radial-gradient(circle, var(--low) 1px, transparent 1.4px) 0 50% / 5px 5px repeat-x; }
 .orb i { display: block; height: 5px; background: radial-gradient(circle, var(--phos) 1.4px, transparent 1.8px) 0 50% / 5px 5px repeat-x; }
@@ -300,6 +314,8 @@ const build = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.Grou
 .lv i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
 .lv i.on { background: var(--phos); }
 .moon .note { font-size: 12px; min-width: 52px; text-align: right; }
-@media (max-aspect-ratio: 5/4) { .orrery { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); } }
-@media (max-width: 860px) { .side { order: -1; } .worlds { overflow: visible; } .orrery { display: flex; flex-direction: column; } .sky { min-height: 380px; } }
+/* Upright, the sky keeps most of the glass and the pane itself scrolls on
+   down through the side: one scroll, never a box scrolling inside another. */
+@media (max-aspect-ratio: 5/4) { .orrery { display: flex; flex-direction: column; } .sky { flex: none; height: 58dvh; } .side { flex: none; overflow: visible; mask-image: none; -webkit-mask-image: none; } }
+@media (max-width: 860px) { .side { order: -1; } .sky { height: auto; min-height: 380px; } }
 </style>
