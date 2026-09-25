@@ -319,7 +319,7 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   const thickOf = (c: Course) => 0.16 + c.ects * 0.03;
   // As wide as the longer row, with room at the end for the hourglass.
   const span = (list: Course[]) => list.reduce((a, c, i, all) => a + thickOf(c) + 0.012 + (i && c.module !== all[i - 1]!.module ? 0.1 : 0), 0);
-  const W = Math.max(2.4, span(order(term)), span(order(rest))) + 0.75;
+  const W = Math.max(2.6, span(order(term)), span(order(rest))) + 0.75;
   const TOP = 0, LOW = -0.98, floor = rest.length ? LOW : TOP;
   const tall = 0.98 - floor + 0.1, mid = (0.98 + floor - 0.1) / 2;
   box(W + 0.2, tall, 0.05, dark, 0, mid, -0.2);
@@ -344,6 +344,19 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
     }
     return x;
   };
+  // A bare shelf holds the first term's volumes as outlines, waiting: one a
+  // module, as thick as its ECTS.
+  if (!state.courses.length) {
+    let x = -W / 2 + 0.2;
+    const line = new THREE.LineBasicMaterial({ color: 0x8a847a });
+    for (const m of CURRICULUM.filter((c) => c.sem === 1)) {
+      const thick = 0.16 + m.ects * 0.06, tall = 0.66;
+      const ghost = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(thick, tall, 0.36)), line);
+      ghost.position.set(x + thick / 2, TOP + tall / 2, 0.04);
+      group.add(ghost);
+      x += thick + 0.06;
+    }
+  }
   const end = shelve(term, TOP);
   shelve(rest, LOW);
   // On the upper shelf's free end, an hourglass; below, a pile of papers with
@@ -587,7 +600,8 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
       <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
       <div v-if="!state.courses.length" class="bare">
-        <p class="note fell">The shelf is bare. Your first term, as the curriculum lays it out and u:find lists it for {{ FIRST_TERM.semester }}: eight courses.</p>
+        <b>The shelf is bare</b>
+          <p class="note fell">The outlines are your first term, as the curriculum lays it out. u:find lists eight courses for it in {{ FIRST_TERM.semester }}.</p>
         <button class="btn" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
       </div>
       <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
@@ -696,8 +710,9 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .stacks { grid-area: stacks; min-height: 0; }
 .stacks :deep(.flush) { overflow: hidden; }
 .stacks :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
-.bare { position: absolute; inset: auto 16px 44px; display: grid; gap: 8px; justify-items: start; }
-.bare .note { margin: 0; font-style: italic; font-size: 15px; max-width: 44ch; }
+.bare { position: absolute; left: 12px; top: 40px; width: min(330px, 62%); display: grid; gap: 8px; justify-items: start; padding: 12px 14px; background: rgba(12, 11, 10, .94); border: 3px double var(--dim); }
+.bare .note { margin: 0; font-style: italic; font-size: 15px; color: var(--phos); }
+.bare b { font: 400 20px/1.1 var(--fell); color: var(--hi); }
 .tags span { position: absolute; transform: translate(-50%, 2px); font: 400 8.5px var(--pix); color: var(--phos); text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px #0c0b0a, 0 0 3px #0c0b0a; }
 .tags span.out { color: var(--hi); }
 .vtip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); display: grid; gap: 2px; padding: 6px 10px; background: rgba(12, 11, 10, .92); border: 3px double var(--low); pointer-events: none; white-space: nowrap; }

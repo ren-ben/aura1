@@ -139,6 +139,9 @@ const entries = computed<ShelfEntry[]>(() => state.books.map((b) => ({
 // rebuilds it rather than being left out of it.
 const shelfKey = computed(() => entries.value.map((b) => `${b.id}:${b.through}:${b.marks}`).join(','));
 const pulled = ref<Book | null>(null);
+// The volume out of its place, until it is all the way back: the pile on
+// the desk keeps its gap until the book has left the stacks' glass.
+const away = ref(-1);
 
 let hall: Stacks | null = null;
 let drift: { hold: boolean } | null = null;
@@ -176,6 +179,7 @@ function pull(i: number, hand = false) {
   world.add(holder);
   mesh.visible = false;
   held = { mesh, grim, holder, u: 0, dir: 1, hand, from: null };
+  away.value = i;
   if (drift) drift.hold = true;
   pulled.value = book ?? null;
 }
@@ -192,6 +196,7 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
   eye = camera;
   drift = turn;
   held = null;
+  away.value = -1;
   pulled.value = null;
   walkTo = 0;
   walkAt = 0;
@@ -273,6 +278,7 @@ const build: Build = ({ scene, camera, turn, canvas }) => {
       held.grim.dispose();
       held.mesh.visible = true;
       held = null;
+      away.value = -1;
     }
   };
 };
@@ -325,7 +331,7 @@ const deskBuild = computed(() => study(deskBooks.value, {
   // comes in at the glass's edge there.
   pick: (i) => { if (outIndex.value !== i) pull(i, true); },
   hover: (i) => { deskHover.value = i; },
-  out: () => outIndex.value,
+  out: () => away.value,
 }));
 const deskHint = computed(() => {
   const b = deskBooks.value[deskHover.value];

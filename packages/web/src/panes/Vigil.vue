@@ -395,9 +395,9 @@ function breathe() {
 const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; canvas: HTMLCanvasElement }) => {
   // Framed whole, from the foot of the dish to the top of the smoke, centred.
   const fitCam = () => {
-    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.22, halfW = 0.8;
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.1, halfW = 0.8;
     const d = Math.max(halfH / f, halfW / (f * camera.aspect)) + 0.2;
-    camera.position.set(0, -0.12, d); camera.lookAt(0, -0.18, 0);
+    camera.position.set(0, -0.08, d); camera.lookAt(0, -0.08, 0);
   };
   const wax = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.85, emissive: 0x5a554c });
   const iron = new THREE.MeshStandardMaterial({ color: 0x4a4640, roughness: 0.5, metalness: 0.6 });
