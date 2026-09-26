@@ -236,6 +236,9 @@ const HOLD_Z = 0.5;
 // leaning a little away from it, the way a thing is set down.
 const REST = new THREE.Vector3(-W / 2 - 0.42, SEAL.y + 0.3, 0.04);
 const RESTING = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.42, -0.38, 0.22));
+// Where it comes from: above, out of the dark, turned.
+const ENTER = REST.clone().add(new THREE.Vector3(0.35, 2.4, 1.6));
+const ENTERING = new THREE.Quaternion().setFromEuler(new THREE.Euler(1.3, -1.1, 0.9));
 const UPRIGHT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.16, -0.1, 0.05));
 
 // What the hand needs from the scene, filled in once it is built.
@@ -288,46 +291,58 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
   const shadowMat = stain(null, 0x17130f);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), shadowMat);
   shadow.position.z = 0.01; letter.add(shadow);
-  // The stamp, gothic: a die with a beaded rim, a collar crowned with iron
-  // thorns, a turned ebony handle, faceted, and a spire for a finial with
-  // thorns of its own. Built along its axis, the die toward the page.
+  // The stamp, built the way a cathedral's tower is: an octagonal die with
+  // a beaded rim, flying buttresses leaning in from its corners to the
+  // shaft, a shaft of clustered columns ringed with mouldings, a lantern
+  // pierced with pointed windows, and a plain octagonal pinnacle over it.
+  // Built along its axis, the die toward the page.
   const stamp = new THREE.Group(); stamp.visible = false; letter.add(stamp); stampObj = stamp;
   const PHOS = 0xc5bcab, GROUND = 0x121212;
-  const iron = dithered(new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 0.28, metalness: 0.75, emissive: 0x1c1a16 }), PHOS, GROUND);
-  const ebony = dithered(new THREE.MeshStandardMaterial({ color: 0x5a524a, roughness: 0.35, metalness: 0.2 }), PHOS, GROUND);
+  const iron = dithered(new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 0.3, metalness: 0.7, emissive: 0x1c1a16 }), PHOS, GROUND);
+  const stone = dithered(new THREE.MeshStandardMaterial({ color: 0x8a8278, roughness: 0.45, metalness: 0.25 }), PHOS, GROUND);
   const along = (m: THREE.Object3D, z: number) => { m.rotation.x = Math.PI / 2; m.position.z = z; stamp.add(m); return m; };
   const turned = (profile: [number, number][], m: THREE.Material, facets: number) =>
-    along(new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), facets), m), 0);
-  // The metal: die, rim and collar.
-  turned([[0, 0], [0.17, 0], [0.17, 0.035], [0.155, 0.045], [0.155, 0.06], [0.12, 0.075], [0.07, 0.1], [0.055, 0.13],
-    [0.09, 0.16], [0.095, 0.185], [0.06, 0.2], [0.05, 0.23], [0, 0.23]], iron, 16);
-  for (let k = 0; k < 20; k++) {
-    const a = (k / 20) * Math.PI * 2;
-    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), iron);
-    bead.position.set(Math.cos(a) * 0.162, Math.sin(a) * 0.162, 0.05); stamp.add(bead);
+    along(new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), facets, Math.PI / facets), m), 0);
+  // The die and its plinth, octagonal, stepped like a tower's base.
+  turned([[0, 0], [0.17, 0], [0.17, 0.035], [0.15, 0.045], [0.15, 0.07], [0.12, 0.08], [0.12, 0.11], [0.085, 0.12], [0, 0.12]], iron, 8);
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), iron);
+    bead.position.set(Math.cos(a) * 0.163, Math.sin(a) * 0.163, 0.05); stamp.add(bead);
   }
-  // The crown of thorns round the collar, leaning outward and up.
+  // The shaft: a core, and eight slender columns clustered round it.
+  turned([[0.05, 0.12], [0.05, 0.62], [0, 0.62]], stone, 8);
   for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    const thorn = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.1, 5), iron);
-    thorn.position.set(Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0.2);
-    thorn.lookAt(Math.cos(a) * 0.4, Math.sin(a) * 0.4, 0.55); thorn.rotateX(Math.PI / 2);
-    stamp.add(thorn);
+    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
+    const col = along(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.5, 6), stone), 0.37);
+    col.position.x = Math.cos(a) * 0.055; col.position.y = Math.sin(a) * 0.055;
   }
-  // The handle: turned ebony, faceted, swelling and narrowing, banded.
-  turned([[0.05, 0.23], [0.042, 0.3], [0.058, 0.36], [0.09, 0.44], [0.098, 0.5], [0.08, 0.56], [0.046, 0.6],
-    [0.04, 0.64], [0, 0.64]], ebony, 8);
-  along(new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 16), iron), 0.37);
-  along(new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.01, 6, 16), iron), 0.605);
-  // The finial: a spire, and small thorns round its foot.
-  turned([[0.04, 0.64], [0.07, 0.66], [0.07, 0.685], [0.034, 0.7], [0.03, 0.78], [0.016, 0.9], [0, 1.0]], iron, 8);
+  for (const z of [0.12, 0.3, 0.46, 0.62]) along(new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.013, 6, 8), iron), z);
+  // Four flying buttresses, each an arc from a corner of the plinth up to
+  // the shaft, a pinnacle where it springs.
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
-    const thorn = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.07, 4), iron);
-    thorn.position.set(Math.cos(a) * 0.05, Math.sin(a) * 0.05, 0.72);
-    thorn.lookAt(Math.cos(a) * 0.3, Math.sin(a) * 0.3, 0.95); thorn.rotateX(Math.PI / 2);
-    stamp.add(thorn);
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.011, 5, 12, Math.PI / 2), iron);
+    const holder = new THREE.Group(); holder.rotation.z = a; stamp.add(holder);
+    arch.rotation.x = Math.PI / 2; arch.position.set(0.07, 0, 0.12); holder.add(arch);
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.07, 4), iron);
+    pin.rotation.x = Math.PI / 2; pin.position.set(0.155, 0, 0.14); holder.add(pin);
   }
+  // The lantern: an octagon pierced with pointed windows (its ribs are what
+  // is left between them), capped by a cornice.
+  turned([[0.075, 0.62], [0.095, 0.64], [0.095, 0.76], [0.08, 0.77], [0, 0.77]], stone, 8);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.09), new THREE.MeshBasicMaterial({ color: 0x0c0b0a }));
+    const face = new THREE.Group(); face.rotation.z = a; stamp.add(face);
+    win.position.set(0.0955, 0, 0.695); win.rotation.set(Math.PI / 2, Math.PI / 2, 0); face.add(win);
+    const arch = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.03, 3), new THREE.MeshBasicMaterial({ color: 0x0c0b0a }));
+    arch.position.set(0.094, 0, 0.75); arch.rotation.x = Math.PI / 2; arch.scale.set(0.2, 1, 1); face.add(arch);
+  }
+  turned([[0.1, 0.77], [0.1, 0.79], [0, 0.79]], iron, 8);
+  // The pinnacle: plain, octagonal, and a small orb at its tip.
+  turned([[0.07, 0.79], [0.05, 0.83], [0.022, 0.95], [0, 1.02]], stone, 8);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 8), iron); orb.position.z = 1.02; stamp.add(orb);
   stamp.position.copy(REST); stamp.quaternion.copy(RESTING);
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   const key = new THREE.DirectionalLight(0xfff0e0, 2.2); key.position.set(-2, 3, 4); scene.add(key);
@@ -365,12 +380,17 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
       const a = toScreen(X(BODY.x), Y(BODY.y)), b = toScreen(X(BODY.x + BODY.w), Y(BODY.y + BODY.h));
       box.value = { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y, scale: (b.x - a.x) / BODY.w };
     } else if (p === 'drip') {
-      // Wax drips onto the ring in the corner; the stamp is laid beside it.
+      // Wax drips onto the ring in the corner, and the stamp comes down out
+      // of the dark, turning, to stand beside the letter.
       blot.visible = true; stamp.visible = true;
       const k = overshoot(clamp(u / 0.45));
       blot.scale.set(k, 1, k);
       ringMat.uniforms.strength!.value = clamp(u / 0.5) * 0.7;
-      if (u >= 0.5) setPhase('stamp');
+      const s = ease(clamp((u - 0.1) / 1.0)), settle = clamp((u - 0.95) / 0.3);
+      stamp.position.copy(ENTER).lerp(REST, s);
+      stamp.position.z += Math.sin(settle * Math.PI) * 0.03;
+      stamp.quaternion.copy(ENTERING).slerp(RESTING, s);
+      if (u >= 1.25) setPhase('stamp');
     } else if (p === 'stamp') {
       // At rest on its side until it is held; held, it stands up and follows
       // the hand, a shadow under it on the page.
@@ -440,7 +460,7 @@ function under(e: PointerEvent) {
 const local = (e: PointerEvent) => { const r = glass!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 // The middle of the stamp as it lies, for finding it under the pointer.
-const stampMiddle = () => stampObj!.localToWorld(new THREE.Vector3(0, 0, 0.4));
+const stampMiddle = () => stampObj!.localToWorld(new THREE.Vector3(0, 0, 0.45));
 function down(e: PointerEvent) {
   if (!cam || !stampObj || phase.value !== 'stamp') return;
   if (dist(local(e), onScreen(stampMiddle())) > 110) return;
