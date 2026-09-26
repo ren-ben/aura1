@@ -18,6 +18,8 @@ const BODY = { x: 90, y: 424, w: 820, h: 546 };
 const FONT = 32, LINE = 42;
 const W = 2.0, H = (W * PH) / PW;
 const INK = '#17130f';
+// The cup ring in the bottom corner, where the seal is pressed.
+const SEAT = { x: 205, y: 1128 };
 // Kept free under the letter for the button and the hint.
 const STRIP = 76;
 
@@ -48,15 +50,14 @@ function parchment(g: CanvasRenderingContext2D) {
 function age(g: CanvasRenderingContext2D, front: boolean) {
   g.fillStyle = 'rgba(60,50,38,.22)'; g.fillRect(0, PH / 2 - 1, PW, 2);
   g.fillStyle = 'rgba(255,250,238,.25)'; g.fillRect(0, PH / 2 + 1, PW, 1);
+  // A ring where a cup once stood: where the seal goes.
   if (front) {
     g.strokeStyle = 'rgba(92,70,48,.16)'; g.lineWidth = 7;
-    g.beginPath(); g.arc(170, 1170, 66, 0.4, Math.PI * 1.85); g.stroke();
-    g.lineWidth = 2; g.beginPath(); g.arc(172, 1168, 58, 1.2, Math.PI * 1.4); g.stroke();
+    g.beginPath(); g.arc(SEAT.x, SEAT.y, 70, 0.4, Math.PI * 1.85); g.stroke();
+    g.lineWidth = 2; g.beginPath(); g.arc(SEAT.x + 2, SEAT.y - 2, 62, 1.2, Math.PI * 1.4); g.stroke();
   }
-  // The corner, turned down: its shadow on the page, then the flap.
+  // The corner, turned down: cut away, and folded over onto the page.
   const C = 92;
-  g.fillStyle = 'rgba(30,24,18,.35)';
-  g.beginPath(); g.moveTo(PW - C - 4, 0); g.lineTo(PW - C - 4, C + 6); g.lineTo(PW, C + 4); g.closePath(); g.fill();
   g.globalCompositeOperation = 'destination-out';
   g.beginPath(); g.moveTo(PW - C, 0); g.lineTo(PW, 0); g.lineTo(PW, C); g.closePath(); g.fill();
   // The tear, and the worn edges.
@@ -69,9 +70,16 @@ function age(g: CanvasRenderingContext2D, front: boolean) {
     g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
   }
   g.globalCompositeOperation = 'source-over';
-  g.fillStyle = '#c6bca6';
+  // The flap: a shade darker than the page, its shadow a soft band along
+  // the fold only.
+  const shade = g.createLinearGradient(PW - C / 2, C / 2, PW - C / 2 - 14, C / 2 + 14);
+  shade.addColorStop(0, 'rgba(30,24,18,.28)'); shade.addColorStop(1, 'rgba(30,24,18,0)');
+  g.fillStyle = shade;
+  g.beginPath(); g.moveTo(PW - C, 0); g.lineTo(PW, C); g.lineTo(PW - 14, C + 14); g.lineTo(PW - C - 14, 14); g.closePath(); g.fill();
+  g.fillStyle = '#c9bfa9';
   g.beginPath(); g.moveTo(PW - C, 0); g.lineTo(PW - C, C); g.lineTo(PW, C); g.closePath(); g.fill();
-  g.strokeStyle = 'rgba(60,50,38,.4)'; g.lineWidth = 2; g.stroke();
+  g.strokeStyle = 'rgba(60,50,38,.35)'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(PW - C, 0); g.lineTo(PW, C); g.stroke();
 }
 function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, lh: number) {
   for (const para of text.split('\n')) {
@@ -102,9 +110,10 @@ function drawPage() {
 function drawBack() {
   const g = back.getContext('2d')!;
   parchment(g);
-  // Folded, the back of the upper half shows turned over: the address is
-  // written there upside down on the flat page.
-  g.save(); g.translate(PW / 2, PH * 0.1); g.rotate(Math.PI);
+  // Folded, the back of the upper half shows turned over top to bottom: the
+  // address is written there upside down on the flat page (mirrored in
+  // height only).
+  g.save(); g.translate(PW / 2, PH * 0.1); g.scale(1, -1);
   g.fillStyle = INK; g.font = '52px UnifrakturMaguntia, serif'; g.textAlign = 'center';
   g.fillText("Kael'thos", 0, 0);
   g.restore();
@@ -156,17 +165,18 @@ function sigil(size: number, pressed: boolean): HTMLCanvasElement {
   g.fillStyle = '#2a0805'; g.beginPath(); g.ellipse(c, c, R * 0.045, R * 0.15, 0, 0, 7); g.fill();
   return cv;
 }
-// Where the stamp goes: a ring of runes, drawn once, turned slowly.
+// Where the stamp goes: a ring of square dots and runes, the way the
+// console's frames are dotted, drawn once.
 function runeRing(size: number): HTMLCanvasElement {
   const cv = document.createElement('canvas'); cv.width = cv.height = size;
   const g = cv.getContext('2d')!, c = size / 2;
-  g.strokeStyle = '#e6e0d4'; g.lineWidth = 3;
-  g.setLineDash([10, 12]); g.beginPath(); g.arc(c, c, size * 0.45, 0, 7); g.stroke();
-  g.setLineDash([]); g.lineWidth = 2;
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    g.save(); g.translate(c + Math.cos(a) * size * 0.38, c + Math.sin(a) * size * 0.38); g.rotate(a);
-    g.beginPath(); g.moveTo(-6, -8); g.lineTo(0, 8); g.lineTo(6, -8); if (i % 2) { g.moveTo(-8, 0); g.lineTo(8, 0); } g.stroke(); g.restore();
+  g.fillStyle = '#fff';
+  for (let i = 0; i < 44; i++) { const a = (i / 44) * Math.PI * 2; g.fillRect(Math.round(c + Math.cos(a) * size * 0.46) - 3, Math.round(c + Math.sin(a) * size * 0.46) - 3, 6, 6); }
+  g.strokeStyle = '#fff'; g.lineWidth = 4; g.lineCap = 'square';
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    g.save(); g.translate(c + Math.cos(a) * size * 0.37, c + Math.sin(a) * size * 0.37); g.rotate(a + Math.PI / 2);
+    g.beginPath(); g.moveTo(-9, -10); g.lineTo(0, 10); g.lineTo(9, -10); if (i % 2) { g.moveTo(-11, 0); g.lineTo(11, 0); } g.stroke(); g.restore();
   }
   return cv;
 }
@@ -175,23 +185,63 @@ drawPage(); drawBack();
 document.fonts.ready.then(() => { drawPage(); drawBack(); });
 watch(() => [props.heading, props.modelValue], drawPage);
 
+// ---- the console's dither, on single things ------------------------------
+// The letter is drawn crisp, to be read; the wax, the stamp and the ring on
+// it are thresholded to two inks the way every other scene is, in cells of
+// the same size.
+const CELL = 2 * Math.min(devicePixelRatio, 2);
+const BAYER = `
+  float b2(vec2 a) { a = floor(mod(a, 2.0)); return mod(a.x * 2.0 + a.y * 3.0, 4.0); }
+  float bayer(vec2 p) { return (4.0 * b2(p) + b2(floor(p / 2.0))) / 16.0; }`;
+function dithered<M extends THREE.Material>(m: M, ink: number, ground: number): M {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.inkC = { value: new THREE.Color(ink) };
+    sh.uniforms.groundC = { value: new THREE.Color(ground) };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('void main() {', `uniform vec3 inkC; uniform vec3 groundC;${BAYER}\nvoid main() {`)
+      .replace(/}\s*$/, `  float l = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+  gl_FragColor = vec4(l > bayer(floor(gl_FragCoord.xy / ${CELL.toFixed(1)})) + 0.015 ? inkC : groundC, 1.0);
+}`);
+  };
+  return m;
+}
+// A dithered stain in one ink, fading out by a strength: the shadow, the ring.
+function stain(map: THREE.Texture | null, ink: number) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { map: { value: map }, strength: { value: 0 }, inkC: { value: new THREE.Color(ink) } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D map; uniform float strength; uniform vec3 inkC; varying vec2 vUv;${BAYER}
+      void main() {
+        float a = ${map ? 'texture2D(map, vUv).a' : 'smoothstep(0.5, 0.0, length(vUv - 0.5))'} * strength;
+        if (a <= bayer(floor(gl_FragCoord.xy / ${CELL.toFixed(1)})) + 0.02) discard;
+        gl_FragColor = vec4(inkC, 1.0);
+      }`,
+  });
+}
+
 // ---- the scene -----------------------------------------------------------
-type Phase = 'open' | 'write' | 'fold' | 'drip' | 'stamp' | 'press' | 'fly' | 'gone';
+type Phase = 'open' | 'write' | 'drip' | 'stamp' | 'press' | 'fold' | 'fly' | 'gone';
 const phase = ref<Phase>(reduced() ? 'write' : 'open');
 const box = ref({ left: 0, top: 0, width: 0, height: 0, scale: 1 });
 const grab = ref<'' | 'near' | 'held'>('');
 let started = performance.now() / 1000;
 const setPhase = (p: Phase) => { phase.value = p; started = performance.now() / 1000; };
 
-// What the pointer needs from the scene, filled in once it is built.
-let cam: THREE.PerspectiveCamera | null = null, glass: HTMLCanvasElement | null = null;
-let stampAt: THREE.Vector3 | null = null;
+// Where things are, in the letter's plane (it lies at the origin, facing us).
+const X = (px: number) => -W / 2 + (px / PW) * W, Y = (py: number) => H / 2 - (py / PH) * H;
+const SEAL = new THREE.Vector3(X(SEAT.x), Y(SEAT.y), 0);
+const HOLD_Z = 0.5;
+// The stamp at rest: on its side on the desk, left of the letter, its die
+// toward the page.
+const REST = new THREE.Vector3(-W / 2 - 0.22, SEAL.y + 0.05, 0.2);
+const LYING = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, -Math.PI / 2, 0));
+const UPRIGHT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, 0, 0));
+
+// What the hand needs from the scene, filled in once it is built.
+let cam: THREE.PerspectiveCamera | null = null, glass: HTMLCanvasElement | null = null, stampObj: THREE.Group | null = null;
 const want = new THREE.Vector3(), pressFrom = new THREE.Vector3();
-let held = false, moved = false, press0 = { x: 0, y: 0 };
-const HOVER_Z = 0.45;
-const SEAL_Y = -H / 4;
-const HOME = new THREE.Vector3(W / 2 + 0.55, SEAL_Y + 0.2, HOVER_Z);
-const TARGET = new THREE.Vector3(0, SEAL_Y, HOVER_Z);
+let held = false;
 
 function half(top: boolean) {
   const g = new THREE.Group();
@@ -215,37 +265,43 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
   const upper = half(true); upper.position.y = H / 4; hinge.add(upper);
   const lower = half(false); lower.position.y = -H / 4; letter.add(lower);
 
-  // The wax: a blot with a ragged edge, first smooth, then pressed.
+  // The wax: a blot with a ragged edge, in two reds; smooth, then pressed.
   const smooth = new THREE.CanvasTexture(sigil(512, false)), pressed = new THREE.CanvasTexture(sigil(512, true));
   smooth.colorSpace = pressed.colorSpace = THREE.SRGBColorSpace;
-  const blotGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.035, 48, 1);
+  const blotGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.03, 48, 1);
   const pos = blotGeo.attributes.position!;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    if (Math.hypot(x, z) > 0.2) { const a = Math.atan2(z, x), k = 1 + 0.07 * Math.sin(a * 5) + 0.05 * Math.sin(a * 11 + 1); pos.setX(i, x * k); pos.setZ(i, z * k); }
+    if (Math.hypot(x, z) > 0.15) { const a = Math.atan2(z, x), k = 1 + 0.07 * Math.sin(a * 5) + 0.05 * Math.sin(a * 11 + 1); pos.setX(i, x * k); pos.setZ(i, z * k); }
   }
   blotGeo.computeVertexNormals();
-  const waxSide = new THREE.MeshStandardMaterial({ color: 0x5a140f, roughness: 0.35, emissive: 0x2a0806 });
-  const waxTop = new THREE.MeshStandardMaterial({ map: smooth, roughness: 0.35, emissive: 0x220605, emissiveMap: smooth });
+  const RED = 0xb4402f, DEEP = 0x2c0906;
+  const waxSide = dithered(new THREE.MeshStandardMaterial({ color: 0x8a2a20, roughness: 0.35 }), RED, DEEP);
+  const waxTop = dithered(new THREE.MeshStandardMaterial({ map: smooth, roughness: 0.35, emissive: 0x552018, emissiveMap: smooth }), RED, DEEP);
   const blot = new THREE.Mesh(blotGeo, [waxSide, waxTop, waxSide]);
-  blot.rotation.x = Math.PI / 2; blot.visible = false; letter.add(blot);
-  // The ring that shows where the stamp goes.
-  const ringMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(runeRing(256)), transparent: true, opacity: 0, depthWrite: false });
-  const ring = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.78), ringMat);
-  ring.position.set(0, SEAL_Y, 0.04); letter.add(ring);
-  // The stamp: a dark handle, a brass neck and the die, the die toward the page.
-  const stamp = new THREE.Group(); stamp.visible = false; letter.add(stamp);
-  const brass = new THREE.MeshStandardMaterial({ color: 0xb8a67e, roughness: 0.3, metalness: 0.8 });
-  const wood = new THREE.MeshStandardMaterial({ color: 0x2c2621, roughness: 0.5, metalness: 0.1 });
+  blot.rotation.x = Math.PI / 2; blot.position.set(SEAL.x, SEAL.y, 0.02); blot.visible = false; lower.parent!.add(blot);
+  // The ring that shows where the stamp goes, and the stamp's shadow.
+  const ringTex = new THREE.CanvasTexture(runeRing(256));
+  const ringMat = stain(ringTex, 0x17130f);
+  const ring = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), ringMat);
+  ring.position.set(SEAL.x, SEAL.y, 0.04); letter.add(ring);
+  const shadowMat = stain(null, 0x17130f);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), shadowMat);
+  shadow.position.z = 0.01; letter.add(shadow);
+  // The stamp: a dark handle, a brass collar and neck, the die.
+  const stamp = new THREE.Group(); stamp.visible = false; letter.add(stamp); stampObj = stamp;
+  const PHOS = 0xc5bcab, GROUND = 0x121212;
+  const brass = dithered(new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.3, metalness: 0.6, emissive: 0x2a2620 }), PHOS, GROUND);
+  const wood = dithered(new THREE.MeshStandardMaterial({ color: 0x6a625a, roughness: 0.5, metalness: 0.1 }), PHOS, GROUND);
   const part = (geo: THREE.BufferGeometry, m: THREE.Material, z: number) => { const x = new THREE.Mesh(geo, m); x.rotation.x = Math.PI / 2; x.position.z = z; stamp.add(x); };
-  part(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 40), brass, 0.03);
-  part(new THREE.CylinderGeometry(0.06, 0.12, 0.1, 24), brass, 0.11);
-  part(new THREE.CylinderGeometry(0.075, 0.055, 0.42, 24), wood, 0.37);
-  part(new THREE.TorusGeometry(0.075, 0.012, 8, 24), brass, 0.2);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), wood); knob.position.z = 0.62; stamp.add(knob);
-  stamp.position.copy(HOME); stampAt = stamp.position;
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const key = new THREE.DirectionalLight(0xfff0e0, 1.6); key.position.set(-2, 3, 4); scene.add(key);
+  part(new THREE.CylinderGeometry(0.17, 0.17, 0.06, 40), brass, 0.03);
+  part(new THREE.CylinderGeometry(0.05, 0.1, 0.1, 24), brass, 0.11);
+  part(new THREE.CylinderGeometry(0.068, 0.05, 0.42, 24), wood, 0.37);
+  part(new THREE.TorusGeometry(0.068, 0.012, 8, 24), brass, 0.2);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 24, 16), wood); knob.position.z = 0.62; stamp.add(knob);
+  stamp.position.copy(REST); stamp.quaternion.copy(LYING);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const key = new THREE.DirectionalLight(0xfff0e0, 2.2); key.position.set(-2, 3, 4); scene.add(key);
 
   const v = new THREE.Vector3();
   const toScreen = (x: number, y: number) => {
@@ -255,65 +311,73 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
   const ease = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
   const overshoot = (u: number) => 1 + 2.2 * (u - 1) ** 3 + 1.2 * (u - 1) ** 2;
   const clamp = (u: number) => Math.max(0, Math.min(1, u));
+  const upright = new THREE.Quaternion();
   return (t: number, dt: number) => {
-    // Framed with room beside the letter for the stamp, and a strip below.
+    // Framed with room left of the letter for the stamp, and a strip below.
     const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), h = canvas.clientHeight || 600;
     const half = (H / 2 + 0.2) * (h / Math.max(1, h - STRIP));
-    const d = Math.max(half / f, (W / 2 + 1.0) / (f * camera.aspect));
+    const d = Math.max(half / f, (W / 2 + 0.95) / (f * camera.aspect));
     const V = d * f, strip = (STRIP / h) * 2 * V;
-    camera.position.set(0, -strip / 2, d); camera.lookAt(0, -strip / 2, 0);
+    camera.position.set(-0.25, -strip / 2, d); camera.lookAt(-0.25, -strip / 2, 0);
     const u = performance.now() / 1000 - started, calm = reduced();
     const p = phase.value;
     if (p === 'open') {
-      // It arrives folded, rising out of the dark, and opens.
+      // It arrives folded, rising out of the dark, and opens, ending exactly
+      // where it will rest.
       const k = ease(clamp(u / 0.9)), o = ease(clamp((u - 0.8) / 0.7));
       letter.position.set(0, -2.6 * (1 - k), 0);
       letter.rotation.set(0.6 * (1 - k), 0, -0.25 * (1 - k));
       hinge.rotation.x = Math.PI * (1 - o);
       hinge.position.z = 0.006 * (1 - o);
-      if (u >= 1.55) { hinge.rotation.x = 0; hinge.position.z = 0; setPhase('write'); }
+      if (u >= 1.5) setPhase('write');
     } else if (p === 'write') {
-      letter.position.set(0, calm ? 0 : Math.sin(t * 0.8) * 0.008, 0); letter.rotation.set(0, 0, 0);
+      letter.position.set(0, 0, 0); letter.rotation.set(0, 0, 0); hinge.rotation.x = 0; hinge.position.z = 0;
       group.updateMatrixWorld();
-      const a = toScreen(-W / 2 + (BODY.x / PW) * W, H / 2 - (BODY.y / PH) * H);
-      const b = toScreen(-W / 2 + ((BODY.x + BODY.w) / PW) * W, H / 2 - ((BODY.y + BODY.h) / PH) * H);
+      const a = toScreen(X(BODY.x), Y(BODY.y)), b = toScreen(X(BODY.x + BODY.w), Y(BODY.y + BODY.h));
       box.value = { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y, scale: (b.x - a.x) / BODY.w };
-    } else if (p === 'fold') {
-      letter.position.set(0, 0, 0);
-      const k = ease(clamp(u / 0.75));
-      hinge.rotation.x = Math.PI * k;
-      hinge.position.z = 0.006 * k;
-      if (u >= 0.85) setPhase('drip');
     } else if (p === 'drip') {
-      blot.visible = true;
-      blot.position.set(0, SEAL_Y, 0.03);
+      // Wax drips onto the ring in the corner; the stamp is laid beside it.
+      blot.visible = true; stamp.visible = true;
       const k = overshoot(clamp(u / 0.45));
       blot.scale.set(k, 1, k);
-      if (u >= 0.5) { stamp.visible = true; stamp.position.set(HOME.x, HOME.y - 1.5, HOME.z); setPhase('stamp'); }
+      ringMat.uniforms.strength!.value = clamp(u / 0.5) * 0.7;
+      if (u >= 0.5) setPhase('stamp');
     } else if (p === 'stamp') {
-      // The stamp waits beside the letter, or follows the hand that holds it.
-      const goal = held ? want : HOME.clone().setY(HOME.y + (calm ? 0 : Math.sin(t * 1.4) * 0.04));
-      stamp.position.lerp(goal, 1 - Math.exp(-dt * (held ? 18 : 6)));
-      stamp.rotation.set(held ? 0.1 : 0.25, held ? -0.15 : -0.45, calm ? 0 : Math.sin(t * 0.7) * 0.1);
-      // The ring glows, brighter the nearer the stamp comes.
-      const near = clamp(1 - stamp.position.distanceTo(TARGET) / 1.2);
-      ringMat.opacity = (0.35 + 0.25 * Math.sin(t * 3)) * (1 - near) + near * 0.95;
-      ring.rotation.z = t * 0.3;
-      ring.scale.setScalar(1 + near * 0.08);
+      // At rest on its side until it is held; held, it stands up and follows
+      // the hand, a shadow under it on the page.
+      stamp.position.lerp(held ? want : REST, 1 - Math.exp(-dt * (held ? 20 : 9)));
+      stamp.quaternion.slerp(held ? UPRIGHT : LYING, 1 - Math.exp(-dt * 12));
+      const lift = clamp((stamp.position.z - 0.05) / HOLD_Z);
+      shadow.position.set(stamp.position.x + lift * 0.08, stamp.position.y - lift * 0.1, 0.01);
+      shadow.scale.setScalar(0.6 + lift * 0.5);
+      shadowMat.uniforms.strength!.value = held ? 0.7 - lift * 0.35 : 0;
+      // The ring breathes, and burns brighter the nearer the stamp comes.
+      const near = held ? clamp(1 - Math.hypot(stamp.position.x - SEAL.x, stamp.position.y - SEAL.y) / 0.9) : 0;
+      ringMat.uniforms.strength!.value = (calm ? 0.6 : 0.5 + 0.2 * Math.sin(t * 3)) * (1 - near) + near * 1.1;
+      ring.scale.setScalar(1 + near * 0.1);
     } else if (p === 'press') {
-      // Over the wax, down, pressed, the mark left; lifted away.
-      const from = pressFrom;
-      const over = ease(clamp(u / 0.4)), down = ease(clamp((u - 0.4) / 0.22)), up = ease(clamp((u - 0.85) / 0.45));
-      const press = clamp((u - 0.6) / 0.08) * (1 - clamp((u - 0.8) / 0.08));
-      const x = from.x + (TARGET.x - from.x) * over, y = from.y + (TARGET.y - from.y) * over;
-      stamp.position.set(x, y, (from.z + (HOVER_Z - from.z) * over) * (1 - down) + 0.05 * down - press * 0.012 + up * 2.4);
-      stamp.rotation.set(0.25 * (1 - over), -0.45 * (1 - over), up * -0.8);
-      stamp.scale.setScalar(1 - up * 0.4);
+      // Over the wax, straight down, pressed, the mark left; back to its place.
+      const over = ease(clamp(u / 0.25)), down = ease(clamp((u - 0.25) / 0.18)), back = ease(clamp((u - 0.7) / 0.5));
+      const press = clamp((u - 0.43) / 0.06) * (1 - clamp((u - 0.58) / 0.08));
+      const at = pressFrom.clone().lerp(new THREE.Vector3(SEAL.x, SEAL.y, HOLD_Z), over);
+      at.z = at.z * (1 - down) + 0.035 * down - press * 0.01;
+      stamp.position.copy(at.lerp(REST, back));
+      upright.copy(UPRIGHT).slerp(LYING, back);
+      stamp.quaternion.copy(upright);
       blot.scale.set(1 + press * 0.12, 1 - press * 0.35, 1 + press * 0.12);
-      if (u > 0.66 && waxTop.map !== pressed) { waxTop.map = pressed; waxTop.emissiveMap = pressed; waxTop.needsUpdate = true; }
-      ringMat.opacity = Math.max(0, 0.95 - u * 2);
+      if (u > 0.5 && waxTop.map !== pressed) { waxTop.map = pressed; waxTop.emissiveMap = pressed; waxTop.needsUpdate = true; }
+      ringMat.uniforms.strength!.value = Math.max(0, 1.1 - u * 2.5);
+      shadowMat.uniforms.strength!.value = (1 - back) * 0.6;
+      shadow.position.set(stamp.position.x, stamp.position.y, 0.01);
       letter.position.x = calm ? 0 : press * Math.sin(u * 90) * 0.01;
-      if (u >= 1.45) { stamp.visible = false; letter.position.x = 0; setPhase('fly'); }
+      if (u >= 1.3) { letter.position.x = 0; setPhase('fold'); }
+    } else if (p === 'fold') {
+      // The upper half folds down over the writing and the seal.
+      const k = ease(clamp(u / 0.8));
+      hinge.rotation.x = Math.PI * k;
+      hinge.position.z = 0.05 * k;
+      stamp.visible = u < 0.2;
+      if (u >= 0.9) setPhase('fly');
     } else if (p === 'fly') {
       const k = ease(clamp(u / 1.3));
       const dir = new THREE.Vector3(-0.9, -0.86, 0.5).unproject(camera).sub(camera.position).normalize();
@@ -327,53 +391,48 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
 };
 
 // ---- the hand ----------------------------------------------------------------
-function fold() {
+function seal() {
   if (props.busy || props.modelValue.trim().length < 3 || phase.value !== 'write') return;
-  setPhase('fold');
+  setPhase('drip');
 }
-function pressIt() {
-  if (phase.value !== 'stamp') return;
-  held = false; grab.value = '';
-  if (stampAt) pressFrom.copy(stampAt);
-  emit('send');
-  setPhase('press');
-}
-const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) fold(); };
-// Where a point in the scene is on screen, and the point in the stamp's
-// plane under the pointer.
+const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) seal(); };
+// Where a point of the scene is on the screen, and the point at holding
+// height under the pointer.
 const onScreen = (p: THREE.Vector3) => {
   const v = p.clone().project(cam!);
   return { x: ((v.x + 1) / 2) * glass!.clientWidth, y: ((1 - v.y) / 2) * glass!.clientHeight };
 };
 function under(e: PointerEvent) {
   const r = glass!.getBoundingClientRect();
-  const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, cam!);
-  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -HOVER_Z), new THREE.Vector3());
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), cam!);
+  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -HOLD_Z), new THREE.Vector3());
 }
 const local = (e: PointerEvent) => { const r = glass!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+// The middle of the stamp as it lies, for finding it under the pointer.
+const stampMiddle = () => stampObj!.localToWorld(new THREE.Vector3(0, 0, 0.3));
 function down(e: PointerEvent) {
-  if (!cam || !stampAt || phase.value !== 'stamp') return;
-  const at = local(e);
-  if (dist(at, onScreen(stampAt)) > 90) return;
-  held = true; moved = false; press0 = at; grab.value = 'held';
+  if (!cam || !stampObj || phase.value !== 'stamp') return;
+  if (dist(local(e), onScreen(stampMiddle())) > 110) return;
+  held = true; grab.value = 'held';
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   const p = under(e); if (p) want.copy(p);
 }
 function move(e: PointerEvent) {
-  if (!cam || !stampAt || phase.value !== 'stamp') return;
-  const at = local(e);
-  if (!held) { grab.value = dist(at, onScreen(stampAt)) < 90 ? 'near' : ''; return; }
-  if (dist(at, press0) > 6) moved = true;
+  if (!cam || !stampObj || phase.value !== 'stamp') return;
+  if (!held) { grab.value = dist(local(e), onScreen(stampMiddle())) < 110 ? 'near' : ''; return; }
   const p = under(e); if (p) want.copy(p);
 }
+// Let go over the wax, and it presses; anywhere else, and it is laid back.
 function up() {
-  if (!held) return;
+  if (!held || !stampObj) return;
   held = false; grab.value = '';
-  // A click presses it for you; a drop on the wax presses it by hand; a drop
-  // anywhere else and it drifts back.
-  if (!moved || dist(onScreen(stampAt!), onScreen(TARGET)) < 80) pressIt();
+  if (dist(onScreen(stampObj.position), onScreen(new THREE.Vector3(SEAL.x, SEAL.y, HOLD_Z))) < 80) {
+    pressFrom.copy(stampObj.position);
+    emit('send');
+    setPhase('press');
+  }
 }
 onBeforeUnmount(() => { pageTex.dispose(); backTex.dispose(); });
 </script>
@@ -387,13 +446,13 @@ onBeforeUnmount(() => { pageTex.dispose(); backTex.dispose(); });
                 @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)" @keydown="onKey"></textarea>
       <div v-if="phase === 'stamp'" class="hand" :class="grab" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up"></div>
       <Transition name="fade" mode="out-in">
-        <button v-if="phase === 'write'" key="fold" class="btn send" :disabled="busy || modelValue.trim().length < 3" title="ctrl + enter" @click="fold">
-          <i class="blot" aria-hidden="true"></i>fold it // seal it
+        <button v-if="phase === 'write' || phase === 'open'" key="seal" class="btn send" :disabled="busy || phase === 'open' || modelValue.trim().length < 3" title="ctrl + enter" @click="seal">
+          <i class="blot" aria-hidden="true"></i>seal it
         </button>
-        <p v-else-if="phase === 'stamp'" key="hint" class="send hint-line pix">take the stamp and press it into the wax // or click it</p>
+        <p v-else-if="phase === 'stamp'" key="hint" class="send hint-line pix">hold the stamp // press it into the wax</p>
       </Transition>
     </div>
-    <aside v-if="(phase === 'write' || phase === 'open') && topics.length" class="syllabus">
+    <aside v-if="topics.length" class="syllabus" :class="{ done: phase !== 'write' && phase !== 'open' }">
       <p class="pix">the syllabus, in order</p>
       <ol>
         <li v-for="(t, i) in topics" :key="i" :class="{ near: i === guessed, now: modelValue.includes(t) }">
@@ -428,7 +487,9 @@ onBeforeUnmount(() => { pageTex.dispose(); backTex.dispose(); });
 .fade-enter-active, .fade-leave-active { transition: opacity .3s var(--out); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .syllabus { position: relative; z-index: 1; width: 320px; flex: none; overflow: auto; overscroll-behavior: contain; padding: 20px 20px 130px; background: var(--ground); border-left: 3px dotted var(--low);
-  scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
+  scrollbar-width: thin; scrollbar-color: var(--low) transparent; transition: opacity .6s var(--out); }
+/* Once sealed, the syllabus stays where it is, only quieter. */
+.syllabus.done { opacity: .3; pointer-events: none; }
 .syllabus ol { list-style: none; margin: 12px 0 16px; padding: 0; display: grid; gap: 0; }
 .syllabus li { display: grid; grid-template-columns: 26px 1fr; align-items: baseline; padding: 6px 0; border-bottom: 1px dotted var(--faint); }
 .syllabus .n { color: var(--low); }

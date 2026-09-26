@@ -147,6 +147,8 @@ const pointers = new Map<number, { x: number; y: number }>();
 let pinch = 0;
 const dragging = ref(false);
 function down(e: PointerEvent) {
+  // Before there is a map, the pointer belongs to the letter.
+  if (!map.value) return;
   if ((e.target as HTMLElement).closest('button, a, input, textarea, .gl')) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   stage.value!.setPointerCapture(e.pointerId);
