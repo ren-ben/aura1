@@ -116,8 +116,12 @@ std::vector<std::string> wrap(const Canvas& c, const std::string& text, int w) {
   return lines;
 }
 
-// The first row shown so the cursor stays on screen.
-int firstRow(int cur, int visible) { return cur >= visible ? cur - visible + 1 : 0; }
+// The first row shown: the list moves on while the cursor is still a row
+// from the bottom, so the next item is always in view before SUN reaches it.
+int firstRow(int cur, int visible, int count) {
+  if (visible < 2) return cur;
+  return std::max(0, std::min(cur + 2 - visible, count - visible));
+}
 
 void gear(Canvas& c, int x, int y, bool selected, uint8_t ink) {
   if (selected) { c.fillCircle(x + 6, y + 6, 10, ink); c.icon(x, y, GEAR, 13, other(ink)); }
@@ -278,7 +282,7 @@ public:
     c.font(&FreeSerifBold9pt7b); c.text(title(t), 14, 18); rule(c, 26);
   }
   static void rows(Canvas& c, const Rows& r, int top, int visible, bool center) {
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 24;
       const bool sel = i == r.cur;
@@ -366,7 +370,7 @@ public:
   static void spine(Canvas& c, const Rows& r, int visible, int toCat) {
     constexpr int X = 16, TOP = 38, STEP = 26;
     const int n = static_cast<int>(r.items.size());
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     const int shown = std::min(n - first, visible);
     const int end = toCat ? 168 : TOP + (shown - 1) * STEP;
     for (int y = TOP; y <= end; y += 2) c.pixel(X, y, INK);
@@ -562,7 +566,7 @@ public:
       c.font(nullptr, 2); c.text(head, 6, 30);
       small(c, num(std::max(r.cur, 0)) + "/" + num(n - 1), 164, 34, INK);
     }
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < n && i < first + visible; ++i) {
       const int y = top + (i - first) * step;
       const bool sel = i == r.cur;
@@ -668,7 +672,7 @@ public:
     }
   }
   static void items(Canvas& c, const Rows& r, int top, int visible) {
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 22;
       const bool sel = i == r.cur;
@@ -758,7 +762,7 @@ public:
     c.font(&Fraktur20); c.text(w.substr(1), 44, 30); c.hline(44, 36, 100, INK);
   }
   static void toc(Canvas& c, const Rows& r, int top, int visible) {
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     const bool checks = !r.checks.empty();
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 21;
@@ -888,7 +892,7 @@ public:
     c.vline(l + 6, cy - 4, 9, PAPER); c.hline(l + 3, cy - 2, 7, PAPER);  // a cross on the lid
   }
   static void items(Canvas& c, const Rows& r, int top, int visible) {
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 22;
       const bool sel = i == r.cur;
@@ -974,7 +978,7 @@ public:
   }
   static void rows(Canvas& c, const std::string& head, const Rows& r, int visible) {
     c.font(&Pirata24); c.text(title(head), 10, 40, PAPER);
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = 70 + (i - first) * 24;
       const bool sel = i == r.cur;
@@ -1083,7 +1087,7 @@ public:
   // A row: the label in Tektur, what it is set to in Silkscreen, and when it
   // is the one selected, a lit bar with the light spilling off its edges.
   static void rows(Canvas& c, const Rows& r, int top, int visible) {
-    const int first = firstRow(std::max(r.cur, 0), visible);
+    const int first = firstRow(std::max(r.cur, 0), visible, static_cast<int>(r.items.size()));
     for (int i = first; i < static_cast<int>(r.items.size()) && i < first + visible; ++i) {
       const int y = top + (i - first) * 17;
       const bool sel = i == r.cur;
@@ -1418,7 +1422,7 @@ Now nowOf(const ViewModel& vm) {
 void planBus(Canvas& c, const ViewModel& vm, uint8_t ink) {
   const uint8_t paper = other(ink);
   c.font(&Silk8);
-  c.text("THE REWIRING // " + clockOf(vm.now), 8, 12, ink);
+  c.text("KRONOS // " + clockOf(vm.now), 8, 12, ink);
   const Now n = nowOf(vm);
   c.text(n.label, 8, 30, ink);
   c.font(&Grenze18);

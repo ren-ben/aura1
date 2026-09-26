@@ -533,7 +533,7 @@ void SessionMachine::redrawSettings() {
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Plan, Place::Habits, Place::Vigil }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Plan, Place::Vigil }) places.push_back(p);
   // Always offered, empty or not: a menu that hides the library until a sync
   // has been through is a menu with a missing item as far as anyone holding
   // the device is concerned.
@@ -667,8 +667,8 @@ void SessionMachine::draw(int minutes) {
           case Place::Todos: vm.items.push_back("TODAY " + doneOf(daily_.todos())); break;
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
           case Place::Shelf: vm.items.push_back("READ"); break;
-          case Place::Vigil: vm.items.push_back("VIGIL"); break;
-          case Place::Plan: vm.items.push_back("WIRING"); break;
+          case Place::Vigil: vm.items.push_back("PEACE"); break;
+          case Place::Plan: vm.items.push_back("KRONOS"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
@@ -681,7 +681,7 @@ void SessionMachine::draw(int minutes) {
     case Place::Todos: list("TODAY", daily_.todos()); break;
     case Place::Plan: {
       const uint64_t now = clock_.nowEpochSeconds();
-      vm.title = "WIRING";
+      vm.title = "KRONOS";
       vm.taps = daily_.plan();
       vm.now = daily_.minuteOfDay(now);
       planDrawn_ = now / PLAN_REDRAW_SECONDS;
@@ -772,12 +772,12 @@ void SessionMachine::draw(int minutes) {
       const auto length = [](int m) { return m ? std::to_string(m) + " MIN" : std::string("OPEN"); };
       if (ps.empty()) {
         // Its practices come with the first sync.
-        vm.title = "VIGIL";
+        vm.title = "PEACE";
         vm.items.push_back("SYNC FIRST");
         vm.values.push_back("");
         vm.cursor = 0;
       } else if (!choosingLength_) {
-        vm.title = "VIGIL";
+        vm.title = "PEACE";
         for (const auto& p : ps) { vm.items.push_back(p.name); vm.values.push_back(length(sitLength(p))); }
         vm.cursor = static_cast<int>(vigilCursor_ % ps.size());
       } else {

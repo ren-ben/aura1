@@ -566,8 +566,9 @@ void test_the_menu_shows_todays_progress() {
   m.begin();
   m.handle(Input::SunLong);
   TEST_ASSERT_EQUAL_STRING("TODAY 1/2", rig.renderer.last().items[1].c_str());
-  TEST_ASSERT_EQUAL_STRING("WIRING", rig.renderer.last().items[2].c_str());
-  TEST_ASSERT_EQUAL_STRING("HABITS 0/1", rig.renderer.last().items[3].c_str());
+  TEST_ASSERT_EQUAL_STRING("HABITS 0/1", rig.renderer.last().items[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("KRONOS", rig.renderer.last().items[3].c_str());
+  TEST_ASSERT_EQUAL_STRING("PEACE", rig.renderer.last().items[4].c_str());
 }
 
 void test_power_ticks_a_todo_and_the_last_one_celebrates() {
@@ -837,7 +838,7 @@ void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
-  // Up to the menu, along to READ (past the wiring and the Vigil), into the shelf, the book and its page.
+  // Up to the menu, along to READ (past Kronos and Peace), into the shelf, the book and its page.
   m.handle(Input::SunLong);
   for (int i = 0; i < 5; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
@@ -892,7 +893,7 @@ void test_the_vigil_picks_a_practice_then_a_length_and_sits() {
   m.begin();
   m.daily().replace(VIGIL_BUNDLE);
   m.handle(Input::SunLong);  // from the activities up to the folders
-  openNamed(rig, m, "VIGIL");
+  openNamed(rig, m, "PEACE");
   const ViewModel& list = rig.renderer.last();
   TEST_ASSERT_TRUE(list.place == Place::Vigil);
   TEST_ASSERT_EQUAL_STRING("Cyclic Sigh", list.items[0].c_str());
@@ -921,7 +922,7 @@ void test_a_sit_rings_its_bells_counts_down_in_fives_and_ends_itself() {
   m.begin();
   m.daily().replace(VIGIL_BUNDLE);
   m.handle(Input::SunLong);  // from the activities up to the folders
-  openNamed(rig, m, "VIGIL");
+  openNamed(rig, m, "PEACE");
   m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);  // Noting, 30 minutes, a bell every 5
@@ -955,7 +956,7 @@ void test_the_breath_is_drawn_every_second_for_the_breathing_practices() {
   m.begin();
   m.daily().replace(VIGIL_BUNDLE);
   m.handle(Input::SunLong);  // from the activities up to the folders
-  openNamed(rig, m, "VIGIL");
+  openNamed(rig, m, "PEACE");
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);  // Cyclic Sigh, 5 minutes
   TEST_ASSERT_EQUAL_STRING("vigil-breath", rig.renderer.last().moment.c_str());
@@ -977,7 +978,7 @@ void test_an_open_sit_is_ended_by_power_and_the_length_is_remembered() {
     m.begin();
     m.daily().replace(VIGIL_BUNDLE);
     m.handle(Input::SunLong);  // from the activities up to the folders
-  openNamed(rig, m, "VIGIL");
+  openNamed(rig, m, "PEACE");
     m.handle(Input::SunShort);
     m.handle(Input::SunShort);    // Do Nothing
     m.handle(Input::PowerShort);  // at OPEN
@@ -1002,7 +1003,7 @@ void test_an_open_sit_is_ended_by_power_and_the_length_is_remembered() {
   again.begin();
   again.daily().replace(VIGIL_BUNDLE);
   again.handle(Input::SunLong);
-  openNamed(rig, again, "VIGIL");
+  openNamed(rig, again, "PEACE");
   TEST_ASSERT_EQUAL_STRING("10 MIN", rig.renderer.last().values[0].c_str());
   TEST_ASSERT_EQUAL_STRING("30 MIN", rig.renderer.last().values[1].c_str());
 }
@@ -1012,7 +1013,7 @@ void test_the_vigil_before_the_first_sync_says_so() {
   auto m = rig.machine();
   m.begin();
   m.handle(Input::SunLong);  // from the activities up to the folders
-  openNamed(rig, m, "VIGIL");
+  openNamed(rig, m, "PEACE");
   TEST_ASSERT_EQUAL_STRING("SYNC FIRST", rig.renderer.last().items[0].c_str());
   m.handle(Input::PowerShort);
   TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
@@ -1048,7 +1049,7 @@ void test_the_wiring_shows_the_day_and_power_starts_what_is_on() {
   m.begin();
   m.daily().replace(PLAN_BUNDLE);
   m.handle(Input::SunLong);
-  openNamed(rig, m, "WIRING");
+  openNamed(rig, m, "KRONOS");
   const ViewModel vm = rig.renderer.last();
   TEST_ASSERT_TRUE(vm.place == Place::Plan);
   TEST_ASSERT_EQUAL_INT(2, (int)vm.taps.size());
@@ -1071,7 +1072,7 @@ void test_the_wiring_starts_nothing_between_taps() {
   m.daily().replace(PLAN_BUNDLE);
   rig.clock.now += 3600;  // 10:06, between the two
   m.handle(Input::SunLong);
-  openNamed(rig, m, "WIRING");
+  openNamed(rig, m, "KRONOS");
   m.handle(Input::PowerShort);
   TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
 }

@@ -38,10 +38,10 @@ cannot be switched off from the middle of a book; go to the menu first.
 | hold SUN | nothing | back to the menu | back to the folder list | back to the menu | back to the menu | back to the menu | nothing |
 | hold POWER | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, switch off | sync, save, switch off |
 
-- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS and QUOTES,
+- **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS, KRONOS, PEACE, READ and QUOTES,
   with today's progress beside each, and a gear for the settings: SUN steps onto it
   last. Kael'thos watches from the page.
-- **WIRING** is today's rewiring from the web: what is on now, how long it has left, and
+- **KRONOS** is today's rewiring from the web: what is on now, how long it has left, and
   the day around it (a dial, a bus or a tape, by the look). POWER starts the session on
   the block's activity; the page stays up instead of the screensaver and moves every
   five minutes.
@@ -59,7 +59,7 @@ cannot be switched off from the middle of a book; go to the menu first.
 - **At midnight** (the server's time zone) todos you finished drop off and habits open
   for the new day, even before the next sync.
 - **Ticks work offline.** They go out with the next sync, and the web shows them after.
-- **VIGIL** is a sit. SUN walks the practices (each with its length beside it), POWER
+- **PEACE** is a sit (the Vigil's). SUN walks the practices (each with its length beside it), POWER
   picks one; SUN walks the lengths (5 to 60 minutes, or OPEN), POWER sits, holding SUN
   goes back a step. A knock opens the sit. He sits still in one of four places; the
   caption says the minutes left in fives (20, 15, 10...), redrawn only when it drops.
@@ -227,8 +227,8 @@ in [hardware-checklist.md](hardware-checklist.md).
 | 6 | Start, wait 2 min, hold POWER to switch off, switch on | One ~2 min session is queued |
 | 7 | Pull power ~2 s into a sync, then reboot | Exactly one row on the page, no duplicate |
 | 8 | Power off for 10 min, then compare the clock | Tells us whether the clock survives power-off |
-| 9 | VIGIL, Cyclic Sigh, 5 MIN, with a speaker on the header | A knock at the start, rings breathing each second, the swell and knock at 5 minutes |
-| 10 | VIGIL, Noting, 10 MIN | A faint bell at 5 minutes, the caption goes 10 then 5 MIN LEFT, the sit shows on The Vigil after sync |
+| 9 | PEACE, Cyclic Sigh, 5 MIN, with a speaker on the header | A knock at the start, rings breathing each second, the swell and knock at 5 minutes |
+| 10 | PEACE, Noting, 10 MIN | A faint bell at 5 minutes, the caption goes 10 then 5 MIN LEFT, the sit shows on The Vigil after sync |
 | 11 | Cyclic Sigh for its whole 5 minutes, watching the glass | The rings keep time without smearing, and there is no full-screen flash |
 
 **Send back:**

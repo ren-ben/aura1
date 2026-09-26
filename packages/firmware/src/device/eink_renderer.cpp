@@ -247,7 +247,7 @@ void EinkRenderer::render(const ViewModel& vm) {
         : vm.left >= 0 ? std::to_string(vm.left) + " min left"
         : rite ? "The Rite" : vm.activity;
       if (scene) { lk.caption(base_, vm, words); drawStarted(base_, lk, vm); }
-      else fallback({ vm.sit ? "VIGIL" : vm.folder, vm.activity, vm.sit ? words : "IN PROGRESS" });
+      else fallback({ vm.sit ? "PEACE" : vm.folder, vm.activity, vm.sit ? words : "IN PROGRESS" });
       break;
     }
     case Screen::Stopped: {
