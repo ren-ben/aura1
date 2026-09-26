@@ -9,6 +9,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import LectureMap from '../components/LectureMap.vue';
+import Calendar from '../components/Calendar.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
@@ -618,6 +619,12 @@ const theWeek = computed(() => {
 });
 // A lecture's map, open over everything; an exercise class picks its module.
 const mapOf = ref<{ course: Course; begin: string } | null>(null);
+// The whole month, opened from the week.
+const monthOpen = ref(false);
+function fromMonth(s: { course: Course; begin: string }) {
+  monthOpen.value = false;
+  mapOf.value = { course: s.course, begin: s.begin };
+}
 function openBlock(b: { course: Course; begin: string; mappable: boolean; module: string }) {
   if (b.mappable) mapOf.value = { course: b.course, begin: b.begin };
   else choose(moduleFor(b.module));
@@ -760,7 +767,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button></span></template>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>
@@ -823,6 +830,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="sphere" title="the rector's armillary" flush>
       <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
+    <Calendar v-if="monthOpen" :start="theWeek.monday" @close="monthOpen = false" @open="fromMonth" />
     <LectureMap v-if="mapOf" :key="mapOf.begin" :course="mapOf.course" :begin="mapOf.begin" @close="mapOf = null" />
   </div>
 </template>

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { CURRICULUM, guessModule, type LectureDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { courses, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
@@ -207,6 +207,10 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
     void generate(db, openrouter, settings, row!.id);
     return reply.code(202).send(toDto(row!));
   });
+
+  // Which lectures have maps, for the calendar to mark.
+  r.get('/academy/maps', async () =>
+    db.select({ id: lectureMaps.id, courseId: lectureMaps.courseId, begin: lectureMaps.begin, status: lectureMaps.status, title: sql<string | null>`${lectureMaps.map}->>'title'` }).from(lectureMaps));
 
   r.get('/academy/maps/:id', { schema: { params: idParams } }, async (request, reply) => {
     await settleStale(db);

@@ -1,7 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
-import type { GrownNode, LectureDto, LectureMapDto } from '@aura/shared';
+import type { GrownNode, LectureDto, LectureMapDto, MapMark } from '@aura/shared';
 import { demoApi } from './sample';
 
 export type Progress = { xp: number; level: number; nextLevelXp: number };
@@ -158,10 +158,11 @@ export const lectureMaps = {
   lecture: (courseId: number, begin: string) => call<LectureDto>('GET', `/academy/lectures/${courseId}?begin=${encodeURIComponent(begin)}`),
   start: (courseId: number, begin: string, topic: string) => call<LectureMapDto>('POST', '/academy/maps', { courseId, begin, topic }),
   get: (id: number) => call<LectureMapDto>('GET', `/academy/maps/${id}`),
+  list: () => call<MapMark[]>('GET', '/academy/maps'),
   deeper: (id: number, node: { key: string; kind: string; title: string; text: string }) =>
     call<LectureMapDto>('POST', `/academy/maps/${id}/expand`, { node }),
 };
-export type { GrownNode, LectureDto, LectureMapDto };
+export type { GrownNode, LectureDto, LectureMapDto, MapMark };
 
 export const actions = {
   addTodo: (body: string, dueDate: string | null) => act('POST', '/todos', { body, dueDate }, [reTodos]),

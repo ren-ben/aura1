@@ -276,6 +276,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       return structuredClone(m);
     }
     case 'GET /academy/maps': {
+      if (seg[2] === undefined) return maps.map((x) => ({ id: x.id, courseId: x.courseId, begin: x.begin, status: x.status, title: x.map?.title ?? null }));
       const m = maps.find((x) => x.id === Number(seg[2]))!;
       if (m.status === 'writing') Object.assign(m, { status: 'ready', map: { ...SAMPLE_MAP, title: m.topic.replace(/^[^:]*:\s*/, '') || SAMPLE_MAP.title }, costUsd: 0.1 });
       else if (m.status === 'researching') m.status = 'writing';

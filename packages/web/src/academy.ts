@@ -117,3 +117,48 @@ export function sampleCourses(): Course[] {
     c(8, '261609', 'ANA1', 'Analysis 1', 'UE', 3, [[[0, '13:00', '14:30', LB]], [[4, '13:00', '14:30', LM]]], null),
   ];
 }
+
+// A month as the calendar draws it: whole weeks from the Monday on or before
+// the 1st to the Sunday on or after its last day, each day with its dates
+// (the chosen groups, as in the week) and its exams, each exam once.
+export type MonthDay = { date: Date; inMonth: boolean; today: boolean; moon: number; slots: Slot[]; exams: (Course['exams'][number] & { course: Course })[] };
+export function monthOf(courses: Course[], year: number, month: number): MonthDay[] {
+  const first = new Date(year, month, 1), last = new Date(year, month + 1, 0);
+  const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+  const end = new Date(last); end.setDate(last.getDate() + (6 - ((last.getDay() + 6) % 7)));
+  const key = (d: Date) => d.toDateString();
+  const days = new Map<string, MonthDay>();
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const x = new Date(d);
+    days.set(key(x), { date: x, inMonth: x.getMonth() === month, today: key(x) === key(new Date()), moon: moonOf(x), slots: [], exams: [] });
+  }
+  const seen = new Set<string>();
+  for (const c of courses) {
+    const g = c.groups.find((x) => x.id === c.groupId);
+    for (const e of g?.events ?? []) {
+      const b = new Date(e.begin), day = days.get(key(b));
+      if (day) day.slots.push({ course: c, begin: e.begin, mappable: c.type !== 'UE', day: (b.getDay() + 6) % 7, from: hm(b), to: hm(new Date(e.end)), label: `${SHORT[c.module] ?? c.module} ${c.type}`, room: e.room.replace(/-?Hörsaal/, ''), ue: c.type !== 'VO' });
+    }
+    for (const x of c.exams) {
+      const day = days.get(key(new Date(x.begin)));
+      if (day && !seen.has(x.id)) { seen.add(x.id); day.exams.push({ ...x, course: c }); }
+    }
+  }
+  for (const d of days.values()) d.slots.sort((a, b) => a.from.localeCompare(b.from));
+  return [...days.values()];
+}
+
+// The moon's age as a fraction of its month: 0 new, 0.5 full. From a known
+// new moon and the mean synodic month, good to within a day.
+export function moonOf(d: Date): number {
+  const days = (d.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5;
+  return (((days / 29.530588853) % 1) + 1) % 1;
+}
+// The lit part of the moon as an SVG path, for a disc of radius r at 0,0.
+export function moonPath(p: number, r: number): string {
+  const n = 16, pts: string[] = [];
+  const waxing = p < 0.5, c = Math.cos(2 * Math.PI * p);
+  for (let i = 0; i <= n; i++) { const y = -r + (2 * r * i) / n, w = Math.sqrt(Math.max(0, r * r - y * y)); pts.push(`${(waxing ? w : -w).toFixed(2)},${y.toFixed(2)}`); }
+  for (let i = n; i >= 0; i--) { const y = -r + (2 * r * i) / n, w = Math.sqrt(Math.max(0, r * r - y * y)); pts.push(`${(waxing ? w * c : -w * c).toFixed(2)},${y.toFixed(2)}`); }
+  return `M${pts.join('L')}Z`;
+}

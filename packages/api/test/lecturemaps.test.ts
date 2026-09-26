@@ -138,6 +138,8 @@ test('a map is researched, then written, and kept with its sources and cost', as
   assert.ok(asked[1]!.response_format);
 
   assert.equal((await call('POST', '/academy/maps', { courseId: course.id, begin, topic: 'again' })).statusCode, 409);
+  const listed = (await call('GET', '/academy/maps')).json();
+  assert.deepEqual(listed, [{ id: map.id, courseId: course.id, begin, status: 'ready', title: "Newton's laws" }]);
   const got = (await call('GET', `/academy/lectures/${course.id}?begin=${encodeURIComponent(begin)}`)).json();
   assert.equal(got.map.id, map.id);
 });

@@ -119,11 +119,13 @@ Click a lecture (a VO, a solid block) in **the week**; the arrows in its title
 step to the week before or after. A map opens over everything, for that one
 lecture, to read the evening before and then write your own notes from.
 
-1. **The topic.** The server counts which lecture of the term this is and
-   finds the same point in the course's syllabus on u:find. That guess is
-   shown; change it if the slides or the last lecture say otherwise, then
-   **map it**.
-2. **The wait,** about a minute. A fast model searches the web and takes
+1. **The letter.** You write to Kael'thos on parchment. The server counts
+   which lecture of the term this is and finds the same point in the
+   course's syllabus on u:find; that guess is already written in. Beside the
+   letter, the syllabus's topics in order, the guessed one underlined: click
+   one to write it in, or add what the slides say. Press the **wax seal**
+   (or ctrl + enter): the letter folds, takes the seal, and flies to him.
+2. **The wait,** about a minute, while he reads. A fast model searches the web and takes
    notes (reading the sources), then Kael'thos writes the map from them
    (writing it down). About 11 cents a map, 2 a *deeper*.
 3. **The map.** The core, with a small turning model of the topic, sits in
@@ -141,6 +143,13 @@ Markdown note with a *my notes* heading; drop both in your vault. **pdf**
 prints a plain document version. Opening a map again costs nothing. It stops
 for the month once the budget (10 dollars by default) is spent. Exercise
 classes have no maps.
+
+## The almanac
+
+**month**, in the week's title, opens the whole month over everything: every
+lecture, exercise class and exam of your groups, the moon's phase over each
+day, and a star on every lecture that already has a map. Click a lecture to
+open its map; prev and next (or the arrow keys) turn the months.
 
 ## The rest of the pane
 
