@@ -15,20 +15,17 @@ const chosen = ref<number | null>(null);
 const habit = computed(() => state.habits.find((h) => h.id === chosen.value) ?? state.habits[0]);
 watch(() => state.habits, (hs) => { if (!hs.some((h) => h.id === chosen.value)) chosen.value = hs[0]?.id ?? null; }, { immediate: true });
 
-// Columns are weeks, Monday first, ending with this week.
+// Columns are weeks, Monday first, ending with this week; its days still to
+// come are drawn but can't be set.
 const COLS = computed(() => (narrow.value ? 13 : 27));
 const weeks = computed(() => {
-  const start = daysAgo(COLS.value * 7 - 1);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  const cols: (string | null)[][] = [];
-  const today = localDate();
-  for (let w = 0; w < COLS.value; w++) cols.push(Array.from({ length: 7 }, (_, d) => {
+  const start = daysAgo((new Date().getDay() + 6) % 7 + (COLS.value - 1) * 7);
+  return Array.from({ length: COLS.value }, (_, w) => Array.from({ length: 7 }, (_, d) => {
     const x = new Date(start); x.setDate(start.getDate() + w * 7 + d);
-    const s = localDate(x);
-    return s > today ? null : s;
+    return localDate(x);
   }));
-  return cols;
 });
+const future = (d: string) => d > localDate();
 const done = computed(() => new Set(habit.value?.done ?? []));
 const streak = (set: Set<string>) => {
   let n = 0; const d = new Date();
@@ -38,19 +35,19 @@ const streak = (set: Set<string>) => {
 };
 const best = computed(() => {
   let run = 0, top = 0;
-  for (const col of weeks.value) for (const d of col) { if (!d) continue; run = done.value.has(d) ? run + 1 : 0; top = Math.max(top, run); }
+  for (const col of weeks.value) for (const d of col) { if (future(d)) continue; run = done.value.has(d) ? run + 1 : 0; top = Math.max(top, run); }
   return top;
 });
-const toggle = (d: string | null) => { if (d && habit.value) actions.setHabit(habit.value, d, !done.value.has(d)); };
+const toggle = (d: string) => { if (!future(d) && habit.value) actions.setHabit(habit.value, d, !done.value.has(d)); };
 
 const moonsRef = ref<HTMLDivElement | null>(null);
 function drawMoons() {
   const host = moonsRef.value;
   if (!host) return;
   host.innerHTML = '';
-  for (let w = 7; w >= 0; w--) {
-    let kept = 0;
-    for (let d = 0; d < 7; d++) if (done.value.has(localDate(daysAgo(w * 7 + d)))) kept++;
+  const cols = weeks.value.slice(-8);
+  cols.forEach((col, i) => {
+    const w = cols.length - 1 - i, kept = col.filter((d) => done.value.has(d)).length;
     const c = document.createElement('canvas'), x = c.getContext('2d')!, r = 30;
     c.width = c.height = 68;
     x.fillStyle = '#34312d'; x.beginPath(); x.arc(34, 34, r, 0, 7); x.fill();
@@ -62,10 +59,10 @@ function drawMoons() {
     x.restore();
     c.title = `${kept} of 7 days, ${w ? `${w} weeks ago` : 'this week'}`;
     host.append(c);
-  }
+  });
 }
 onMounted(drawMoons);
-watch([habit, () => state.habits], drawMoons);
+watch([habit, () => state.habits, weeks], drawMoons);
 
 const strips = computed(() => state.habits.map((h) => {
   const set = new Set(h.done);
@@ -147,8 +144,8 @@ async function archive() {
       </div>
       <div v-if="habit" :key="habit.id" class="heat" :style="{ '--cols': COLS }" :aria-label="`${habit.name}, the last half year, a column a week`">
         <div v-for="(col, w) in weeks" :key="w" class="wk">
-          <button v-for="(d, i) in col" :key="i" class="dot" :class="{ on: d && done.has(d), today: d === localDate(), none: !d }"
-            :disabled="!d" :aria-label="d ? `${d}: ${done.has(d) ? 'kept' : 'not kept'}` : ''" @click="toggle(d)"></button>
+          <button v-for="(d, i) in col" :key="i" class="dot" :class="{ on: done.has(d), today: d === localDate() }"
+            :disabled="future(d)" :aria-label="future(d) ? `${d}: still to come` : `${d}: ${done.has(d) ? 'kept' : 'not kept'}`" @click="toggle(d)"></button>
         </div>
       </div>
       <p v-else class="empty">No rituals yet. Begin one on the right.</p>
@@ -207,13 +204,13 @@ async function archive() {
 .heat { display: grid; grid-template-columns: repeat(var(--cols, 27), minmax(0, 1fr)); gap: clamp(3px, .5vw, 7px); max-width: 1000px; }
 .wk { display: grid; gap: clamp(3px, .5vw, 7px); }
 .dot { aspect-ratio: 1; border-radius: 50%; background: var(--low); transition: background .4s var(--out), box-shadow .4s var(--out), transform .3s var(--out); }
-.dot:not(.none):active { transform: scale(.82); }
+.dot:not(:disabled):active { transform: scale(.82); }
 .heat { animation: heatin .5s var(--out) both; }
 @keyframes heatin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .tabs button { transition: color .3s var(--out); }
 .dot.on { background: var(--phos); box-shadow: 0 0 5px rgba(197, 188, 171, .4); }
 .dot.today { outline: 1px solid var(--hi); outline-offset: 2px; }
-.dot.none { visibility: hidden; }
+.dot:disabled { opacity: .3; cursor: default; }
 .dot:not(:disabled):hover { outline: 1px solid var(--dim); outline-offset: 1px; }
 .moonrow { display: grid; gap: 8px; }
 .moons { display: flex; gap: 12px; flex-wrap: wrap; }
