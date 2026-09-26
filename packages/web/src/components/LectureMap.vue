@@ -38,6 +38,10 @@ const day = when.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', 
 // Once the lecture has been, the questions become a test of what stayed.
 const past = when.getTime() < Date.now();
 
+// Nothing is shown until the lecture and its map are here; then the panel
+// opens once, whole.
+const ready = ref(false);
+let openedAt = 0;
 onMounted(async () => {
   window.addEventListener('keydown', key);
   try {
@@ -46,6 +50,8 @@ onMounted(async () => {
     topic.value = dto.value?.topic ?? lecture.value.guess;
     watchJob();
   } catch (e) { error.value = e instanceof Error ? e.message : 'failed'; }
+  openedAt = performance.now();
+  ready.value = true;
 });
 onBeforeUnmount(() => { window.removeEventListener('keydown', key); clearTimeout(poll); });
 const key = (e: KeyboardEvent) => { if (e.key === 'Escape') shut(); };
@@ -166,6 +172,8 @@ watch(map, async (m) => {
   }
   fit(false, true);
   skyFrom.x = view.x; skyFrom.y = view.y;
+  // Measured while the panel opens; flown once it stands open.
+  await new Promise((r) => setTimeout(r, Math.max(0, openedAt + 720 - performance.now())));
   await new Promise((r) => requestAnimationFrame(r));
   intro.value = true;
   born.value = true;
@@ -370,7 +378,7 @@ const GLYPHS: Record<Kind, string> = {
 
 <template>
   <Teleport to="body">
-    <div class="lm-back" :class="{ closing }" @pointerdown.self="shut()">
+    <div v-if="ready" class="lm-back" :class="{ closing }" @pointerdown.self="shut()">
       <section class="lm" role="dialog" aria-modal="true" :aria-label="`Lecture map, ${course.name}, ${day}`">
         <header class="lm-bar">
           <span class="lm-title">
@@ -406,12 +414,14 @@ const GLYPHS: Record<Kind, string> = {
             </svg>
 
             <article :ref="card('core')" data-id="core" class="node core" :style="pos('core', 0)" @pointerenter="hovered = 'core'">
+              <i class="lit" aria-hidden="true"></i>
               <div class="lm-scene"><Gl :build="sceneFor(map.scene)" :active="true" :options="{ px: 2, distance: 4.4 }" label="The lecture's topic, as a small turning model." /></div>
               <h2 class="fell">{{ map.title }}</h2>
               <p v-html="rich(map.core)"></p>
             </article>
 
             <article v-for="(k, i) in kinds" :key="k" :ref="card(k)" :data-id="k" class="node" :class="[`k-${k}`, { hot: hovered === k }]" :style="pos(k, i + 1)" @pointerenter="hovered = k" @pointerleave="hovered = ''">
+              <i class="lit" aria-hidden="true"></i>
               <h3><svg viewBox="0 0 12 12" class="glyph"><path :d="GLYPHS[k]" /></svg><span>{{ k === 'questions' && past ? 'Jetzt, ohne nachzusehen' : TITLES[k] }}</span></h3>
               <p v-if="k === 'hook'" class="fell big" v-html="rich(map.hook)"></p>
               <ol v-else-if="k === 'questions'" class="qs">
@@ -460,6 +470,7 @@ const GLYPHS: Record<Kind, string> = {
             </article>
 
             <article v-for="(g, i) in dto!.grown" :key="g.id" :ref="card(g.id)" :data-id="g.id" class="node grown" :class="{ hot: hovered === g.id }" :style="pos(g.id, i % 6)" @pointerenter="hovered = g.id" @pointerleave="hovered = ''">
+              <i class="lit" aria-hidden="true"></i>
               <h3><span>{{ g.title }}</span></h3>
               <div v-if="g.tex" class="tex" v-html="tex(g.tex, true)"></div>
               <p v-html="rich(g.text)"></p>
@@ -469,7 +480,6 @@ const GLYPHS: Record<Kind, string> = {
 
           <!-- before the map: the topic, then the wait -->
           <div v-else class="lm-ask">
-            <template v-if="!lecture && !error"><p class="pix">asking the archive</p></template>
             <Letter v-if="lecture && (flying || !dto || dto.status === 'failed')" :key="drafts" v-model="topic" :topics="lecture.topics" :guessed="guessed" :heading="heading" :note="note" :busy="busy" @send="start" @arrived="arrived" />
             <template v-else-if="dto && (dto.status === 'researching' || dto.status === 'writing')">
               <div class="lm-wait"><Gl :build="sceneFor('orbits')" :active="true" :options="{ px: 3, distance: 4.6 }" label="Waiting for the map." hint="" /></div>
@@ -541,16 +551,23 @@ const GLYPHS: Record<Kind, string> = {
 /* Cards engraved like a tarot's or an old film's title card: a chamfered
    double rule with curled corners, an ornament top and bottom, and room
    inside for the words to breathe. */
-.node { position: absolute; background: rgba(12, 11, 10, .95); border: 14px solid transparent; border-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(122,116,104)'><path stroke-width='1.1' d='M8 1H52A7 7 0 0 0 59 8V52A7 7 0 0 0 52 59H8A7 7 0 0 0 1 52V8A7 7 0 0 0 8 1Z'/><path stroke-width='0.55' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(122,116,104)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>") 20 stretch;
+.node { position: absolute; background: radial-gradient(circle, rgba(197, 188, 171, .045) .6px, transparent .9px) 0 0 / 3px 3px, rgba(12, 11, 10, .95); border: 14px solid transparent; border-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(122,116,104)'><path stroke-width='1.3' stroke-dasharray='1 1' d='M8 1H52M59 8V52M52 59H8M1 52V8'/><path stroke-width='1.3' d='M52 1A7 7 0 0 0 59 8M59 52A7 7 0 0 0 52 59M8 59A7 7 0 0 0 1 52M1 8A7 7 0 0 0 8 1'/><path stroke-width='0.55' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(122,116,104)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>") 20 round;
   padding: 18px 20px 14px; cursor: auto;
   -webkit-mask: radial-gradient(circle at 0 0, transparent 4.4px, #000 4.9px) top left / 51% 51% no-repeat, radial-gradient(circle at 100% 0, transparent 4.4px, #000 4.9px) top right / 51% 51% no-repeat, radial-gradient(circle at 0 100%, transparent 4.4px, #000 4.9px) bottom left / 51% 51% no-repeat, radial-gradient(circle at 100% 100%, transparent 4.4px, #000 4.9px) bottom right / 51% 51% no-repeat; mask: radial-gradient(circle at 0 0, transparent 4.4px, #000 4.9px) top left / 51% 51% no-repeat, radial-gradient(circle at 100% 0, transparent 4.4px, #000 4.9px) top right / 51% 51% no-repeat, radial-gradient(circle at 0 100%, transparent 4.4px, #000 4.9px) bottom left / 51% 51% no-repeat, radial-gradient(circle at 100% 100%, transparent 4.4px, #000 4.9px) bottom right / 51% 51% no-repeat;
   transition: transform 1s cubic-bezier(.16, 1, .3, 1), opacity .7s var(--out), filter .3s var(--out); }
 .lm-world.born .node { transition: transform 1s cubic-bezier(.16, 1, .3, 1), opacity .7s var(--out), filter .3s var(--out), left .6s var(--out), top .6s var(--out); }
 .node::before, .node::after { content: ''; position: absolute; left: 50%; width: 64px; height: 12px; margin-left: -32px; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 12' fill='none' stroke='rgb(122,116,104)'><path stroke-width='.8' fill='rgb(12,11,10)' d='M32 1.5L37 6L32 10.5L27 6Z'/><g fill='rgb(122,116,104)' stroke='none'><circle cx='32' cy='6' r='1.3'/><circle cx='25.5' cy='6' r='.8'/><circle cx='38.5' cy='6' r='.8'/></g></svg>") center / 64px 12px no-repeat; }
 .node::before { top: -16px; }
+/* The lit frame: the same frame, brighter, laid over the plain one and
+   faded in, so a card lights up rather than switching. */
+.lit { position: absolute; inset: -14px; border: 14px solid transparent; border-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(214,206,190)'><path stroke-width='1.3' stroke-dasharray='1 1' d='M8 1H52M59 8V52M52 59H8M1 52V8'/><path stroke-width='1.3' d='M52 1A7 7 0 0 0 59 8M59 52A7 7 0 0 0 52 59M8 59A7 7 0 0 0 1 52M1 8A7 7 0 0 0 8 1'/><path stroke-width='0.55' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(214,206,190)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>") 20 round; opacity: 0; pointer-events: none;
+  transition: opacity .5s var(--out); }
+.core > .lit { inset: -16px; border-width: 16px; }
+.node.hot > .lit { opacity: 1; }
+.node::before, .node::after { z-index: 1; transition: filter .5s var(--out); }
+.node.hot::before, .node.hot::after { filter: brightness(1.8); }
 .node::after { bottom: -16px; transform: scaleY(-1); }
-.node.hot { border-image-source: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(210,202,186)'><path stroke-width='1.1' d='M8 1H52A7 7 0 0 0 59 8V52A7 7 0 0 0 52 59H8A7 7 0 0 0 1 52V8A7 7 0 0 0 8 1Z'/><path stroke-width='0.55' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(210,202,186)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>"); filter: drop-shadow(0 0 18px rgba(197, 188, 171, .1)); }
-.node.hot::before, .node.hot::after { background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 12' fill='none' stroke='rgb(210,202,186)'><path stroke-width='.8' fill='rgb(12,11,10)' d='M32 1.5L37 6L32 10.5L27 6Z'/><g fill='rgb(210,202,186)' stroke='none'><circle cx='32' cy='6' r='1.3'/><circle cx='25.5' cy='6' r='.8'/><circle cx='38.5' cy='6' r='.8'/></g></svg>"); }
+.node.hot { filter: drop-shadow(0 0 18px rgba(197, 188, 171, .1)); }
 .node h3 { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; color: var(--hi); font: 400 15.5px/1.2 var(--fell); font-variant: small-caps; letter-spacing: .06em; text-align: center; }
 .node h3::before, .node h3::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--low)); }
 .node h3::after { background: linear-gradient(90deg, var(--low), transparent); }
@@ -565,7 +582,7 @@ const GLYPHS: Record<Kind, string> = {
 li:hover > .more, dt:hover > .more, .eq:hover > .more { opacity: 1; }
 .more:hover { color: var(--hi); }
 .node p, .node li, .node dd { margin: 0; line-height: 1.55; }
-.core { border-width: 16px; border-image-source: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(210,202,186)'><path stroke-width='1.375' d='M8 1H52A7 7 0 0 0 59 8V52A7 7 0 0 0 52 59H8A7 7 0 0 0 1 52V8A7 7 0 0 0 8 1Z'/><path stroke-width='0.6875' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(210,202,186)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>"); text-align: center; background: rgba(12, 11, 10, .97); }
+.core { border-width: 16px; border-image-source: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='rgb(214,206,190)'><path stroke-width='1.625' stroke-dasharray='1 1' d='M8 1H52M59 8V52M52 59H8M1 52V8'/><path stroke-width='1.625' d='M52 1A7 7 0 0 0 59 8M59 52A7 7 0 0 0 52 59M8 59A7 7 0 0 0 1 52M1 8A7 7 0 0 0 8 1'/><path stroke-width='0.6875' d='M10.9 4.5H49.1A10.5 10.5 0 0 0 55.5 10.9V49.1A10.5 10.5 0 0 0 49.1 55.5H10.9A10.5 10.5 0 0 0 4.5 49.1V10.9A10.5 10.5 0 0 0 10.9 4.5Z'/><g fill='rgb(214,206,190)' stroke='none'><path d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 1 60 0)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(1 0 0 -1 0 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/><path transform='matrix(-1 0 0 -1 60 60)' d='M49 9.2L49.7 10.3L50.8 11L49.7 11.7L49 12.8L48.3 11.7L47.2 11L48.3 10.3Z'/></g></svg>"); text-align: center; background: rgba(12, 11, 10, .97); }
 .core::before, .core::after { background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 12' fill='none' stroke='rgb(210,202,186)'><path stroke-width='.8' fill='rgb(12,11,10)' d='M32 1.5L37 6L32 10.5L27 6Z'/><g fill='rgb(210,202,186)' stroke='none'><circle cx='32' cy='6' r='1.3'/><circle cx='25.5' cy='6' r='.8'/><circle cx='38.5' cy='6' r='.8'/></g></svg>"); }
 .core h2 { font: 400 30px/1.05 var(--goth); color: var(--hi); margin: 6px 0 12px; }
 .lm-scene, .lm-wait { position: relative; display: flex; }
