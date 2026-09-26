@@ -53,6 +53,9 @@ public:
   virtual bool negative() const { return false; }
   // Where the battery and link sit, over a page or over a scene.
   virtual Corner corner(const ViewModel& vm, bool scene) const = 0;
+  // The row the session's start time sits on, top left over its scene:
+  // level with the corner, unless the caption is up there.
+  virtual int startedY(const ViewModel& vm) const { return corner(vm, true).y; }
   virtual QuoteBox quoteBox(bool large) const = 0;
   // Every look reads the same way unless it says otherwise: the book's own
   // page, in the look's serif, with him reading in the lower right.
@@ -81,6 +84,9 @@ int quotePageCount(const Look& look, const std::string& text, bool large);
 int lookCount();
 const Look& look(int index);  // wraps around
 int lookIndex(const std::string& name);  // 0 when unknown
+
+// When the running session began, "SINCE 14:32", top left over its scene.
+void drawStarted(Canvas& c, const Look& look, const ViewModel& vm);
 
 // The battery and the link icon, on one midline, at row y.
 void drawCorner(Canvas& c, int y, const Status& s, uint8_t ink);

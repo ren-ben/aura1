@@ -441,6 +441,7 @@ public:
     small(c, upper(emptyNote(vm)), 28, 60, INK);
   }
 
+  int startedY(const ViewModel&) const override { return 25; }
   void caption(Canvas& c, const ViewModel&, const std::string& text) const override {
     const std::string t = upper(text);
     const int w = 6 * static_cast<int>(t.size()) + 26;
@@ -626,6 +627,7 @@ public:
     small(c, upper(emptyNote(vm)), 6, 60, INK);
   }
 
+  int startedY(const ViewModel&) const override { return 19; }
   void caption(Canvas& c, const ViewModel& vm, const std::string& text) const override {
     c.fillRect(0, 0, 44, 15, PAPER); c.fillCircle(8, 7, 3, INK); small(c, "REC", 15, 4, INK);
     c.fillRect(0, 182, 200, 18, INK);
@@ -1353,6 +1355,16 @@ void drawCorner(Canvas& c, int y, const Status& s, uint8_t ink) {
   if (s.charging) c.icon(X + 8, y + 2, BOLT, 8, ink);
   else for (int q = 0; q < s.bars; ++q) c.fillRect(X + 2 + q * 5, y + 2, 4, BH - 4, ink);
   if (s.link != Link::Online) c.icon(X - 17, y, s.link == Link::Syncing ? SPIRAL : CACTUS, 12, ink);
+}
+
+void drawStarted(Canvas& c, const Look& look, const ViewModel& vm) {
+  if (vm.started < 0) return;
+  const auto two = [](int v) { return std::string(v < 10 ? "0" : "") + std::to_string(v); };
+  const std::string text = "SINCE " + two(vm.started / 60 % 24) + ":" + two(vm.started % 60);
+  const uint8_t ink = look.corner(vm, true).ink;
+  const int y = look.startedY(vm);
+  c.fillRect(0, y - 2, 6 * static_cast<int>(text.size()) + 8, 16, other(ink));
+  small(c, text, 4, y + 2, ink);
 }
 
 // The rewiring on the glass, in one of three ways by the look: the bus of

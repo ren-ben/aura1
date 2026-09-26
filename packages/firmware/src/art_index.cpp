@@ -9,7 +9,8 @@ std::vector<ArtScene> parseArtIndex(const std::vector<std::string>& lines) {
     ArtScene s;
     // A malformed or truncated line is skipped, never half-used.
     if (in >> s.moment >> s.id >> s.frames >> s.size && s.frames > 0 && s.size > 0 && s.size <= 200) {
-      in >> s.env;  // optional
+      in >> s.env >> s.skin;  // optional
+      if (s.env == "-") s.env.clear();
       out.push_back(s);
     }
   }
@@ -17,10 +18,12 @@ std::vector<ArtScene> parseArtIndex(const std::vector<std::string>& lines) {
 }
 
 const ArtScene* pickScene(const std::vector<ArtScene>& scenes, const std::string& moment, uint32_t roll,
-                          const std::string& env) {
+                          const std::string& env, const std::string& skin) {
+  bool worn = false;
+  for (const auto& s : scenes) worn = worn || (s.moment == moment && !skin.empty() && s.skin == skin);
   std::vector<const ArtScene*> matches, here;
   for (const auto& s : scenes) {
-    if (s.moment != moment) continue;
+    if (s.moment != moment || s.skin != (worn ? skin : "")) continue;
     matches.push_back(&s);
     if (!env.empty() && s.env == env) here.push_back(&s);
   }

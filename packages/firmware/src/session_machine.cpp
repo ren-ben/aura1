@@ -99,8 +99,9 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
   : carousel_(carousel), queue_(queue), clock_(clock),
     storage_(storage), renderer_(renderer), random_(random) {}
 
-// The skins he can wear. Only Jiji so far; the others unlock with the bond.
-static const char* const SKINS[] = { "jiji" };
+// The skins he can wear, chosen freely: Jiji, and a bedsheet ghost in a
+// Halloween of his own.
+static const char* const SKINS[] = { "jiji", "halloween" };
 
 void SessionMachine::begin() {
   book_.begin();
@@ -812,6 +813,9 @@ void SessionMachine::draw(int minutes) {
   }
   vm.largeText = largeText_;
   vm.look = look_;
+  vm.skin = skin_;
+  // A session shows when it began; the rite and a sit say other things.
+  vm.started = screen_ == Screen::Running && !sit_ && !ritual_ ? daily_.minuteOfDay(startedAt_) : -1;
   // Running never carries elapsed time. Design decision, not an omission.
   vm.minutes = (screen_ == Screen::Stopped) ? minutes : 0;
   renderer_.render(vm);

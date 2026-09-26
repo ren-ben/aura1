@@ -6,6 +6,9 @@
 #include <vector>
 #include "looks.h"
 
+void setUp() {}
+void tearDown() {}
+
 // Every look draws every page without crashing and puts ink on it. With the
 // art pack mounted at /art, each page is also written to .pio/looks as a PBM
 // for eyes (scripts/looks-sheet.mjs turns them into one sheet).
@@ -145,9 +148,11 @@ void test_every_look_draws_every_page() {
       ViewModel vm = base(Place::Activities);
       vm.screen = stopped ? Screen::Stopped : Screen::Running;
       vm.minutes = 84;
+      vm.started = stopped ? -1 : 14 * 60 + 32;
       if (look.negative()) c.clear(INK);
       art.draw(c, stopped ? "sealed-proud" : "axiom-study", 0, 0, look.negative() ? PAPER : INK);
       look.caption(c, vm, stopped ? "1h 24m" : "Deep Gnosis");
+      drawStarted(c, look, vm);
       const Corner at = look.corner(vm, true);
       drawCorner(c, at.y, status, at.ink);
       save(c, std::to_string(l) + (stopped ? "-9sealed" : "-8running"));

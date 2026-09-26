@@ -94,6 +94,7 @@ export function withWeight<T>(w: number, draw: () => T): T {
   weight = w;
   try { return draw(); } finally { weight = saved; }
 }
+export const lineWeight = () => weight;
 
 // A brush stroke along an open polyline: width follows widthAt(t), t in 0..1.
 export function stroke(line: Pt[], widthAt: (t: number) => number): Pt[] {

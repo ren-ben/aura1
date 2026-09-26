@@ -32,6 +32,8 @@ struct ViewModel {
   int quotePage = 0;               // which page of a long quote
   bool largeText = false;          // the text size setting, for quotes
   std::string moment;              // the art pack scene for Waking, Celebrate, Screensaver
+  std::string skin;                // what he wears: the art pack prefers that skin's scenes
+  int started = -1;                // a running session's start, minutes after local midnight
   // The book, while one is being read.
   std::string book;                // its title
   std::string chapter;             // the chapter's title

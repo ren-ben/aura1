@@ -97,7 +97,7 @@ bool EinkRenderer::draw(Canvas& c, const std::string& id, int x, int y, uint8_t 
     if (id == WATCH[i]) { c.bitmap(x, y, watch_[i].data(), watchSize_, watchSize_, colour); return true; }
   }
   if (id.rfind("watch-", 0) == 0) return false;
-  const ArtScene* s = id == "cameo" ? pickScene(art_, "cameo", esp_random()) : findScene(art_, id);
+  const ArtScene* s = id == "cameo" ? pickScene(art_, "cameo", esp_random(), "", skin_) : findScene(art_, id);
   if (!s || !loadFrame(framePath(*s, 0), s->size)) return false;
   c.bitmap(x, y, frameBits, s->size, s->size, colour);
   return true;
@@ -113,7 +113,7 @@ bool EinkRenderer::drawScene(const ArtScene* scene, bool negative, int frame) {
 }
 
 bool EinkRenderer::play(const std::string& moment, bool fullLast, bool negative) {
-  return playScene(pickScene(art_, moment, esp_random(), env_), fullLast, negative);
+  return playScene(pickScene(art_, moment, esp_random(), env_, skin_), fullLast, negative);
 }
 
 // The still that says the button took: the first frame of the sleep, by
@@ -178,13 +178,14 @@ void EinkRenderer::push(bool full, bool counted) {
 
 void EinkRenderer::render(const ViewModel& vm) {
   const Look& lk = look(vm.look);
+  skin_ = vm.skin;
   // Kael'thos greets and says goodnight with an animation from the art pack,
   // in the place on the glass: where he fell asleep, or the scene he was in.
   if (vm.screen == Screen::Waking && play(vm.moment.empty() ? "wake" : vm.moment, false, lk.negative())) return;
   if (vm.screen == Screen::Dormant) {
     // One scene for both: the still and the animation that follows it have
     // to be the same cat going to sleep in the same place.
-    const ArtScene* s = pickScene(art_, "sleep", esp_random(), env_);
+    const ArtScene* s = pickScene(art_, "sleep", esp_random(), env_, skin_);
     if (s) {
       goodnight(*s, lk);
       if (playScene(s, true, lk.negative())) { partials_ = 0; return; }
@@ -226,7 +227,7 @@ void EinkRenderer::render(const ViewModel& vm) {
       break;
     case Screen::Celebrate:
     case Screen::Screensaver:
-      scene = drawScene(pickScene(art_, vm.moment, esp_random()), lk.negative());
+      scene = drawScene(pickScene(art_, vm.moment, esp_random(), "", skin_), lk.negative());
       if (!scene) fallback({ vm.screen == Screen::Celebrate ? "!" : "AURA-1" });
       break;
     case Screen::Running: {
@@ -234,9 +235,9 @@ void EinkRenderer::render(const ViewModel& vm) {
       // any session scene for a folder the pack does not know.
       const bool rite = !vm.moment.empty() && !vm.sit;
       const std::string moment = vm.moment.empty() ? sessionMoment(vm.folder) : vm.moment;
-      const ArtScene* s = running_ && moment == runningMoment_ ? running_ : pickScene(art_, moment, esp_random());
+      const ArtScene* s = running_ && moment == runningMoment_ ? running_ : pickScene(art_, moment, esp_random(), "", skin_);
       if (!s && vm.sit) s = pickScene(art_, "vigil", esp_random());
-      if (!s) s = pickScene(art_, "session-axiom", esp_random());
+      if (!s) s = pickScene(art_, "session-axiom", esp_random(), "", skin_);
       running_ = s;
       runningMoment_ = moment;
       scene = drawScene(s, lk.negative());
@@ -245,7 +246,7 @@ void EinkRenderer::render(const ViewModel& vm) {
       const std::string words = vm.breath >= 0 ? vm.cue
         : vm.left >= 0 ? std::to_string(vm.left) + " min left"
         : rite ? "The Rite" : vm.activity;
-      if (scene) lk.caption(base_, vm, words);
+      if (scene) { lk.caption(base_, vm, words); drawStarted(base_, lk, vm); }
       else fallback({ vm.sit ? "VIGIL" : vm.folder, vm.activity, vm.sit ? words : "IN PROGRESS" });
       break;
     }
@@ -254,7 +255,7 @@ void EinkRenderer::render(const ViewModel& vm) {
       const std::string took = vm.sit ? std::to_string(vm.minutes) + " min kept"
         : vm.minutes < MIN_SESSION_MINUTES ? "too short"
         : std::to_string(vm.minutes / 60) + "h " + std::to_string(vm.minutes % 60) + "m";
-      scene = drawScene(pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random()), lk.negative());
+      scene = drawScene(pickScene(art_, vm.moment.empty() ? sealedMoment(vm.minutes) : vm.moment, esp_random(), "", skin_), lk.negative());
       if (scene) lk.caption(base_, vm, took);
       else fallback({ "SEALED", vm.activity, took });
       break;

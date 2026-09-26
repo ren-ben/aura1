@@ -45,6 +45,8 @@ private:
   std::vector<ArtScene> art_;
   // The place (scene env) now on the glass; empty for lists and text.
   std::string env_;
+  // The skin he wears: its own scenes first, his usual ones for the rest.
+  std::string skin_;
   std::vector<std::vector<uint8_t>> watch_;  // left, up, right
   int watchSize_ = 0;
   // The scene of the running session: kept while it runs, so a redraw (the

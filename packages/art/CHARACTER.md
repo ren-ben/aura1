@@ -76,6 +76,18 @@ Each moment has several scenes; the device picks one at random.
 | A book copied onto the device | at the desk, copying it out by quill from the book beside him, its words rising off the page; a chapter a frame until it is all down |
 | Cameos | 13 small busts for quotes and overlays; a watcher peeking from a corner, eyes left, up, right |
 
+## The Halloween skin
+
+Worn by choice, any time of year, from the device's settings. He goes about in
+a bedsheet ghost costume in a Halloween of his own: the haunted manor on its
+hill (ink like Yharnam, one window lit, one boarded), a pumpkin patch under a
+blood moon, bare trees, webs in the corners, jack-o'-lanterns on the desk, and
+trick-or-treating with a pail. The skin has its own scene for every everyday
+moment (waking and sleeping at the manor or in the patch, every session, the
+sealed haul, level up, neglect, cameos); under ten minutes the pail comes back
+empty. Decay, the rite, the Vigil and copying a book stay as they are.
+`src/scenes.ts` (`halloweenScenes`), ids `hw-*`.
+
 ## Batches
 
 1. Face kit: all expressions on the bust, one sheet to review.

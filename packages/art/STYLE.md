@@ -96,4 +96,12 @@ Bust: idle (curious), focused (headphones, content). Full body (`src/body.ts`):
 sit, wave, loaf, peek, reach, hold, still (the Vigil: serene face, tail
 wrapped round the front of the feet, one ink shape with the body).
 
-Skins: default, astrolabe halo. Planned: pumpkin-head, blood moon.
+Skins: default, astrolabe halo, halloween. Planned: pumpkin-head, blood moon.
+
+Halloween (`inspiration/ghost*.png`): a bedsheet thrown over him. His ink ears
+poke up out of the dome, his whiskers out over its sides; the sheet is paper
+with an ink rim, a few tapered folds, a loose scalloped hem that hangs plumb
+while his head tilts. Two ink holes for eyes, his real eyes inside them, so
+every face still reads; nose, mouth and blush turn to ink on the cloth. It
+hangs to just above his feet (only his paws and tail show), shorter over a
+loaf.

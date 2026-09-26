@@ -504,3 +504,101 @@ export function skyEye(x: number, y: number, w: number, p: Palette, seed = 300):
     + `<path d="${toPath(ellipse(x - 4, y + 2, h * 0.5, h * 0.5, 28))}" fill="${p.ink}"/>`
     + `<path d="${toPath(ellipse(x - 4, y + 2, 2.5, h * 0.36, 12))}" fill="${p.paper}"/>` + lashes;
 }
+
+// Halloween. The manor is ink like Yharnam's stone: a crooked house on the
+// left edge, a steep mansard roof, a turret with a witch's-hat spire, a
+// leaning chimney, windows cut in paper (one boarded, one with a shutter
+// hanging off). The middle stays open for him.
+export function manor(p: Palette, seed = 400, { lit = true } = {}): string {
+  const base = 396;
+  const win = (x: number, y: number, w: number, h: number) =>
+    `<path d="M ${x} ${y + h} V ${y + w / 2} Q ${x + w / 2} ${y - w * 0.2} ${x + w} ${y + w / 2} V ${y + h} Z" fill="${p.paper}"/>`
+    + inkLine([[x + w / 2, y + 2], [x + w / 2, y + h]], p, { seed: seed + x + y, w: 2.5 })
+    + inkLine([[x, y + h * 0.55], [x + w, y + h * 0.55]], p, { seed: seed + x - y, w: 2.5 });
+  const house = solid([[-6, base], [-6, 262], [-12, 262], [14, 208], [98, 208], [124, 262], [118, 262], [118, base]], p, seed);
+  const chimney = solid([[22, 222], [20, 176], [38, 174], [40, 214]], p, seed + 1);
+  // The turret, a little lean in it, and its spire.
+  const turret = solid([[112, base], [114, 224], [160, 222], [162, base]], p, seed + 2)
+    + solid([[106, 228], [128, 170], [139, 112], [150, 170], [170, 226]], p, seed + 3)
+    + inkLine([[139, 114], [140, 92]], p, { seed: seed + 4, w: 3 }) + inkLine([[132, 100], [148, 100]], p, { seed: seed + 5, w: 3 });
+  const dormer = solid([[42, 214], [42, 196], [56, 182], [70, 196], [70, 214]], p, seed + 6) + win(49, 194, 14, 18);
+  const windows = win(14, 280, 22, 38) + win(66, 280, 22, 38) + win(125, 250, 22, 36) + win(125, 316, 22, 36);
+  // Boarded: two planks across the lower left window.
+  const boards = win(14, 336, 22, 38)
+    + `<path d="M 10 346 L 42 356 L 42 362 L 10 352 Z" fill="${p.ink}"/><path d="M 10 364 L 42 354 L 42 360 L 10 370 Z" fill="${p.ink}"/>`;
+  // The door, under a pointed arch, a shutter off its hinge beside the window.
+  const door = `<path d="M 62 ${base} V 350 Q 77 330 92 350 V ${base} Z" fill="${p.paper}"/>`
+    + `<path d="${toPath(ellipse(86, 372, 2.5, 2.5, 8))}" fill="${p.ink}"/>`;
+  const shutter = `<path d="M 90 284 L 102 282 L 108 318 L 96 322 Z" fill="${p.ink}" stroke="${p.paper}" stroke-width="3"/>`;
+  // One window lit: a candle's glow in it, paper with an ink flame.
+  const glow = lit ? `<path d="${toPath(wobble(outline([[136, 262], [140, 272], [136, 278], [132, 272]]), seed + 7, 0.3))}" fill="${p.ink}"/>` : '';
+  return chimney + house + dormer + turret + windows + boards + door + shutter + glow;
+}
+
+// An iron railing along the ground: spiked posts on two rails.
+export function fence(x0: number, x1: number, y: number, p: Palette, seed = 420): string {
+  const posts = Array.from({ length: Math.floor((x1 - x0) / 18) + 1 }, (_, i) => {
+    const x = x0 + i * 18;
+    return solid([[x - 2.5, y], [x - 2.5, y - 44], [x - 5, y - 46], [x, y - 58], [x + 5, y - 46], [x + 2.5, y - 44], [x + 2.5, y]], p, seed + i);
+  }).join('');
+  return posts + inkLine([[x0 - 4, y - 36], [x1 + 4, y - 37]], p, { seed: seed + 90, w: 4 })
+    + inkLine([[x0 - 4, y - 10], [x1 + 4, y - 10]], p, { seed: seed + 91, w: 4 });
+}
+
+// A jack-o'-lantern: the pumpkin with a face cut in ink, triangle eyes and
+// nose, a jagged grin. Lit, a few short rays round it.
+export function jackOLantern(x: number, y: number, p: Palette, seed = 430, lit = false): string {
+  const tri = (pts: Pt[]) => `<path d="${toPath(wobble(outline(pts, 1), seed + pts[0]![0], 0.4))}" fill="${p.ink}"/>`;
+  const grin: Pt[] = [[x - 22, y - 2], [x - 14, y + 2], [x - 10, y - 3], [x - 4, y + 3], [x + 2, y - 3], [x + 8, y + 3], [x + 13, y - 3],
+    [x + 22, y - 2], [x + 14, y + 8], [x + 6, y + 5], [x, y + 10], [x - 6, y + 5], [x - 14, y + 8]];
+  const face = tri([[x - 18, y - 12], [x - 10, y - 22], [x - 4, y - 11]]) + tri([[x + 4, y - 11], [x + 10, y - 22], [x + 18, y - 12]])
+    + tri([[x - 3, y - 4], [x, y - 9], [x + 3, y - 4]]) + `<path d="${toPath(wobble(grin, seed + 9, 0.3))}" fill="${p.ink}"/>`;
+  const rays = lit ? [[-50, -30], [50, -30], [-56, 4], [56, 4]].map(([dx, dy], i) =>
+    inkLine([[x + dx! * 0.8, y + dy! * 0.8], [x + dx!, y + dy!]], p, { seed: seed + 20 + i, w: 3 })).join('') : '';
+  return pumpkin(x, y, p, seed) + face + rays;
+}
+
+// A wrapped sweet, twisted at both ends.
+export function candy(x: number, y: number, p: Palette, seed = 440, angle = 0): string {
+  const pts = rotate([[x - 8, y - 6], [x + 8, y - 6], [x + 8, y + 6], [x - 8, y + 6]], angle, [x, y]);
+  const ends = [-1, 1].map((d) => rotate(outline([[x + d * 8, y], [x + d * 17, y - 7], [x + d * 15, y], [x + d * 17, y + 7]], 1), angle, [x, y]));
+  return ends.map((e, i) => drawn(e, p, { seed: seed + i, w: 3 })).join('') + drawn(outline(pts, 3), p, { seed: seed + 3, w: 4 })
+    + inkLine(rotate([[x - 2, y - 5], [x + 2, y + 5]], angle, [x, y]), p, { seed: seed + 4, w: 2.5 });
+}
+
+// The trick-or-treat pail: a jack-o'-lantern bucket with a wire handle,
+// sweets heaped in it when full.
+export function pail(x: number, y: number, p: Palette, seed = 450, full = true): string {
+  const heap = full ? candy(x - 14, y - 34, p, seed + 30, -20) + candy(x + 14, y - 36, p, seed + 34, 25) + candy(x, y - 44, p, seed + 38, 8) : '';
+  const handle = `<path d="${toPath(wobble(stroke(curve([[x - 33, y - 16], [x - 26, y - 56], [x, y - 70], [x + 26, y - 56], [x + 33, y - 16]]), () => 4), seed + 1, 0.3))}" fill="${p.ink}"/>`;
+  return handle + heap + jackOLantern(x, y, p, seed);
+}
+
+// A spider's web strung across a top corner (side -1 left, 1 right), its
+// spider let down on a thread.
+export function web(p: Palette, side: -1 | 1, seed = 460, drop = 80): string {
+  const ox = side < 0 ? 0 : 400;
+  const spokes = [0, 1, 2, 3, 4].map((i) => (i / 4) * (Math.PI / 2));
+  const at = (a: number, r: number): Pt => [ox - side * Math.cos(a) * r, Math.sin(a) * r];
+  const lines = spokes.map((a, i) => inkLine([at(a, 0), at(a, 110)], p, { seed: seed + i, w: 2.5 })).join('');
+  const rings = [36, 66, 96].map((r, k) => spokes.slice(1).map((a, i) => {
+    const prev = spokes[i]!;
+    const mid = (prev + a) / 2;
+    return inkLine([at(prev, r), at(mid, r * 0.88), at(a, r)], p, { seed: seed + 10 + k * 5 + i, w: 2.5 });
+  }).join('')).join('');
+  const sx = ox - side * 70;
+  const spider = inkLine([[sx, 70], [sx, 70 + drop]], p, { seed: seed + 30, w: 2 })
+    + [-1, 1].flatMap((d) => [-6, 0, 6].map((dy, i) => inkLine([[sx, 76 + drop + dy], [sx + d * 10, 70 + drop + dy], [sx + d * 15, 78 + drop + dy * 1.4]], p, { seed: seed + 40 + i + d * 3, w: 2.5 }))).join('')
+    + `<path d="${toPath(wobble(ellipse(sx, 78 + drop, 7, 9, 16), seed + 50, 0.4))}" fill="${p.ink}"/>`;
+  return lines + rings + spider;
+}
+
+// A little signpost hammered into the ground, its board lettered by hand.
+export function sign(x: number, y: number, words: string[], p: Palette, seed = 470): string {
+  const w = 118;
+  const h = 26 + words.length * 26;
+  const board = drawn(box(x - w / 2, y - 60 - h, w, h, 4), p, { seed, w: 6 });
+  const post = solid([[x - 5, y], [x - 5, y - 62], [x + 5, y - 62], [x + 5, y]], p, seed + 1);
+  const text = words.map((t, i) => `<text x="${x}" y="${y - 60 - h + 38 + i * 26}" text-anchor="middle" font-family="Pirata One" font-size="30" fill="${p.ink}">${t}</text>`).join('');
+  return post + board + text;
+}

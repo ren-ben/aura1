@@ -42,6 +42,26 @@ void test_prefers_scenes_in_the_same_place() {
   TEST_ASSERT_EQUAL_STRING("d", pickScene(scenes, "wake", 0, "void")->id.c_str());
 }
 
+void test_reads_the_optional_skin() {
+  auto scenes = parseArtIndex({ "cameo a 1 72 - halloween", "wake b 3 200 manor halloween" });
+  TEST_ASSERT_EQUAL_STRING("", scenes[0].env.c_str());
+  TEST_ASSERT_EQUAL_STRING("halloween", scenes[0].skin.c_str());
+  TEST_ASSERT_EQUAL_STRING("manor", scenes[1].env.c_str());
+}
+
+void test_a_skin_prefers_its_own_scenes() {
+  auto scenes = parseArtIndex({ "wake a 1 200 room", "wake b 1 200 manor halloween", "lore c 1 200 room", "sleep d 1 200 room halloween" });
+  for (uint32_t roll = 0; roll < 3; ++roll) {
+    TEST_ASSERT_EQUAL_STRING("b", pickScene(scenes, "wake", roll, "room", "halloween")->id.c_str());
+    // Without the skin its scenes never show.
+    TEST_ASSERT_EQUAL_STRING("a", pickScene(scenes, "wake", roll, "manor", "jiji")->id.c_str());
+    TEST_ASSERT_EQUAL_STRING("a", pickScene(scenes, "wake", roll)->id.c_str());
+  }
+  // A moment the skin has nothing for falls back to his usual scenes.
+  TEST_ASSERT_EQUAL_STRING("c", pickScene(scenes, "lore", 0, "", "halloween")->id.c_str());
+  TEST_ASSERT_NULL(pickScene(scenes, "sleep", 0));
+}
+
 void test_session_moment_is_the_lowercased_folder() {
   TEST_ASSERT_EQUAL_STRING("session-axiom", sessionMoment("AXIOM").c_str());
 }
@@ -73,6 +93,8 @@ int main() {
   RUN_TEST(test_picks_only_matching_scenes);
   RUN_TEST(test_reads_the_optional_env);
   RUN_TEST(test_prefers_scenes_in_the_same_place);
+  RUN_TEST(test_reads_the_optional_skin);
+  RUN_TEST(test_a_skin_prefers_its_own_scenes);
   RUN_TEST(test_session_moment_is_the_lowercased_folder);
   RUN_TEST(test_sealed_moment_by_duration);
   RUN_TEST(test_wake_after_decay_is_neglect);

@@ -3,6 +3,9 @@
 #include "looks.h"
 #include "../fake_storage.h"
 
+void setUp() {}
+void tearDown() {}
+
 namespace {
 
 std::string longText(const char* seed, int times) {

@@ -142,7 +142,7 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
         ink(outline([[124, 380], [134, 336], [170, 306], [230, 294], [290, 300], [326, 326], [336, 362],
           [326, 388], [230, 394], [140, 392]]), p, 4),
         tail([[326, 384], [292, 396], [236, 398], [190, 394]], p, 7, 14, 10),
-        placeHead(expr, p, [176, 332], 0.62, wear),
+        placeHead(expr, p, [176, 332], 0.62, { ...wear, hem: 362 }),
       ].join('')}</g>`;
     case 'reach': {
       // Paws up: halfway on odd frames, all the way on even ones.

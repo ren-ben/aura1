@@ -9,7 +9,7 @@
 // ~5 units wide here.
 
 import {
-  curve, ellipse, outline, rotate, sampleCubics, shape, stroke, superellipse, wobble, type Pt,
+  curve, ellipse, lineWeight, outline, rotate, sampleCubics, shape, stroke, superellipse, toPath, wobble, type Pt,
 } from './ink.ts';
 import { blush, eye, EYES, mouth, type Palette } from './face.ts';
 import { marks } from './marks.ts';
@@ -23,7 +23,7 @@ export const SIZE = 400;
 export const POSES = ['idle', 'focused'] as const;
 export type Pose = (typeof POSES)[number];
 
-export const SKINS = ['default', 'halo'] as const;
+export const SKINS = ['default', 'halo', 'halloween'] as const;
 export type Skin = (typeof SKINS)[number];
 
 export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background: '#fff' };
@@ -130,8 +130,40 @@ function halo(p: Palette, seed: number): string[] {
   return [shape(ring, p.ink), ...orbs, shape(wobble(star, seed + 9, 0.5), p.ink)];
 }
 
-// hat: the hunter's tricorn, for the Hunter's Dream and the hunt.
-export type Wear = { skin?: Skin; headphones?: boolean; hat?: boolean };
+// Halloween: a bedsheet ghost. The sheet is thrown over his head, his ears
+// poking up out of it and his whiskers out of its sides; two holes cut for
+// his eyes, so every face still shows. It hangs to `hem` (canonical y): off
+// the bottom of a bust, above his feet when he sits, so his paws and tail
+// show under it. The cloth hangs straight while his head tilts.
+const HEM = 462;
+function sheet(p: Palette, hem: number, tilt: number, seed: number): string[] {
+  const dome = superellipse(200, 228, 116, { b: 104, n: 2.1 }, { b: 104, n: 2.1 }, 80).slice(40);
+  // Wider as it falls, with a few loose points along the hem.
+  const drop = hem - 250;
+  const flare = 118 + Math.min(40, drop * 0.2);
+  const side = (dir: number): Pt[] => [[200 + dir * 112, 262], [200 + dir * (114 + drop * 0.05), 250 + drop * 0.45], [200 + dir * flare, hem - 10]];
+  const lobes = 5;
+  const edge: Pt[] = Array.from({ length: lobes * 2 + 1 }, (_, i) => {
+    const x = 200 + flare - (2 * flare * i) / (lobes * 2);
+    return [x, hem + (i % 2 ? -10 : 4) + ((i * 7) % 5)] as Pt;
+  });
+  // Unwind the head's tilt below the chin: at the hem the cloth hangs plumb.
+  const hang = (pts: Pt[]) => pts.map((pt) => {
+    const k = Math.min(1, Math.max(0, (pt[1] - 250) / drop));
+    return rotate([pt], -tilt * k, NECK)[0]!;
+  });
+  const cloth = hang(wobble(outline([...side(-1).reverse(), ...dome, ...side(1), ...edge], 4), seed, 1.6));
+  // Folds from under the eyes down toward the hem.
+  const folds = drop > 60 ? [-70, -26, 30, 76].map((x, i) => {
+    const line = hang(curve([[200 + x * 0.7, 300 + (i % 2) * 14], [200 + x * 0.92, 250 + drop * 0.6], [200 + x * 1.1, hem - 16]]));
+    return shape(wobble(stroke(line, (t) => 1 + 5 * Math.sin(Math.PI * Math.min(1, t * 1.4))), seed + 1 + i, 0.5), p.ink);
+  }) : [];
+  return [`<path d="${toPath(cloth)}" fill="${p.paper}" stroke="${p.ink}" stroke-width="${(7 * lineWeight()).toFixed(1)}" stroke-linejoin="round"/>`, ...folds];
+}
+
+// hat: the hunter's tricorn, for the Hunter's Dream and the hunt. hem: how
+// far the Halloween sheet hangs, for the pose.
+export type Wear = { skin?: Skin; headphones?: boolean; hat?: boolean; hem?: number };
 
 // The head in canonical coordinates, tilted about the neck. Scenes place it
 // with a transform; the bust puts it on the body as drawn.
@@ -145,19 +177,42 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
     outline([rotate([[122, 228]], -swing, EAR_PIVOTS[0]!)[0]!, ...edges[0]!.slice().reverse(), ...inner[0]!]),
     outline([...inner[1]!, ...edges[1]!, rotate([[278, 228]], swing, EAR_PIVOTS[1]!)[0]!]),
   ];
-  const parts = [
-    wear.skin === 'halo' ? halo(p, 70).join('') : '',
-    ...(wear.headphones ? headphonesBehind(p, 90) : []),
-    ...WHISKERS.map((w, i) => shape(wobble(brush(shorten(w, 0.8), 5.2, 3), 30 + i, 0.4), p.ink)),
-    ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
-    shape(wobble(HEAD, 7, 1.8), p.ink),
-    ...edges.map((e, i) => shape(wobble(earOpening(e, i === 0 ? -1 : 1), 40 + i, 0.5), p.paper)),
+  const whiskers = WHISKERS.map((w, i) => shape(wobble(brush(shorten(w, 0.8), 5.2, 3), 30 + i, 0.4), p.ink));
+  const openings = edges.map((e, i) => shape(wobble(earOpening(e, i === 0 ? -1 : 1), 40 + i, 0.5), p.paper));
+  const eyePair = [
     ...eye(eyes[0]!, EYES[0]!, -1, look, expr.lid ?? 0.45, 50, p),
     ...eye(eyes[1]!, EYES[1]!, 1, look, expr.lid ?? 0.45, 60, p),
-    // The nose: a tiny dash level with the lower half of the eyes.
-    shape(wobble(ellipse(200, 230, 6, 3, 16), 80, 0.4), p.paper),
-    ...(expr.mouth ? mouth(expr.mouth, 110, p) : []),
-    ...(expr.blush ? blush(120, p) : []),
+  ];
+  // The nose, a tiny dash level with the lower half of the eyes; the mouth; blush.
+  const features = (q: Palette) => [
+    shape(wobble(ellipse(200, 230, 6, 3, 16), 80, 0.4), q.paper),
+    ...(expr.mouth ? mouth(expr.mouth, 110, q) : []),
+    ...(expr.blush ? blush(120, q) : []),
+  ];
+  const ghost = wear.skin === 'halloween';
+  // Under the sheet his eyes show through the holes; the rest of the face is
+  // drawn in reverse, ink on the cloth.
+  const holes = EYES.map(([x, y], i) => toPath(wobble(ellipse(x, y, 32, 40, 40), 140 + i, 1.2)));
+  const parts = ghost ? [
+    ...(wear.headphones ? headphonesBehind(p, 90) : []),
+    ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
+    ...openings,
+    ...sheet(p, wear.hem ?? HEM, expr.tilt ?? 0, 130),
+    ...whiskers,
+    `<clipPath id="eyeholes"><path d="${holes.join(' ')}"/></clipPath><path d="${holes.join(' ')}" fill="${p.ink}"/>`,
+    `<g clip-path="url(#eyeholes)">${eyePair.join('')}</g>`,
+    ...features({ ink: p.paper, paper: p.ink }),
+    ...(wear.headphones ? headphonesFront(p, 90) : []),
+    ...marks(expr.marks ?? [], 200, p),
+  ] : [
+    wear.skin === 'halo' ? halo(p, 70).join('') : '',
+    ...(wear.headphones ? headphonesBehind(p, 90) : []),
+    ...whiskers,
+    ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
+    shape(wobble(HEAD, 7, 1.8), p.ink),
+    ...openings,
+    ...eyePair,
+    ...features(p),
     ...(wear.headphones ? headphonesFront(p, 90) : []),
     ...marks(expr.marks ?? [], 200, p),
   ];

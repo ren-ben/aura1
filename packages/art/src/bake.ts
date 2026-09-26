@@ -7,7 +7,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } from './rig.ts';
 import { cArray, packBits } from './bitmap.ts';
 import { pose, type Pose as BodyPose } from './body.ts';
-import { scenes } from './scenes.ts';
+import { halloweenScenes, scenes } from './scenes.ts';
 import { writeSounds } from './sound.ts';
 import { svg as frame, bustArt, DEVICE_PALETTE } from './rig.ts';
 
@@ -23,10 +23,13 @@ const DEVICE_SIZES: Record<Pose, number> = { idle: 200, focused: 120 };
 
 // No anti-aliasing: the render is already 1-bit, so the preview is exactly
 // what the panel shows.
+// Pirata One letters the Halloween sign.
+const font = { fontFiles: [resolve(root, 'fonts/PirataOne-Regular.ttf')], loadSystemFonts: true };
 function render(svg: string, width: number, crisp: boolean) {
   return new Resvg(svg, {
     fitTo: { mode: 'width', value: width },
     shapeRendering: crisp ? 0 : 2,
+    font,
   }).render();
 }
 
@@ -116,8 +119,10 @@ writeFileSync(resolve(out, 'poses.png'), new Resvg(`<svg xmlns="http://www.w3.or
 
 // The scene library: one contact sheet for review, and the SD card pack the
 // device plays: art/<id>-<frame>.bin (1-bit, GxEPD2 layout, size x size) and
-// art/index.txt, one line per scene: moment id frames size [env].
-const library = scenes();
+// art/index.txt, one line per scene: moment id frames size [env [skin]].
+// A skin's scenes carry its name, env '-' when they have none. His
+// Halloween-week screensavers in the Halloween skin are its lore.
+const library = [...scenes(), ...halloweenScenes()];
 const sd = resolve(out, 'sd/art');
 mkdirSync(sd, { recursive: true });
 const index: string[] = [];
@@ -126,7 +131,9 @@ for (const s of library) {
     const img = render(f, s.size, true);
     writeFileSync(resolve(sd, `${s.id}-${i}.bin`), packBits(img.pixels, s.size, s.size));
   });
-  index.push(`${s.moment} ${s.id} ${s.frames.length} ${s.size}${s.env ? ` ${s.env}` : ''}`);
+  const line = (moment: string) => `${moment} ${s.id} ${s.frames.length} ${s.size}${s.skin ? ` ${s.env ?? '-'} ${s.skin}` : s.env ? ` ${s.env}` : ''}`;
+  index.push(line(s.moment));
+  if (s.skin === 'halloween' && s.moment === 'lore') index.push(line('halloween'));
 }
 writeFileSync(resolve(sd, 'index.txt'), `${index.join('\n')}\n`);
 

@@ -65,6 +65,19 @@ void test_running_screen_never_shows_elapsed_time() {
   TEST_ASSERT_EQUAL_INT(0, rig.renderer.last().minutes);
 }
 
+void test_running_screen_shows_when_the_session_began() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  TEST_ASSERT_EQUAL_INT(-1, rig.renderer.last().started);
+  m.handle(Input::PowerShort);
+  // 1758100000 is 09:06:40 UTC; the day has no offset until a sync sets one.
+  TEST_ASSERT_EQUAL_INT(9 * 60 + 6, rig.renderer.last().started);
+  rig.clock.now += 3600;
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_INT(-1, rig.renderer.last().started);
+}
+
 void test_second_power_short_queues_the_session_and_clears_the_marker() {
   Rig rig;
   auto m = rig.machine();
@@ -1095,6 +1108,7 @@ int main() {
   RUN_TEST(test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book);
   RUN_TEST(test_power_short_starts_a_session);
   RUN_TEST(test_running_screen_never_shows_elapsed_time);
+  RUN_TEST(test_running_screen_shows_when_the_session_began);
   RUN_TEST(test_second_power_short_queues_the_session_and_clears_the_marker);
   RUN_TEST(test_stopped_screen_shows_the_duration_once);
   RUN_TEST(test_sun_presses_are_ignored_while_running);
