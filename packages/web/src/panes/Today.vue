@@ -5,8 +5,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import RewiringSheet from '../components/RewiringSheet.vue';
 import Wiring, { type View } from '../components/Wiring.vue';
-import { actions, clock, localDate, state, today, type Todo } from '../store';
-import { dayOf, hisLine, hours } from '../rewiring';
+import { actions, clock, localDate, plan, state, today, type Todo } from '../store';
+import { dateShift, dayOf, hisLine, hours } from '../rewiring';
 
 defineProps<{ active: boolean }>();
 
@@ -29,7 +29,12 @@ async function add() {
   const due = when.value === 'someday' ? null : when.value === 'date' ? date.value : localDate(t);
   if (await actions.addTodo(text, due)) body.value = '';
 }
-const wired = computed(() => dayOf(todayStr.value));
+// The day the rewiring shows: today unless stepped away from.
+const day = ref(localDate());
+const step = (n: number) => { day.value = dateShift(day.value, n); plan.show(day.value, day.value); };
+const dayName = computed(() => day.value === todayStr.value ? 'today'
+  : new Date(`${day.value}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' }).toLowerCase().replace(',', ''));
+const wired = computed(() => dayOf(day.value));
 const sheetOpen = ref(false);
 // The nocturne to wire the day in, the horologe to read it by; the last one
 // chosen is the one the console opens on.
@@ -90,13 +95,18 @@ const since = (iso: string | null) => {
 
     <Frame class="wire" :title="`the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
       <template #bar>
+        <span class="days">
+          <button class="x" aria-label="The day before" @click="step(-1)">&lsaquo;</button>
+          <button class="x day" :class="{ on: day === todayStr }" :title="day === todayStr ? '' : 'back to today'" @click="day = todayStr">{{ dayName }}</button>
+          <button class="x" aria-label="The day after" @click="step(1)">&rsaquo;</button>
+        </span>
         <span class="views" role="radiogroup" aria-label="View">
           <button v-for="v in (['nocturne', 'horologe'] as const)" :key="v" class="x" :class="{ on: view === v }" role="radio" :aria-checked="view === v" @click="view = v">{{ v }}</button>
         </span>
         <button class="x open" @click="sheetOpen = true">open</button>
       </template>
-      <Wiring v-model="view" :date="todayStr" />
-      <p class="fell said" :class="{ err: state.error }">{{ state.error ? `The line did not hold: ${state.error}` : hisLine(todayStr) }}</p>
+      <Wiring v-model="view" :date="day" />
+      <p class="fell said" :class="{ err: state.error }">{{ state.error ? `The line did not hold: ${state.error}` : hisLine(day) }}</p>
     </Frame>
     <RewiringSheet v-if="sheetOpen" @close="sheetOpen = false" />
 
@@ -132,7 +142,11 @@ const since = (iso: string | null) => {
 .add .when { width: auto; }
 .todo[draggable="true"] { cursor: grab; }
 .wire { grid-area: wire; }
-.wire .views { margin-left: auto; display: flex; gap: 2px; }
+.wire .days { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.wire .days .x { padding: 2px 6px; font-size: 12px; }
+.wire .days .day { font-size: 10px; min-width: 76px; text-align: center; }
+.wire .days .day.on { color: var(--hi); }
+.wire .views { display: flex; gap: 2px; margin-left: 10px; }
 .wire .views .x { padding: 2px 6px; }
 .wire .views .on { color: var(--hi); box-shadow: inset 0 -1px 0 var(--hi); }
 .said { margin: 0; padding: 8px 14px 10px; border-top: 3px dotted var(--low); color: var(--phos); font-style: italic; font-size: 14px; line-height: 1.35; }

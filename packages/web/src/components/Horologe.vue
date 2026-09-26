@@ -7,6 +7,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import art from '../gl/art.json';
 import { catSprite } from '../gl/plate';
+import { localDate } from '../store';
 import { SHADES, blocksOn, drawnOn, hm, lecturesOn, starDial, starR, starsOf, sunOf } from '../rewiring';
 
 const props = defineProps<{ date: string }>();
@@ -43,9 +44,12 @@ const taps = computed(() => blocksOn(props.date));
 const lectures = computed(() => lecturesOn(props.date));
 const drawn = computed(() => drawnOn(props.date));
 const sun = computed(() => sunOf(props.date));
-const on = computed(() => taps.value.find((t) => t.start <= now.value && now.value < t.end) ?? null);
-const next = computed(() => taps.value.filter((t) => t.start > now.value).slice(0, 3));
-const left = computed(() => (on.value ? on.value.end - now.value : 0));
+// Another day has no now: a past one is all behind, a coming one all ahead.
+const isToday = computed(() => props.date === localDate());
+const clock = computed(() => (isToday.value ? now.value : props.date < localDate() ? 1440 : -1));
+const on = computed(() => taps.value.find((t) => t.start <= clock.value && clock.value < t.end) ?? null);
+const next = computed(() => taps.value.filter((t) => t.start > clock.value).slice(0, 3));
+const left = computed(() => (on.value ? on.value.end - clock.value : 0));
 const label = (t: string, span: number) => { const n = Math.floor(span / 9); return t.length > n ? `${t.slice(0, Math.max(1, n - 1))}.` : t; };
 const title = (t: string) => (t.length > 18 ? `${t.slice(0, 17)}.` : t);
 const hand = computed(() => ({ a: pt(now.value, 140), b: pt(now.value, 226), bead: pt(now.value, 230) }));
@@ -116,7 +120,7 @@ watch(() => props.date, paint);
           <line :x1="pt((h - 1) * 60, 206)[0]" :y1="pt((h - 1) * 60, 206)[1]" :x2="pt((h - 1) * 60, (h - 1) % 3 ? 202 : 196)[0]" :y2="pt((h - 1) * 60, (h - 1) % 3 ? 202 : 196)[1]" class="tick" />
           <text v-if="(h - 1) % 3 === 0" :x="pt((h - 1) * 60, 232)[0]" :y="pt((h - 1) * 60, 232)[1]" class="hr">{{ String(h - 1).padStart(2, '0') }}</text>
         </template>
-        <path :d="arc(0, Math.max(1, now), 206)" class="elapsed" />
+        <path v-if="clock > 0" :d="arc(0, Math.min(1439.9, clock), 206)" class="elapsed" />
 
         <!-- the lectures, locked; the taps, lettered on clear ground -->
         <path v-for="(l, k) in lectures" :key="`l${k}`" :d="band(l.start, l.end, TAP_IN, TAP_OUT)" class="lock" />
@@ -128,9 +132,9 @@ watch(() => props.date, paint);
         <path v-for="(s, k) in drawn" :key="`d${k}`" :d="arc(s.start, s.end, 145)" class="drawn" />
 
         <!-- the hand, and Kael'thos it turns round -->
-        <line :x1="hand.a[0]" :y1="hand.a[1]" :x2="hand.b[0]" :y2="hand.b[1]" class="hand" />
-        <circle :cx="hand.bead[0]" :cy="hand.bead[1]" r="3.5" class="bead" />
-        <text y="-106" class="pix-c">{{ on ? 'now' : next[0] ? `next at ${hm(next[0].start)}` : taps.length ? 'all of it drawn' : 'nothing wired' }}</text>
+        <line v-if="isToday" :x1="hand.a[0]" :y1="hand.a[1]" :x2="hand.b[0]" :y2="hand.b[1]" class="hand" />
+        <circle v-if="isToday" :cx="hand.bead[0]" :cy="hand.bead[1]" r="3.5" class="bead" />
+        <text y="-106" class="pix-c">{{ on ? 'now' : next[0] ? `${isToday ? 'next' : 'first'} at ${hm(next[0].start)}` : taps.length ? 'all of it drawn' : 'nothing wired' }}</text>
         <text y="-82" class="title-c">{{ title(on?.title ?? next[0]?.title ?? (taps.length ? 'The day is spent' : 'An unwired day')) }}</text>
         <image v-if="kael" :href="kael" x="-58" y="-70" width="116" height="116" class="kael" />
         <text v-if="on" y="78" class="count">{{ Math.floor(left / 60) }}:{{ String(left % 60).padStart(2, '0') }}</text>
@@ -140,7 +144,7 @@ watch(() => props.date, paint);
     <p class="then">
       <span class="pix">then</span>
       <template v-if="next.filter((x) => x.id !== on?.id).length"><span v-for="t in next.filter((x) => x.id !== on?.id)" :key="t.id"><b class="tek">{{ hm(t.start) }}</b> {{ t.title }}</span></template>
-      <span v-else class="fell">nothing more wired today</span>
+      <span v-else class="fell">nothing more wired {{ isToday ? 'today' : 'that day' }}</span>
       <button class="x" @click="emit('rewire')">rewire</button>
     </p>
   </div>

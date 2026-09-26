@@ -10,6 +10,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue';
 import Rewiring from './Rewiring.vue';
 import Horologe from './Horologe.vue';
+import { localDate } from '../store';
 import { SHADES, blocksOn, drawnOn, lecturesOn, starDial, starInk, starR, starsOf, type Star } from '../rewiring';
 
 export type View = 'nocturne' | 'horologe';
@@ -28,7 +29,7 @@ type Piece = { start: number; end: number; d0: [number, number]; d1: [number, nu
 type Geo = {
   a0: [number, number]; l0: number; a1: [number, number]; l1: number; k: number;
   pieces: Piece[]; stars: (Star & { d0: number; d1: number; a0: number; a1: number })[];
-  now: number; hand0: [number, number]; hand1: [number, number]; drawn: { start: number; end: number }[];
+  now: number; hand: boolean; hand0: [number, number]; hand1: [number, number]; drawn: { start: number; end: number }[];
 };
 function measure(): Geo | null {
   const st = stage.value?.getBoundingClientRect(), col = noc.value?.root?.querySelector<HTMLElement>(`.col[data-date="${props.date}"]`);
@@ -43,7 +44,7 @@ function measure(): Geo | null {
     const r = el.getBoundingClientRect();
     return [r.left - st.left - busX, r.right - st.left - busX];
   };
-  const now = new Date(), w = c.width - 14;
+  const now = new Date(), w = c.width - 14, today = localDate(now);
   return {
     a0: [busX, c.top - st.top + 12 * HOUR], l0: 24 * HOUR, a1: [cx, cy + R], l1: 2 * Math.PI * R, k,
     pieces: [
@@ -51,7 +52,7 @@ function measure(): Geo | null {
       ...blocksOn(props.date).map((b) => ({ start: b.start, end: b.end, d0: off(`b${b.id}`), d1: [8 * k, 42 * k] as [number, number], ink: SHADES[b.shade]!.ink, lock: false })),
     ],
     stars: starsOf(props.date).map((s) => ({ ...s, d0: s.u * w, d1: (starR(s) - 152) * k, a0: starInk(s), a1: starDial(s) })),
-    now: now.getHours() * 60 + now.getMinutes(), hand0: [16, c.width - 14], hand1: [-12 * k, 74 * k],
+    now: props.date === today ? now.getHours() * 60 + now.getMinutes() : props.date < today ? 1440 : 0, hand: props.date === today, hand0: [16, c.width - 14], hand1: [-12 * k, 74 * k],
     drawn: drawnOn(props.date),
   };
 }
@@ -122,6 +123,7 @@ function draw(g: Geo, t: number, dpr: number) {
   }
   x.setLineDash([]);
   // Now: the line across the column swinging round into the hand.
+  if (!g.hand) return;
   const [hx0, hy0] = at(g.now, lerp(g.hand0[0], g.hand1[0], slim)), [hx1, hy1] = at(g.now, lerp(g.hand0[1], g.hand1[1], slim));
   x.strokeStyle = 'rgba(230, 224, 212, .75)'; x.lineWidth = 1.2;
   x.beginPath(); x.moveTo(hx0, hy0); x.lineTo(hx1, hy1); x.stroke();
