@@ -35,6 +35,11 @@ services:
     environment:
       DATABASE_URL: postgres://aura:aura@postgres:5432/aura
       PORT: "3000"
+      # Lecture maps: the key stays on the server, in its .env.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      ACADEMY_RESEARCH_MODEL: ${ACADEMY_RESEARCH_MODEL:-}
+      ACADEMY_WRITER_MODEL: ${ACADEMY_WRITER_MODEL:-}
+      ACADEMY_BUDGET_USD: ${ACADEMY_BUDGET_USD:-}
     ports: ["127.0.0.1:13000:3000"]
     depends_on:
       postgres: { condition: service_healthy }

@@ -2,9 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { and, asc, eq } from 'drizzle-orm';
-import { CURRICULUM, guessModule } from '@aura/shared';
+import { CURRICULUM, guessModule, type LectureDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
-import { courses, type CourseExam, type CourseGroup } from '../db/schema.ts';
+import { courses, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
+import { deeper, generate, lectureOf, settleStale, spentThisMonth, toDto } from '../academy/maps.ts';
+import { settingsFromEnv, type Fetch, type Settings } from '../academy/openrouter.ts';
+import { parseSyllabus } from '../academy/syllabus.ts';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const moduleCode = z.enum(CURRICULUM.map((m) => m.code) as [string, ...string[]]);
@@ -40,7 +43,7 @@ const PROGRAMME = /^Bachelor Physik\b/;
 const tag = (src: string, name: string) => src.match(new RegExp(`<${name}[^>]*>([^<]*)</${name}>`))?.[1]?.trim() ?? '';
 const room = (src: string) => tag(src, 'room').split(',')[0]!.trim();
 
-type Found = { name: string; type: string; ects: number; codes: string[]; groups: CourseGroup[] };
+type Found = { name: string; type: string; ects: number; codes: string[]; groups: CourseGroup[]; syllabus: string };
 export function parseCourse(xml: string): Found | null {
   const name = xml.match(/<longname xml:lang="de">([^<]*)<\/longname>/)?.[1]?.trim();
   if (!name) return null;
@@ -55,6 +58,7 @@ export function parseCourse(xml: string): Found | null {
     ects: Math.round(Number(tag(xml, 'ects')) || 0),
     codes: tag(xml, 'codes').split(',').map((c) => c.trim()).filter(Boolean),
     groups,
+    syllabus: parseSyllabus(xml),
   };
 }
 
@@ -84,10 +88,12 @@ async function lookUp(ufind: Ufind, nr: string, semester: string) {
   return { ...found, exams: search ? parseExams(search, nr) : [] };
 }
 
-export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind }> = async (app, opts) => {
+export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrouter?: Fetch; settings?: Settings }> = async (app, opts) => {
   const r = app.withTypeProvider<ZodTypeProvider>();
   const { db } = opts;
   const ufind = opts.ufind ?? fetchUfind;
+  const openrouter = opts.openrouter ?? fetch;
+  const settings = opts.settings ?? settingsFromEnv();
 
   r.get('/academy', { schema: { response: { 200: z.array(courseDto) } } }, async () =>
     (await db.select().from(courses).orderBy(asc(courses.semester), asc(courses.nr)))
@@ -106,7 +112,7 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind }> = asyn
     const [row] = await db.insert(courses).values({
       nr, semester,
       module: request.body.module ?? guessModule(found.codes, found.name),
-      name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams,
+      name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams, syllabus: found.syllabus,
       // A lecture has one group; there is nothing to choose.
       groupId: found.groups.length === 1 ? found.groups[0]!.id : null,
     }).returning();
@@ -127,7 +133,7 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind }> = asyn
       if (!found) continue;
       const groupId = found.groups.some((g) => g.id === c.groupId) ? c.groupId : found.groups.length === 1 ? found.groups[0]!.id : null;
       await db.update(courses).set({
-        name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams, groupId, refreshedAt: new Date(),
+        name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams, syllabus: found.syllabus, groupId, refreshedAt: new Date(),
       }).where(eq(courses.id, c.id));
       refreshed++;
     }
@@ -152,5 +158,69 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind }> = asyn
   r.delete('/academy/courses/:id', { schema: { params: idParams } }, async (request, reply) => {
     const rows = await db.delete(courses).where(eq(courses.id, request.params.id)).returning({ id: courses.id });
     return reply.code(rows.length ? 204 : 404).send();
+  });
+
+  // Lecture maps (docs/superpowers/specs/2026-09-26-lecture-maps-design.md).
+  // A lecture is one date of a course that is not an exercise class.
+  const lectureParams = z.object({ courseId: z.coerce.number().int().positive() });
+  const findLecture = async (courseId: number, begin: string) => {
+    const [course] = await db.select().from(courses).where(eq(courses.id, courseId));
+    return course && course.type !== 'UE' ? lectureOf(course, begin) : null;
+  };
+
+  r.get('/academy/lectures/:courseId', {
+    schema: { params: lectureParams, querystring: z.object({ begin: z.string() }) },
+  }, async (request, reply) => {
+    const { courseId } = request.params;
+    const { begin } = request.query;
+    const lecture = await findLecture(courseId, begin);
+    if (!lecture) return reply.code(404).send({ message: 'no such lecture' });
+    await settleStale(db);
+    const [row] = await db.select().from(lectureMaps).where(and(eq(lectureMaps.courseId, courseId), eq(lectureMaps.begin, begin)));
+    const dto: LectureDto = { courseId, begin, index: lecture.index, total: lecture.total, guess: lecture.guess, map: row ? toDto(row) : null };
+    return dto;
+  });
+
+  // Starts a map, or starts a failed one again; answered at once, the passes
+  // run on and the page polls.
+  r.post('/academy/maps', {
+    schema: { body: z.object({ courseId: z.number().int().positive(), begin: z.string(), topic: z.string().trim().min(3).max(300) }) },
+  }, async (request, reply) => {
+    const { courseId, begin, topic } = request.body;
+    if (!(await findLecture(courseId, begin))) return reply.code(404).send({ message: 'no such lecture' });
+    if (!settings.key) return reply.code(503).send({ message: 'no OpenRouter key is set on the server' });
+    if ((await spentThisMonth(db)) >= settings.budgetUsd) return reply.code(402).send({ message: `this month's budget of $${settings.budgetUsd} is spent` });
+    const [existing] = await db.select().from(lectureMaps).where(and(eq(lectureMaps.courseId, courseId), eq(lectureMaps.begin, begin)));
+    if (existing && existing.status !== 'failed') return reply.code(409).send({ message: 'already mapped' });
+    // A new topic needs new research; the same one keeps what was found.
+    const again = existing && existing.topic === topic;
+    const [row] = existing
+      ? await db.update(lectureMaps).set({ topic, status: 'researching', error: null, createdAt: new Date(), ...(again ? {} : { notes: null, sources: [] }) })
+        .where(eq(lectureMaps.id, existing.id)).returning()
+      : await db.insert(lectureMaps).values({ courseId, begin, topic, status: 'researching' }).returning();
+    void generate(db, openrouter, settings, row!.id);
+    return reply.code(202).send(toDto(row!));
+  });
+
+  r.get('/academy/maps/:id', { schema: { params: idParams } }, async (request, reply) => {
+    await settleStale(db);
+    const [row] = await db.select().from(lectureMaps).where(eq(lectureMaps.id, request.params.id));
+    return row ? toDto(row) : reply.code(404).send();
+  });
+
+  r.post('/academy/maps/:id/expand', {
+    schema: {
+      params: idParams,
+      body: z.object({ node: z.object({ key: z.string().min(1).max(40), kind: z.string().max(20), title: z.string().max(300), text: z.string().max(2000) }) }),
+    },
+  }, async (request, reply) => {
+    const [row] = await db.select().from(lectureMaps).where(eq(lectureMaps.id, request.params.id));
+    if (!row?.map) return reply.code(404).send({ message: 'no such map' });
+    if ((await spentThisMonth(db)) >= settings.budgetUsd) return reply.code(402).send({ message: `this month's budget of $${settings.budgetUsd} is spent` });
+    try {
+      return toDto(await deeper(db, openrouter, settings, row, request.body.node));
+    } catch (e) {
+      return reply.code(502).send({ message: e instanceof Error ? e.message : 'the models did not answer' });
+    }
   });
 };

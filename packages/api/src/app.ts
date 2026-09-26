@@ -13,10 +13,11 @@ import { deviceRoutes } from './routes/device.ts';
 import { bookRoutes } from './routes/books.ts';
 import { vigilRoutes } from './routes/vigil.ts';
 import { academyRoutes } from './routes/academy.ts';
+import type { Fetch, Settings } from './academy/openrouter.ts';
 
 export function buildApp(
   db: Db,
-  opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null> } = {},
+  opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null>; openrouter?: Fetch; settings?: Settings } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? true });
   app.setValidatorCompiler(validatorCompiler);
@@ -32,7 +33,7 @@ export function buildApp(
   app.register(deviceRoutes, { db, prefix: '/api/v1' });
   app.register(bookRoutes, { db, prefix: '/api/v1' });
   app.register(vigilRoutes, { db, prefix: '/api/v1' });
-  app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind });
+  app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind, openrouter: opts.openrouter, settings: opts.settings });
 
   if (opts.webRoot) {
     app.register(fastifyStatic, { root: opts.webRoot });

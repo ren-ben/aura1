@@ -1,5 +1,6 @@
+import type { GrownNode, LectureMap, MapStatus } from '@aura/shared';
 import {
-  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique,
+  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision,
 } from 'drizzle-orm/pg-core';
 
 export const folders = pgTable('folders', {
@@ -145,6 +146,26 @@ export const courses = pgTable('courses', {
   groupId: text('group_id'),
   grade: integer('grade'),
   exams: jsonb('exams').$type<CourseExam[]>().notNull().default([]),
+  // What u:find says the course covers, as plain text: the topic guess for a
+  // lecture is taken from it.
+  syllabus: text('syllabus').notNull().default(''),
   refreshedAt: timestamp('refreshed_at', { withTimezone: true }).notNull().defaultNow(),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.nr, t.semester)]);
+
+// A lecture's map: one per lecture date of a course. The research notes and
+// sources are kept apart from the map, so a failed writing pass reuses them.
+export const lectureMaps = pgTable('lecture_maps', {
+  id: serial('id').primaryKey(),
+  courseId: integer('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  begin: text('begin').notNull(),
+  topic: text('topic').notNull(),
+  status: text('status').$type<MapStatus>().notNull(),
+  error: text('error'),
+  notes: text('notes'),
+  sources: jsonb('sources').$type<{ title: string; url: string }[]>().notNull().default([]),
+  map: jsonb('map').$type<LectureMap>(),
+  grown: jsonb('grown').$type<GrownNode[]>().notNull().default([]),
+  costUsd: doublePrecision('cost_usd').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique().on(t.courseId, t.begin)]);
