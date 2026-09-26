@@ -678,13 +678,12 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .stage:active { cursor: grabbing; }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; cursor: pointer; outline: none; }
-.arc text { font: 400 5.6px var(--pix); fill: var(--phos); text-transform: uppercase; letter-spacing: .03em; pointer-events: none; transition: fill .25s var(--out);
-  paint-order: stroke; stroke: #0c0b0a; stroke-width: 3px; stroke-linejoin: round; }
+.arc text { font: 400 5.2px var(--pix); fill: var(--phos); text-transform: uppercase; letter-spacing: .04em; pointer-events: none; transition: fill .25s var(--out); }
 .arc.locked text { fill: var(--dim); }
 .arc.running text, .arc.passed text { fill: var(--hi); }
 .arc.open text { fill: var(--phos); }
 .arc.hot text, .arc.sel text { fill: #fff; }
-.arcs .sem { font: 400 5px var(--pix); fill: var(--hi); paint-order: stroke; stroke: #0c0b0a; stroke-width: 3px; }
+.arcs .sem { font: 400 5px var(--pix); fill: var(--hi); }
 .legend { position: absolute; left: 14px; bottom: 12px; display: grid; gap: 4px; pointer-events: none; }
 .legend span { display: flex; gap: 8px; align-items: center; }
 .legend .how { color: var(--dim); }
