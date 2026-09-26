@@ -65,18 +65,18 @@ export const moves = (expr: string) => /(^|[^a-z])t([^a-z]|$)/i.test(expr);
 // ---- the cards ---------------------------------------------------------------
 export type Kind = 'hook' | 'questions' | 'outline' | 'terms' | 'equations' | 'pictures' | 'worked' | 'traps' | 'refresh' | 'further';
 export const TITLES: Record<Kind, string> = {
-  hook: 'the puzzle', questions: 'before you go', outline: 'the likely order', terms: 'the words',
-  equations: 'the equations', pictures: 'pictures', worked: 'one worked through', traps: 'traps',
-  refresh: 'refresh first', further: 'further',
+  hook: 'Das Rätsel', questions: 'Bevor du gehst', outline: 'Der wahrscheinliche Gang', terms: 'Die Begriffe',
+  equations: 'Die Gleichungen', pictures: 'Bilder', worked: 'Einmal durchgerechnet', traps: 'Fallen',
+  refresh: 'Vorher auffrischen', further: 'Weiterlesen',
 };
 // The columns either side of the core, nearest first: what to do before the
 // lecture on the left, what it will contain on the right.
 const COLUMNS: Kind[][] = [['hook', 'questions'], ['refresh', 'further'], ['outline', 'terms', 'equations'], ['worked', 'pictures', 'traps']];
 export const present = (m: LectureMap, k: Kind) => !['equations', 'pictures', 'further'].includes(k) || (m[k as 'equations'] as unknown[]).length > 0;
 
-export const CORE = { w: 360, h: 380 };
-export const CARD = 320;
-const GAP = 34, COL = 90;
+export const CORE = { w: 400, h: 420 };
+export const CARD = 370;
+const GAP = 48, COL = 110;
 export type Box = { x: number; y: number; w: number; h: number };
 
 // Where each card sits, given how tall it came out: stacked in its column,
@@ -134,8 +134,8 @@ export function cardText(m: LectureMap, k: Kind): string {
     case 'terms': return m.terms.map((t) => `- **${t.term}**: ${t.meaning}`).join('\n');
     case 'equations': return m.equations.map((e) => `$$${e.tex}$$\n${e.says}`).join('\n\n');
     case 'pictures': return m.pictures.map((p) => `- ${p.title}: $y = ${p.expr}$, $x$ from ${p.from} to ${p.to}. ${p.caption}`).join('\n');
-    case 'worked': return `${m.worked.problem}\n\n${m.worked.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n**Answer:** ${m.worked.answer}`;
-    case 'traps': return m.traps.map((t) => `- Not: ${t.wrong}\n  But: ${t.right}`).join('\n');
+    case 'worked': return `${m.worked.problem}\n\n${m.worked.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\n**Ergebnis:** ${m.worked.answer}`;
+    case 'traps': return m.traps.map((t) => `- Nicht: ${t.wrong}\n  Sondern: ${t.right}`).join('\n');
     case 'refresh': return m.refresh.map((r, i) => `${i + 1}. **${r.topic}**: ${r.why}`).join('\n');
     case 'further': return m.further.map((f) => `- [${f.title}](${f.url}): ${f.note}`).join('\n');
   }
@@ -145,8 +145,8 @@ export const KINDS = Object.keys(TITLES) as Kind[];
 export function markdown(m: LectureMap, grown: GrownNode[], meta: { course: string; date: string }): string {
   const parts = [`# ${m.title}`, `${meta.course}, ${meta.date}`, `> ${m.core}`];
   for (const k of KINDS) if (present(m, k)) parts.push(`## ${TITLES[k]}`, cardText(m, k));
-  if (grown.length) parts.push('## deeper', ...grown.map((g) => `### ${g.title}\n${g.tex ? `$$${g.tex}$$\n` : ''}${g.text}`));
-  parts.push('## my notes', '');
+  if (grown.length) parts.push('## Tiefer', ...grown.map((g) => `### ${g.title}\n${g.tex ? `$$${g.tex}$$\n` : ''}${g.text}`));
+  parts.push('## Meine Notizen', '');
   return parts.join('\n\n');
 }
 

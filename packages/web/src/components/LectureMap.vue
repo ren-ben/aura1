@@ -9,7 +9,8 @@ import Gl from './Gl.vue';
 import Plate from './Plate.vue';
 import Letter from './Letter.vue';
 import art from '../gl/art.json';
-import { catSprite, starfield, type Draw } from '../gl/plate';
+import { catSprite, type Draw } from '../gl/plate';
+import { cosmos } from '../gl/cosmos';
 import { sceneFor } from '../gl/lecture';
 import { reduced } from '../gl/engine';
 import { narrow } from '../screen';
@@ -93,7 +94,7 @@ async function start() {
   } catch (e) { error.value = e instanceof Error ? e.message : 'failed'; }
   busy.value = false;
 }
-const phase = computed(() => dto.value?.status === 'writing' ? 'writing it down' : 'reading the sources');
+const phase = computed(() => dto.value?.status === 'writing' ? 'schreibt es nieder' : 'liest die Quellen');
 
 // ---- the canvas -------------------------------------------------------------
 const heights = reactive<Record<string, number>>({});
@@ -117,29 +118,57 @@ const card = (id: string) => (el: unknown) => {
 };
 onBeforeUnmount(() => sizer.disconnect());
 
-// The whole map in view, as large as it can be read.
-function fit(whole = true) {
+// The whole map in view, as large as it can be read; eased there, never
+// snapped, unless it is the first look.
+let glide = 0;
+function goTo(target: { x: number; y: number; k: number }, now = false) {
+  cancelAnimationFrame(glide);
+  if (now || reduced()) { Object.assign(view, target); return; }
+  const from = { ...view }, t0 = performance.now(), T = 700;
+  const ease = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
+  const step = (t: number) => {
+    const u = ease(Math.min(1, (t - t0) / T));
+    view.x = from.x + (target.x - from.x) * u; view.y = from.y + (target.y - from.y) * u; view.k = from.k + (target.k - from.k) * u;
+    if (u < 1) glide = requestAnimationFrame(step);
+  };
+  glide = requestAnimationFrame(step);
+}
+function fit(whole = true, now = false) {
   const s = stage.value, boxes = Object.values(at.value);
   if (!s || !boxes.length) return;
   // On a phone the whole map is too small to read: it opens on the core.
   if (narrow.value && !whole) {
     const c = at.value.core!, k = Math.min(0.9, (s.clientWidth - 32) / c.w);
-    Object.assign(view, { k, x: s.clientWidth / 2 - (c.x + c.w / 2) * k, y: 24 - c.y * k });
+    goTo({ k, x: s.clientWidth / 2 - (c.x + c.w / 2) * k, y: 24 - c.y * k }, now);
     return;
   }
   const x0 = Math.min(...boxes.map((b) => b.x)), x1 = Math.max(...boxes.map((b) => b.x + b.w));
   const y0 = Math.min(...boxes.map((b) => b.y)), y1 = Math.max(...boxes.map((b) => b.y + b.h));
-  const k = Math.min(1, Math.max(0.3, Math.min((s.clientWidth - 60) / (x1 - x0), (s.clientHeight - 60) / (y1 - y0))));
-  Object.assign(view, { k, x: s.clientWidth / 2 - ((x0 + x1) / 2) * k, y: s.clientHeight / 2 - ((y0 + y1) / 2) * k });
+  const k = Math.min(1, Math.max(0.3, Math.min((s.clientWidth - 80) / (x1 - x0), (s.clientHeight - 80) / (y1 - y0))));
+  goTo({ k, x: s.clientWidth / 2 - ((x0 + x1) / 2) * k, y: s.clientHeight / 2 - ((y0 + y1) / 2) * k }, now);
 }
-// Cards are measured before they fly out of the core, so they land where
-// they will stay.
+onBeforeUnmount(() => cancelAnimationFrame(glide));
+// The cards are laid out unseen first, and measured until their heights
+// hold still (fonts arriving, maths set); only then do they fly out of the
+// core, once, to where they will stay. Moving them only by transform, from
+// the core to their place, is what keeps the flight from shaking.
+const intro = ref(false);
 watch(map, async (m) => {
   if (!m || born.value) return;
   await nextTick();
+  await document.fonts.ready;
+  let last = '', still = 0;
+  for (let i = 0; i < 40 && still < 3; i++) {
+    await new Promise((r) => requestAnimationFrame(r));
+    const now = JSON.stringify(heights);
+    still = now === last && Object.keys(heights).length > 1 ? still + 1 : 0;
+    last = now;
+  }
+  fit(false, true);
   await new Promise((r) => requestAnimationFrame(r));
-  fit(false);
+  intro.value = true;
   born.value = true;
+  setTimeout(() => { intro.value = false; }, 1800);
 }, { immediate: true });
 
 // Pan with a drag, zoom with the wheel or two fingers.
@@ -150,6 +179,7 @@ function down(e: PointerEvent) {
   // Before there is a map, the pointer belongs to the letter.
   if (!map.value) return;
   if ((e.target as HTMLElement).closest('button, a, input, textarea, .gl')) return;
+  cancelAnimationFrame(glide);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   stage.value!.setPointerCapture(e.pointerId);
   dragging.value = true;
@@ -182,13 +212,20 @@ function zoom(by: number, cx: number, cy: number) {
 function wheel(e: WheelEvent) {
   if (!map.value) return;
   e.preventDefault();
+  cancelAnimationFrame(glide);
   zoom(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
 }
 
 const pos = (id: string, i: number) => {
   const b = at.value[id];
-  if (!b || !born.value) return { transform: 'translate(-50%, -50%) scale(.4)', opacity: '0', left: '0px', top: '0px' };
-  return { transform: 'none', opacity: '1', left: `${b.x}px`, top: `${b.y}px`, transitionDelay: `${i * 70}ms`, width: `${b.w}px` };
+  if (!b) return { opacity: '0', left: '0px', top: '0px', width: `${CARD}px` };
+  const base = { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px` };
+  if (!born.value) {
+    // Folded into the core, unseen, until the flight.
+    const c = at.value.core!, dx = c.x + c.w / 2 - (b.x + b.w / 2), dy = c.y + c.h / 2 - (b.y + b.h / 2);
+    return { ...base, opacity: '0', transform: id === 'core' ? 'scale(.92)' : `translate(${dx}px, ${dy}px) scale(.5)` };
+  }
+  return { ...base, opacity: '1', transform: 'none', transitionDelay: intro.value ? `${120 + i * 55}ms` : '0ms' };
 };
 const links = computed(() => {
   if (!map.value || !born.value) return [];
@@ -216,28 +253,28 @@ const revealed = reactive(new Set<number>());
 // He sits at the corner and turns to whatever is being read, with a word on it.
 const hovered = ref<string>('');
 const LINES: Record<string, string> = {
-  core: 'That is the whole of it. Everything else on this map is that, looked at from a different side.',
-  hook: 'Start here. If you cannot answer it yet, good: that itch is what makes the lecture stick.',
-  questions: past ? 'No peeking. What is left without looking is what you actually have.' : 'Guess before you go. Being wrong tonight is the cheapest it will ever be.',
-  outline: 'The likely order. Your professor may wander; now you will notice when.',
-  terms: 'Knowing the name of a thing is not knowing the thing. Read what each one does.',
-  equations: 'Every equation is a sentence. Read it out loud, in words, before you trust it.',
-  pictures: 'Watch it move. A curve is an idea you can see all of at once.',
-  worked: 'Follow each step and ask why that one, and not another.',
-  traps: 'Smart people fall into these. Now you will step around them.',
-  refresh: 'Look at these first. A lecture is easy when the floor under it is solid.',
-  further: 'Where I read. Go and look, if the itch does not stop.',
-  grown: 'Deeper. It keeps going, it always does. That is the beautiful part.',
+  core: 'Das ist schon alles. Der Rest dieser Karte ist dasselbe, von einer anderen Seite betrachtet.',
+  hook: 'Fang hier an. Wenn du es noch nicht beantworten kannst: gut. Genau dieses Jucken lässt die Vorlesung hängen bleiben.',
+  questions: past ? 'Nicht spicken. Was ohne Nachsehen übrig bleibt, ist das, was du wirklich hast.' : 'Rate, bevor du gehst. Heute Abend falsch zu liegen, ist so billig wie nie wieder.',
+  outline: 'Der wahrscheinliche Gang. Wenn der Professor abschweift, merkst du es jetzt.',
+  terms: 'Den Namen eines Dings zu kennen, heißt nicht, das Ding zu kennen. Lies, was jedes tut.',
+  equations: 'Jede Gleichung ist ein Satz. Lies sie laut, in Worten, bevor du ihr traust.',
+  pictures: 'Sieh zu, wie es sich bewegt. Eine Kurve ist eine Idee, die man auf einmal ganz sieht.',
+  worked: 'Geh jeden Schritt mit und frag dich, warum dieser und kein anderer.',
+  traps: 'Kluge Leute fallen hier hinein. Du gehst jetzt daran vorbei.',
+  refresh: 'Schau dir das zuerst an. Eine Vorlesung ist leicht, wenn der Boden darunter trägt.',
+  further: 'Da habe ich gelesen. Geh hin, wenn das Jucken nicht aufhört.',
+  grown: 'Tiefer. Es hört nie auf. Das ist das Schöne daran.',
 };
 const line = computed(() => {
   if (!map.value) {
-    if (flying.value) return 'Ah. A letter.';
-    if (dto.value?.status === 'researching') return 'Reading your letter, and everything written on this since Newton.';
-    if (dto.value?.status === 'writing') return 'Writing it down for you. Patience; the good part takes a moment.';
-    if (dto.value?.status === 'failed') return `Something tore on the way: ${dto.value.error}. Write again.`;
-    return 'Write to me. My guess is on the page already; the syllabus is at your side.';
+    if (flying.value) return 'Ah. Ein Brief.';
+    if (dto.value?.status === 'researching') return 'Ich lese deinen Brief, und alles, was seit Newton darüber geschrieben wurde.';
+    if (dto.value?.status === 'writing') return 'Ich schreibe es für dich nieder. Geduld; das Gute braucht einen Moment.';
+    if (dto.value?.status === 'failed') return `Unterwegs ist etwas zerrissen: ${dto.value.error}. Schreib noch einmal.`;
+    return 'Schreib mir. Meine Vermutung steht schon auf dem Blatt; der Studienplan liegt neben dir.';
   }
-  return LINES[hovered.value.includes('.') ? 'grown' : hovered.value] ?? 'Drag to wander. Hover a card and I will tell you what it is for.';
+  return LINES[hovered.value.includes('.') ? 'grown' : hovered.value] ?? 'Zieh, um zu wandern. Zeig auf eine Karte, und ich sage dir, wozu sie da ist.';
 });
 const facing = computed(() => { const b = at.value[hovered.value]; return b ? (b.x + b.w / 2 < 0 ? -1 : 1) : 1; });
 const sprites = ref<{ curious: HTMLCanvasElement; reading: HTMLCanvasElement } | null>(null);
@@ -258,13 +295,10 @@ const drawCat: Draw = (g, w, h, t) => {
   g.restore();
 };
 
-// The sky behind it all, drifting the other way from the pan.
-const drawSky: Draw = (g, w, h, t) => {
-  starfield(g, w, h / 0.8, Math.round((w * h) / 90), 11, view.x / 6, view.y / 6);
-  const flick = 0.5 + 0.5 * Math.sin(t * 0.7);
-  g.fillStyle = `rgba(255,255,255,${0.05 + flick * 0.04})`;
-  g.fillRect(w * 0.5 + view.x / 12, h * 0.5 + view.y / 12, 1, 1);
-};
+// The sky behind it all: stars at three depths and far bodies, drifting
+// less the farther they are as the map is dragged.
+const sky = cosmos();
+const drawSky: Draw = (g, w, h, t) => sky(g, w, h, t, view.x / 3, view.y / 3);
 
 // A plot drawn from its expression, moving if it has a t in it.
 const plots = computed(() => (map.value?.pictures ?? []).map((p) => {
@@ -327,7 +361,7 @@ const GLYPHS: Record<Kind, string> = {
           <Plate class="lm-sky" :draw="drawSky" :active="true" :animated="true" :cell="3" />
 
           <!-- the map -->
-          <div v-if="map" class="lm-world" :style="{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }">
+          <div v-if="map" class="lm-world" :class="{ born }" :style="{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }">
             <svg class="lm-links" aria-hidden="true">
               <g v-for="l in links" :key="l.id">
                 <path :d="l.d" class="lk" />
@@ -342,9 +376,7 @@ const GLYPHS: Record<Kind, string> = {
             </article>
 
             <article v-for="(k, i) in kinds" :key="k" :ref="card(k)" :data-id="k" class="node" :class="[k, { hot: hovered === k }]" :style="pos(k, i + 1)" @pointerenter="hovered = k" @pointerleave="hovered = ''">
-              <h3 class="pix"><svg viewBox="0 0 12 12" class="glyph"><path :d="GLYPHS[k]" /></svg>{{ k === 'questions' && past ? 'now, without looking' : TITLES[k] }}
-                <button class="grow" :class="{ on: growing === k }" :disabled="!!growing" @click="deeperCard(k)">{{ growing === k ? 'growing' : 'deeper' }}</button>
-              </h3>
+              <h3><svg viewBox="0 0 12 12" class="glyph"><path :d="GLYPHS[k]" /></svg><span>{{ k === 'questions' && past ? 'Jetzt, ohne nachzusehen' : TITLES[k] }}</span></h3>
               <p v-if="k === 'hook'" class="fell big" v-html="rich(map.hook)"></p>
               <ol v-else-if="k === 'questions'" class="qs">
                 <li v-for="(q, j) in map.questions" :key="j">
@@ -377,7 +409,7 @@ const GLYPHS: Record<Kind, string> = {
               <div v-else-if="k === 'worked'" class="worked">
                 <p v-html="rich(map.worked.problem)"></p>
                 <ol><li v-for="(s, j) in map.worked.steps" :key="j" v-html="rich(s)"></li></ol>
-                <p class="ans"><b class="pix">answer</b> <span v-html="rich(map.worked.answer)"></span></p>
+                <p class="ans"><b class="pix">Ergebnis</b> <span v-html="rich(map.worked.answer)"></span></p>
               </div>
               <ul v-else-if="k === 'traps'" class="traps">
                 <li v-for="(t, j) in map.traps" :key="j"><s v-html="rich(t.wrong)"></s><span v-html="rich(t.right)"></span></li>
@@ -388,14 +420,14 @@ const GLYPHS: Record<Kind, string> = {
               <ul v-else-if="k === 'further'" class="further">
                 <li v-for="(f, j) in map.further" :key="j"><a :href="f.url" target="_blank" rel="noopener">{{ f.title }}</a><span class="note" v-html="rich(f.note)"></span></li>
               </ul>
+              <footer><button class="grow" :class="{ on: growing === k }" :disabled="!!growing" @click="deeperCard(k)">{{ growing === k ? 'wächst' : 'tiefer' }}</button></footer>
             </article>
 
             <article v-for="(g, i) in dto!.grown" :key="g.id" :ref="card(g.id)" :data-id="g.id" class="node grown" :class="{ hot: hovered === g.id }" :style="pos(g.id, i % 6)" @pointerenter="hovered = g.id" @pointerleave="hovered = ''">
-              <h3 class="pix">{{ g.title }}
-                <button class="grow" :class="{ on: growing === g.id }" :disabled="!!growing" @click="deeper(g.id, 'deeper', g.title, g.text)">{{ growing === g.id ? 'growing' : 'deeper' }}</button>
-              </h3>
+              <h3><span>{{ g.title }}</span></h3>
               <div v-if="g.tex" class="tex" v-html="tex(g.tex, true)"></div>
               <p v-html="rich(g.text)"></p>
+              <footer><button class="grow" :class="{ on: growing === g.id }" :disabled="!!growing" @click="deeper(g.id, 'deeper', g.title, g.text)">{{ growing === g.id ? 'wächst' : 'tiefer' }}</button></footer>
             </article>
           </div>
 
@@ -439,7 +471,7 @@ const GLYPHS: Record<Kind, string> = {
           <ol v-else-if="k === 'refresh'"><li v-for="(r, j) in map.refresh" :key="j"><b>{{ r.topic }}</b>: <span v-html="rich(r.why)"></span></li></ol>
           <ul v-else-if="k === 'further'"><li v-for="(f, j) in map.further" :key="j">{{ f.title }}: {{ f.url }}</li></ul>
         </section>
-        <section v-if="dto!.grown.length"><h2>deeper</h2><div v-for="g in dto!.grown" :key="g.id"><h3>{{ g.title }}</h3><div v-if="g.tex" v-html="tex(g.tex, true)"></div><p v-html="rich(g.text)"></p></div></section>
+        <section v-if="dto!.grown.length"><h2>Tiefer</h2><div v-for="g in dto!.grown" :key="g.id"><h3>{{ g.title }}</h3><div v-if="g.tex" v-html="tex(g.tex, true)"></div><p v-html="rich(g.text)"></p></div></section>
       </article>
     </div>
   </Teleport>
@@ -457,27 +489,42 @@ const GLYPHS: Record<Kind, string> = {
 .lm-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; }
 .lm-stage.grab { cursor: grabbing; }
 .lm-sky { position: absolute; inset: 0; height: 100%; opacity: .75; pointer-events: none; }
-.lm-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.lm-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; user-select: none; -webkit-user-select: none; }
 .lm-links { position: absolute; overflow: visible; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; }
 .lk { fill: none; stroke: var(--dim); stroke-width: 2.5; stroke-dasharray: 0 8; stroke-linecap: round; animation: lk-in 1.2s var(--out) both; }
 @keyframes lk-in { from { opacity: 0; } }
 .sig { fill: var(--hi); filter: drop-shadow(0 0 4px rgba(230, 224, 212, .8)); }
 
-.node { position: absolute; background: rgba(12, 11, 10, .92); border: 2px dotted var(--low); padding: 12px 14px 14px; cursor: auto;
-  transition: left .9s cubic-bezier(.34, 1.4, .5, 1), top .9s cubic-bezier(.34, 1.4, .5, 1), transform .9s cubic-bezier(.34, 1.4, .5, 1), opacity .5s var(--out), border-color .3s var(--out), box-shadow .3s var(--out); }
-.node.hot { border-color: var(--phos); box-shadow: 0 0 28px rgba(197, 188, 171, .12); }
-.node h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--hi); }
-.glyph { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--phos); stroke-width: 1.3; }
-.grow { margin-left: auto; font: 400 9.5px var(--pix); color: var(--dim); text-transform: uppercase; border: 1px dotted var(--low); padding: 2px 6px; transition: color .3s var(--out), border-color .3s var(--out); }
-.grow:hover:not(:disabled) { color: var(--hi); border-color: var(--phos); }
+/* Cards engraved like a tarot's or an old film's title card: a chamfered
+   double rule with curled corners, an ornament top and bottom, and room
+   inside for the words to breathe. */
+.node { position: absolute; background: rgba(12, 11, 10, .95); border: 16px solid transparent; border-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90' fill='none' stroke='rgb(122,116,104)'><path stroke-width='1.4' d='M9 2H81L88 9V81L81 88H9L2 81V9Z'/><path stroke-width='.8' d='M21 7H69M21 83H69M7 21V69M83 21V69'/><g id='k'><path stroke-width='.8' d='M7 21C7 13 13 7 21 7'/><circle cx='12.5' cy='12.5' r='2' fill='rgb(122,116,104)' stroke='none'/><path stroke-width='.8' d='M21 7C18 10 18 13 21 13.5M7 21C10 18 13 18 13.5 21'/></g><use href='%23k' transform='matrix(-1 0 0 1 90 0)'/><use href='%23k' transform='matrix(1 0 0 -1 0 90)'/><use href='%23k' transform='matrix(-1 0 0 -1 90 90)'/></svg>") 30 stretch;
+  padding: 16px 18px 12px; cursor: auto;
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+  transition: transform 1s cubic-bezier(.16, 1, .3, 1), opacity .7s var(--out), filter .3s var(--out); }
+.lm-world.born .node { transition: transform 1s cubic-bezier(.16, 1, .3, 1), opacity .7s var(--out), filter .3s var(--out), left .6s var(--out), top .6s var(--out); }
+.node::before, .node::after { content: ''; position: absolute; left: 50%; width: 80px; height: 14px; margin-left: -40px; background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 14' fill='none' stroke='rgb(122,116,104)' stroke-width='.9'><path d='M40 1.5L45 7L40 12.5L35 7Z' fill='rgb(122,116,104)'/><path d='M33 7C27 7 25 3 21 4C17 5 18 10 22 9M47 7C53 7 55 3 59 4C63 5 62 10 58 9'/><circle cx='12' cy='7' r='1.3' fill='rgb(122,116,104)' stroke='none'/><circle cx='68' cy='7' r='1.3' fill='rgb(122,116,104)' stroke='none'/></svg>") center / 80px 14px no-repeat, rgb(12, 11, 10); }
+.node::before { top: -15px; }
+.node::after { bottom: -15px; transform: scaleY(-1); }
+.node.hot { border-image-source: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90' fill='none' stroke='rgb(197,188,171)'><path stroke-width='1.4' d='M9 2H81L88 9V81L81 88H9L2 81V9Z'/><path stroke-width='.8' d='M21 7H69M21 83H69M7 21V69M83 21V69'/><g id='k'><path stroke-width='.8' d='M7 21C7 13 13 7 21 7'/><circle cx='12.5' cy='12.5' r='2' fill='rgb(197,188,171)' stroke='none'/><path stroke-width='.8' d='M21 7C18 10 18 13 21 13.5M7 21C10 18 13 18 13.5 21'/></g><use href='%23k' transform='matrix(-1 0 0 1 90 0)'/><use href='%23k' transform='matrix(1 0 0 -1 0 90)'/><use href='%23k' transform='matrix(-1 0 0 -1 90 90)'/></svg>"); filter: drop-shadow(0 0 18px rgba(197, 188, 171, .1)); }
+.node.hot::before, .node.hot::after { background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 14' fill='none' stroke='rgb(197,188,171)' stroke-width='.9'><path d='M40 1.5L45 7L40 12.5L35 7Z' fill='rgb(197,188,171)'/><path d='M33 7C27 7 25 3 21 4C17 5 18 10 22 9M47 7C53 7 55 3 59 4C63 5 62 10 58 9'/><circle cx='12' cy='7' r='1.3' fill='rgb(197,188,171)' stroke='none'/><circle cx='68' cy='7' r='1.3' fill='rgb(197,188,171)' stroke='none'/></svg>"); }
+.node h3 { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; color: var(--hi); font: 400 15.5px/1.2 var(--fell); font-variant: small-caps; letter-spacing: .06em; text-align: center; }
+.node h3::before, .node h3::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--low)); }
+.node h3::after { background: linear-gradient(90deg, var(--low), transparent); }
+.node h3 span { flex: 0 1 auto; }
+.glyph { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--phos); stroke-width: 1.3; order: -1; display: none; }
+.node footer { display: flex; justify-content: center; margin-top: 14px; }
+.grow { font: 400 9.5px var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .12em; padding: 3px 12px; border-top: 1px solid var(--faint); border-bottom: 1px solid var(--faint); transition: color .3s var(--out), border-color .3s var(--out); }
+.grow:hover:not(:disabled) { color: var(--hi); border-color: var(--low); }
 .grow.on { color: var(--hi); animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
 .more { flex: none; color: var(--dim); font: 400 12px var(--pix); padding: 0 4px; opacity: 0; transition: opacity .25s, color .25s; }
 li:hover > .more, dt:hover > .more, .eq:hover > .more { opacity: 1; }
 .more:hover { color: var(--hi); }
 .node p, .node li, .node dd { margin: 0; line-height: 1.55; }
-.core { border: 3px dotted var(--phos); text-align: center; background: rgba(12, 11, 10, .96); }
-.core h2 { font-size: 26px; line-height: 1.05; font-weight: 400; color: var(--hi); margin: 4px 0 10px; }
+.core { border-width: 20px; border-image-source: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 90' fill='none' stroke='rgb(197,188,171)'><path stroke-width='1.4' d='M9 2H81L88 9V81L81 88H9L2 81V9Z'/><path stroke-width='.8' d='M21 7H69M21 83H69M7 21V69M83 21V69'/><g id='k'><path stroke-width='.8' d='M7 21C7 13 13 7 21 7'/><circle cx='12.5' cy='12.5' r='2' fill='rgb(197,188,171)' stroke='none'/><path stroke-width='.8' d='M21 7C18 10 18 13 21 13.5M7 21C10 18 13 18 13.5 21'/></g><use href='%23k' transform='matrix(-1 0 0 1 90 0)'/><use href='%23k' transform='matrix(1 0 0 -1 0 90)'/><use href='%23k' transform='matrix(-1 0 0 -1 90 90)'/></svg>"); text-align: center; background: rgba(12, 11, 10, .97); }
+.core::before, .core::after { background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 14' fill='none' stroke='rgb(197,188,171)' stroke-width='.9'><path d='M40 1.5L45 7L40 12.5L35 7Z' fill='rgb(197,188,171)'/><path d='M33 7C27 7 25 3 21 4C17 5 18 10 22 9M47 7C53 7 55 3 59 4C63 5 62 10 58 9'/><circle cx='12' cy='7' r='1.3' fill='rgb(197,188,171)' stroke='none'/><circle cx='68' cy='7' r='1.3' fill='rgb(197,188,171)' stroke='none'/></svg>"); }
+.core h2 { font: 400 30px/1.05 var(--goth); color: var(--hi); margin: 6px 0 12px; }
 .lm-scene, .lm-wait { position: relative; display: flex; }
 .lm-scene { width: 100%; height: 170px; }
 .lm-scene :deep(.gl), .lm-wait :deep(.gl) { width: 100%; height: 100%; display: block; }
@@ -509,9 +556,9 @@ li:hover > .more, dt:hover > .more, .eq:hover > .more { opacity: 1; }
 .traps s { display: block; color: var(--dim); text-decoration-color: var(--low); }
 .further { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .further a { color: var(--hi); text-decoration: underline dotted; display: block; }
-.grown { border-style: dashed; border-color: var(--faint); background: rgba(18, 18, 18, .95); animation: grow-in .8s cubic-bezier(.34, 1.4, .5, 1) both; }
+.grown { background: rgba(16, 15, 14, .95); animation: grow-in .9s cubic-bezier(.16, 1, .3, 1) both; }
 @keyframes grow-in { from { opacity: 0; transform: translateX(-24px) scale(.92); } }
-.grown h3 { font-size: 10.5px; }
+.grown h3 { font-size: 14px; }
 
 .lm-ask { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; }
 .lm-ask .lab { width: min(560px, 86vw); text-align: left; }

@@ -48,7 +48,7 @@ You are proud of the student and want them to walk into the lecture already curi
 
 export const writerSystem = `${VOICE}
 
-You turn research notes into a lecture map, returned as JSON matching the schema exactly. Write in English; when a term has a German name the lecture will use, give it in brackets, e.g. "momentum (Impuls)".
+You turn research notes into a lecture map, returned as JSON matching the schema exactly. Write everything in German, the German of a Viennese university (the student studies physics at the Universität Wien): use the German technical terms the lecture will use (Impuls, Trägheit, Stetigkeit), and give the English term in brackets only where it helps with English sources, e.g. "Impuls (momentum)". Keep your voice in German: the same warmth and dry humour, never stiff or textbook-formal; address the student as "du".
 Inline maths in any text is written as $...$ LaTeX. Equations (tex) are LaTeX without dollar signs.
 Fields:
 - title: the lecture's topic, short
@@ -73,7 +73,7 @@ ${notes}`;
 
 export const deeperSystem = `${VOICE}
 
-The student asked to go deeper on one node of a lecture map. Return JSON matching the schema: 2-5 new nodes that grow out of it, each with a short title and a text of a few sentences in your voice. Use $...$ for inline maths, and tex (LaTeX, no dollar signs) when a node is mainly an equation. Go genuinely deeper: the reason behind it, a derivation, an example, a connection, an edge case. Write in English.`;
+The student asked to go deeper on one node of a lecture map. Return JSON matching the schema: 2-5 new nodes that grow out of it, each with a short title and a text of a few sentences in your voice. Use $...$ for inline maths, and tex (LaTeX, no dollar signs) when a node is mainly an equation. Go genuinely deeper: the reason behind it, a derivation, an example, a connection, an edge case. Write in German, as in the map, addressing the student as "du".`;
 
 export const deeperUser = (map: { title: string; core: string }, node: { kind: string; title: string; text: string }) =>
   `The lecture: ${map.title}
