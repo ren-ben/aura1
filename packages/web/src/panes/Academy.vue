@@ -266,7 +266,7 @@ const card = computed(() => {
 const volumeKey = computed(() => state.courses.map((c) => `${c.id}:${c.grade}:${c.module}:${c.semester}`).join(','));
 const pulledId = ref<number | null>(null);
 const pulled = computed(() => state.courses.find((c) => c.id === pulledId.value) ?? null);
-const spineTip = ref<{ x: number; y: number; c: Course } | null>(null);
+const spineTip = ref<{ x: number; y: number; w: number; c: Course } | null>(null);
 // A catalogue tag under every volume, drawn crisp over the dithered shelf.
 const tags = ref<{ id: number; x: number; y: number; label: string; out: boolean }[]>([]);
 const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'RM', STEOP3: 'FSP' };
@@ -276,16 +276,16 @@ function spineTexture(c: Course): THREE.CanvasTexture {
   cv.width = 96; cv.height = 384;
   const g = cv.getContext('2d')!;
   const passed = c.grade !== null && c.grade <= 4;
-  g.fillStyle = passed ? '#e8e2d4' : c.grade === 5 ? '#3a3834' : '#9a948a';
+  g.fillStyle = passed ? '#f2ede2' : c.grade === 5 ? '#242220' : '#1c1a18';
   g.fillRect(0, 0, 96, 384);
-  const ink = passed ? '#141414' : '#f4f0e8';
+  const ink = passed ? '#141414' : '#ece6da';
   g.fillStyle = ink;
   // Head and tail bands, and two raised bands.
   for (const y of [14, 22, 350, 358]) g.fillRect(0, y, 96, 4);
   for (const y of [70, 290]) g.fillRect(0, y, 96, 8);
   // The title, running up the spine the way continental spines do.
   g.save(); g.translate(66, 270); g.rotate(-Math.PI / 2);
-  g.font = '800 58px Tektur, monospace';
+  g.font = '800 64px Tektur, monospace';
   g.fillText(`${SHORT[c.module] ?? c.module}`, 0, 0);
   g.restore();
   g.font = '800 26px Tektur, monospace';
@@ -304,8 +304,24 @@ function spineTexture(c: Course): THREE.CanvasTexture {
 
 const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; turn: { x: number; y: number }; canvas: HTMLCanvasElement }) => {
   camera.position.set(0, 0.12, 3.35); camera.lookAt(0, 0.05, 0);
-  const wood = new THREE.MeshLambertMaterial({ color: 0x5a554c });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x2a2825 });
+  scene.fog = new THREE.Fog(0x000000, 4, 9);
+  // Wood with a grain, and a back of planks, drawn once as textures, the way
+  // the study's desk and wall are.
+  const grain = (w: number, h: number, planks: number, base: number) => {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const g = cv.getContext('2d')!, r = rand(w + planks);
+    g.fillStyle = `rgb(${base},${base},${base})`; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < w * 1.2; i++) {
+      const y = r() * h, v = base + (r() - 0.5) * 40;
+      g.fillStyle = `rgb(${v | 0},${v | 0},${v | 0})`; g.fillRect(0, y, w, 1 + r() * 2);
+    }
+    for (let k = 1; k < planks; k++) { g.fillStyle = 'rgb(10,10,10)'; g.fillRect((k / planks) * w, 0, 3, h); }
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const wood = new THREE.MeshLambertMaterial({ map: grain(256, 64, 1, 120) });
+  const back = grain(512, 256, 7, 62); back.rotation = Math.PI / 2; back.center.set(0.5, 0.5);
+  const dark = new THREE.MeshLambertMaterial({ map: back });
+  const pages = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.35, metalness: 0.6, emissive: 0x2a2620 });
   const paper = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
   const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
@@ -335,8 +351,10 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
       last = c.module;
       const thick = thickOf(c), tall = c.type === 'VO' ? 0.74 : 0.62;
       const face = new THREE.MeshLambertMaterial({ map: spineTexture(c) });
-      const side = new THREE.MeshLambertMaterial({ color: 0x8a847a });
-      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, 0.36), [side, side, side, side, face, side]);
+      // Covers in a tone of their own, a module sharing one; pages on top.
+      const tone = 0.42 + ((CURRICULUM.findIndex((m) => m.code === c.module) * 37) % 5) * 0.09;
+      const side = new THREE.MeshLambertMaterial({ color: new THREE.Color(tone, tone * 0.97, tone * 0.92) });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, 0.36), [side, side, pages, side, face, side]);
       b.position.set(x + thick / 2, y + tall / 2, 0.04);
       b.userData = { id: c.id, module: c.module, home: b.position.clone(), out: 0, shelf: y };
       group.add(b); books.push(b);
@@ -373,8 +391,13 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   const lens = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.014, 8, 32), brass); lens.rotation.x = Math.PI / 2; lens.position.set(0.85, 1.15, 0.05); group.add(lens);
   const handle = box(0.18, 0.025, 0.025, brass, 1.03, 1.15, 0.05); handle.rotation.y = 0.2;
   // A lamp over the case, and dust in its light.
-  const lamp = new THREE.PointLight(0xfff4e0, 5, 6, 1.4); lamp.position.set(-0.4, 1.4, 1.2); group.add(lamp);
-  lights(scene, 0.5, 0.35, 0.18);
+  // Lit the way the study is: almost no ambient, one lamp throwing a pool
+  // of light across the shelf from above and in front, and a faint cold fill.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.06));
+  const lamp = new THREE.SpotLight(0xfff4e0, 26, 9, 0.62, 0.55, 1.3);
+  lamp.position.set(-0.6, 2.2, 2.4); lamp.target.position.set(0, 0.1, 0);
+  scene.add(lamp, lamp.target);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(2, 0.6, 2); scene.add(fill);
   const D = 90, dr = rand(4), dust = new Float32Array(D * 3);
   for (let i = 0; i < D; i++) dust.set([(dr() - 0.5) * 3, dr() * 2 - 1, dr() * 0.8 + 0.1], i * 3);
   const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(dust, 3));
@@ -434,7 +457,7 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
       const r = canvas.getBoundingClientRect();
       v.copy(hover.position).add(new THREE.Vector3(0, (hover.geometry as THREE.BoxGeometry).parameters.height / 2 + 0.04, 0)).applyMatrix4(group.matrixWorld).project(camera);
       const c = state.courses.find((x) => x.id === hover!.userData.id);
-      spineTip.value = c ? { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height, c } : null;
+      spineTip.value = c ? { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height, w: r.width, c } : null;
     } else if (spineTip.value) spineTip.value = null;
   };
 };
@@ -445,10 +468,13 @@ const hm = (s: string) => { const [a, b] = s.split(':').map(Number); return a! +
 const theWeek = computed(() => weekOf(state.courses));
 // The day drawn only as long as the week's dates need, so a lecture card is
 // tall enough to read.
+// The hours drawn: only as many as the week's dates use (at least five),
+// so a lecture is tall enough to read in a small frame.
 const span = computed(() => {
   const sl = theWeek.value.slots;
   if (!sl.length) return { h0: 9, h1: 15 };
-  return { h0: Math.floor(Math.min(...sl.map((e) => hm(e.from)))), h1: Math.ceil(Math.max(...sl.map((e) => hm(e.to)))) };
+  const h0 = Math.floor(Math.min(...sl.map((e) => hm(e.from))));
+  return { h0, h1: Math.max(h0 + 5, Math.ceil(Math.max(...sl.map((e) => hm(e.to))))) };
 });
 const hourMarks = computed(() => Array.from({ length: span.value.h1 - span.value.h0 + 1 }, (_, i) => span.value.h0 + i));
 const at = (h: number) => ((h - span.value.h0) / (span.value.h1 - span.value.h0)) * 100;
@@ -456,7 +482,7 @@ const blocks = computed(() => theWeek.value.slots.map((e) => {
   const hours = hm(e.to) - hm(e.from);
   return { ...e, top: at(hm(e.from)), height: at(hm(e.to)) - at(hm(e.from)), short: hours < 1, module: e.label.split(' ')[0]! };
 }));
-const dates = computed(() => days.map((d, i) => { const x = new Date(theWeek.value.monday); x.setDate(x.getDate() + i); return { label: `${d} ${x.getDate()}`, today: x.toDateString() === new Date().toDateString() }; }));
+const dates = computed(() => days.map((d, i) => { const x = new Date(theWeek.value.monday); x.setDate(x.getDate() + i); return { day: d, date: x.getDate(), label: `${d} ${x.getDate()}`, today: x.toDateString() === new Date().toDateString() }; }));
 const weekTitle = computed(() => `the week of ${theWeek.value.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }).toLowerCase()} // as u:find has it`);
 // The hour now, as a line across today, while it is inside the week drawn.
 const nowLine = ref(-1);
@@ -554,7 +580,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
         <h1 class="title">The Academy</h1>
         <p class="motto fell">Sapere aude.</p>
       </div>
-      <p class="note">Physics at the University of Vienna, curriculum 2026. The registrar keeps every course as a volume and every grade as a seal, the way Miskatonic kept its stacks; he says the mathematics is the telescope.</p>
+      <p class="note">Physics at the University of Vienna, curriculum 2026: every course a volume, every grade a seal.</p>
       <div class="big"><span class="tek"><Num :value="tally.passed" /></span><span class="pix">of 180 ects<br>{{ tally.running }} this term</span><span class="bar"><i :style="{ width: `${(tally.passed / 180) * 100}%` }"></i><i class="run" :style="{ width: `${(tally.running / 180) * 100}%` }"></i></span></div>
       <div class="kv">
         <span>term</span><span>{{ TERM.name }} // {{ term.label }}</span>
@@ -578,30 +604,37 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <div class="grid">
-          <div class="hours" aria-hidden="true"><span v-for="h in hourMarks" :key="h" :style="{ top: `${at(h)}%` }">{{ h }}</span></div>
-          <div v-for="(d, i) in dates" :key="d.label" class="day" :class="{ today: d.today }">
-            <span class="pix">{{ d.label }}</span>
-            <div class="col">
-              <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
-                      :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}`"
-                      @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="choose(moduleFor(b.module))">
-                <b>{{ b.label }}</b><span>{{ b.short ? b.from : `${b.from} ${b.room}` }}</span>
-              </button>
-              <i v-if="d.today && nowLine >= 0" class="now" :style="{ top: `${nowLine}%` }"></i>
-            </div>
+        <div class="tt">
+          <div class="tt-head">
+            <span></span>
+            <span v-for="d in dates" :key="d.label" class="tt-day" :class="{ today: d.today }"><span class="pix">{{ d.day }}</span><b class="tek">{{ d.date }}</b></span>
           </div>
-          <p v-if="!blocks.length" class="nothing note fell">No dates this week. Add a course, or pick its group.</p>
+          <div class="tt-body">
+            <div class="tt-rules" aria-hidden="true">
+              <span v-for="h in hourMarks" :key="h" class="rule" :class="{ even: h % 2 === 0 }" :style="{ top: `${at(h)}%` }"><em class="pix">{{ String(h).padStart(2, '0') }}</em></span>
+            </div>
+            <div class="tt-cols">
+              <div v-for="(d, i) in dates" :key="d.label" class="tt-col" :class="{ today: d.today }">
+                <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
+                        :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}`"
+                        @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="choose(moduleFor(b.module))">
+                  <b>{{ b.label }}</b><span class="when">{{ b.from }}-{{ b.to }}</span>
+                </button>
+                <i v-if="d.today && nowLine >= 0" class="now" :style="{ top: `${nowLine}%` }"></i>
+              </div>
+            </div>
+            <p v-if="!blocks.length" class="nothing note fell">No dates this week. Add a course, or pick its group.</p>
+          </div>
         </div>
       </Frame>
     </div>
 
 
     <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
-      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
+      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
       <button v-if="!state.courses.length" class="btn bare" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : `add the first term // ${FIRST_TERM.courses.length} courses` }}</button>
       <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
-    <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${spineTip.x}px`, top: `${spineTip.y}px` }">
+    <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${Math.min(Math.max(spineTip.x, 150), spineTip.w - 150)}px`, top: `${spineTip.y}px` }">
         <b class="fell">{{ spineTip.c.name }}</b><span class="pix">{{ spineTip.c.type }} // {{ spineTip.c.ects }} ects // {{ spineTip.c.grade ? GRADES[spineTip.c.grade - 1] : 'no grade yet' }}</span>
       </div>
       <Transition name="card">
@@ -670,12 +703,12 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .card-leave-active { transition: opacity .12s linear; }
 .card-enter-from { opacity: 0; transform: translateY(8px); }
 .card-leave-to { opacity: 0; }
-.side { grid-area: side; display: grid; grid-template-rows: auto auto auto auto auto minmax(210px, 1fr); gap: 12px; min-height: 0; }
+.side { grid-area: side; display: grid; grid-template-rows: auto auto auto auto auto minmax(230px, 1fr); gap: 10px; min-height: 0; }
 .head { display: grid; gap: 4px; }
 .head .pix { color: var(--dim); }
 .motto { margin: 2px 0 0; font-style: italic; color: var(--dim); font-size: 16px; }
 .big { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 6px 14px; align-items: end; padding-top: 12px; border-top: 3px dotted var(--low); }
-.big .tek { font-size: 76px; }
+.big .tek { font-size: 58px; }
 .big .pix { padding-bottom: 6px; line-height: 1.6; }
 .big .bar { grid-column: 1 / -1; display: flex; height: 6px; background: radial-gradient(circle, var(--low) 1px, transparent 1.4px) 0 50% / 5px 5px repeat-x; }
 .big .bar i { display: block; height: 6px; background: var(--phos); transition: width 1s var(--out); }
@@ -712,7 +745,8 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .bare { position: absolute; left: 12px; bottom: 10px; }
 .tags span { position: absolute; transform: translate(-50%, 2px); font: 400 8.5px var(--pix); color: var(--phos); text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px #0c0b0a, 0 0 3px #0c0b0a; }
 .tags span.out { color: var(--hi); }
-.vtip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); display: grid; gap: 2px; padding: 6px 10px; background: rgba(12, 11, 10, .92); border: 3px double var(--low); pointer-events: none; white-space: nowrap; }
+.vtip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); display: grid; gap: 2px; padding: 6px 10px; width: max-content; max-width: 280px; background: rgba(12, 11, 10, .94); border: 3px double var(--dim); pointer-events: none; z-index: 2; }
+.vtip b { white-space: normal; line-height: 1.15; }
 .vtip b { font-weight: 400; font-size: 16px; color: var(--hi); }
 .volume { position: absolute; right: 12px; width: min(360px, 58%); top: 40px; display: grid; gap: 8px; padding: 12px 14px; background: rgba(12, 11, 10, .94); border: 3px double var(--dim); }
 .volume b { font-size: 21px; font-weight: 400; color: var(--hi); line-height: 1.1; }
@@ -735,22 +769,32 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .word { white-space: nowrap; font-style: normal; color: var(--hi); animation: word 1.1s var(--out) both; }
 @keyframes word { from { opacity: 0; transform: translateX(6px); } 25% { opacity: 1; transform: none; } 80% { opacity: 1; } to { opacity: 0; } }
 .week { min-height: 0; }
-.grid { flex: 1; display: grid; grid-template-columns: 26px repeat(5, minmax(0, 1fr)); gap: 0 8px; padding: 8px 12px 14px; min-height: 0; position: relative; }
-.hours { position: relative; margin-top: 18px; }
-.hours span { position: absolute; right: 2px; font: 400 9px var(--pix); color: var(--low); transform: translateY(-50%); }
-.day { display: grid; grid-template-rows: auto 1fr; gap: 4px; min-width: 0; }
-.day.today > .pix { color: var(--hi); }
-.day.today .col { border-left-color: var(--dim); }
-.col { position: relative; border-left: 3px dotted var(--faint); }
-.blk { position: absolute; left: 4px; right: 0; min-height: 22px; box-sizing: border-box; border: 2px solid var(--phos); background: var(--deep); padding: 3px 6px 4px; overflow: hidden; display: grid; align-content: start; gap: 1px; text-align: left;
-  transition: transform .2s var(--out), background .2s var(--out), border-color .2s var(--out); }
+.week :deep(.flush) { display: flex; flex-direction: column; }
+.tt { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px 12px 10px 8px; }
+.tt-head, .tt-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 6px; }
+.tt-head { grid-template-columns: 30px repeat(5, minmax(0, 1fr)); padding-bottom: 6px; border-bottom: 3px dotted var(--low); }
+.tt-day { display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 2px 0; }
+.tt-day .tek { font-size: 15px; color: var(--phos); }
+.tt-day.today { background: var(--faint); }
+.tt-day.today .pix, .tt-day.today .tek { color: var(--hi); }
+.tt-body { position: relative; min-height: 0; margin-top: 8px; margin-bottom: 6px; }
+.tt-rules { position: absolute; inset: 0; pointer-events: none; }
+.rule { position: absolute; left: 30px; right: 0; border-top: 1px dotted var(--faint); }
+.rule.even { border-top-color: var(--low); }
+.rule em { position: absolute; left: -30px; top: 0; transform: translateY(-50%); width: 24px; text-align: right; font: 400 9px var(--pix); font-style: normal; color: var(--dim); }
+.tt-cols { position: absolute; inset: 0 0 0 30px; }
+.tt-col { position: relative; min-width: 0; }
+.tt-col.today { background: rgba(197, 188, 171, .03); }
+.blk { position: absolute; left: 2px; right: 2px; min-height: 18px; box-sizing: border-box; border: 2px solid var(--phos); background: var(--deep); padding: 4px 6px; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1px; text-align: left; transition: transform .2s var(--out), background .2s var(--out), border-color .2s var(--out); }
 .blk.ue { border-style: dotted; border-color: var(--dim); }
-.blk b { font: 400 10px/1.25 var(--pix); color: var(--hi); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.blk span { font-size: 10.5px; color: var(--dim); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.blk.short { display: flex; gap: 6px; align-items: center; padding: 2px 6px; }
-.blk:hover, .blk.hot { transform: translateX(3px); background: #1a1816; border-color: var(--hi); z-index: 1; }
-.blk:hover span, .blk.hot span { color: var(--phos); }
-.now { position: absolute; left: -3px; right: 0; height: 0; border-top: 2px solid var(--hi); pointer-events: none; }
+.blk b { font: 400 10px/1.2 var(--pix); color: var(--hi); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk span { font-size: 10.5px; color: var(--dim); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk .when { color: var(--phos); font-variant-numeric: tabular-nums; }
+.blk.short { flex-direction: row; align-items: center; gap: 6px; padding: 1px 6px; }
+.blk:hover, .blk.hot { transform: translateY(-1px); background: #1a1816; border-color: var(--hi); z-index: 1; }
+.blk:hover span, .blk.hot span { color: var(--hi); }
+.now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--hi); pointer-events: none; z-index: 2; }
 .now::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--hi); animation: blink 2s steps(1) infinite; }
 .nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-style: italic; font-size: 16px; pointer-events: none; }
 .sphere { grid-area: sphere; min-height: 0; }

@@ -62,9 +62,15 @@ export function week(courses: Course[], now = new Date()): { monday: Date; slots
   const mondayOf = (d: Date) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
   let monday = mondayOf(now);
   const inWeek = (m: Date) => events.filter((e) => e.begin >= m && e.begin.getTime() < m.getTime() + 5 * 864e5);
+  // A week with nothing in it yet (before the term, or a break) shows the
+  // next one that has: of that week and the one after, the fuller, so a term
+  // that starts on a Thursday opens on its first whole week.
   if (!inWeek(monday).length) {
     const next = events.map((e) => e.begin).filter((b) => b > now).sort((a, b) => a.getTime() - b.getTime())[0];
-    if (next) monday = mondayOf(next);
+    if (next) {
+      const first = mondayOf(next), second = new Date(first.getTime() + 7 * 864e5);
+      monday = inWeek(second).length > inWeek(first).length ? second : first;
+    }
   }
   return {
     monday,
