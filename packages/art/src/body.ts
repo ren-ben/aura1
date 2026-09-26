@@ -6,7 +6,7 @@
 // The face always shows; there is no pose from behind.
 
 import { curve, ellipse, outline, sampleCubics, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
-import { head, NECK, type Palette, type Wear } from './rig.ts';
+import { fold, head, NECK, type Palette, type Wear } from './rig.ts';
 import { tricorn } from './props.ts';
 import type { Expression } from './expressions.ts';
 
@@ -116,6 +116,23 @@ export function holding(expr: Expression, p: Palette, held: string, wear: Wear =
   ].join('');
 }
 
+// Loafing in the Halloween sheet (inspiration/ghost2.png): the whole of him
+// under it, a long heap of cloth with his head at the front, his tail up
+// out of the back and his front paws peeking out under the hem.
+function loafUnderSheet(expr: Expression, p: Palette, wear: Wear): string {
+  const hem: Pt[] = [[348, 392], [322, 386], [298, 393], [270, 386], [244, 392], [214, 385], [186, 392], [158, 386], [126, 392], [104, 388]];
+  const heap = outline([[100, 380], [112, 330], [150, 296], [220, 284], [290, 290], [336, 318], [352, 360], ...hem], 3);
+  const cloth = `<path d="${toPath(wobble(heap, 61, 1.4))}" fill="${p.paper}" stroke="${p.ink}" stroke-width="7" stroke-linejoin="round"/>`;
+  const folds = [[[258, 300], [270, 340], [262, 382]], [[300, 306], [318, 344], [314, 380]], [[224, 330], [230, 360], [226, 382]]]
+    .map((f, i) => fold(curve(f as Pt[]), 4, 62 + i, p)).join('');
+  return [
+    tail([[318, 322], [344, 300], [354, 262], [342, 232], [352, 208], [368, 202]], p, 7),
+    cloth, folds,
+    paw(150, 392, p, 63, 15, 9), paw(190, 393, p, 64, 15, 9),
+    placeHead(expr, p, [178, 322], 0.64, { ...wear, hem: 382 }),
+  ].join('');
+}
+
 // frame varies a pose between animation frames (the waving paw's angle).
 export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, frame = 0): string {
   switch (kind) {
@@ -138,11 +155,12 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
     case 'loaf':
       // Paws tucked under, a bread loaf of a cat, tail wrapped along the front.
       // Lifted so the tail, the lowest of him, rests on the floor line.
+      if (wear.skin === 'halloween') return loafUnderSheet(expr, p, wear);
       return `<g transform="translate(0 -12)">${[
         ink(outline([[124, 380], [134, 336], [170, 306], [230, 294], [290, 300], [326, 326], [336, 362],
           [326, 388], [230, 394], [140, 392]]), p, 4),
         tail([[326, 384], [292, 396], [236, 398], [190, 394]], p, 7, 14, 10),
-        placeHead(expr, p, [176, 332], 0.62, { ...wear, hem: 362 }),
+        placeHead(expr, p, [176, 332], 0.62, wear),
       ].join('')}</g>`;
     case 'reach': {
       // Paws up: halfway on odd frames, all the way on even ones.

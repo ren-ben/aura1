@@ -9,8 +9,9 @@
 // ~5 units wide here.
 
 import {
-  curve, ellipse, lineWeight, outline, rotate, sampleCubics, shape, stroke, superellipse, toPath, wobble, type Pt,
+  curve, ellipse, lineWeight, outline, rng, rotate, sampleCubics, shape, stroke, superellipse, toPath, wobble, type Pt,
 } from './ink.ts';
+import polygonClipping, { type Polygon } from 'polygon-clipping';
 import { blush, eye, EYES, mouth, type Palette } from './face.ts';
 import { marks } from './marks.ts';
 import { EXPRESSIONS, type Ears, type Expression } from './expressions.ts';
@@ -130,35 +131,58 @@ function halo(p: Palette, seed: number): string[] {
   return [shape(ring, p.ink), ...orbs, shape(wobble(star, seed + 9, 0.5), p.ink)];
 }
 
-// Halloween: a bedsheet ghost. The sheet is thrown over his head, his ears
-// poking up out of it and his whiskers out of its sides; two holes cut for
-// his eyes, so every face still shows. It hangs to `hem` (canonical y): off
-// the bottom of a bust, above his feet when he sits, so his paws and tail
-// show under it. The cloth hangs straight while his head tilts.
+// Halloween: a bedsheet ghost. The sheet is thrown over his head and takes
+// the shape of his ears; two holes cut for his eyes, so every face still
+// shows, and his whiskers poke out over its sides. It hangs to `hem`
+// (canonical y): off the bottom of a bust, above his feet when he sits, so
+// his paws and tail show under it. The cloth hangs plumb while his head
+// tilts, and falls a little differently every time: seeded sway, an uneven
+// hem, folds that wander.
 const HEM = 462;
-function sheet(p: Palette, hem: number, tilt: number, seed: number): string[] {
-  const dome = superellipse(200, 228, 116, { b: 104, n: 2.1 }, { b: 104, n: 2.1 }, 80).slice(40);
-  // Wider as it falls, with a few loose points along the hem.
+// A fold in the cloth: a tapered ink line, thick where it hangs deepest.
+export const fold = (line: Pt[], w: number, seed: number, p: Palette) =>
+  shape(wobble(stroke(line, (t) => 1 + w * Math.sin(Math.PI * Math.min(1, t * 1.4))), seed, 0.5), p.ink);
+function sheet(p: Palette, hem: number, tilt: number, ears: Pt[][], seed: number): string[] {
+  const r = rng(seed);
   const drop = hem - 250;
-  const flare = 118 + Math.min(40, drop * 0.2);
-  const side = (dir: number): Pt[] => [[200 + dir * 112, 262], [200 + dir * (114 + drop * 0.05), 250 + drop * 0.45], [200 + dir * flare, hem - 10]];
-  const lobes = 5;
+  const sway = (r() - 0.5) * 22;
+  const slope = (r() - 0.5) * 18;
+  const flare = (dir: number) => (118 + Math.min(40, drop * 0.2)) * (0.9 + r() * 0.18) * dir;
+  const [fl, fr] = [flare(-1), flare(1)];
+  const dome = superellipse(200, 228, 116, { b: 104, n: 2.1 }, { b: 104, n: 2.1 }, 80).slice(40);
+  const side = (dir: number): Pt[] => [[200 + dir * 112, 264], [200 + dir * (114 + drop * 0.05) + (r() - 0.5) * 10, 250 + drop * 0.45],
+    [200 + (dir < 0 ? fl : fr) + sway, hem - 10 + dir * slope / 2]];
+  const lobes = 4 + Math.floor(r() * 3);
   const edge: Pt[] = Array.from({ length: lobes * 2 + 1 }, (_, i) => {
-    const x = 200 + flare - (2 * flare * i) / (lobes * 2);
-    return [x, hem + (i % 2 ? -10 : 4) + ((i * 7) % 5)] as Pt;
+    const t = i / (lobes * 2);
+    const x = 200 + fr + (fl - fr) * t + sway + (i % 2 ? 0 : (r() - 0.5) * 8);
+    return [x, hem + slope * (0.5 - t) + (i % 2 ? -(7 + r() * 9) : 2 + r() * 6)] as Pt;
   });
   // Unwind the head's tilt below the chin: at the hem the cloth hangs plumb.
   const hang = (pts: Pt[]) => pts.map((pt) => {
     const k = Math.min(1, Math.max(0, (pt[1] - 250) / drop));
     return rotate([pt], -tilt * k, NECK)[0]!;
   });
-  const cloth = hang(wobble(outline([...side(-1).reverse(), ...dome, ...side(1), ...edge], 4), seed, 1.6));
-  // Folds from under the eyes down toward the hem.
-  const folds = drop > 60 ? [-70, -26, 30, 76].map((x, i) => {
-    const line = hang(curve([[200 + x * 0.7, 300 + (i % 2) * 14], [200 + x * 0.92, 250 + drop * 0.6], [200 + x * 1.1, hem - 16]]));
-    return shape(wobble(stroke(line, (t) => 1 + 5 * Math.sin(Math.PI * Math.min(1, t * 1.4))), seed + 1 + i, 0.5), p.ink);
-  }) : [];
-  return [`<path d="${toPath(cloth)}" fill="${p.paper}" stroke="${p.ink}" stroke-width="${(7 * lineWeight()).toFixed(1)}" stroke-linejoin="round"/>`, ...folds];
+  // The cloth over each ear, merged with the rest into one outline.
+  // Smaller than his own and set in from the edges: bumps on the dome, so
+  // the sheet stays round over his head.
+  const proud = (pts: Pt[], [cx, cy]: Pt): Pt[] => pts.map(([x, y]) => [cx + (x - cx) * 0.7, cy + (y - cy) * 0.66]);
+  const ring = (pts: Pt[]): Polygon => [[...pts, pts[0]!].map(([x, y]) => [x, y] as [number, number])];
+  const body = wobble(outline([...side(-1).reverse(), ...dome, ...side(1), ...edge], 4), seed, 1.6);
+  const [merged] = polygonClipping.union(ring(body), ...ears.map((e, i) => ring(wobble(proud(e, i ? [246, 176] : [154, 176]), seed + 30 + i, 1))));
+  const cloth = hang((merged![0]! as Pt[]).slice(0, -1));
+  // Folds from under the eyes down toward the hem, a few, each its own way.
+  const count = drop > 60 ? 3 + Math.floor(r() * 3) : 0;
+  const folds = Array.from({ length: count }, (_, i) => {
+    const u = (i + 0.5) / count - 0.5 + (r() - 0.5) * 0.12;
+    const x = 200 + u * 150;
+    const bend = (r() - 0.5) * 22;
+    const end: Pt = [200 + sway + u * (fr - fl) * 0.85, hem - 12 - r() * 16];
+    const line = hang(curve([[x, 292 + r() * 40], [(x + end[0]) / 2 + bend, 250 + drop * (0.55 + r() * 0.15)], end]));
+    return fold(line, 4 + r() * 2.5, seed + 1 + i, p);
+  });
+  return [`<path d="${toPath(cloth)}" fill="${p.paper}" stroke="${p.ink}" stroke-width="${(7 * lineWeight()).toFixed(1)}" stroke-linejoin="round"/>`,
+    ...folds];
 }
 
 // hat: the hunter's tricorn, for the Hunter's Dream and the hunt. hem: how
@@ -195,9 +219,7 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
   const holes = EYES.map(([x, y], i) => toPath(wobble(ellipse(x, y, 32, 40, 40), 140 + i, 1.2)));
   const parts = ghost ? [
     ...(wear.headphones ? headphonesBehind(p, 90) : []),
-    ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
-    ...openings,
-    ...sheet(p, wear.hem ?? HEM, expr.tilt ?? 0, 130),
+    ...sheet(p, wear.hem ?? HEM, expr.tilt ?? 0, ears, 130 + (wear.hem ?? HEM) + Math.round((expr.tilt ?? 0) * 13)),
     ...whiskers,
     `<clipPath id="eyeholes"><path d="${holes.join(' ')}"/></clipPath><path d="${holes.join(' ')}" fill="${p.ink}"/>`,
     `<g clip-path="url(#eyeholes)">${eyePair.join('')}</g>`,

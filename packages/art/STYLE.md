@@ -98,10 +98,13 @@ wrapped round the front of the feet, one ink shape with the body).
 
 Skins: default, astrolabe halo, halloween. Planned: pumpkin-head, blood moon.
 
-Halloween (`inspiration/ghost*.png`): a bedsheet thrown over him. His ink ears
-poke up out of the dome, his whiskers out over its sides; the sheet is paper
-with an ink rim, a few tapered folds, a loose scalloped hem that hangs plumb
-while his head tilts. Two ink holes for eyes, his real eyes inside them, so
-every face still reads; nose, mouth and blush turn to ink on the cloth. It
-hangs to just above his feet (only his paws and tail show), shorter over a
-loaf.
+Halloween (`inspiration/ghost*.png`): a bedsheet thrown over him. The cloth
+takes his ears as two smaller bumps set in on a round dome (his own ears are
+at the head's edges; cloth that followed them read as a tent). His whiskers
+poke out over its sides; two ink holes for eyes, his real eyes inside them,
+so every face still reads; nose, mouth and blush turn to ink on the cloth.
+The cloth is the same size in every pose: it hangs to just above his feet
+(only paws and tail show), and loafing, one long heap covers all of him, his
+tail up out of the back. It falls differently every time (seeded sway, an
+uneven hem, wandering folds), never stiff, and hangs plumb while his head
+tilts.

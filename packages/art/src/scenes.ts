@@ -351,7 +351,7 @@ export function halloweenScenes(): Scene[] {
     hs('lore-patch', 'lore', [svg(patchSet(g('sit', 'delighted')))], 'patch'),
     // Under the dead tree with the ghost he knows, loafing in his sheet.
     hs('lore-tree', 'lore', [svg(moon(344, 56, 32, P, 'paleblood', 180) + deadTree(62, 388, P, 354) + bat(120, 70, P, 0.8, 121)
-      + ghost(150, 200, P, 103, 0.9) + ground + at(g('loaf', 'content'), 262, 392, 0.9))], 'patch'),
+      + ghost(150, 200, P, 103, 0.9) + ground + at(g('loaf', 'content'), 236, 392, 0.9))], 'patch'),
     // A spider comes down on its thread; he watches it, fascinated.
     hs('lore-spider', 'lore', [svg(web(P, 1, 467, 120) + bustAt({ ...face('curious'), look: [10, -10] }, [170, 396], 0.86, G))], 'room'),
     hs('lore-friends', 'lore', [svg(moon(72, 64, 30, P, 'paleblood', 181) + ghost(84, 250, P, 104, 1.3) + ghost(330, 196, P, 105, 1.1)
