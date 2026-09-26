@@ -262,7 +262,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       const begin = new URLSearchParams(query).get('begin')!;
       const all = (c.groups.find((g) => g.id === c.groupId)?.events ?? []).map((e) => e.begin).sort();
       const index = all.indexOf(begin);
-      return { courseId: c.id, begin, index, total: all.length, guess: `${c.name}: ${index < 6 ? "Newton's laws" : `lecture ${index + 1}`}`, map: structuredClone(maps.find((m) => m.courseId === c.id && m.begin === begin) ?? null) };
+      return { courseId: c.id, begin, index, total: all.length, topics: ['Grundlagen der Physik', 'Punktmechanik', 'Starre Körper', 'Deformierbare Körper und Fluide', 'Schwingungen und Wellen', 'Thermodynamik'], guess: `${c.name}: ${index < 6 ? "Newton's laws" : `lecture ${index + 1}`}`, map: structuredClone(maps.find((m) => m.courseId === c.id && m.begin === begin) ?? null) };
     }
     case 'POST /academy/maps': {
       if (seg[3] === 'expand') {

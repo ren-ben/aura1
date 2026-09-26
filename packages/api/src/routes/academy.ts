@@ -7,7 +7,7 @@ import type { Db } from '../db/client.ts';
 import { courses, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
 import { deeper, generate, lectureOf, settleStale, spentThisMonth, toDto } from '../academy/maps.ts';
 import { settingsFromEnv, type Fetch, type Settings } from '../academy/openrouter.ts';
-import { parseSyllabus } from '../academy/syllabus.ts';
+import { parseSyllabus, topicsOf } from '../academy/syllabus.ts';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const moduleCode = z.enum(CURRICULUM.map((m) => m.code) as [string, ...string[]]);
@@ -173,11 +173,17 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
   }, async (request, reply) => {
     const { courseId } = request.params;
     const { begin } = request.query;
+    // A course added before syllabi were kept gets its syllabus now.
+    const [course] = await db.select().from(courses).where(eq(courses.id, courseId));
+    if (course && !course.syllabus) {
+      const found = await lookUp(ufind, course.nr, course.semester).catch(() => null);
+      if (found?.syllabus) await db.update(courses).set({ syllabus: found.syllabus }).where(eq(courses.id, courseId));
+    }
     const lecture = await findLecture(courseId, begin);
     if (!lecture) return reply.code(404).send({ message: 'no such lecture' });
     await settleStale(db);
     const [row] = await db.select().from(lectureMaps).where(and(eq(lectureMaps.courseId, courseId), eq(lectureMaps.begin, begin)));
-    const dto: LectureDto = { courseId, begin, index: lecture.index, total: lecture.total, guess: lecture.guess, map: row ? toDto(row) : null };
+    const dto: LectureDto = { courseId, begin, index: lecture.index, total: lecture.total, guess: lecture.guess, topics: topicsOf(lecture.syllabus), map: row ? toDto(row) : null };
     return dto;
   });
 

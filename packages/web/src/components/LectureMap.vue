@@ -7,6 +7,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import 'katex/dist/katex.min.css';
 import Gl from './Gl.vue';
 import Plate from './Plate.vue';
+import Letter from './Letter.vue';
 import art from '../gl/art.json';
 import { catSprite, starfield, type Draw } from '../gl/plate';
 import { sceneFor } from '../gl/lecture';
@@ -56,7 +57,27 @@ function watchJob() {
     watchJob();
   }, 2500);
 }
+// The letter: what it says above the writing, and which syllabus topic this
+// lecture falls on.
+const flying = ref(false);
+// A letter that never reached him (the request failed) is written again.
+const drafts = ref(0);
+function arrived() {
+  flying.value = false;
+  if (!dto.value || dto.value.status === 'failed') drafts.value++;
+}
+const ordinal = (n: number) => `${n}${[, 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] ?? 'th'}`;
+const heading = computed(() => lecture.value
+  ? `Before the ${ordinal(lecture.value.index + 1)} lecture of ${lecture.value.total} in ${props.course.name}, on ${day}, I would like to understand:`
+  : '');
+const guessed = computed(() => {
+  const l = lecture.value;
+  if (!l?.topics.length) return -1;
+  return l.index === 0 ? 0 : Math.min(l.topics.length - 1, Math.floor((l.index / l.total) * l.topics.length));
+});
+const note = computed(() => `Click one to write it in. The underlined one is where lecture ${(lecture.value?.index ?? 0) + 1} falls. Add what the slides say, if you know. A map costs about 11 cents.`);
 async function start() {
+  flying.value = true;
   busy.value = true; error.value = '';
   try {
     dto.value = await lectureMaps.start(props.course.id, props.begin, topic.value.trim());
@@ -195,22 +216,31 @@ const LINES: Record<string, string> = {
   grown: 'Deeper. It keeps going, it always does. That is the beautiful part.',
 };
 const line = computed(() => {
-  if (!map.value) return dto.value && dto.value.status !== 'failed' ? 'Hush. I am reading everything your professors ever wrote on this.' : 'Tell me what the lecture is about. My guess is below.';
+  if (!map.value) {
+    if (flying.value) return 'Ah. A letter.';
+    if (dto.value?.status === 'researching') return 'Reading your letter, and everything written on this since Newton.';
+    if (dto.value?.status === 'writing') return 'Writing it down for you. Patience; the good part takes a moment.';
+    if (dto.value?.status === 'failed') return `Something tore on the way: ${dto.value.error}. Write again.`;
+    return 'Write to me. My guess is on the page already; the syllabus is at your side.';
+  }
   return LINES[hovered.value.includes('.') ? 'grown' : hovered.value] ?? 'Drag to wander. Hover a card and I will tell you what it is for.';
 });
 const facing = computed(() => { const b = at.value[hovered.value]; return b ? (b.x + b.w / 2 < 0 ? -1 : 1) : 1; });
-const sprite = ref<HTMLCanvasElement | null>(null);
-catSprite(art.curious, 300).then((c) => { sprite.value = c; });
+const sprites = ref<{ curious: HTMLCanvasElement; reading: HTMLCanvasElement } | null>(null);
+Promise.all([catSprite(art.curious, 300), catSprite(art.reading, 300)]).then(([curious, reading]) => { sprites.value = { curious, reading }; });
+// He reads while the map is being made.
+const reading = computed(() => !flying.value && (dto.value?.status === 'researching' || dto.value?.status === 'writing'));
 const drawCat: Draw = (g, w, h, t) => {
   const glow = g.createRadialGradient(w * 0.5, h * 0.62, 0, w * 0.5, h * 0.62, w * 0.55);
   glow.addColorStop(0, 'rgba(120,120,120,.55)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = glow; g.fillRect(0, 0, w, h);
-  if (!sprite.value) return;
+  const sprite = sprites.value?.[reading.value ? 'reading' : 'curious'];
+  if (!sprite) return;
   const s = Math.min(w, h) * 0.95, bob = reduced() ? 0 : Math.sin(t * 1.6) * s * 0.01;
   g.save();
   g.translate(w / 2, h - s / 2 + bob);
   g.scale(facing.value, 1);
-  g.drawImage(sprite.value, -s / 2, -s / 2, s, s);
+  g.drawImage(sprite, -s / 2, -s / 2, s, s);
   g.restore();
 };
 
@@ -358,21 +388,14 @@ const GLYPHS: Record<Kind, string> = {
           <!-- before the map: the topic, then the wait -->
           <div v-else class="lm-ask">
             <template v-if="!lecture && !error"><p class="pix">asking the archive</p></template>
+            <Letter v-if="lecture && (flying || !dto || dto.status === 'failed')" :key="drafts" v-model="topic" :topics="lecture.topics" :guessed="guessed" :heading="heading" :note="note" :busy="busy" @send="start" @arrived="arrived" />
             <template v-else-if="dto && (dto.status === 'researching' || dto.status === 'writing')">
               <div class="lm-wait"><Gl :build="sceneFor('orbits')" :active="true" :options="{ px: 3, distance: 4.6 }" label="Waiting for the map." hint="" /></div>
               <p class="pix">{{ phase }} // {{ elapsed }}s</p>
               <p class="fell topic">{{ dto.topic }}</p>
               <span class="leds" aria-hidden="true"><i :class="{ on: true }"></i><i :class="{ on: dto.status === 'writing' }"></i></span>
             </template>
-            <template v-else-if="lecture">
-              <p class="pix">lecture {{ lecture.index + 1 }} of {{ lecture.total }} // {{ day }}</p>
-              <label class="lab">
-                <span class="note">{{ dto?.status === 'failed' ? `It failed: ${dto.error}. Try again, or change the topic.` : 'The topic, guessed from the syllabus. Change it if you know better: the slides, the last lecture.' }}</span>
-                <textarea v-model="topic" class="field fell" rows="3" maxlength="300"></textarea>
-              </label>
-              <button class="btn" :disabled="busy || topic.trim().length < 3" @click="start">{{ busy ? 'summoning' : 'map it // about 11 cents' }}</button>
-            </template>
-            <p v-if="error" class="err note">{{ error }}</p>
+            <p v-if="error" class="err note floating">{{ error }}</p>
           </div>
 
           <p v-if="map && error" class="err note floating">{{ error }}</p>

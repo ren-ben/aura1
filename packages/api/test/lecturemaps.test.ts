@@ -6,7 +6,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { LectureMap } from '@aura/shared';
 import { createDb, type Db } from '../src/db/client.ts';
 import { seed } from '../src/db/seed.ts';
-import { lectureMaps } from '../src/db/schema.ts';
+import { courses, lectureMaps } from '../src/db/schema.ts';
 import { buildApp } from '../src/app.ts';
 import { parseSyllabus, topicsOf, guessTopic } from '../src/academy/syllabus.ts';
 
@@ -104,7 +104,14 @@ test('a lecture knows its place and its guessed topic; exercise classes have non
   assert.equal(res.total, course.groups[0].events.length);
   assert.ok(res.guess.length > 5);
   assert.equal(res.map, null);
+  assert.ok(res.topics.length >= 3);
   assert.equal((await call('GET', `/academy/lectures/${course.id}?begin=nope`)).statusCode, 404);
+
+  // A course kept from before syllabi were saved fetches its own.
+  await db.update(courses).set({ syllabus: '' }).where(eq(courses.id, course.id));
+  const again = (await call('GET', `/academy/lectures/${course.id}?begin=${encodeURIComponent(begin)}`)).json();
+  assert.ok(again.topics.length >= 3);
+  assert.equal(again.guess, res.guess);
 
   const ue = (await call('POST', '/academy/courses', { nr: '260162', semester: '2026W' })).json();
   const ueBegin = ue.groups[0].events[0].begin;

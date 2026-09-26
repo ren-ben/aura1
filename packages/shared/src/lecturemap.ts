@@ -58,4 +58,4 @@ export type LectureMapDto = {
 
 // A lecture as the pane sees it before any map: its place among the course's
 // lectures and the topic guessed for it from the syllabus.
-export type LectureDto = { courseId: number; begin: string; index: number; total: number; guess: string; map: LectureMapDto | null };
+export type LectureDto = { courseId: number; begin: string; index: number; total: number; guess: string; topics: string[]; map: LectureMapDto | null };

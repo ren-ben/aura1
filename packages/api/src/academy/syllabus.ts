@@ -20,14 +20,25 @@ export function parseSyllabus(xml: string): string {
 }
 
 // The syllabus as an ordered list of topics: its numbered or bulleted lines
-// if it has them, else the comma list after "Inhalte:" or "contents:".
+// if it has them, else the list after "Inhalte:" or "contents:", up to the
+// next heading ("Methode:"), split on commas outside brackets.
 export function topicsOf(syllabus: string): string[] {
   const lines = syllabus.split('\n');
   const listed = lines.map((l) => l.match(/^\s*(?:\d+[.)]|[-•*·])\s*(.+)$/)?.[1]?.trim()).filter((l): l is string => !!l && l.length > 2);
   if (listed.length >= 3) return listed;
-  const after = syllabus.match(/(?:inhalte|contents|topics)[^:]*:\s*([\s\S]+)/i)?.[1] ?? '';
-  const parts = after.split(/[,;\n]/).map((p) => p.replace(/\.$/, '').trim()).filter((p) => p.length > 2);
-  return parts.length >= 3 ? parts : [];
+  const after = syllabus.match(/(?:inhalte|contents|topics)[^:\n]*:\s*([\s\S]+)/i)?.[1] ?? '';
+  const section = after.split(/\n\s*[A-ZÄÖÜ][\wäöüß -]{2,40}:\s*(?:\n|$)/)[0]!;
+  const parts: string[] = [];
+  let depth = 0, cur = '';
+  for (const ch of section.replace(/\n/g, ' ')) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (!depth && (ch === ',' || ch === ';')) { parts.push(cur); cur = ''; } else cur += ch;
+  }
+  parts.push(cur);
+  // "A sowie B" is two topics.
+  const topics = parts.flatMap((p) => p.split(/\s+sowie\s+/)).map((p) => p.replace(/\.$/, '').trim()).filter((p) => p.length > 2 && p.length < 320);
+  return topics.length >= 3 ? topics : [];
 }
 
 // The lecture's likely topic: the syllabus spread evenly over the term's
