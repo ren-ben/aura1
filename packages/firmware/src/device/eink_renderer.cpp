@@ -72,11 +72,21 @@ void EinkRenderer::begin() {
   if (last.size() > 1) env_ = last[1];
   // The looks draw his head on every press: keep its frames in memory, as
   // opening files in the art folder is slow.
-  for (const char* id : WATCH) {
-    const ArtScene* w = findScene(art_, id);
-    if (!w || !loadFrame(framePath(*w, 0), w->size)) { watch_.clear(); break; }
-    watchSize_ = w->size;
-    watch_.emplace_back(frameBits, frameBits + (w->size + 7) / 8 * w->size);
+  // Every skin that has its own watcher (hw-watch-left, ...) gets its three
+  // frames too.
+  for (const auto& s : art_) {
+    if (s.moment != "watch" || watch_.count(s.skin)) continue;
+    auto& frames = watch_[s.skin];
+    for (const std::string id : WATCH) {
+      const ArtScene* w = nullptr;
+      for (const auto& c : art_) {
+        if (c.moment == "watch" && c.skin == s.skin && c.id.size() >= id.size()
+            && c.id.compare(c.id.size() - id.size(), id.size(), id) == 0) w = &c;
+      }
+      if (!w || !loadFrame(framePath(*w, 0), w->size)) { frames.clear(); break; }
+      watchSize_ = w->size;
+      frames.emplace_back(frameBits, frameBits + (w->size + 7) / 8 * w->size);
+    }
   }
   if (!last.empty() && loadFrame(last[0], 200)) {
     const bool negative = last.size() > 2 && last[2] == "1";
@@ -93,8 +103,10 @@ void EinkRenderer::begin() {
 
 // The looks' art: his head from memory, a bust or a scene from the card.
 bool EinkRenderer::draw(Canvas& c, const std::string& id, int x, int y, uint8_t colour) {
-  for (size_t i = 0; i < watch_.size(); ++i) {
-    if (id == WATCH[i]) { c.bitmap(x, y, watch_[i].data(), watchSize_, watchSize_, colour); return true; }
+  auto worn = watch_.find(skin_);
+  if (worn == watch_.end() || worn->second.empty()) worn = watch_.find("");
+  for (size_t i = 0; worn != watch_.end() && i < worn->second.size(); ++i) {
+    if (id == WATCH[i]) { c.bitmap(x, y, worn->second[i].data(), watchSize_, watchSize_, colour); return true; }
   }
   if (id.rfind("watch-", 0) == 0) return false;
   const ArtScene* s = id == "cameo" ? pickScene(art_, "cameo", esp_random(), "", skin_) : findScene(art_, id);

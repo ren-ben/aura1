@@ -359,6 +359,11 @@ export function halloweenScenes(): Scene[] {
 
     ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])
       .map((name) => hs(`cameo-${name}`, 'cameo', [svg(bustAt(name, [200, 395], 1.28, G))], undefined, 72)),
+    // The watcher on the menu, peeking up in his sheet. Baked at 64 px, so
+    // the cloth's outline is drawn heavier to stay on the page.
+    ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
+      hs(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35, G, 2.2)
+        + hideBelow(392))], undefined, 64)),
   ];
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <Adafruit_GFX.h>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 #include "art_index.h"
@@ -47,7 +48,8 @@ private:
   std::string env_;
   // The skin he wears: its own scenes first, his usual ones for the rest.
   std::string skin_;
-  std::vector<std::vector<uint8_t>> watch_;  // left, up, right
+  // His head on the menus, by skin ("" his own): left, up, right.
+  std::map<std::string, std::vector<std::vector<uint8_t>>> watch_;
   int watchSize_ = 0;
   // The scene of the running session: kept while it runs, so a redraw (the
   // minutes left, the breath) never swaps it for another.

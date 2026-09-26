@@ -10,10 +10,11 @@ import { fold, head, NECK, type Palette, type Wear } from './rig.ts';
 import { tricorn } from './props.ts';
 import type { Expression } from './expressions.ts';
 
-// Places the head so its neck lands on `neck` at `scale`, keeping lines legible.
-export function placeHead(expr: Expression, p: Palette, neck: Pt, scale: number, wear: Wear = {}): string {
+// Places the head so its neck lands on `neck` at `scale`, keeping lines
+// legible; `weight` overrides the line weight for art baked very small.
+export function placeHead(expr: Expression, p: Palette, neck: Pt, scale: number, wear: Wear = {}, weight = scale ** -0.7): string {
   const [tx, ty] = [neck[0] - NECK[0] * scale, neck[1] - NECK[1] * scale];
-  const inner = withWeight(scale ** -0.7, () => head(expr, p, wear));
+  const inner = withWeight(weight, () => head(expr, p, wear));
   // The hat tips with his head, as tricorn() is drawn upright between the ears.
   const hat = wear.hat ? `<g transform="rotate(${expr.tilt ?? 0} ${NECK[0]} ${NECK[1]})">${tricorn(p)}</g>` : '';
   return `<g transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)}) scale(${scale})">${inner}${hat}</g>`;
