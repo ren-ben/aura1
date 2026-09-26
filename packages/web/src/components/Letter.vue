@@ -43,6 +43,30 @@ function parchment(g: CanvasRenderingContext2D) {
     const e = Math.max(0, 1 - Math.min(dx, dy) * 9);
     if (e * 16 > B[((y / 4) % 4) * 4 + ((x / 4) % 4)]! + 1) g.fillRect(x, y, 3, 3);
   }
+  engrave(g);
+}
+// Pressed into the paper, the way a fine envelope is: a double rule with a
+// row of beads between, and a scrolling flourish in each corner.
+function engrave(g: CanvasRenderingContext2D) {
+  const m = 44, m2 = 60;
+  g.strokeStyle = 'rgba(78,64,48,.45)'; g.lineWidth = 2;
+  g.strokeRect(m, m, PW - 2 * m, PH - 2 * m);
+  g.lineWidth = 1.5; g.strokeRect(m2, m2, PW - 2 * m2, PH - 2 * m2);
+  g.fillStyle = 'rgba(78,64,48,.4)';
+  const bead = (x: number, y: number) => { g.beginPath(); g.arc(x, y, 2.2, 0, 7); g.fill(); };
+  const mid = (m + m2) / 2;
+  for (let x = mid + 10; x < PW - mid - 6; x += 11) { bead(x, mid); bead(x, PH - mid); }
+  for (let y = mid + 10; y < PH - mid - 6; y += 11) { bead(mid, y); bead(PW - mid, y); }
+  // The flourishes: a scroll curling in from each corner, and its leaf.
+  for (const [cx, cy, sx, sy] of [[m2, m2, 1, 1], [PW - m2, m2, -1, 1], [m2, PH - m2, 1, -1], [PW - m2, PH - m2, -1, -1]] as const) {
+    g.save(); g.translate(cx, cy); g.scale(sx, sy);
+    g.strokeStyle = 'rgba(78,64,48,.42)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(8, 70); g.bezierCurveTo(8, 30, 30, 8, 70, 8); g.stroke();
+    g.beginPath(); g.moveTo(20, 20); g.bezierCurveTo(60, 14, 96, 30, 104, 58); g.bezierCurveTo(108, 76, 90, 84, 80, 72); g.bezierCurveTo(72, 62, 84, 52, 92, 60); g.stroke();
+    g.beginPath(); g.moveTo(20, 20); g.bezierCurveTo(14, 60, 30, 96, 58, 104); g.bezierCurveTo(76, 108, 84, 90, 72, 80); g.bezierCurveTo(62, 72, 52, 84, 60, 92); g.stroke();
+    g.beginPath(); g.moveTo(24, 24); g.quadraticCurveTo(46, 30, 52, 52); g.quadraticCurveTo(30, 46, 24, 24); g.stroke();
+    g.restore();
+  }
 }
 // Age, lightly: a crease where it has been folded before, a ring where a cup
 // stood, a corner turned down, a small tear, edges worn uneven. Front and
@@ -290,60 +314,46 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
   ring.position.set(SEAL.x, SEAL.y, 0.04); letter.add(ring);
   const shadowMat = stain(null, 0x17130f);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), shadowMat);
-  shadow.position.z = 0.01; letter.add(shadow);
-  // The stamp, built the way a cathedral's tower is: an octagonal die with
-  // a beaded rim, flying buttresses leaning in from its corners to the
-  // shaft, a shaft of clustered columns ringed with mouldings, a lantern
-  // pierced with pointed windows, and a plain octagonal pinnacle over it.
-  // Built along its axis, the die toward the page.
-  const stamp = new THREE.Group(); stamp.visible = false; letter.add(stamp); stampObj = stamp;
+  shadow.position.z = 0.01;
+  // The stamp, the old kind: a turned handle of dark wood, smooth as a pear,
+  // a flared brass neck ringed at its waist, and a round brass die. It
+  // stands on the desk, not on the letter, so the letter can leave it.
+  const stamp = new THREE.Group(); stamp.visible = false; group.add(stamp); stampObj = stamp;
   const PHOS = 0xc5bcab, GROUND = 0x121212;
-  const iron = dithered(new THREE.MeshStandardMaterial({ color: 0xd8ccb0, roughness: 0.3, metalness: 0.7, emissive: 0x1c1a16 }), PHOS, GROUND);
-  const stone = dithered(new THREE.MeshStandardMaterial({ color: 0x8a8278, roughness: 0.45, metalness: 0.25 }), PHOS, GROUND);
-  const along = (m: THREE.Object3D, z: number) => { m.rotation.x = Math.PI / 2; m.position.z = z; stamp.add(m); return m; };
-  const turned = (profile: [number, number][], m: THREE.Material, facets: number) =>
-    along(new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), facets, Math.PI / facets), m), 0);
-  // The die and its plinth, octagonal, stepped like a tower's base.
-  turned([[0, 0], [0.17, 0], [0.17, 0.035], [0.15, 0.045], [0.15, 0.07], [0.12, 0.08], [0.12, 0.11], [0.085, 0.12], [0, 0.12]], iron, 8);
-  for (let k = 0; k < 24; k++) {
-    const a = (k / 24) * Math.PI * 2;
-    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), iron);
-    bead.position.set(Math.cos(a) * 0.163, Math.sin(a) * 0.163, 0.05); stamp.add(bead);
-  }
-  // The shaft: a core, and eight slender columns clustered round it.
-  turned([[0.05, 0.12], [0.05, 0.62], [0, 0.62]], stone, 8);
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-    const col = along(new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.5, 6), stone), 0.37);
-    col.position.x = Math.cos(a) * 0.055; col.position.y = Math.sin(a) * 0.055;
-  }
-  for (const z of [0.12, 0.3, 0.46, 0.62]) along(new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.013, 6, 8), iron), z);
-  // Four flying buttresses, each an arc from a corner of the plinth up to
-  // the shaft, a pinnacle where it springs.
-  for (let k = 0; k < 4; k++) {
-    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
-    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.011, 5, 12, Math.PI / 2), iron);
-    const holder = new THREE.Group(); holder.rotation.z = a; stamp.add(holder);
-    arch.rotation.x = Math.PI / 2; arch.position.set(0.07, 0, 0.12); holder.add(arch);
-    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.07, 4), iron);
-    pin.rotation.x = Math.PI / 2; pin.position.set(0.155, 0, 0.14); holder.add(pin);
-  }
-  // The lantern: an octagon pierced with pointed windows (its ribs are what
-  // is left between them), capped by a cornice.
-  turned([[0.075, 0.62], [0.095, 0.64], [0.095, 0.76], [0.08, 0.77], [0, 0.77]], stone, 8);
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.09), new THREE.MeshBasicMaterial({ color: 0x0c0b0a }));
-    const face = new THREE.Group(); face.rotation.z = a; stamp.add(face);
-    win.position.set(0.0955, 0, 0.695); win.rotation.set(Math.PI / 2, Math.PI / 2, 0); face.add(win);
-    const arch = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.03, 3), new THREE.MeshBasicMaterial({ color: 0x0c0b0a }));
-    arch.position.set(0.094, 0, 0.75); arch.rotation.x = Math.PI / 2; arch.scale.set(0.2, 1, 1); face.add(arch);
-  }
-  turned([[0.1, 0.77], [0.1, 0.79], [0, 0.79]], iron, 8);
-  // The pinnacle: plain, octagonal, and a small orb at its tip.
-  turned([[0.07, 0.79], [0.05, 0.83], [0.022, 0.95], [0, 1.02]], stone, 8);
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 8), iron); orb.position.z = 1.02; stamp.add(orb);
+  const brass = dithered(new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.25, metalness: 0.75, emissive: 0x1c1a16 }), PHOS, GROUND);
+  const wood = dithered(new THREE.MeshStandardMaterial({ color: 0x4a423a, roughness: 0.3, metalness: 0.1 }), PHOS, GROUND);
+  const turned = (profile: [number, number][], m: THREE.Material) => {
+    const x = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, h]) => new THREE.Vector2(r, h)), 48), m);
+    x.rotation.x = Math.PI / 2; stamp.add(x); return x;
+  };
+  // The die: a flat disc, its edge rounded.
+  turned([[0, 0], [0.155, 0], [0.165, 0.008], [0.168, 0.02], [0.168, 0.05], [0.16, 0.06], [0.1, 0.066], [0, 0.066]], brass);
+  // The neck: narrowing from the die, a ring at its waist, flaring into the handle.
+  turned([[0.075, 0.066], [0.05, 0.09], [0.04, 0.13], [0.052, 0.14], [0.052, 0.155], [0.04, 0.165], [0.046, 0.2], [0.07, 0.24], [0.078, 0.255], [0, 0.255]], brass);
+  // The handle: swelling into a long pear and closing over at the top.
+  turned([[0.05, 0.255], [0.045, 0.3], [0.055, 0.38], [0.085, 0.5], [0.1, 0.6], [0.098, 0.67], [0.085, 0.73], [0.055, 0.78], [0, 0.8]], wood);
+  // The shadow goes with it, on the desk.
+  group.add(shadow);
   stamp.position.copy(REST); stamp.quaternion.copy(RESTING);
+  // A quill, stood in its inkwell right of the letter.
+  const desk = new THREE.Group(); desk.position.set(W / 2 + 0.45, -H / 2 + 0.35, 0); group.add(desk);
+  const well = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.16, 0], [0.17, 0.02], [0.15, 0.12], [0.09, 0.16], [0.08, 0.2], [0.095, 0.21], [0.07, 0.215], [0, 0.215]].map(([r, h]) => new THREE.Vector2(r, h)), 40), brass);
+  well.rotation.x = Math.PI / 2; desk.add(well);
+  const quill = new THREE.Group(); quill.position.set(0, 0, 0.2); quill.rotation.set(0.55, 0.35, 0.3); desk.add(quill);
+  // The vane: a long leaf of a feather, curved, its barbs cut in.
+  const vane = new THREE.Shape();
+  vane.moveTo(0, 0.12);
+  vane.bezierCurveTo(0.09, 0.3, 0.13, 0.75, 0.05, 1.15);
+  vane.lineTo(0.0, 1.2);
+  vane.bezierCurveTo(-0.04, 0.9, -0.08, 0.45, 0, 0.12);
+  const feather = new THREE.Mesh(new THREE.ShapeGeometry(vane, 24), dithered(new THREE.MeshStandardMaterial({ color: 0xe0d8c8, roughness: 0.8, side: THREE.DoubleSide }), PHOS, GROUND));
+  feather.rotation.x = Math.PI / 2; quill.add(feather);
+  const rachis = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.01, 1.2, 6), brass);
+  rachis.rotation.x = Math.PI / 2; rachis.position.z = 0.6; quill.add(rachis);
+  for (let k = 0; k < 14; k++) {
+    const cut = new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.08), new THREE.MeshBasicMaterial({ color: 0x121212, side: THREE.DoubleSide }));
+    cut.position.set(k % 2 ? 0.05 : -0.03, 0.001, 0.3 + k * 0.055); cut.rotation.set(Math.PI / 2, 0, (k % 2 ? -1 : 1) * 0.9); quill.add(cut);
+  }
   scene.add(new THREE.AmbientLight(0xffffff, 0.35));
   const key = new THREE.DirectionalLight(0xfff0e0, 2.2); key.position.set(-2, 3, 4); scene.add(key);
 
@@ -360,9 +370,9 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
     // Framed with room left of the letter for the stamp, and a strip below.
     const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), h = canvas.clientHeight || 600;
     const half = (H / 2 + 0.2) * (h / Math.max(1, h - STRIP));
-    const d = Math.max(half / f, (W / 2 + 0.95) / (f * camera.aspect));
+    const d = Math.max(half / f, (W / 2 + 1.0) / (f * camera.aspect));
     const V = d * f, strip = (STRIP / h) * 2 * V;
-    camera.position.set(-0.25, -strip / 2, d); camera.lookAt(-0.25, -strip / 2, 0);
+    camera.position.set(0, -strip / 2, d); camera.lookAt(0, -strip / 2, 0);
     const u = performance.now() / 1000 - started, calm = reduced();
     const p = phase.value;
     if (p === 'open') {
@@ -425,16 +435,17 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
       const k = ease(clamp(u / 0.8));
       hinge.rotation.x = Math.PI * k;
       hinge.position.z = 0.05 * k;
-      stamp.visible = u < 0.2;
       if (u >= 0.9) setPhase('fly');
     } else if (p === 'fly') {
-      const k = ease(clamp(u / 1.3));
-      const dir = new THREE.Vector3(-0.9, -0.86, 0.5).unproject(camera).sub(camera.position).normalize();
-      const end = camera.position.clone().addScaledVector(dir, camera.position.z * 0.62);
-      letter.position.set(end.x * k, end.y * k + Math.sin(k * Math.PI) * 0.5, end.z * k);
-      letter.rotation.set(-0.5 * Math.sin(k * Math.PI), 0, k * 0.9);
-      letter.scale.setScalar(1 - 0.88 * k);
-      if (u >= 1.35) { setPhase('gone'); letter.visible = false; emit('arrived'); }
+      // Slid off the left of the desk, whole, to where he waits; the stamp
+      // and the quill are cleared away after it.
+      const wide = V * camera.aspect + W;
+      const k = ease(clamp(u / 1.0)), later = ease(clamp((u - 0.2) / 0.9));
+      letter.position.set(-wide * k, -0.25 * k, 0);
+      letter.rotation.set(0, 0, 0.12 * k);
+      stamp.position.set(REST.x - wide * later, REST.y, REST.z);
+      desk.position.x = W / 2 + 0.45 + wide * later;
+      if (u >= 1.15) { setPhase('gone'); letter.visible = false; emit('arrived'); }
     }
   };
 };
@@ -460,7 +471,7 @@ function under(e: PointerEvent) {
 const local = (e: PointerEvent) => { const r = glass!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 // The middle of the stamp as it lies, for finding it under the pointer.
-const stampMiddle = () => stampObj!.localToWorld(new THREE.Vector3(0, 0, 0.45));
+const stampMiddle = () => stampObj!.localToWorld(new THREE.Vector3(0, 0, 0.4));
 function down(e: PointerEvent) {
   if (!cam || !stampObj || phase.value !== 'stamp') return;
   if (dist(local(e), onScreen(stampMiddle())) > 110) return;
