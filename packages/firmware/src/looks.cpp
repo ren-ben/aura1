@@ -1465,7 +1465,7 @@ void planBus(Canvas& c, const ViewModel& vm, uint8_t ink) {
 
 // The dial: the whole day as a ring, every tap an arc, a hand on now.
 void planDial(Canvas& c, const ViewModel& vm, uint8_t ink) {
-  constexpr int CX = 100, CY = 104, R0 = 70, R1 = 84;
+  constexpr int CX = 100, CY = 101, R0 = 76, R1 = 94;
   const auto ang = [](int m) { return (m / 1440.0) * 2 * HALF_TURN - HALF_TURN / 2; };
   const auto at = [&](int m, double r, int& x, int& y) {
     x = CX + static_cast<int>(std::lround(r * std::cos(ang(m))));
@@ -1490,29 +1490,40 @@ void planDial(Canvas& c, const ViewModel& vm, uint8_t ink) {
   for (int h = 0; h < 24; ++h) {
     if (h % 6 == 0) continue;
     int x0 = 0, y0 = 0;
-    at(h * 60, R1 + 3, x0, y0); at(h * 60, R1 + 3 + (h % 3 == 0 ? 5 : 2), x, y);
+    at(h * 60, R1 + 2, x0, y0); at(h * 60, R1 + 2 + (h % 3 == 0 ? 3 : 1), x, y);
     c.line(x0, y0, x, y, ink);
   }
+  // The quarters, just inside the ring.
   c.font(&Silk8);
-  c.centered("00", CY - R1 - 5, ink);
-  c.centered("12", CY + R1 + 12, ink);
-  c.right("18", CX - R1 - 4, CY + 4, ink);
-  c.text("06", CX + R1 + 5, CY + 4, ink);
-  // The hand: from inside the ring to its edge, a bead at its end.
+  c.centered("00", CY - R0 + 14, ink);
+  c.centered("12", CY + R0 - 7, ink);
+  c.text("18", CX - R0 + 5, CY + 4, ink);
+  c.right("06", CX + R0 - 5, CY + 4, ink);
+  // The hand: from the ring's inner edge out past it, a bead at its end.
   int ix = 0, iy = 0;
-  at(vm.now, R0 - 8, ix, iy); at(vm.now, R1 + 3, x, y);
+  at(vm.now, R0 - 3, ix, iy); at(vm.now, R1 + 2, x, y);
   for (int k = -1; k <= 1; ++k) c.line(ix + k, iy, x + k, y, ink);
   c.fillCircle(x, y, 3, ink);
 
+  // Inside: what is on, in large type, and how long is left of it.
   const Now n = nowOf(vm);
-  c.centered(clockOf(vm.now) + " // " + n.label, 72, ink);
-  c.font(&Grenze13);
+  c.font(&Silk11);
+  c.centered(n.label + " " + clockOf(vm.now), 56, ink);
+  c.font(&Grenze18);
   const auto lines = wrap(c, n.title, 112);
-  for (size_t i = 0; i < std::min<size_t>(2, lines.size()); ++i) c.centered(lines[i], 96 + static_cast<int>(i) * 18, ink);
-  c.font(&Silk8);
-  const int nx = tapNext(vm);
-  if (n.done >= 0) c.centered(lengthOf(vm.taps[tapNow(vm)].end - vm.now) + " LEFT", 136, ink);
-  if (n.done >= 0 && nx >= 0) c.centered(fit(c, "THEN " + upper(vm.taps[nx].title), 100), 148, ink);
+  const int rows = static_cast<int>(std::min<size_t>(2, lines.size()));
+  for (int i = 0; i < rows; ++i) c.centered(lines[i], (rows == 1 ? 92 : 84) + i * 22, ink);
+  const int on = tapNow(vm), nx = tapNext(vm);
+  if (on >= 0) {
+    const int left = vm.taps[on].end - vm.now;
+    c.font(&Tek24);
+    c.centered(std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60), 136, ink);
+    c.font(&Silk8);
+    if (nx >= 0) c.centered(fit(c, "THEN " + upper(vm.taps[nx].title), 96), 150, ink);
+  } else {
+    c.font(&Silk8);
+    c.centered(n.detail, 128, ink);
+  }
 }
 
 // The tape: now in large type, the whole day a strip below it.
