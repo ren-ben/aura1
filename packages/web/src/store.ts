@@ -1,6 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
+import type { GrownNode, LectureDto, LectureMapDto } from '@aura/shared';
 import { demoApi } from './sample';
 
 export type Progress = { xp: number; level: number; nextLevelXp: number };
@@ -93,7 +94,9 @@ async function call<T = void>(method: string, path: string, body?: unknown): Pro
     method,
     ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   });
-  if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}`);
+  // The server's own words when it has them: "the budget is spent" says more
+  // than a status code.
+  if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? `${method} ${path}: HTTP ${response.status}`);
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
@@ -149,6 +152,16 @@ export const chapterOf = (bookId: number, idx: number) =>
 const reVigil = async () => { state.vigil = await call<Vigil>('GET', '/vigil'); };
 const reCourses = async () => { state.courses = await call<Course[]>('GET', '/academy'); };
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
+
+// Lecture maps: fetched when a lecture is opened, never held in the console.
+export const lectureMaps = {
+  lecture: (courseId: number, begin: string) => call<LectureDto>('GET', `/academy/lectures/${courseId}?begin=${encodeURIComponent(begin)}`),
+  start: (courseId: number, begin: string, topic: string) => call<LectureMapDto>('POST', '/academy/maps', { courseId, begin, topic }),
+  get: (id: number) => call<LectureMapDto>('GET', `/academy/maps/${id}`),
+  deeper: (id: number, node: { key: string; kind: string; title: string; text: string }) =>
+    call<LectureMapDto>('POST', `/academy/maps/${id}/expand`, { node }),
+};
+export type { GrownNode, LectureDto, LectureMapDto };
 
 export const actions = {
   addTodo: (body: string, dueDate: string | null) => act('POST', '/todos', { body, dueDate }, [reTodos]),

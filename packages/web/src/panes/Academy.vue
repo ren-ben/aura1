@@ -8,6 +8,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
+import LectureMap from '../components/LectureMap.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
@@ -465,7 +466,19 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
 // ---- the week ------------------------------------------------------------
 const days = ['mon', 'tue', 'wed', 'thu', 'fri'];
 const hm = (s: string) => { const [a, b] = s.split(':').map(Number); return a! + b! / 60; };
-const theWeek = computed(() => weekOf(state.courses));
+// The week shown: this one (or the term's first), and any other the arrows
+// step to.
+const shift = ref(0);
+const theWeek = computed(() => {
+  const home = weekOf(state.courses);
+  return shift.value ? weekOf(state.courses, new Date(home.monday.getTime() + (shift.value * 7 + 2) * 864e5)) : home;
+});
+// A lecture's map, open over everything; an exercise class picks its module.
+const mapOf = ref<{ course: Course; begin: string } | null>(null);
+function openBlock(b: { course: Course; begin: string; mappable: boolean; module: string }) {
+  if (b.mappable) mapOf.value = { course: b.course, begin: b.begin };
+  else choose(moduleFor(b.module));
+}
 // The day drawn only as long as the week's dates need, so a lecture card is
 // tall enough to read.
 // The hours drawn: only as many as the week's dates use (at least five),
@@ -604,6 +617,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>
@@ -616,8 +630,8 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
             <div class="tt-cols">
               <div v-for="(d, i) in dates" :key="d.label" class="tt-col" :class="{ today: d.today }">
                 <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
-                        :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}`"
-                        @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="choose(moduleFor(b.module))">
+                        :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}${b.mappable ? ' // open its map' : ''}`"
+                        @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="openBlock(b)">
                   <b>{{ b.label }}</b><span class="when">{{ b.from }}-{{ b.to }}</span>
                 </button>
                 <i v-if="d.today && nowLine >= 0" class="now" :style="{ top: `${nowLine}%` }"></i>
@@ -666,6 +680,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="sphere" title="the rector's armillary" flush>
       <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
+    <LectureMap v-if="mapOf" :key="mapOf.begin" :course="mapOf.course" :begin="mapOf.begin" @close="mapOf = null" />
   </div>
 </template>
 
@@ -787,6 +802,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .blk { position: absolute; left: 2px; right: 2px; min-height: 18px; box-sizing: border-box; border: 2px solid var(--phos); background: var(--deep); padding: 4px 6px; overflow: hidden;
   display: flex; flex-direction: column; gap: 1px; text-align: left; transition: transform .2s var(--out), background .2s var(--out), border-color .2s var(--out); }
 .blk.ue { border-style: dotted; border-color: var(--dim); }
+.wk { display: flex; gap: 6px; margin-left: auto; }
 .blk b { font: 400 10px/1.2 var(--pix); color: var(--hi); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .blk span { font-size: 10.5px; color: var(--dim); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .blk .when { color: var(--phos); font-variant-numeric: tabular-nums; }

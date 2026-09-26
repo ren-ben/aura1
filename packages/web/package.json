@@ -13,6 +13,7 @@
   "dependencies": {
     "@aura/shared": "workspace:*",
     "fflate": "^0.8.3",
+    "katex": "^0.18.9",
     "pdfjs-dist": "^6.3.289",
     "three": "^0.186.0",
     "vue": "^3.5.0"

@@ -1,8 +1,9 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
-import type { Book, Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil } from './store';
+import type { Book, Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
+import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
 
 const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const r = rng(1789);
@@ -160,6 +161,8 @@ const vigil: Vigil = {
   hours: { on: false, today: [406, 766, 1131, 0] },
 };
 let courses: Course[] = sampleCourses();
+// Lecture maps: every one the same Newton, "written" over two polls.
+const maps: LectureMapDto[] = [];
 
 // The API's routes, in memory.
 export function demoApi(method: string, path: string, body?: any): unknown {
@@ -253,6 +256,30 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       if (method === 'DELETE') courses = courses.filter((c) => c.id !== cid);
       else courses = courses.map((c) => (c.id === cid ? { ...c, ...body } : c));
       return;
+    }
+    case 'GET /academy/lectures': {
+      const c = courses.find((x) => x.id === Number(seg[2]))!;
+      const begin = new URLSearchParams(query).get('begin')!;
+      const all = (c.groups.find((g) => g.id === c.groupId)?.events ?? []).map((e) => e.begin).sort();
+      const index = all.indexOf(begin);
+      return { courseId: c.id, begin, index, total: all.length, guess: `${c.name}: ${index < 6 ? "Newton's laws" : `lecture ${index + 1}`}`, map: structuredClone(maps.find((m) => m.courseId === c.id && m.begin === begin) ?? null) };
+    }
+    case 'POST /academy/maps': {
+      if (seg[3] === 'expand') {
+        const m = maps.find((x) => x.id === Number(seg[2]))!;
+        const n = m.grown.filter((g) => g.parent === body.node.key).length;
+        m.grown.push(...SAMPLE_DEEPER.nodes.map((x, i) => ({ ...x, id: `${body.node.key}.g${n + i}`, parent: body.node.key })));
+        return structuredClone(m);
+      }
+      const m: LectureMapDto = { id: nextId++, courseId: body.courseId, begin: body.begin, topic: body.topic, status: 'researching', error: null, map: null, grown: [], sources: [], costUsd: 0 };
+      maps.push(m);
+      return structuredClone(m);
+    }
+    case 'GET /academy/maps': {
+      const m = maps.find((x) => x.id === Number(seg[2]))!;
+      if (m.status === 'writing') Object.assign(m, { status: 'ready', map: { ...SAMPLE_MAP, title: m.topic.replace(/^[^:]*:\s*/, '') || SAMPLE_MAP.title }, costUsd: 0.1 });
+      else if (m.status === 'researching') m.status = 'writing';
+      return structuredClone(m);
     }
     default: throw new Error(`demo: no route ${key}`);
   }

@@ -126,7 +126,9 @@ with Kael'thos at its centre.
   counts toward can be changed beside it. The ECTS, the StEOP and the weighted grade
   follow. Exams appear as u:find posts them: the course's own and its module's (the
   StEOP module exams). u:find is asked again once a day when the pane opens, or with
-  *ask again*; grades, groups and modules you set are kept.
+  *ask again*; grades, groups and modules you set are kept. Click a lecture in the
+  week for its **lecture map**: Kael'thos researches it and lays it out as a canvas
+  to pan, with questions to try first; export it to Obsidian or print it.
 - **Everything 3D turns** when dragged, and runs only while its pane is on screen.
 
 ### Sync

@@ -46,6 +46,17 @@ Postgres) are chosen to stay clear of other compose projects. If one is
 still taken, change the left-hand port in `docker-compose.yml` and use the
 new API port in step 4.
 
+Lecture maps (the Academy) need an OpenRouter key. Put it in a `.env` beside
+`docker-compose.yml` (gitignored; see `.env.example`), then
+`docker compose up -d` again:
+
+```bash
+echo "OPENROUTER_API_KEY=sk-or-..." >> .env
+```
+
+It stays on the server: the browser never sees it. `ACADEMY_BUDGET_USD`
+(default 10) caps a month's spend; the two model names can be changed there too.
+
 Check `docker compose logs api` for the "Server listening" line, and
 `curl -s http://127.0.0.1:13000/api/v1/sessions` for `[]`, before
 continuing. Do not touch the tunnel config yet: no Access policy exists to

@@ -48,7 +48,7 @@ export function tally(courses: Course[]) {
   return { passed, running, avg, steop };
 }
 
-export type Slot = { day: number; from: string; to: string; label: string; room: string; ue: boolean };
+export type Slot = { course: Course; begin: string; mappable: boolean; day: number; from: string; to: string; label: string; room: string; ue: boolean };
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP3: 'Forschung' };
 
@@ -57,7 +57,7 @@ const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP
 export function week(courses: Course[], now = new Date()): { monday: Date; slots: Slot[] } {
   const events = courses.flatMap((c) => {
     const g = c.groups.find((x) => x.id === c.groupId);
-    return (g?.events ?? []).map((e) => ({ c, begin: new Date(e.begin), end: new Date(e.end), room: e.room }));
+    return (g?.events ?? []).map((e) => ({ c, at: e.begin, begin: new Date(e.begin), end: new Date(e.end), room: e.room }));
   });
   const mondayOf = (d: Date) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
   let monday = mondayOf(now);
@@ -75,6 +75,7 @@ export function week(courses: Course[], now = new Date()): { monday: Date; slots
   return {
     monday,
     slots: inWeek(monday).map((e) => ({
+      course: e.c, begin: e.at, mappable: e.c.type !== 'UE',
       day: (e.begin.getDay() + 6) % 7, from: hm(e.begin), to: hm(e.end),
       label: `${SHORT[e.c.module] ?? e.c.module} ${e.c.type}`, room: e.room.replace(/-?Hörsaal/, ''), ue: e.c.type !== 'VO',
     })),

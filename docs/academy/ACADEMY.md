@@ -105,6 +105,35 @@ and guesses the module from the codes u:find lists. It asks u:find again
 once a day, or when you press **ask again**; the grades, groups and modules you
 set are kept.
 
+## Lecture maps
+
+Click a lecture (a VO, a solid block) in **the week**; the arrows in its title
+step to the week before or after. A map opens over everything, for that one
+lecture, to read the evening before and then write your own notes from.
+
+1. **The topic.** The server counts which lecture of the term this is and
+   finds the same point in the course's syllabus on u:find. That guess is
+   shown; change it if the slides or the last lecture say otherwise, then
+   **map it**.
+2. **The wait,** about a minute. A fast model searches the web and takes
+   notes (reading the sources), then Kael'thos writes the map from them
+   (writing it down). About 11 cents a map, 2 a *deeper*.
+3. **The map.** The core, with a small turning model of the topic, sits in
+   the middle. Left of it, what to do before you go: the puzzle, the questions
+   (click one for its answer; once the lecture has been they read *now,
+   without looking*), what to refresh first, and further reading. Right of it,
+   what the lecture will contain: the likely order, the words (with their
+   German names), the equations, one worked problem, moving plots, and the traps.
+4. **Deeper.** Every card has *deeper*, and every line a `+` on hover: new
+   cards grow out beside it, and they can go deeper again. Kept, like the map.
+
+Drag to pan, scroll or pinch to zoom, **fit** to see it all, Esc to close.
+**obsidian** downloads a zip with a `.canvas` laid out as on screen and a
+Markdown note with a *my notes* heading; drop both in your vault. **pdf**
+prints a plain document version. Opening a map again costs nothing. It stops
+for the month once the budget (10 dollars by default) is spent. Exercise
+classes have no maps.
+
 ## The rest of the pane
 
 - **The tally:** ECTS passed out of 180, this term's ECTS, the StEOP out of 18,
@@ -112,7 +141,8 @@ set are kept.
 - **Exams ahead:** the next exams u:find lists for your courses or their StEOP
   module, with the days left. Hover one to mark its module.
 - **The week:** this week's dates for your courses (lectures, and the
-  exercise groups you picked), with a line at the current hour.
+  exercise groups you picked), with a line at the current hour. A lecture
+  opens its map; an exercise class marks its module.
 - **The rector's armillary:** six beads on its tilted ring, one per semester.
   A bead lights as its semester's modules are passed; the current one pulses.
 
