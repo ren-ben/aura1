@@ -11,6 +11,7 @@ import art from '../gl/art.json';
 import { catSprite, starfield, type Draw } from '../gl/plate';
 import { sceneFor } from '../gl/lecture';
 import { reduced } from '../gl/engine';
+import { narrow } from '../screen';
 import { CARD, KINDS, TITLES, cardText, download, exportZip, layout, link, moves, parse, present, rich, tex, type Box, type Kind } from '../lecturemap';
 import { lectureMaps, type Course, type LectureDto, type LectureMapDto } from '../store';
 
@@ -89,9 +90,15 @@ const card = (id: string) => (el: unknown) => {
 onBeforeUnmount(() => sizer.disconnect());
 
 // The whole map in view, as large as it can be read.
-function fit() {
+function fit(whole = true) {
   const s = stage.value, boxes = Object.values(at.value);
   if (!s || !boxes.length) return;
+  // On a phone the whole map is too small to read: it opens on the core.
+  if (narrow.value && !whole) {
+    const c = at.value.core!, k = Math.min(0.9, (s.clientWidth - 32) / c.w);
+    Object.assign(view, { k, x: s.clientWidth / 2 - (c.x + c.w / 2) * k, y: 24 - c.y * k });
+    return;
+  }
   const x0 = Math.min(...boxes.map((b) => b.x)), x1 = Math.max(...boxes.map((b) => b.x + b.w));
   const y0 = Math.min(...boxes.map((b) => b.y)), y1 = Math.max(...boxes.map((b) => b.y + b.h));
   const k = Math.min(1, Math.max(0.3, Math.min((s.clientWidth - 60) / (x1 - x0), (s.clientHeight - 60) / (y1 - y0))));
@@ -103,7 +110,7 @@ watch(map, async (m) => {
   if (!m || born.value) return;
   await nextTick();
   await new Promise((r) => requestAnimationFrame(r));
-  fit();
+  fit(false);
   born.value = true;
 }, { immediate: true });
 
@@ -264,7 +271,7 @@ const GLYPHS: Record<Kind, string> = {
           <span class="pix">{{ course.name }} // {{ course.type }}<template v-if="lecture"> // lecture {{ lecture.index + 1 }} of {{ lecture.total }}</template> // {{ day }}</span>
           <span class="lm-tools">
             <template v-if="map">
-              <button class="x" title="the whole map in view" @click="fit">fit</button>
+              <button class="x" title="the whole map in view" @click="fit()">fit</button>
               <button class="x" title="an Obsidian canvas with its note, zipped" @click="toObsidian">obsidian</button>
               <button class="x" title="print, or save as pdf" @click="print">pdf</button>
             </template>
@@ -490,8 +497,17 @@ li:hover > .more, dt:hover > .more, .eq:hover > .more { opacity: 1; }
 
 @media (max-width: 860px) {
   .lm { width: 100vw; height: 100dvh; border: 0; }
-  .cat { width: 72px; height: 72px; }
-  .say { font-size: 12.5px; margin-bottom: 36px; }
+  .lm-bar { padding-top: max(7px, env(safe-area-inset-top)); }
+  .lm-cat { left: 8px; bottom: max(8px, env(safe-area-inset-bottom)); max-width: calc(100vw - 16px); }
+  .cat { width: 64px; height: 64px; }
+  .say { font-size: 12.5px; margin-bottom: 30px; max-width: 62vw; padding: 7px 10px; }
+  .lm-wait { width: 200px; height: 170px; }
+}
+/* Touch has no hover: what hover would show is always there, big enough to tap. */
+@media (hover: none) {
+  .more { opacity: 1; min-width: 32px; min-height: 28px; }
+  .grow { padding: 7px 10px; }
+  .lm-tools .x { padding: 8px 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .lm, .lm-back, .lk, .grown { animation: none; }
