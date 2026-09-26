@@ -1,9 +1,12 @@
 <script setup lang="ts">
-// The anchor: hours given today, the list and its writing, the day in
-// halftone, and how long he holds his form on what he has had.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+// The anchor: hours given today, the list and its writing, the day as it
+// is wired, and how long he holds his form on what he has had.
+import { computed, onBeforeUnmount, ref } from 'vue';
 import Frame from '../components/Frame.vue';
+import Rewiring from '../components/Rewiring.vue';
+import RewiringSheet from '../components/RewiringSheet.vue';
 import { actions, clock, localDate, state, today, type Todo } from '../store';
+import { dayOf, hisLine, hours } from '../rewiring';
 
 defineProps<{ active: boolean }>();
 
@@ -26,47 +29,16 @@ async function add() {
   const due = when.value === 'someday' ? null : when.value === 'date' ? date.value : localDate(t);
   if (await actions.addTodo(text, due)) body.value = '';
 }
+const wired = computed(() => dayOf(todayStr.value));
+const sheetOpen = ref(false);
+// A todo carried onto the bus becomes a tap.
+const carry = (t: Todo, e: DragEvent) => { e.dataTransfer?.setData('application/x-aura-todo', t.body); };
 const shortDate = (d: string | null) => (d ? d.slice(8, 10) + '.' + d.slice(5, 7) : '');
-
-// The day in halftone: an hour a column, dots sized by the focus in it.
-const halftone = ref<HTMLCanvasElement | null>(null);
-const perHour = computed(() => {
-  const out = Array<number>(24).fill(0);
-  for (const s of today.value.sessions) {
-    let t = new Date(s.startedAt).getTime();
-    const end = new Date(s.endedAt).getTime();
-    while (t < end) {
-      const h = new Date(t).getHours(), next = Math.min(end, new Date(t).setMinutes(60, 0, 0));
-      out[h]! += (next - t) / 60_000; t = next;
-    }
-  }
-  return out;
-});
-function draw() {
-  const c = halftone.value;
-  if (!c) return;
-  const w = (c.width = c.clientWidth * 2), h = (c.height = c.clientHeight * 2), x = c.getContext('2d')!;
-  const d = new Date(), now = d.getHours() + d.getMinutes() / 60;
-  x.clearRect(0, 0, w, h);
-  const cols = 96, rows = 14, cw = w / cols, ch = h / rows;
-  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
-    const hour = i / 4, f = Math.min(1, perHour.value[Math.floor(hour)]! / 60);
-    const swell = Math.exp(-(((j - rows / 2 + 0.5) / (rows / 2.6)) ** 2));
-    const future = hour > now;
-    const r = Math.min(cw, ch) * (future ? 0.09 : 0.44 * Math.max(f * swell, 0.07));
-    x.fillStyle = future ? '#34312d' : '#c5bcab';
-    x.beginPath(); x.arc(i * cw + cw / 2, j * ch + ch / 2, r, 0, 7); x.fill();
-  }
-  x.fillStyle = '#e6e0d4'; x.fillRect((now / 24) * w - 1, 0, 3, h);
-}
-let ro: ResizeObserver | null = null;
-onMounted(() => { ro = new ResizeObserver(draw); if (halftone.value) ro.observe(halftone.value); });
-watch(perHour, draw);
 
 // He holds his form a day past the last session; counted down live.
 const now = ref(Date.now());
 const timer = window.setInterval(() => { now.value = Date.now(); }, 1000);
-onBeforeUnmount(() => { clearInterval(timer); ro?.disconnect(); });
+onBeforeUnmount(() => clearInterval(timer));
 const hunger = computed(() => {
   const last = state.stats?.lastSessionAt ? new Date(state.stats.lastSessionAt).getTime() : 0;
   const s = Math.max(0, Math.floor((last + 86_400_000 - now.value) / 1000));
@@ -93,7 +65,7 @@ const since = (iso: string | null) => {
     <Frame class="list" :title="`today's list // ${kept} of ${groups[0]!.items.length} kept`" scroll>
       <template v-for="g in groups" :key="g.name">
         <div v-if="g.items.length && g.name !== 'today'" class="pix group">{{ g.name }}</div>
-        <div v-for="t in g.items" :key="t.id" class="todo" :class="{ done: t.done }">
+        <div v-for="t in g.items" :key="t.id" class="todo" :class="{ done: t.done }" :draggable="!t.done" @dragstart="carry(t, $event)">
           <button class="led" :aria-label="t.done ? 'Undo' : 'Done'" :aria-pressed="t.done" @click="actions.toggleTodo(t)"></button>
           <span class="t">{{ t.body }}</span>
           <span class="pix">{{ g.name === 'today' && t.dueDate! < todayStr ? 'overdue' : g.name === 'coming' ? shortDate(t.dueDate) : '' }}</span>
@@ -111,10 +83,12 @@ const since = (iso: string | null) => {
       </form>
     </Frame>
 
-    <Frame class="day" title="the day in halftone // an hour a column, each dot as large as the focus in it">
-      <canvas ref="halftone" aria-label="Focus through today, hour by hour"></canvas>
-      <div class="hrs"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+    <Frame class="wire" :title="`the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
+      <template #bar><button class="x open" @click="sheetOpen = true">open</button></template>
+      <Rewiring :dates="[todayStr]" />
+      <p class="fell said">{{ hisLine(todayStr) }}</p>
     </Frame>
+    <RewiringSheet v-if="sheetOpen" @close="sheetOpen = false" />
 
     <Frame class="hunger" title="until he thins">
       <div class="tek count">{{ hunger }}</div>
@@ -130,10 +104,10 @@ const since = (iso: string | null) => {
 </template>
 
 <style scoped>
-.today { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-areas: "hours list" "day hunger"; }
+.today { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "hours list" "wire list" "wire hunger"; }
 .hours { grid-area: hours; display: flex; flex-direction: column; min-height: 0; }
-.clock { font-size: clamp(88px, 13vw, 230px); margin: 8px 0 10px; }
-.sess { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.clock { font-size: clamp(64px, 8vw, 150px); margin: 8px 0 8px; }
+.sess { list-style: none; margin: 0; padding: 0; overflow: auto; max-height: 92px; }
 .sess li { display: grid; grid-template-columns: 52px 1fr auto 70px; gap: 12px; align-items: baseline; padding: 5px 0; border-bottom: 3px dotted var(--faint); }
 .sess .tek { font-size: 18px; text-align: right; }
 .list { grid-area: list; }
@@ -146,18 +120,19 @@ const since = (iso: string | null) => {
 .add { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .add .grow { flex: 1; min-width: 160px; }
 .add .when { width: auto; }
-.day { grid-area: day; }
-.day canvas { width: 100%; height: calc(100% - 24px); min-height: 90px; display: block; }
-.hrs { display: flex; justify-content: space-between; font: 400 10px var(--pix); color: var(--dim); margin-top: 6px; }
+.todo[draggable="true"] { cursor: grab; }
+.wire { grid-area: wire; }
+.wire .open { margin-left: auto; }
+.said { margin: 0; padding: 8px 14px 10px; border-top: 3px dotted var(--low); color: var(--phos); font-style: italic; font-size: 14px; line-height: 1.35; }
 .hunger { grid-area: hunger; }
 .count { font-size: clamp(40px, 4.6vw, 68px); }
 @media (max-aspect-ratio: 5/4) {
-  .today { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, .8fr); grid-template-areas: "hours hours" "list list" "day hunger"; }
-  .clock { font-size: clamp(80px, 16vw, 200px); }
+  .today { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, .7fr); grid-template-areas: "hours hours" "wire list" "wire hunger"; }
+  .clock { font-size: clamp(64px, 12vw, 150px); }
 }
 @media (max-width: 860px) {
   .today { display: flex; flex-direction: column; }
   .list { min-height: 360px; }
-  .day { min-height: 200px; }
+  .wire { height: 70vh; min-height: 460px; flex: none; }
 }
 </style>

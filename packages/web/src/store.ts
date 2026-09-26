@@ -49,6 +49,11 @@ export type Device = {
   charging: boolean | null; look: string | null; pendingLook: string | null;
 };
 
+// The rewiring: a block of planned time on one local day, in minutes after
+// its midnight; and each planned day's revision count and capacity to draw.
+export type Block = { id: number; date: string; start: number; end: number; title: string; shade: number; activityId: number | null };
+export type PlanDay = { date: string; rev: number; capacity: number };
+
 export const HABIT_DAYS = 182;
 
 export const state = reactive({
@@ -66,6 +71,8 @@ export const state = reactive({
   device: null as Device | null,
   vigil: { sits: [], signs: [], hours: { on: false, today: [] } } as Vigil,
   courses: [] as Course[],
+  blocks: [] as Block[],
+  planDays: [] as PlanDay[],
 });
 
 export function localDate(d = new Date()): string {
@@ -103,13 +110,17 @@ async function call<T = void>(method: string, path: string, body?: unknown): Pro
 
 const habitsPath = () => `/habits?from=${localDate(daysAgo(HABIT_DAYS - 1))}&to=${localDate()}`;
 const sessionsPath = () => `/sessions?from=${daysAgo(7 * 12).toISOString()}`;
+// The planned days held in the console; widened as the sheet is paged.
+const planRange = [localDate(daysAgo(14)), localDate(daysAgo(-28))];
+const blocksPath = () => `/blocks?from=${planRange[0]}&to=${planRange[1]}`;
+type Plan = { blocks: Block[]; days: PlanDay[] };
 
 export async function load(): Promise<void> {
   const all = () => Promise.all([
     call<Stats>('GET', '/stats'), call<Folder[]>('GET', '/folders'), call<Session[]>('GET', sessionsPath()),
     call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
     call<Device>('GET', '/device'), call<Book[]>('GET', '/books'), call<Mark[]>('GET', '/marks'),
-    call<Vigil>('GET', '/vigil'), call<Course[]>('GET', '/academy'),
+    call<Vigil>('GET', '/vigil'), call<Course[]>('GET', '/academy'), call<Plan>('GET', blocksPath()),
   ]);
   let got;
   try {
@@ -119,8 +130,10 @@ export async function load(): Promise<void> {
     state.demo = true;
     got = await all();
   }
+  let plan: Plan;
   [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device,
-    state.books, state.marks, state.vigil, state.courses] = got;
+    state.books, state.marks, state.vigil, state.courses, plan] = got;
+  [state.blocks, state.planDays] = [plan.blocks, plan.days];
   state.ready = true;
 }
 
@@ -151,6 +164,7 @@ export const chapterOf = (bookId: number, idx: number) =>
   call<{ idx: number; title: string; body: string }>('GET', `/books/${bookId}/chapters/${idx}`);
 const reVigil = async () => { state.vigil = await call<Vigil>('GET', '/vigil'); };
 const reCourses = async () => { state.courses = await call<Course[]>('GET', '/academy'); };
+const rePlan = async () => { const p = await call<Plan>('GET', blocksPath()); [state.blocks, state.planDays] = [p.blocks, p.days]; };
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.
@@ -161,6 +175,20 @@ export const lectureMaps = {
   list: () => call<MapMark[]>('GET', '/academy/maps'),
   deeper: (id: number, node: { key: string; kind: string; title: string; text: string }) =>
     call<LectureMapDto>('POST', `/academy/maps/${id}/expand`, { node }),
+};
+// The plan changes in place first, so a drag never waits on the network;
+// the server's copy comes back after.
+export const plan = {
+  show: async (from: string, to: string) => {
+    if (from >= planRange[0]! && to <= planRange[1]!) return;
+    if (from < planRange[0]!) planRange[0] = from;
+    if (to > planRange[1]!) planRange[1] = to;
+    await rePlan();
+  },
+  add: (b: Omit<Block, 'id'>) => { state.blocks.push({ ...b, id: -Date.now() }); return act('POST', '/blocks', b, [rePlan]); },
+  change: (b: Block, patch: Partial<Omit<Block, 'id'>>) => { Object.assign(b, patch); return act('PATCH', `/blocks/${b.id}`, patch, [rePlan]); },
+  remove: (b: Block) => { state.blocks = state.blocks.filter((x) => x.id !== b.id); return act('DELETE', `/blocks/${b.id}`, undefined, [rePlan]); },
+  capacity: (date: string, capacity: number) => act('PUT', `/plan-days/${date}`, { capacity }, [rePlan]),
 };
 export type { GrownNode, LectureDto, LectureMapDto, MapMark };
 

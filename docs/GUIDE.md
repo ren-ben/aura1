@@ -102,7 +102,8 @@ with Kael'thos at its centre.
   once; let go over one to go there. **Search** (ctrl k or /) finds panes, todos, paths,
   rituals, quotes and sessions.
 - **The panes:** Kael'thos (his form, the bond, his word for the day), Today (hours,
-  the list, the day in halftone, the countdown until he thins), The Paths (levels, and
+  the list, the rewiring: the day planned as blocks on a bus, opening to a week sheet;
+  the countdown until he thins), The Paths (levels, and
   where folders and activities are added, renamed and archived), The Log (sessions, the
   long ones to confirm, writing one in by hand), Insight (twelve weeks as a range: hold
   the button to lay it flat and read it), Rituals (habits: click any dot to set that

@@ -169,3 +169,22 @@ export const lectureMaps = pgTable('lecture_maps', {
   costUsd: doublePrecision('cost_usd').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.courseId, t.begin)]);
+
+// The rewiring: the day planned as taps off the bus. A block lives on one
+// local day, in minutes after its midnight; shade 0 is the lightest grey.
+export const blocks = pgTable('blocks', {
+  id: serial('id').primaryKey(),
+  date: date('date', { mode: 'string' }).notNull(),
+  start: integer('start').notNull(),
+  end: integer('end').notNull(),
+  title: text('title').notNull(),
+  shade: integer('shade').notNull().default(1),
+  activityId: integer('activity_id').references(() => activities.id, { onDelete: 'set null' }),
+});
+
+// Per planned day: how often it was rewired, and how much it may draw.
+export const planDays = pgTable('plan_days', {
+  date: date('date', { mode: 'string' }).primaryKey(),
+  rev: integer('rev').notNull().default(0),
+  capacity: integer('capacity').notNull().default(480),
+});

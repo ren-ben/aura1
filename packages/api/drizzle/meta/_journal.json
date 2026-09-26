@@ -57,6 +57,13 @@
       "when": 1790411179126,
       "tag": "0007_lecture_maps",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790434585423,
+      "tag": "0008_rewiring",
+      "breakpoints": true
     }
   ]
 }

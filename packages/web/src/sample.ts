@@ -1,6 +1,6 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
-import type { Book, Course, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
+import type { Block, Book, Course, PlanDay, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
@@ -53,6 +53,17 @@ let todos: Todo[] = [
   { id: 5, body: 'Problem set 4, linear algebra', dueDate: day(tomorrow), done: false },
   { id: 6, body: 'Draft the essay on Schopenhauer', dueDate: null, done: false },
 ];
+
+// Today, wired: the morning's two sessions fall inside the first two taps.
+let blocks: Block[] = ([
+  [480, 600, 'Problem set 4', 1, 1], [630, 750, 'Sync fix', 2, 11], [840, 930, 'Pull day', 4, 41],
+  [960, 1050, 'Prolegomena', 3, 31], [1200, 1260, 'Essay draft', 0, 22],
+] as const).map(([start, end, title, shade, activityId], i) => ({ id: 900 + i, date: todayStr, start, end, title, shade, activityId }));
+let planDays: PlanDay[] = [{ date: todayStr, rev: 4, capacity: 480 }];
+const rewired = (date: string) => {
+  const d = planDays.find((x) => x.date === date);
+  if (d) d.rev++; else planDays.push({ date, rev: 1, capacity: 480 });
+};
 
 const habitNames: [string, number][] = [['meditate', 0.74], ['run', 0.43], ['journal', 0.58], ['read 20 pages', 0.66]];
 let habits: Habit[] = habitNames.map(([name, p], i) => {
@@ -282,6 +293,16 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       else if (m.status === 'researching') m.status = 'writing';
       return structuredClone(m);
     }
-    default: throw new Error(`demo: no route ${key}`);
+    case 'GET /blocks': return { blocks: structuredClone(blocks), days: structuredClone(planDays) };
+    case 'POST /blocks': blocks.push({ id: nextId++, ...body }); rewired(body.date); return;
+    case 'PATCH /blocks/:id': blocks = blocks.map((b) => (b.id === id ? { ...b, ...body } : b)); rewired(blocks.find((b) => b.id === id)!.date); return;
+    case 'DELETE /blocks/:id': rewired(blocks.find((b) => b.id === id)!.date); blocks = blocks.filter((b) => b.id !== id); return;
+    default:
+      if (key.startsWith('PUT /plan-days/')) {
+        const d = planDays.find((x) => x.date === seg[1]);
+        if (d) d.capacity = body.capacity; else planDays.push({ date: seg[1]!, rev: 0, capacity: body.capacity });
+        return;
+      }
+      throw new Error(`demo: no route ${key}`);
   }
 }
