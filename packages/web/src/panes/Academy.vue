@@ -284,12 +284,12 @@ function spineTexture(c: Course, thick: number, tall: number): THREE.CanvasTextu
   const g = cv.getContext('2d')!;
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
   const passed = c.grade !== null && c.grade <= 4, failed = c.grade === 5;
-  const gilt = passed ? '#f4ecd8' : '#8c8578';
+  const gilt = passed ? '#fffaf0' : '#e6dcc6';
   const draw = () => {
     // Leather: a dark ground, mottled.
-    g.fillStyle = passed ? '#3a3631' : '#1d1b19'; g.fillRect(0, 0, w, h);
+    g.fillStyle = passed ? '#8a8172' : failed ? '#2e2a26' : '#5c544a'; g.fillRect(0, 0, w, h);
     const r = rand(c.id * 31 + 7);
-    for (let i = 0; i < 700; i++) { const v = 20 + r() * 40; g.fillStyle = `rgba(${v},${v},${v},.5)`; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 2); }
+    for (let i = 0; i < 900; i++) { const v = 30 + r() * 70; g.fillStyle = `rgba(${v},${v},${v},.5)`; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 2); }
     // Raised bands, each lit on top and shadowed below.
     const bands = [0.1, 0.24, 0.76, 0.9];
     for (const y of bands) {
@@ -297,14 +297,19 @@ function spineTexture(c: Course, thick: number, tall: number): THREE.CanvasTextu
       g.fillStyle = gilt; g.fillRect(0, y * h - 3, w, 2); g.fillRect(0, y * h + 3, w, 1);
     }
     // A tooled frame between the middle bands.
-    g.strokeStyle = gilt; g.lineWidth = 1.5;
-    g.strokeRect(7, 0.24 * h + 12, w - 14, 0.52 * h - 24);
-    g.strokeRect(11, 0.24 * h + 16, w - 22, 0.52 * h - 32);
+    g.strokeStyle = gilt; g.lineWidth = 3;
+    g.strokeRect(10, 0.24 * h + 14, w - 20, 0.52 * h - 28);
+    g.lineWidth = 1.5;
+    g.strokeRect(17, 0.24 * h + 21, w - 34, 0.52 * h - 42);
+    // Small tooled crosses in the frame's corners.
+    for (const [px, py] of [[17, 0.24 * h + 21], [w - 17, 0.24 * h + 21], [17, 0.76 * h - 21], [w - 17, 0.76 * h - 21]] as const) {
+      g.fillStyle = gilt; g.fillRect(px - 4, py - 1, 8, 2); g.fillRect(px - 1, py - 4, 2, 8);
+    }
     // The title, up the spine in blackletter, sized to fit the panel.
     const label = SHORT[c.module] ?? c.module;
     g.save(); g.translate(w / 2 + 2, 0.5 * h); g.rotate(-Math.PI / 2);
     g.fillStyle = gilt; g.textAlign = 'center'; g.textBaseline = 'middle';
-    let size = Math.min(w * 0.62, 70);
+    let size = Math.min(w * 0.7, 84);
     g.font = `${size}px UnifrakturMaguntia, serif`;
     while (g.measureText(label).width > 0.46 * h && size > 12) { size -= 2; g.font = `${size}px UnifrakturMaguntia, serif`; }
     g.fillText(label, 0, 0);
@@ -312,9 +317,9 @@ function spineTexture(c: Course, thick: number, tall: number): THREE.CanvasTextu
     // The module's sigil in the head panel, the type in the tail.
     const k = CURRICULUM.findIndex((m) => m.code === c.module);
     const R = Math.min(w, 0.14 * h) * 0.32;
-    g.save(); g.translate(w / 2, 0.17 * h); g.strokeStyle = gilt; g.lineWidth = 1.4;
+    g.save(); g.translate(w / 2, 0.17 * h); g.strokeStyle = gilt; g.lineWidth = 2.5;
     g.beginPath(); g.arc(0, 0, R * 1.25, 0, 7); g.stroke();
-    g.scale(R, R); g.lineWidth = 1.4 / R; g.stroke(new Path2D(SIGILS[Math.max(0, k) % SIGILS.length]!));
+    g.scale(R, R); g.lineWidth = 2.5 / R; g.stroke(new Path2D(SIGILS[Math.max(0, k) % SIGILS.length]!));
     g.restore();
     g.fillStyle = gilt; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `${Math.round(Math.min(w * 0.26, 22))}px Silkscreen, monospace`;
@@ -383,6 +388,7 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
     return new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.5, depthWrite: false });
   })();
   const pages = new THREE.MeshLambertMaterial({ color: 0xcfc6b2 });
+  const iron = new THREE.MeshStandardMaterial({ color: 0x3a3632, roughness: 0.45, metalness: 0.7 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.35, metalness: 0.6, emissive: 0x2a2620 });
   const paper = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
   const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
@@ -412,29 +418,51 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
       if (last && c.module !== last) { box(0.025, 0.36, 0.3, brass, x + 0.045, y + 0.18, 0.04); x += 0.1; }
       last = c.module;
       const thick = thickOf(c), tall = (c.type === 'VO' ? 0.8 : 0.68) - (c.id % 3) * 0.02, deep = 0.4;
-      const face = new THREE.MeshLambertMaterial({ map: spineTexture(c, thick, tall) });
-      // Boards in leather of a tone of their own, a module sharing one; the
-      // page edges on top, aged.
-      const tone = 0.2 + ((CURRICULUM.findIndex((m) => m.code === c.module) * 37) % 5) * 0.05;
-      const side = new THREE.MeshLambertMaterial({ color: new THREE.Color(tone, tone * 0.96, tone * 0.9) });
-      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, deep), [side, side, pages, side, face, side]);
-      b.position.set(x + thick / 2, y + tall / 2, 0.04);
+      // Leather boards in a tone of their own, a module sharing one.
+      const tone = 0.38 + ((CURRICULUM.findIndex((m) => m.code === c.module) * 37) % 5) * 0.05;
+      const leather = new THREE.MeshStandardMaterial({ color: new THREE.Color(tone, tone * 0.95, tone * 0.88), roughness: 0.62, metalness: 0.08 });
+      // The book is built the way a bound book is: a block of pages, set in a
+      // little from two boards, and a rounded spine across the front. The
+      // page block is what the cursor finds.
+      const b = new THREE.Mesh(new THREE.BoxGeometry(thick - 0.03, tall - 0.035, deep - 0.03), pages);
+      // Some sit further forward than others, the way nobody shelves evenly.
+      b.position.set(x + thick / 2, y + tall / 2, 0.02 + ((c.id * 7) % 3) * 0.028);
       b.userData = { id: c.id, module: c.module, home: b.position.clone(), out: 0, shelf: y };
-      // Raised bands standing proud of the spine.
-      for (const f of [0.1, 0.24, 0.76, 0.9]) {
-        const band = new THREE.Mesh(new THREE.BoxGeometry(thick + 0.008, 0.02, 0.02), side);
-        band.position.set(0, (0.5 - f) * tall, deep / 2); b.add(band);
+      for (const sx of [-1, 1]) {
+        const board = new THREE.Mesh(new THREE.BoxGeometry(0.016, tall, deep), leather);
+        board.position.set(sx * (thick / 2 - 0.008), 0, 0); b.add(board);
       }
-      // A StEOP volume hangs on a chain until it is passed, the way the old
-      // libraries chained what mattered most.
+      const r = thick / 2, bulge = 0.4;
+      const spine = new THREE.Mesh(new THREE.CylinderGeometry(r, r, tall, 28, 1, true, -Math.PI / 2, Math.PI),
+        new THREE.MeshStandardMaterial({ map: spineTexture(c, thick, tall), roughness: 0.5, metalness: 0.12 }));
+      spine.scale.z = bulge; spine.position.z = deep / 2 - 0.01; b.add(spine);
+      // Raised bands, wrapping round the curve of the spine.
+      for (const f of [0.1, 0.24, 0.76, 0.9]) {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(r, 0.014, 6, 24, Math.PI), leather);
+        band.rotation.x = Math.PI / 2; band.scale.y = bulge;
+        band.position.set(0, (0.5 - f) * tall, deep / 2 - 0.01); b.add(band);
+      }
+      // Brass caps on the corners of the head and tail.
+      for (const sy of [-1, 1]) for (const sx of [-1, 1]) {
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.05), brass);
+        cap.position.set(sx * (thick / 2 - 0.006), sy * (tall / 2 - 0.012), deep / 2 - 0.035); b.add(cap);
+      }
+      // A ribbon hanging out of the pages, on every other volume.
+      if (c.id % 2) {
+        const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.2, 0.004), paper);
+        ribbon.position.set(thick * 0.18, tall / 2 - 0.08, deep / 2 + 0.035); ribbon.rotation.z = 0.08; b.add(ribbon);
+      }
+      // A StEOP volume is strapped shut with an iron band and a lock until it
+      // is passed: the gate has to be earned.
       if (c.module.startsWith('STEOP') && !(c.grade !== null && c.grade <= 4)) {
-        for (let k = 0; k < 8; k++) {
-          const u = k / 7;
-          const link = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 6, 12), brass);
-          link.position.set(thick * 0.2 * Math.sin(u * 2.5), tall * 0.14 - u * tall * 0.62, deep / 2 + 0.025 + Math.sin(u * Math.PI) * 0.05);
-          link.rotation.set(k % 2 ? Math.PI / 2 : 0, 0, 0);
-          b.add(link);
-        }
+        const strap = new THREE.Mesh(new THREE.BoxGeometry(thick + 0.02, 0.05, deep + 0.03), iron);
+        strap.position.set(0, -tall * 0.08, 0.02); b.add(strap);
+        const lock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.03), brass);
+        lock.position.set(0, -tall * 0.08 - 0.03, deep / 2 + 0.05); b.add(lock);
+        const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.007, 6, 16, Math.PI), brass);
+        shackle.position.set(0, -tall * 0.08 + 0.01, deep / 2 + 0.05); b.add(shackle);
+        const hole = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.025, 0.005), iron);
+        hole.position.set(0, -tall * 0.08 - 0.035, deep / 2 + 0.066); b.add(hole);
       }
       group.add(b); books.push(b);
       x += thick + 0.012;
@@ -533,13 +561,13 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   // The camera is set back just far enough to take in the case at whatever
   // shape the frame is.
   // A strip is left free along the bottom, for the tags and the hint.
-  const halfW = W / 2 + 0.25, halfH = (1.46 - floor) / 2 + 0.16, lookY = (1.46 + floor) / 2 - 0.14;
+  const halfW = W / 2 + 0.4, halfH = (1.46 - floor) / 2 + 0.16, lookY = (1.46 + floor) / 2 - 0.14;
   return (t: number) => {
     const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const d = Math.max(halfW / (f * camera.aspect), halfH / f) + 0.5;
     camera.position.set(0, lookY + 0.05, d); camera.lookAt(0, lookY, 0);
     // The case turns only a little, however far it is dragged.
-    group.rotation.set(Math.max(-0.12, Math.min(0.12, turn.x * 0.3)), Math.max(-0.35, Math.min(0.35, turn.y * 0.5)), 0);
+    group.rotation.set(0.16 + Math.max(-0.12, Math.min(0.12, turn.x * 0.3)), -0.3 + Math.max(-0.35, Math.min(0.35, turn.y * 0.5)), 0);
     for (const b of books) {
       const d = b.userData as { id: number; module: string; home: THREE.Vector3; out: number };
       const want = d.id === pulledId.value ? 0.34 : b === hover ? 0.08 : d.module === (live.hover || live.sel) ? 0.05 : 0;

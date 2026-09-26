@@ -67,12 +67,14 @@ lecture (VO) and its exercise class (UE); each is its own book.
   arcs. A **brass bookend** stands between one module's books and the next.
 - **Size:** a book is as thick as its ECTS. A lecture (VO) stands taller than
   an exercise class (UE).
-- **Spine:** tooled leather with raised bands. The module's short name (EP1,
+- **Spine:** a rounded, tooled leather spine with raised bands, brass corner
+  caps, and sometimes a ribbon hanging out. The module's short name (EP1,
   RM, LA1...) runs up it in blackletter, its module's sigil sits at the head,
   the type (VO, UE) near the foot, and once graded, a **wax seal with the
   grade** at the bottom. A passed book is tooled in gilt; a failed one is
   scored through.
-- **Chains:** a StEOP book hangs on a chain until you pass it.
+- **Locked:** a StEOP book is strapped shut with an iron band and a padlock
+  until you pass it.
 - **Around it:** the laws of physics carved in a circle on the back, a
   Newton's cradle on the shelf, and on top a Crookes radiometer turning in
   the lamplight and a black candle.
