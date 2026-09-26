@@ -56,9 +56,9 @@ earned in it, and each of its courses with its grade. **Click an arc** to mark
 it: its books lean out of the shelf and its dates light up in the week. Click
 it again to let go.
 
-## The shelf of books
+## The forbidden stacks
 
-Every course you add becomes a book. A module usually has two courses, a
+Every course you add becomes a grimoire. A module usually has two courses, a
 lecture (VO) and its exercise class (UE); each is its own book.
 
 - **Upper shelf:** this term's courses. **Lower shelf:** courses from other
@@ -67,9 +67,15 @@ lecture (VO) and its exercise class (UE); each is its own book.
   arcs. A **brass bookend** stands between one module's books and the next.
 - **Size:** a book is as thick as its ECTS. A lecture (VO) stands taller than
   an exercise class (UE).
-- **Spine:** the module's short name (EP1, RM, LA1...) runs up it, the type
-  (VO, UE) sits at the top, and once graded, a **seal with the grade** sits
-  at the bottom. A passed book turns pale, a failed one dark.
+- **Spine:** tooled leather with raised bands. The module's short name (EP1,
+  RM, LA1...) runs up it in blackletter, its module's sigil sits at the head,
+  the type (VO, UE) near the foot, and once graded, a **wax seal with the
+  grade** at the bottom. A passed book is tooled in gilt; a failed one is
+  scored through.
+- **Chains:** a StEOP book hangs on a chain until you pass it.
+- **Around it:** the laws of physics carved in a circle on the back, a
+  Newton's cradle on the shelf, and on top a Crookes radiometer turning in
+  the lamplight and a black candle.
 - **The tag under each group of books** names the module.
 
 **Hover a book** to see its full name, type, ECTS and grade. **Click it** to

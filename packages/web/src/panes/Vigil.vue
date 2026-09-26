@@ -393,11 +393,17 @@ function breathe() {
   breathStart = now();
 }
 const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: THREE.Group; camera: THREE.PerspectiveCamera; canvas: HTMLCanvasElement }) => {
-  // Framed whole, from the foot of the dish to the top of the smoke, centred.
+  // Framed from the foot of the dish to where the smoke thins out, above a
+  // strip kept free at the bottom for the hint and the breath.
+  const LOW = -1.02, HIGH = 1.62, STRIP = 44;
   const fitCam = () => {
-    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), halfH = 1.75, halfW = 1.25;
-    const d = Math.max(halfH / f, halfW / (f * camera.aspect)) + 0.2;
-    camera.position.set(0, -0.08, d); camera.lookAt(0, -0.08, 0);
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), h = canvas.clientHeight || 300;
+    const half = ((HIGH - LOW) / 2) * (h / Math.max(1, h - STRIP)), halfW = 1.1;
+    const d = Math.max(half / f, halfW / (f * camera.aspect));
+    // Centred in the space above the strip, however wide the frame is.
+    const V = d * f, strip = (STRIP / h) * 2 * V;
+    const look = LOW - strip - (2 * V - (HIGH - LOW) - strip) / 2 + V;
+    camera.position.set(0, look, d); camera.lookAt(0, look, 0);
   };
   const wax = new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.85, emissive: 0x5a554c });
   const iron = new THREE.MeshStandardMaterial({ color: 0x4a4640, roughness: 0.5, metalness: 0.6 });
@@ -442,9 +448,10 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
     for (let i = 0; i < N; i++) {
       const [a, b, c] = seeds[i]!;
       const u = (t * (0.06 + a * 0.05) + b) % 1;
-      const drift = Math.sin(u * 7 + c * 12 + t * 0.4) * u * 0.35;
-      pos[i * 3] = drift; pos[i * 3 + 1] = 0.72 + u * 1.25; pos[i * 3 + 2] = Math.cos(u * 5 + a * 9) * u * 0.2;
-      const v = (1 - u) * 0.85;
+      const drift = Math.sin(u * 7 + c * 12 + t * 0.4) * u * 0.3;
+      pos[i * 3] = drift; pos[i * 3 + 1] = 0.72 + u * 0.9; pos[i * 3 + 2] = Math.cos(u * 5 + a * 9) * u * 0.2;
+      // Thinning as it rises, gone before the top of the frame.
+      const v = (1 - u) ** 1.8 * 0.9;
       col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
     }
     smoke.attributes.position!.needsUpdate = true;
@@ -554,7 +561,8 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
       <Transition name="said">
         <div v-if="breathing || cue" class="cue" aria-live="polite">
           <span class="tek">{{ cue || 'in' }}</span>
-          <span class="pix">{{ cue === 'kept' ? 'six breaths, kept' : `breath ${Math.min(6, breaths + 1)} of 6 // click to stop` }}</span>
+          <span class="pix">{{ cue === 'kept' ? 'six breaths, kept' : `breath ${Math.min(6, breaths + 1)} of 6` }}</span>
+          <span class="leds" aria-hidden="true"><i v-for="k in 6" :key="k" :class="{ on: k <= breaths || (k === breaths + 1 && breathing) }"></i></span>
         </div>
       </Transition>
     </Frame>
@@ -668,8 +676,11 @@ const candle = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: T
 .flame { grid-area: flame; min-height: 0; }
 .flame :deep(.flush) { overflow: hidden; }
 .flame :deep(.gl) { flex: 1; min-height: 0; width: 100%; cursor: pointer; }
-.cue { position: absolute; left: 14px; top: 44px; display: grid; gap: 2px; pointer-events: none; }
-.cue .tek { font-size: 44px; }
+.cue { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  background: var(--ground); border-top: 3px dotted var(--low); pointer-events: none; }
+.cue .tek { font-size: 24px; min-width: 2.2em; }
+.cue .pix { color: var(--phos); }
+.cue .leds { margin-left: auto; }
 @media (max-aspect-ratio: 5/4) { .vigil { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.3fr) auto minmax(170px, .5fr); grid-template-areas: "tree tree" "side side" "record flame"; } }
 @media (max-width: 860px) { .vigil { display: flex; flex-direction: column; } .tree { min-height: 460px; } .record { min-height: 240px; } .flame { min-height: 280px; } .record :deep(.flush) { flex-direction: column; } .by { width: auto; border-left: 0; border-top: 3px dotted var(--low); } .gtip { display: none; } .sky { min-height: 170px; flex: none; } .dist .tek { font-size: 26px; } .dist .pix:last-child { display: none; } }
 @media (prefers-reduced-motion: reduce) { .leaf-enter-active, .leaf-leave-active, .tip-enter-active, .said-enter-active { transition: none; animation: none; } .sign.stamp i, .sign em { animation: none; } }

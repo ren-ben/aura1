@@ -14,6 +14,7 @@ import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import { narrow } from '../screen';
 import { lights } from '../gl/models';
+import { reduced } from '../gl/engine';
 import { rand, starfield } from '../gl/plate';
 import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
 import { actions, state, type Course } from '../store';
@@ -272,34 +273,66 @@ const spineTip = ref<{ x: number; y: number; w: number; c: Course } | null>(null
 const tags = ref<{ id: number; x: number; y: number; label: string; out: boolean }[]>([]);
 const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'RM', STEOP3: 'FSP' };
 
-function spineTexture(c: Course): THREE.CanvasTexture {
-  const cv = document.createElement('canvas');
-  cv.width = 96; cv.height = 384;
+// A spine as a grimoire's: tooled leather, raised bands, a sigil of its
+// module, the title in blackletter up the spine. Drawn at the book's own
+// proportions, so nothing on it is stretched. A passed volume is tooled in
+// gilt; a failed one is scored through.
+const SIGILS = ['M0-1L.87.5L-.87.5Z', 'M0-1L.95-.31L.59.81L-.59.81L-.95-.31Z', 'M0-1V1M-1 0H1', 'M0-1L.59.81L-.95-.31L.95-.31L-.59.81Z', 'M-.7-.7L.7.7M.7-.7L-.7.7', 'M0-1L1 0L0 1L-1 0Z'];
+function spineTexture(c: Course, thick: number, tall: number): THREE.CanvasTexture {
+  const S = 520, w = Math.round(thick * S), h = Math.round(tall * S);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d')!;
-  const passed = c.grade !== null && c.grade <= 4;
-  g.fillStyle = passed ? '#f2ede2' : c.grade === 5 ? '#242220' : '#1c1a18';
-  g.fillRect(0, 0, 96, 384);
-  const ink = passed ? '#141414' : '#ece6da';
-  g.fillStyle = ink;
-  // Head and tail bands, and two raised bands.
-  for (const y of [14, 22, 350, 358]) g.fillRect(0, y, 96, 4);
-  for (const y of [70, 290]) g.fillRect(0, y, 96, 8);
-  // The title, running up the spine the way continental spines do.
-  g.save(); g.translate(66, 270); g.rotate(-Math.PI / 2);
-  g.font = '800 64px Tektur, monospace';
-  g.fillText(`${SHORT[c.module] ?? c.module}`, 0, 0);
-  g.restore();
-  g.font = '800 26px Tektur, monospace';
-  g.textAlign = 'center';
-  g.fillText(c.type, 48, 118);
-  // The seal: a disc with the grade in it.
-  if (c.grade !== null) {
-    g.beginPath(); g.arc(48, 322, 20, 0, 7); g.fillStyle = ink; g.fill();
-    g.fillStyle = passed ? '#e8e2d4' : '#3a3834';
-    g.font = '800 26px Tektur, monospace'; g.fillText(String(c.grade), 48, 331);
-  }
-  const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const passed = c.grade !== null && c.grade <= 4, failed = c.grade === 5;
+  const gilt = passed ? '#f4ecd8' : '#8c8578';
+  const draw = () => {
+    // Leather: a dark ground, mottled.
+    g.fillStyle = passed ? '#3a3631' : '#1d1b19'; g.fillRect(0, 0, w, h);
+    const r = rand(c.id * 31 + 7);
+    for (let i = 0; i < 700; i++) { const v = 20 + r() * 40; g.fillStyle = `rgba(${v},${v},${v},.5)`; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 2); }
+    // Raised bands, each lit on top and shadowed below.
+    const bands = [0.1, 0.24, 0.76, 0.9];
+    for (const y of bands) {
+      g.fillStyle = '#0c0b0a'; g.fillRect(0, y * h + 5, w, 4);
+      g.fillStyle = gilt; g.fillRect(0, y * h - 3, w, 2); g.fillRect(0, y * h + 3, w, 1);
+    }
+    // A tooled frame between the middle bands.
+    g.strokeStyle = gilt; g.lineWidth = 1.5;
+    g.strokeRect(7, 0.24 * h + 12, w - 14, 0.52 * h - 24);
+    g.strokeRect(11, 0.24 * h + 16, w - 22, 0.52 * h - 32);
+    // The title, up the spine in blackletter, sized to fit the panel.
+    const label = SHORT[c.module] ?? c.module;
+    g.save(); g.translate(w / 2 + 2, 0.5 * h); g.rotate(-Math.PI / 2);
+    g.fillStyle = gilt; g.textAlign = 'center'; g.textBaseline = 'middle';
+    let size = Math.min(w * 0.62, 70);
+    g.font = `${size}px UnifrakturMaguntia, serif`;
+    while (g.measureText(label).width > 0.46 * h && size > 12) { size -= 2; g.font = `${size}px UnifrakturMaguntia, serif`; }
+    g.fillText(label, 0, 0);
+    g.restore();
+    // The module's sigil in the head panel, the type in the tail.
+    const k = CURRICULUM.findIndex((m) => m.code === c.module);
+    const R = Math.min(w, 0.14 * h) * 0.32;
+    g.save(); g.translate(w / 2, 0.17 * h); g.strokeStyle = gilt; g.lineWidth = 1.4;
+    g.beginPath(); g.arc(0, 0, R * 1.25, 0, 7); g.stroke();
+    g.scale(R, R); g.lineWidth = 1.4 / R; g.stroke(new Path2D(SIGILS[Math.max(0, k) % SIGILS.length]!));
+    g.restore();
+    g.fillStyle = gilt; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `${Math.round(Math.min(w * 0.26, 22))}px Silkscreen, monospace`;
+    g.fillText(c.type, w / 2, 0.83 * h);
+    // The grade, pressed in wax at the foot.
+    if (c.grade !== null) {
+      const sy = 0.955 * h, sr = Math.min(w * 0.26, 0.04 * h);
+      g.fillStyle = passed ? '#d8d0bf' : '#4a4640';
+      g.beginPath(); for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2, rr = sr * (i % 2 ? 1 : 1.12); g.lineTo(w / 2 + Math.cos(a) * rr, sy + Math.sin(a) * rr); } g.fill();
+      g.fillStyle = '#141414'; g.font = `${Math.round(sr * 1.3)}px Tektur, monospace`; g.fillText(String(c.grade), w / 2, sy + 1);
+    }
+    // Failed: scored through with a knife.
+    if (failed) { g.strokeStyle = '#8c8578'; g.lineWidth = 2; g.beginPath(); g.moveTo(4, 0.3 * h); g.lineTo(w - 4, 0.7 * h); g.moveTo(w - 4, 0.3 * h); g.lineTo(4, 0.7 * h); g.stroke(); }
+    t.needsUpdate = true;
+  };
+  draw();
+  // The blackletter may still be on its way; drawn again once it is here.
+  document.fonts.load('40px UnifrakturMaguntia').then(draw, () => {});
   return t;
 }
 
@@ -322,7 +355,34 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   const wood = new THREE.MeshLambertMaterial({ map: grain(256, 64, 1, 120) });
   const back = grain(512, 256, 7, 62); back.rotation = Math.PI / 2; back.center.set(0.5, 0.5);
   const dark = new THREE.MeshLambertMaterial({ map: back });
-  const pages = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
+  // Carved into the back, behind the volumes: a circle of the laws, the way
+  // a grimoire's circle carries its names.
+  const carving = (() => {
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
+    const g = cv.getContext('2d')!;
+    const cx = 512, cy = 256;
+    const draw = () => {
+      g.clearRect(0, 0, 1024, 512);
+      g.strokeStyle = 'rgba(190,182,166,.6)'; g.fillStyle = 'rgba(190,182,166,.6)'; g.lineWidth = 2;
+      for (const r of [228, 236, 170]) { g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke(); }
+      g.beginPath();
+      for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5; g.lineTo(cx + Math.cos(a) * 168, cy + Math.sin(a) * 168); }
+      g.stroke();
+      const laws = ['F = dp/dt', '∇·E = ρ/ε₀', 'E = mc²', 'iħ ∂ₜψ = Hψ', 'dS ≥ 0', '∇×B = μ₀J', 'L = T − V', 'ΔxΔp ≥ ħ/2'];
+      g.font = '22px "IM Fell English", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      laws.forEach((law, i) => {
+        const a = (i / laws.length) * Math.PI * 2 - Math.PI / 2;
+        g.save(); g.translate(cx + Math.cos(a) * 202, cy + Math.sin(a) * 202); g.rotate(a + Math.PI / 2); g.fillText(law, 0, 0); g.restore();
+      });
+      g.font = '72px UnifrakturMaguntia, serif'; g.fillText('Ω', cx, cy);
+      t.needsUpdate = true;
+    };
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    draw();
+    Promise.all([document.fonts.load('22px "IM Fell English"'), document.fonts.load('40px UnifrakturMaguntia')]).then(draw, () => {});
+    return new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.5, depthWrite: false });
+  })();
+  const pages = new THREE.MeshLambertMaterial({ color: 0xcfc6b2 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.35, metalness: 0.6, emissive: 0x2a2620 });
   const paper = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
   const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
@@ -333,13 +393,14 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   const term = state.courses.filter((c) => c.semester === TERM.name);
   const rest = state.courses.filter((c) => c.semester !== TERM.name);
   const order = (list: Course[]) => [...list].sort((a, b) => CURRICULUM.findIndex((m) => m.code === a.module) - CURRICULUM.findIndex((m) => m.code === b.module) || a.nr.localeCompare(b.nr));
-  const thickOf = (c: Course) => 0.16 + c.ects * 0.03;
-  // As wide as the longer row, with room at the end for the hourglass.
+  const thickOf = (c: Course) => 0.2 + c.ects * 0.036;
+  // As wide as the longer row, with room at the end for the cradle.
   const span = (list: Course[]) => list.reduce((a, c, i, all) => a + thickOf(c) + 0.012 + (i && c.module !== all[i - 1]!.module ? 0.1 : 0), 0);
   const W = Math.max(2.6, span(order(term)), span(order(rest))) + 0.75;
   const TOP = 0, LOW = -0.98, floor = rest.length ? LOW : TOP;
   const tall = 0.98 - floor + 0.1, mid = (0.98 + floor - 0.1) / 2;
   box(W + 0.2, tall, 0.05, dark, 0, mid, -0.2);
+  const circle = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), carving); circle.position.set(0, TOP + 0.48, -0.17); group.add(circle);
   for (const x of [-W / 2 - 0.07, W / 2 + 0.07]) box(0.12, tall + 0.05, 0.5, wood, x, mid, 0.02);
   box(W + 0.4, 0.1, 0.6, wood, 0, 0.98, 0.04);
   for (const y of rest.length ? [TOP, LOW] : [TOP]) box(W + 0.1, 0.06, 0.46, wood, 0, y - 0.03, 0.02);
@@ -350,14 +411,31 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
       // A brass bookend between one module and the next.
       if (last && c.module !== last) { box(0.025, 0.36, 0.3, brass, x + 0.045, y + 0.18, 0.04); x += 0.1; }
       last = c.module;
-      const thick = thickOf(c), tall = c.type === 'VO' ? 0.74 : 0.62;
-      const face = new THREE.MeshLambertMaterial({ map: spineTexture(c) });
-      // Covers in a tone of their own, a module sharing one; pages on top.
-      const tone = 0.42 + ((CURRICULUM.findIndex((m) => m.code === c.module) * 37) % 5) * 0.09;
-      const side = new THREE.MeshLambertMaterial({ color: new THREE.Color(tone, tone * 0.97, tone * 0.92) });
-      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, 0.36), [side, side, pages, side, face, side]);
+      const thick = thickOf(c), tall = (c.type === 'VO' ? 0.8 : 0.68) - (c.id % 3) * 0.02, deep = 0.4;
+      const face = new THREE.MeshLambertMaterial({ map: spineTexture(c, thick, tall) });
+      // Boards in leather of a tone of their own, a module sharing one; the
+      // page edges on top, aged.
+      const tone = 0.2 + ((CURRICULUM.findIndex((m) => m.code === c.module) * 37) % 5) * 0.05;
+      const side = new THREE.MeshLambertMaterial({ color: new THREE.Color(tone, tone * 0.96, tone * 0.9) });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(thick, tall, deep), [side, side, pages, side, face, side]);
       b.position.set(x + thick / 2, y + tall / 2, 0.04);
       b.userData = { id: c.id, module: c.module, home: b.position.clone(), out: 0, shelf: y };
+      // Raised bands standing proud of the spine.
+      for (const f of [0.1, 0.24, 0.76, 0.9]) {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(thick + 0.008, 0.02, 0.02), side);
+        band.position.set(0, (0.5 - f) * tall, deep / 2); b.add(band);
+      }
+      // A StEOP volume hangs on a chain until it is passed, the way the old
+      // libraries chained what mattered most.
+      if (c.module.startsWith('STEOP') && !(c.grade !== null && c.grade <= 4)) {
+        for (let k = 0; k < 8; k++) {
+          const u = k / 7;
+          const link = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.006, 6, 12), brass);
+          link.position.set(thick * 0.2 * Math.sin(u * 2.5), tall * 0.14 - u * tall * 0.62, deep / 2 + 0.025 + Math.sin(u * Math.PI) * 0.05);
+          link.rotation.set(k % 2 ? Math.PI / 2 : 0, 0, 0);
+          b.add(link);
+        }
+      }
       group.add(b); books.push(b);
       x += thick + 0.012;
     }
@@ -378,19 +456,48 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   }
   const end = shelve(term, TOP);
   shelve(rest, LOW);
-  // On the upper shelf's free end, an hourglass; below, a pile of papers with
-  // a lens on it: the instruments of a faculty that measures things.
-  const hx = Math.max(end + 0.25, W / 2 - 0.3);
-  const glass = new THREE.Group(); glass.position.set(hx, TOP + 0.3, 0.05); group.add(glass);
-  for (const s of [1, -1]) {
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.24, 20, 1, true), paper); cone.rotation.x = s > 0 ? Math.PI : 0; cone.position.y = s * 0.12; glass.add(cone);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 24), brass); cap.position.y = s * 0.255; glass.add(cap);
+  // On the upper shelf's free end, Newton's cradle: the two end balls take
+  // turns, the three between them pass the knock along and never move.
+  const hx = Math.max(end + 0.3, W / 2 - 0.32);
+  const cradle = new THREE.Group(); cradle.position.set(hx, TOP, 0.05); group.add(cradle);
+  const rod = (len: number) => new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, len, 6), brass);
+  for (const z of [-0.09, 0.09]) {
+    for (const x of [-0.2, 0.2]) { const post = rod(0.46); post.position.set(x, 0.23, z); cradle.add(post); }
+    const bar = rod(0.4); bar.rotation.z = Math.PI / 2; bar.position.set(0, 0.46, z); cradle.add(bar);
   }
-  for (let k = 0; k < 3; k++) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 6), brass); const a = (k / 3) * Math.PI * 2; post.position.set(Math.cos(a) * 0.16, 0, Math.sin(a) * 0.16); glass.add(post); }
-  // On top of the case, papers with a lens on them.
-  for (let k = 0; k < 6; k++) { const sheet = box(0.62, 0.012, 0.4, paper, 0.8 + (k % 2) * 0.03, 1.04 + k * 0.014, 0.03); sheet.rotation.y = (k - 2.5) * 0.04; }
-  const lens = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.014, 8, 32), brass); lens.rotation.x = Math.PI / 2; lens.position.set(0.85, 1.15, 0.05); group.add(lens);
-  const handle = box(0.18, 0.025, 0.025, brass, 1.03, 1.15, 0.05); handle.rotation.y = 0.2;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.03, 0.26), wood); base.position.y = 0.015; cradle.add(base);
+  const bobs = [-2, -1, 0, 1, 2].map((i) => {
+    const pivot = new THREE.Group(); pivot.position.set(i * 0.066, 0.46, 0); cradle.add(pivot);
+    for (const z of [-0.09, 0.09]) {
+      const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, Math.hypot(0.33, z), 4), paper);
+      thread.position.set(0, -0.165, z / 2); thread.rotation.x = -Math.atan2(z, 0.33); pivot.add(thread);
+    }
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), brass); ball.position.y = -0.33; pivot.add(ball);
+    return pivot;
+  });
+  // On top of the case: a Crookes radiometer, its vanes turned by the lamp's
+  // light; a black candle burning down; tomes piled where no one reshelves them.
+  const bulb = new THREE.Group(); bulb.position.set(-W / 2 + 0.45, 1.03, 0.05); group.add(bulb);
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), new THREE.MeshBasicMaterial({ color: 0xbdb6a8, wireframe: true, transparent: true, opacity: 0.35 }));
+  globe.position.y = 0.26; bulb.add(globe);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.12, 12), paper); stem.position.y = 0.06; bulb.add(stem);
+  const spindle = rod(0.2); spindle.position.y = 0.22; bulb.add(spindle);
+  const vanes = new THREE.Group(); vanes.position.y = 0.27; bulb.add(vanes);
+  const soot = new THREE.MeshBasicMaterial({ color: 0x0c0b0a, side: THREE.DoubleSide });
+  for (let k = 0; k < 4; k++) {
+    const arm = new THREE.Group(); arm.rotation.y = (k * Math.PI) / 2; vanes.add(arm);
+    const vane = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), k % 2 ? paper : soot);
+    vane.position.x = 0.075; arm.add(vane);
+  }
+  const wax = new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 0.8 });
+  const cx = W / 2 - 0.5;
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.3, 16), wax); stick.position.set(cx, 1.18, 0.05); group.add(stick);
+  const drip = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.1, 4, 8), wax); drip.position.set(cx + 0.045, 1.22, 0.07); group.add(drip);
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.03, 20), brass); dish.position.set(cx, 1.045, 0.05); group.add(dish);
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  flame.position.set(cx, 1.37, 0.05); group.add(flame);
+  const candlelight = new THREE.PointLight(0xffe8c8, 1.2, 2.5, 1.5); candlelight.position.set(cx, 1.42, 0.2); group.add(candlelight);
+  for (let k = 0; k < 3; k++) { const tome = box(0.5 - k * 0.06, 0.07, 0.34 - k * 0.03, k % 2 ? dark : wood, cx - 0.55, 1.07 + k * 0.07, 0.04); tome.rotation.y = (k - 1) * 0.12; }
   // A lamp over the case, and dust in its light.
   // Lit the way the study is: almost no ambient, one lamp throwing a pool
   // of light across the shelf from above and in front, and a faint cold fill.
@@ -426,7 +533,7 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
   // The camera is set back just far enough to take in the case at whatever
   // shape the frame is.
   // A strip is left free along the bottom, for the tags and the hint.
-  const halfW = W / 2 + 0.25, halfH = (1.2 - floor) / 2 + 0.16, lookY = (1.2 + floor) / 2 - 0.14;
+  const halfW = W / 2 + 0.25, halfH = (1.46 - floor) / 2 + 0.16, lookY = (1.46 + floor) / 2 - 0.14;
   return (t: number) => {
     const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const d = Math.max(halfW / (f * camera.aspect), halfH / f) + 0.5;
@@ -452,6 +559,14 @@ const faculty = ({ scene, group, camera, turn, canvas }: { scene: THREE.Scene; g
         return { id: d.id, x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height, label: SHORT[d.module] ?? d.module, out: row.some((b) => b.userData.id === pulledId.value) };
       });
     }
+    // The cradle: one end out, then the other; the middle three stay still.
+    const swing = reduced() ? 0 : Math.sin(t * 3.2) * 0.5;
+    bobs[0]!.rotation.z = Math.min(0, swing);
+    bobs[4]!.rotation.z = Math.max(0, swing);
+    vanes.rotation.y = t * 1.6;
+    const fl = 1 + 0.12 * Math.sin(t * 13) + 0.06 * Math.sin(t * 31);
+    flame.scale.set(1, 1.8 * fl, 1);
+    candlelight.intensity = 1.1 * fl;
     motes.position.y = Math.sin(t * 0.1) * 0.05;
     motes.rotation.y = t * 0.02;
     if (hover) {
@@ -644,8 +759,8 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     </div>
 
 
-    <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
-      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
+    <Frame class="stacks" title="the forbidden stacks // a grimoire a course" flush>
+      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as grimoires on a shelf, with a Newton's cradle, a radiometer and a candle. Click one to take it down and grade it." hint="hover to read // click to take down" />
       <button v-if="!state.courses.length" class="btn bare" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : `add the first term // ${FIRST_TERM.courses.length} courses` }}</button>
       <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
     <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${Math.min(Math.max(spineTip.x, 150), spineTip.w - 150)}px`, top: `${spineTip.y}px` }">
