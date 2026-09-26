@@ -100,6 +100,21 @@ void test_all_todos_done() {
   TEST_ASSERT_TRUE(daily.allTodosDone());
 }
 
+void test_the_plan_comes_with_the_day() {
+  FakeStorage storage;
+  Daily daily(storage);
+  daily.replace("{\"date\":\"2026-09-19\",\"utcOffset\":120,\"todos\":[],\"habits\":[],\"quotes\":[],"
+                "\"blocks\":[{\"start\":540,\"end\":600,\"title\":\"Physics\",\"shade\":3,\"activityId\":10},"
+                "{\"start\":660,\"end\":720,\"title\":\"Gym\",\"shade\":0,\"activityId\":null}]}");
+  TEST_ASSERT_EQUAL_INT(2, (int)daily.plan().size());
+  TEST_ASSERT_EQUAL_STRING("Physics", daily.plan()[0].title.c_str());
+  TEST_ASSERT_EQUAL_INT(3, daily.plan()[0].shade);
+  TEST_ASSERT_EQUAL_INT(10, daily.plan()[0].activityId);
+  TEST_ASSERT_EQUAL_INT(0, daily.plan()[1].activityId);
+  // 2026-09-19T08:00:00Z is 10:00 in Vienna.
+  TEST_ASSERT_EQUAL_INT(600, daily.minuteOfDay(1789804800ULL));
+}
+
 void test_form_by_hours_since_the_last_session() {
   FakeStorage storage;
   Daily daily(storage);
@@ -142,6 +157,7 @@ int main() {
   RUN_TEST(test_the_day_turning_drops_done_todos_and_opens_habits);
   RUN_TEST(test_ticking_a_habit_marks_today_in_its_graph);
   RUN_TEST(test_form_by_hours_since_the_last_session);
+  RUN_TEST(test_the_plan_comes_with_the_day);
   RUN_TEST(test_a_session_ended_here_counts_before_the_next_sync);
   RUN_TEST(test_once_dormant_only_the_ritual_wakes_him_here);
   return UNITY_END();

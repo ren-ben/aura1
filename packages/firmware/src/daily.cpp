@@ -20,6 +20,10 @@ bool Daily::parse(const std::string& json) {
   quotes_.clear();
   vigil_.clear();
   hours_.clear();
+  plan_.clear();
+  for (JsonObjectConst b : doc["blocks"].as<JsonArrayConst>()) {
+    plan_.push_back({ b["start"] | 0, b["end"] | 0, b["title"] | "", b["shade"] | 1, b["activityId"] | 0 });
+  }
   for (int h : doc["hours"].as<JsonArrayConst>()) hours_.push_back(h);
   for (JsonObjectConst t : doc["todos"].as<JsonArrayConst>()) {
     todos_.push_back({ t["id"] | 0, t["body"] | "", t["done"] | false });
@@ -45,6 +49,11 @@ bool Daily::sunHour(uint64_t now) {
   if (minute == lastHour_ || std::find(hours_.begin(), hours_.end(), ofDay) == hours_.end()) return false;
   lastHour_ = minute;
   return true;
+}
+
+int Daily::minuteOfDay(uint64_t now) const {
+  const int64_t minute = (static_cast<int64_t>(now) + utcOffsetMinutes_ * 60) / 60;
+  return static_cast<int>(((minute % 1440) + 1440) % 1440);
 }
 
 bool Daily::isSit(int activityId) const {
@@ -118,6 +127,7 @@ bool Daily::rollover(uint64_t now) {
     h.history += std::string(days, '0');
     if (h.history.size() > HISTORY_DAYS) h.history.erase(0, h.history.size() - HISTORY_DAYS);
   }
+  plan_.clear();
   date_ = today;
   return true;
 }

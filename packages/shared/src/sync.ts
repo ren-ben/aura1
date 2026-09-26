@@ -87,6 +87,15 @@ export const todayDtoSchema = z.object({
   // The four sun hours to ring, as minutes after local midnight (dawn, noon,
   // dusk, midnight); empty when they are off.
   hours: z.array(z.number().int().min(0).max(1439)).max(4).default([]),
+  // Today's rewiring: its blocks in minutes after local midnight, the grey
+  // each is drawn in, and the activity POWER starts from it.
+  blocks: z.array(z.object({
+    start: z.number().int(),
+    end: z.number().int(),
+    title: z.string(),
+    shade: z.number().int(),
+    activityId: z.number().int().nullable(),
+  })).default([]),
 });
 
 // Every book on the shelf, as the device lists them. Only what a list needs:

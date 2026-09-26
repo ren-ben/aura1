@@ -68,6 +68,13 @@ void drawPage(Canvas& c, const Look& look, const ViewModel& vm, const Status& s,
 // The page itself: the text, the chapter, how far through, and him reading.
 void readerPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art);
 
+// The day as it is wired, the same in every look: what to be doing now,
+// what comes after, and the day around it.
+void planPage(Canvas& c, const Look& look, const ViewModel& vm);
+// Where the corner goes: the look's own, except on the plan, which keeps
+// the top right for it in every look.
+Corner pageCorner(const Look& look, const ViewModel& vm, bool scene);
+
 // How many pages a quote takes in a look, for SUN to turn through.
 int quotePageCount(const Look& look, const std::string& text, bool large);
 

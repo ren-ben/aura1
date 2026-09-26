@@ -5,7 +5,11 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe, Vigil };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe, Vigil, Plan };
+
+// A block of today's rewiring: minutes after local midnight, its name, and
+// its grey (0 lightest on the web, drawn densest here).
+struct Tap { int start = 0; int end = 0; std::string title; int shade = 1; int activityId = 0; };
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -45,4 +49,7 @@ struct ViewModel {
   int left = -1;       // minutes left, in fives; -1 for an open sit
   int breath = -1;     // the pacer's swell, 0 to 100; -1 without one
   std::string cue;     // the pacer's word: "in", "out"
+  // The rewiring: today's taps, and the minute of the day it is now.
+  std::vector<Tap> taps;
+  int now = 0;
 };

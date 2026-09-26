@@ -553,7 +553,8 @@ void test_the_menu_shows_todays_progress() {
   m.begin();
   m.handle(Input::SunLong);
   TEST_ASSERT_EQUAL_STRING("TODAY 1/2", rig.renderer.last().items[1].c_str());
-  TEST_ASSERT_EQUAL_STRING("HABITS 0/1", rig.renderer.last().items[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("WIRING", rig.renderer.last().items[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("HABITS 0/1", rig.renderer.last().items[3].c_str());
 }
 
 void test_power_ticks_a_todo_and_the_last_one_celebrates() {
@@ -579,7 +580,7 @@ void test_power_ticks_a_habit() {
   auto m = rig.machine();
   m.daily().replace(BUNDLE);
   m.begin();
-  openPlace(m, 2);
+  openNamed(rig, m, "HABITS");
   m.handle(Input::PowerShort);
   TEST_ASSERT_TRUE(rig.renderer.last().checks[0]);
   TEST_ASSERT_EQUAL_STRING("habit 2 2026-09-19 1", m.daily().ticks()[0].c_str());
@@ -823,9 +824,9 @@ void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
-  // Up to the menu, along to READ (past the Vigil), into the shelf, the book and its page.
+  // Up to the menu, along to READ (past the wiring and the Vigil), into the shelf, the book and its page.
   m.handle(Input::SunLong);
-  for (int i = 0; i < 4; ++i) m.handle(Input::SunShort);
+  for (int i = 0; i < 5; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
@@ -1022,8 +1023,50 @@ void test_the_sun_hours_toll_once_each_while_they_are_on() {
   TEST_ASSERT_EQUAL_INT(1, sound.count("hour"));  // off: nothing more
 }
 
+// 1758100000 is 09:06 UTC; the bundle's day is UTC, so the first tap is on.
+static const char* PLAN_BUNDLE =
+  "{\"date\":\"2025-09-17\",\"utcOffset\":0,\"level\":1,\"lastSessionAt\":null,\"todos\":[],\"habits\":[],\"quotes\":[],"
+  "\"blocks\":[{\"start\":540,\"end\":600,\"title\":\"coursework\",\"shade\":1,\"activityId\":10},"
+  "{\"start\":720,\"end\":780,\"title\":\"later\",\"shade\":2,\"activityId\":null}]}";
+
+void test_the_wiring_shows_the_day_and_power_starts_what_is_on() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(PLAN_BUNDLE);
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "WIRING");
+  const ViewModel vm = rig.renderer.last();
+  TEST_ASSERT_TRUE(vm.place == Place::Plan);
+  TEST_ASSERT_EQUAL_INT(2, (int)vm.taps.size());
+  TEST_ASSERT_EQUAL_INT(546, vm.now);
+  // Left up past the screensaver's time; redrawn once the five minutes turn.
+  const size_t frames = rig.renderer.frames.size();
+  rig.clock.now += 200;
+  m.handle(Input::Tick);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_TRUE(rig.renderer.frames.size() > frames);
+  TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Plan);
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+}
+
+void test_the_wiring_starts_nothing_between_taps() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(PLAN_BUNDLE);
+  rig.clock.now += 3600;  // 10:06, between the two
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "WIRING");
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_the_wiring_shows_the_day_and_power_starts_what_is_on);
+  RUN_TEST(test_the_wiring_starts_nothing_between_taps);
   RUN_TEST(test_while_dormant_the_menu_offers_the_ritual_and_it_lights_candles);
   RUN_TEST(test_an_ordinary_session_does_not_offer_the_ritual_when_awake);
   RUN_TEST(test_begin_shows_waking_then_the_list);

@@ -261,7 +261,7 @@ void EinkRenderer::render(const ViewModel& vm) {
     }
     default: break;
   }
-  corner_ = lk.corner(vm, scene);
+  corner_ = pageCorner(lk, vm, scene);
   cornered_ = true;
   out_ = base_;
   drawCorner(out_, corner_.y, status_, corner_.ink);

@@ -109,6 +109,12 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
   reading.pages = 12;
   reading.kept = true;
   out.push_back({ "breading", reading });
+
+  ViewModel plan = base(Place::Plan);
+  plan.taps = { { 480, 600, "Problem set 4", 1 }, { 630, 750, "Sync fix", 2 }, { 840, 930, "Pull day", 4 },
+                { 960, 1050, "Prolegomena", 3 }, { 1200, 1260, "Essay draft", 0 } };
+  plan.now = 14 * 60 + 32;
+  out.push_back({ "cplan", plan });
   return out;
 }
 
@@ -126,7 +132,7 @@ void test_every_look_draws_every_page() {
       s.link = k % 3 == 0 ? Link::Syncing : k % 3 == 1 ? Link::Offline : Link::Online;
       std::fprintf(stderr, "%s %s\n", look.name(), name.c_str()); std::fflush(stderr);
       drawPage(c, look, vm, s, art);
-      const Corner at = look.corner(vm, false);
+      const Corner at = pageCorner(look, vm, false);
       drawCorner(c, at.y, s, at.ink);
       int ink = 0;
       for (int y = 0; y < 200; ++y) for (int x = 0; x < 200; ++x) ink += c.get(x, y);

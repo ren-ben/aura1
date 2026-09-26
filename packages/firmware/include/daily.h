@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "ports.h"
+#include "view_model.h"
 
 // Today's bundle from the server (packages/shared/src/sync.ts, todayDtoSchema):
 // todos and habits to tick on the device, quotes for Kael'thos to say, and
@@ -62,6 +63,9 @@ public:
   // yes once only.
   const std::vector<int>& hours() const { return hours_; }
   bool sunHour(uint64_t now);
+  // Today's rewiring, and the minute of the user's day it is at now.
+  const std::vector<Tap>& plan() const { return plan_; }
+  int minuteOfDay(uint64_t now) const;
 
   // Flips an item and queues the tick. False if out of range or unsaved.
   bool toggleTodo(size_t i);
@@ -106,5 +110,6 @@ private:
   std::vector<DailyQuote> quotes_;
   std::vector<VigilPractice> vigil_;
   std::vector<int> hours_;
+  std::vector<Tap> plan_;
   int64_t lastHour_ = -1;  // the local minute last tolled, since the epoch
 };

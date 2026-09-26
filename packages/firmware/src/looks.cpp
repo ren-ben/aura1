@@ -1269,6 +1269,7 @@ std::vector<int> readerPages(const Look& look, const std::string& text, bool lar
 // reads without any of them having to know how.
 void drawPage(Canvas& c, const Look& look, const ViewModel& vm, const Status& s, ArtSource& art) {
   if (vm.place == Place::Reading) readerPage(c, look, vm, art);
+  else if (vm.place == Place::Plan) planPage(c, look, vm);
   else look.page(c, vm, s, art);
 }
 
@@ -1352,4 +1353,201 @@ void drawCorner(Canvas& c, int y, const Status& s, uint8_t ink) {
   if (s.charging) c.icon(X + 8, y + 2, BOLT, 8, ink);
   else for (int q = 0; q < s.bars; ++q) c.fillRect(X + 2 + q * 5, y + 2, 4, BH - 4, ink);
   if (s.link != Link::Online) c.icon(X - 17, y, s.link == Link::Syncing ? SPIRAL : CACTUS, 12, ink);
+}
+
+// The rewiring on the glass, in one of three ways by the look: the bus of
+// the web, the dial of the whole day, or the tape under large type. In the
+// look's own ink: white on black for a negative one.
+
+namespace {
+
+std::string clockOf(int m) {
+  const auto two = [](int v) { return std::string(v < 10 ? "0" : "") + std::to_string(v); };
+  return two((m / 60) % 24) + ":" + two(m % 60);
+}
+std::string lengthOf(int m) { return m >= 60 ? std::to_string(m / 60) + "H " + std::to_string(m % 60) + "M" : std::to_string(m) + " MIN"; }
+int tapNow(const ViewModel& vm) {
+  for (size_t i = 0; i < vm.taps.size(); ++i) if (vm.taps[i].start <= vm.now && vm.now < vm.taps[i].end) return static_cast<int>(i);
+  return -1;
+}
+int tapNext(const ViewModel& vm) {
+  for (size_t i = 0; i < vm.taps.size(); ++i) if (vm.taps[i].start > vm.now) return static_cast<int>(i);
+  return -1;
+}
+// A tap's grey as ink density: the lightest on the web is the densest here.
+bool shadeOn(int shade, int x, int y) {
+  switch (shade) {
+    case 0: return true;
+    case 1: return (x + y) % 4 != 0;
+    case 2: return (x + y) % 2 == 0;
+    case 3: return x % 2 == 0 && y % 2 == 0;
+    case 4: return (x + 2 * y) % 6 == 0;
+    default: return false;
+  }
+}
+void shadeRect(Canvas& c, int x, int y, int w, int h, int shade, uint8_t ink) {
+  for (int j = y; j < y + h; ++j) for (int i = x; i < x + w; ++i) if (shadeOn(shade, i, j)) c.pixel(i, j, ink);
+  c.drawRect(x, y, w, h, ink);
+}
+
+// What is on now, in words: the tap and how long it has left, or the next.
+struct Now { std::string label, title, detail; int done = -1; };
+Now nowOf(const ViewModel& vm) {
+  const int i = tapNow(vm), n = tapNext(vm);
+  if (i >= 0) {
+    const Tap& t = vm.taps[i];
+    return { "NOW", t.title, "UNTIL " + clockOf(t.end) + " // " + lengthOf(t.end - vm.now) + " LEFT", (vm.now - t.start) * 1000 / (t.end - t.start) };
+  }
+  if (n >= 0) return { "NEXT AT " + clockOf(vm.taps[n].start), vm.taps[n].title, "IN " + lengthOf(vm.taps[n].start - vm.now) };
+  return { "NOTHING WIRED", vm.taps.empty() ? "An unwired day" : "The day is drawn", "" };
+}
+
+// The bus: what is on now above, the next hours wired down the side.
+void planBus(Canvas& c, const ViewModel& vm, uint8_t ink) {
+  const uint8_t paper = other(ink);
+  c.font(&Silk8);
+  c.text("THE REWIRING // " + clockOf(vm.now), 8, 12, ink);
+  const Now n = nowOf(vm);
+  c.text(n.label, 8, 30, ink);
+  c.font(&Grenze18);
+  c.text(fit(c, n.title, 184), 8, 54, ink);
+  c.font(&Silk8);
+  c.text(n.detail, 8, 68, ink);
+  if (n.done >= 0) { c.drawRect(8, 73, 184, 6, ink); c.fillRect(8, 73, 184 * n.done / 1000, 6, ink); }
+
+  // An hour before now to five after, at 18 px an hour.
+  constexpr int TOP = 86, BOT = 198, BUS = 20;
+  const int from = vm.now - 60;
+  const auto yOf = [&](int m) { return TOP + (m - from) * (BOT - TOP) / 360; };
+  for (int h = (from + 59) / 60 * 60; h <= from + 360; h += 60) {
+    const int y = yOf(h);
+    c.text(std::to_string((h / 60) % 24), 2, y + 3, ink);
+    for (int x = BUS + 4; x < 196; x += 6) c.pixel(x, y, ink);
+  }
+  const int ny = yOf(vm.now);
+  c.fillRect(BUS - 1, TOP, 2, ny - TOP, ink);
+  for (int y = ny; y < BOT; y += 3) c.fillRect(BUS - 1, y, 2, 1, ink);
+  for (const Tap& t : vm.taps) {
+    const int y0 = std::max(TOP, yOf(t.start)), y1 = std::min(BOT, yOf(t.end));
+    if (y1 - y0 < 3) continue;
+    const bool on = t.start <= vm.now && vm.now < t.end;
+    c.hline(BUS, y0 + 3, 6, ink);
+    c.fillRect(BUS + 6, y0 + 1, 170, y1 - y0 - 1, on ? ink : paper);
+    if (!on) {
+      c.drawRect(BUS + 6, y0 + 1, 170, y1 - y0 - 1, ink);
+      for (int y = y0 + 1; y < y1; ++y) for (int x = BUS + 6; x < BUS + 12; ++x) if (shadeOn(t.shade, x, y)) c.pixel(x, y, ink);
+    }
+    if (y1 - y0 >= 11) {
+      const uint8_t tx = on ? paper : ink;
+      c.text(fit(c, upper(t.title), 118), BUS + 16, y0 + 10, tx);
+      c.right(clockOf(t.start), 192, y0 + 10, tx);
+    }
+  }
+  c.fillCircle(BUS, ny, 3, ink);
+  c.drawCircle(BUS, ny, 5, ink);
+}
+
+// The dial: the whole day as a ring, every tap an arc, a hand on now.
+void planDial(Canvas& c, const ViewModel& vm, uint8_t ink) {
+  constexpr int CX = 100, CY = 104, R0 = 70, R1 = 84;
+  const auto ang = [](int m) { return (m / 1440.0) * 2 * HALF_TURN - HALF_TURN / 2; };
+  const auto at = [&](int m, double r, int& x, int& y) {
+    x = CX + static_cast<int>(std::lround(r * std::cos(ang(m))));
+    y = CY + static_cast<int>(std::lround(r * std::sin(ang(m))));
+  };
+  int x = 0, y = 0;
+  for (int a = 0; a < 1440; a += 4) {
+    at(a, R1 + 1, x, y); c.pixel(x, y, ink);
+    if (a < vm.now || a % 12 == 0) { at(a, R0 - 1, x, y); c.pixel(x, y, ink); }
+  }
+  for (int py = CY - R1; py <= CY + R1; ++py) for (int px = CX - R1; px <= CX + R1; ++px) {
+    const double dx = px - CX, dy = py - CY, r = std::sqrt(dx * dx + dy * dy);
+    if (r < R0 + 1 || r > R1 - 1) continue;
+    double t = std::atan2(dy, dx) + HALF_TURN / 2;
+    if (t < 0) t += 2 * HALF_TURN;
+    const int m = static_cast<int>(t / (2 * HALF_TURN) * 1440);
+    for (const Tap& tp : vm.taps) if (m >= tp.start && m < tp.end) {
+      const bool edge = m - tp.start < 3 || tp.end - m <= 3 || r < R0 + 2 || r > R1 - 2;
+      if (edge || shadeOn(tp.shade, px, py)) c.pixel(px, py, ink);
+    }
+  }
+  for (int h = 0; h < 24; ++h) {
+    if (h % 6 == 0) continue;
+    int x0 = 0, y0 = 0;
+    at(h * 60, R1 + 3, x0, y0); at(h * 60, R1 + 3 + (h % 3 == 0 ? 5 : 2), x, y);
+    c.line(x0, y0, x, y, ink);
+  }
+  c.font(&Silk8);
+  c.centered("00", CY - R1 - 5, ink);
+  c.centered("12", CY + R1 + 12, ink);
+  c.right("18", CX - R1 - 4, CY + 4, ink);
+  c.text("06", CX + R1 + 5, CY + 4, ink);
+  // The hand: from inside the ring to its edge, a bead at its end.
+  int ix = 0, iy = 0;
+  at(vm.now, R0 - 8, ix, iy); at(vm.now, R1 + 3, x, y);
+  for (int k = -1; k <= 1; ++k) c.line(ix + k, iy, x + k, y, ink);
+  c.fillCircle(x, y, 3, ink);
+
+  const Now n = nowOf(vm);
+  c.centered(clockOf(vm.now) + " // " + n.label, 72, ink);
+  c.font(&Grenze13);
+  const auto lines = wrap(c, n.title, 112);
+  for (size_t i = 0; i < std::min<size_t>(2, lines.size()); ++i) c.centered(lines[i], 96 + static_cast<int>(i) * 18, ink);
+  c.font(&Silk8);
+  const int nx = tapNext(vm);
+  if (n.done >= 0) c.centered(lengthOf(vm.taps[tapNow(vm)].end - vm.now) + " LEFT", 136, ink);
+  if (n.done >= 0 && nx >= 0) c.centered(fit(c, "THEN " + upper(vm.taps[nx].title), 100), 148, ink);
+}
+
+// The tape: now in large type, the whole day a strip below it.
+void planTape(Canvas& c, const ViewModel& vm, uint8_t ink) {
+  const Now n = nowOf(vm);
+  c.font(&Silk8);
+  c.text(n.label + " // " + clockOf(vm.now), 8, 12, ink);
+  c.font(&Fraktur20);
+  const auto lines = wrap(c, n.title, 184);
+  for (size_t i = 0; i < std::min<size_t>(2, lines.size()); ++i) c.centered(lines[i], 44 + static_cast<int>(i) * 24, ink);
+  const int i = tapNow(vm);
+  c.font(&Silk8);
+  if (i >= 0) {
+    const int left = vm.taps[i].end - vm.now;
+    c.font(&Tek24);
+    c.centered(std::to_string(left / 60) + ":" + (left % 60 < 10 ? "0" : "") + std::to_string(left % 60), 116, ink);
+    c.font(&Silk8);
+    c.centered("LEFT OF IT // UNTIL " + clockOf(vm.taps[i].end), 130, ink);
+  } else c.centered(n.detail, 116, ink);
+
+  // 06:00 to midnight, ten pixels an hour.
+  constexpr int X0 = 10, TOP = 148, BOT = 166;
+  const auto xOf = [](int m) { return X0 + (std::max(360, m) - 360) / 6; };
+  c.hline(X0, BOT, 180, ink);
+  for (int h = 6; h <= 24; ++h) {
+    c.vline(xOf(h * 60), BOT, h % 6 == 0 ? 5 : 2, ink);
+    if (h % 6 == 0) { const std::string s = std::to_string(h); c.text(s, xOf(h * 60) - c.width(s) / 2, 180, ink); }
+  }
+  for (const Tap& t : vm.taps) {
+    const int x0 = xOf(t.start), x1 = xOf(t.end);
+    if (x1 - x0 >= 2) shadeRect(c, x0, TOP, x1 - x0, BOT - TOP - 2, t.shade, ink);
+  }
+  const int nx = xOf(vm.now);
+  c.fillTriangle(nx - 4, TOP - 8, nx + 4, TOP - 8, nx, TOP - 2, ink);
+  for (int y = TOP - 2; y < BOT + 6; y += 2) c.pixel(nx, y, ink);
+  const int next = tapNext(vm);
+  if (next >= 0) c.text(fit(c, "NEXT " + clockOf(vm.taps[next].start) + " " + upper(vm.taps[next].title), 184), 8, 196, ink);
+}
+
+}  // namespace
+
+void planPage(Canvas& c, const Look& look, const ViewModel& vm) {
+  const uint8_t ink = look.negative() ? PAPER : INK;
+  if (look.negative()) c.clear(INK);
+  const std::string name = look.name();
+  if (name == "CODEX" || name == "BLOOD MOON") planDial(c, vm, ink);
+  else if (name == "NODES" || name == "CONTAINMENT" || name == "CONSOLE") planBus(c, vm, ink);
+  else planTape(c, vm, ink);
+}
+
+Corner pageCorner(const Look& look, const ViewModel& vm, bool scene) {
+  if (!scene && vm.place == Place::Plan) return { 2, look.negative() ? PAPER : INK };
+  return look.corner(vm, scene);
 }

@@ -41,6 +41,10 @@ cannot be switched off from the middle of a book; go to the menu first.
 - **The menu** holds ACTIVITIES, TODAY (todos due today or overdue), HABITS and QUOTES,
   with today's progress beside each, and a gear for the settings: SUN steps onto it
   last. Kael'thos watches from the page.
+- **WIRING** is today's rewiring from the web: what is on now, how long it has left, and
+  the day around it (a dial, a bus or a tape, by the look). POWER starts the session on
+  the block's activity; the page stays up instead of the screensaver and moves every
+  five minutes.
 - **Settings:** TEXT (small or large quotes), LOOK, SKIN (only Jiji so far) and SYNC
   (POWER syncs now; then SYNCED, NO WIFI or SERVER ERROR). Below them the battery: a
   gauge, its percent, the voltage, and whether it is charging.

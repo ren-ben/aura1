@@ -249,8 +249,11 @@ void SessionMachine::handle(Input input) {
   switch (screen_) {
     case Screen::Idle:
       if (input == Input::Tick) {
+        // The plan is left up to be glanced at, and moves on as the day does.
+        if (place_ == Place::Plan) {
+          if (now / PLAN_REDRAW_SECONDS != planDrawn_) draw();
         // Left alone, he fills the glass with something of his own.
-        if (now - lastInput_ >= SCREENSAVER_SECONDS) {
+        } else if (now - lastInput_ >= SCREENSAVER_SECONDS) {
           screen_ = Screen::Screensaver;
           moment_ = screensaverMoment(daily_.form(now), daily_.date());
           draw();
@@ -326,6 +329,15 @@ void SessionMachine::browse(Input input) {
       break;
     case Place::Vigil:
       vigil(input);
+      break;
+    case Place::Plan:
+      if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort) {
+        const int now = daily_.minuteOfDay(clock_.nowEpochSeconds());
+        for (const Tap& t : daily_.plan()) {
+          if (t.start <= now && now < t.end && t.activityId) { startSession(t.activityId); break; }
+        }
+      }
       break;
     case Place::Activities:
       if (input == Input::SunShort) { carousel_.next(); draw(); }
@@ -520,7 +532,7 @@ void SessionMachine::redrawSettings() {
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Vigil }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Plan, Place::Habits, Place::Vigil }) places.push_back(p);
   // Always offered, empty or not: a menu that hides the library until a sync
   // has been through is a menu with a missing item as far as anyone holding
   // the device is concerned.
@@ -655,6 +667,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
           case Place::Shelf: vm.items.push_back("READ"); break;
           case Place::Vigil: vm.items.push_back("VIGIL"); break;
+          case Place::Plan: vm.items.push_back("WIRING"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
         }
@@ -665,6 +678,14 @@ void SessionMachine::draw(int minutes) {
     case Place::Resurrect:
       break;
     case Place::Todos: list("TODAY", daily_.todos()); break;
+    case Place::Plan: {
+      const uint64_t now = clock_.nowEpochSeconds();
+      vm.title = "WIRING";
+      vm.taps = daily_.plan();
+      vm.now = daily_.minuteOfDay(now);
+      planDrawn_ = now / PLAN_REDRAW_SECONDS;
+      break;
+    }
     case Place::Habits: list("HABITS", daily_.habits()); break;
     case Place::Quotes:
       vm.title = "QUOTES";

@@ -86,6 +86,7 @@ private:
   static constexpr uint64_t STOPPED_HOLD_SECONDS = 5;
   static constexpr uint64_t CELEBRATE_SECONDS = 5;
   static constexpr uint64_t SCREENSAVER_SECONDS = 180;
+  static constexpr uint64_t PLAN_REDRAW_SECONDS = 300;
   static constexpr uint64_t RITUAL_STAGE_SECONDS = 15 * 60;  // one candle each
   // 2025-01-01T00:00:00Z. Below this the clock is treated as unset: the
   // PCF85063 restarts at 2000-01-01 after a battery/power-loss reset, and
@@ -115,6 +116,7 @@ private:
   size_t page_ = 0;
   Place place_ = Place::Activities;
   size_t menuCursor_ = 0;
+  uint64_t planDrawn_ = 0;  // the five minutes the plan was last drawn in
   size_t listCursor_ = 0;
   size_t quote_ = 0;
   int quotePage_ = 0;  // a long quote's page, turned by SUN
