@@ -122,7 +122,7 @@ with Kael'thos at its centre.
   the plate to turn the rete; the armillary's six beads light as the semesters are done.
   Add a course by its u:find number (or the whole first term in one click);
   the server reads its dates and rooms from u:find. Pick your exercise group when you
-  know it; click a grade to set it (1 to 5, the Austrian scale); the module a course
+  know it ([how to read it](academy/ACADEMY.md)); click a grade to set it (1 to 5, the Austrian scale); the module a course
   counts toward can be changed beside it. The ECTS, the StEOP and the weighted grade
   follow. Exams appear as u:find posts them: the course's own and its module's (the
   StEOP module exams). u:find is asked again once a day when the pane opens, or with

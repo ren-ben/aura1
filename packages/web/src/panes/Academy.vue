@@ -533,7 +533,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
                   @pointerenter="overArc(l.code)" @pointerleave="offArc" @focus="overArc(l.code)" @blur="offArc" @click="choose(l.code)" @keydown.enter="choose(l.code)" />
             <text :transform="`translate(${l.x.toFixed(2)} ${l.y.toFixed(2)}) rotate(${l.rot.toFixed(1)})`" text-anchor="middle" dominant-baseline="middle">{{ l.code }} {{ l.ects }}</text>
           </g>
-          <text v-for="n in 6" :key="n" class="sem" :x="-3" :y="-(34 + n * 12) + 1.2" text-anchor="end">{{ ['i', 'ii', 'iii', 'iv', 'v', 'vi'][n - 1] }}</text>
+          <text v-for="n in 6" :key="n" class="sem" :x="-3.5" :y="-(34 + n * 12) + 1.8" text-anchor="end">{{ ['i', 'ii', 'iii', 'iv', 'v', 'vi'][n - 1] }}</text>
         </svg>
         <Transition name="card" mode="out-in">
           <div v-if="card" :key="card.m.code" class="mcard">
@@ -543,7 +543,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
             <span v-for="c in card.cs" :key="c.id" class="line"><span class="pix">{{ c.type }}</span><span class="note">{{ c.nr }}</span><span class="tek">{{ c.grade ?? '-' }}</span></span>
             <span v-if="!card.cs.length" class="note fell">No course kept for it yet.</span>
           </div>
-          <div v-else class="legend pix"><span><i class="passed"></i>passed</span><span><i class="running"></i>this term</span><span><i class="open"></i>open to you</span><span><i class="locked"></i>not yet</span></div>
+          <div v-else class="legend pix"><span class="how">rings i to vi // the semesters, inside out</span><span class="how">an arc a module // as long as its ects</span><span class="how">the pointer // how far the term has run</span><span><i class="passed"></i>passed</span><span><i class="running"></i>this term</span><span><i class="open"></i>open to you</span><span><i class="locked"></i>not yet</span></div>
         </Transition>
       </div>
     </Frame>
@@ -599,11 +599,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 
     <Frame class="stacks" title="the stacks of the faculty // a volume a course" flush>
       <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as volumes on a shelf. Click one to take it down and grade it." hint="hover to read // click to take down" />
-      <div v-if="!state.courses.length" class="bare">
-        <b>The shelf is bare</b>
-          <p class="note fell">The outlines are your first term, as the curriculum lays it out. u:find lists eight courses for it in {{ FIRST_TERM.semester }}.</p>
-        <button class="btn" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : 'add the first term' }}</button>
-      </div>
+      <button v-if="!state.courses.length" class="btn bare" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : `add the first term // ${FIRST_TERM.courses.length} courses` }}</button>
       <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
     <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${spineTip.x}px`, top: `${spineTip.y}px` }">
         <b class="fell">{{ spineTip.c.name }}</b><span class="pix">{{ spineTip.c.type }} // {{ spineTip.c.ects }} ects // {{ spineTip.c.grade ? GRADES[spineTip.c.grade - 1] : 'no grade yet' }}</span>
@@ -649,14 +645,17 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .stage:active { cursor: grabbing; }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; cursor: pointer; outline: none; }
-.arc text { font: 400 4.8px var(--pix); fill: var(--dim); text-transform: uppercase; letter-spacing: .04em; pointer-events: none; transition: fill .25s var(--out);
-  paint-order: stroke; stroke: #0c0b0a; stroke-width: 2.2px; stroke-linejoin: round; }
+.arc text { font: 400 5.6px var(--pix); fill: var(--phos); text-transform: uppercase; letter-spacing: .03em; pointer-events: none; transition: fill .25s var(--out);
+  paint-order: stroke; stroke: #0c0b0a; stroke-width: 3px; stroke-linejoin: round; }
+.arc.locked text { fill: var(--dim); }
 .arc.running text, .arc.passed text { fill: var(--hi); }
 .arc.open text { fill: var(--phos); }
 .arc.hot text, .arc.sel text { fill: #fff; }
-.arcs .sem { font: italic 5px var(--fell); fill: var(--dim); }
+.arcs .sem { font: 400 5px var(--pix); fill: var(--hi); paint-order: stroke; stroke: #0c0b0a; stroke-width: 3px; }
 .legend { position: absolute; left: 14px; bottom: 12px; display: grid; gap: 4px; pointer-events: none; }
 .legend span { display: flex; gap: 8px; align-items: center; }
+.legend .how { color: var(--dim); }
+.legend .how:nth-child(3) { margin-bottom: 6px; }
 .legend i { width: 14px; height: 6px; }
 .legend .passed { background: var(--phos); }
 .legend .running { background: radial-gradient(circle, var(--phos) 1px, transparent 1.3px) 0 0 / 3px 3px; }
@@ -710,9 +709,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .stacks { grid-area: stacks; min-height: 0; }
 .stacks :deep(.flush) { overflow: hidden; }
 .stacks :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
-.bare { position: absolute; left: 12px; top: 40px; width: min(330px, 62%); display: grid; gap: 8px; justify-items: start; padding: 12px 14px; background: rgba(12, 11, 10, .94); border: 3px double var(--dim); }
-.bare .note { margin: 0; font-style: italic; font-size: 15px; color: var(--phos); }
-.bare b { font: 400 20px/1.1 var(--fell); color: var(--hi); }
+.bare { position: absolute; left: 12px; bottom: 10px; }
 .tags span { position: absolute; transform: translate(-50%, 2px); font: 400 8.5px var(--pix); color: var(--phos); text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px #0c0b0a, 0 0 3px #0c0b0a; }
 .tags span.out { color: var(--hi); }
 .vtip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); display: grid; gap: 2px; padding: 6px 10px; background: rgba(12, 11, 10, .92); border: 3px double var(--low); pointer-events: none; white-space: nowrap; }
