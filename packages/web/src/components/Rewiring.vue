@@ -1,12 +1,13 @@
 <script setup lang="ts">
-// The rewiring drawn: a bus down each day, every block a tap wired off it,
-// the lectures locked in place, and the current that actually flowed
-// glowing on the bus and hatched into the taps it fed. Drag on the bus to
+// The rewiring drawn as the night over Vienna: a bus down each day through
+// its sky, every block an engraved card wired off it, the lectures locked
+// in place, and the current that actually flowed glowing on the bus and
+// hatched into the taps it fed. Drag on the bus to
 // wire a block, drag a tap to move it, its edges to stretch it; a todo
 // dropped on the bus becomes one.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { localDate, plan, state, type Block } from '../store';
-import { SHADES, SNAP, blocksOn, dayOf, drawnOn, hm, hours, lecturesOn, overlap, type Lecture, type Span } from '../rewiring';
+import { SHADES, SNAP, blocksOn, dayOf, drawnOn, hm, hours, lecturesOn, overlap, starInk, starsOf, sunOf, type Lecture, type Span } from '../rewiring';
 
 const props = withDefaults(defineProps<{ dates: string[]; hour?: number; heads?: boolean }>(), { hour: 44, heads: false });
 
@@ -161,6 +162,48 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointercancel', cancel);
   window.removeEventListener('keydown', key);
 });
+// Where the bus runs down a column, from its left edge.
+const BUS = 14;
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function paintSky(cv: HTMLCanvasElement) {
+  const w = (cv.width = cv.clientWidth), h = (cv.height = cv.clientHeight), x = cv.getContext('2d')!;
+  const date = cv.dataset.date!, { rise, set } = sunOf(date), per = h / 1440;
+  x.clearRect(0, 0, w, h);
+  for (const st of starsOf(date)) {
+    const big = st.b > 0.95 ? 2 : 1;
+    x.fillStyle = `rgba(197, 188, 171, ${starInk(st)})`;
+    x.fillRect(Math.round(BUS + st.u * (w - BUS)), Math.round(st.m * per), big, big);
+  }
+  // Twilight: a band of ordered dither at dawn and at dusk.
+  for (const at of [rise, set]) for (let y = Math.max(0, (at - 55) * per); y < Math.min(h, (at + 55) * per); y += 2) {
+    const k = 1 - Math.abs(y / per - at) / 55;
+    for (let i = 0; i < w; i += 2) if (BAYER[((y / 2) % 4 | 0) * 4 + ((i / 2) % 4)]! < k * 6) { x.fillStyle = 'rgba(197, 188, 171, .09)'; x.fillRect(i, y, 1, 1); }
+  }
+  // The sun on the horizon at both ends of the day, a disc of dots.
+  for (const at of [rise, set]) {
+    const cx = w - 34, cy = at * per;
+    for (let j = -12; j <= 12; j += 2) for (let i = -12; i <= 12; i += 2) {
+      const r = Math.hypot(i, j);
+      if (r <= 11 && (r > 8 || (i + j) % 4 === 0)) { x.fillStyle = 'rgba(197, 188, 171, .5)'; x.fillRect(cx + i, cy + j, 1.5, 1.5); }
+    }
+  }
+}
+let skyRo: ResizeObserver | null = null;
+const skies = () => root.value?.querySelectorAll<HTMLCanvasElement>('canvas.sky') ?? [];
+function repaint() { for (const cv of skies()) paintSky(cv); }
+onMounted(() => { skyRo = new ResizeObserver(repaint); if (root.value) skyRo.observe(root.value); repaint(); });
+onBeforeUnmount(() => skyRo?.disconnect());
+watch(() => props.dates.join(), () => nextTick(repaint));
+const sun = (date: string) => sunOf(date);
+// Kael'thos sitting on the hour, drawn a pixel at a time.
+const CAT = ['..#.....#..', '..##...##..', '..#######..', '.#########.', '.##.###.##.', '.#########.', '..#######..', '...#####...',
+  '..#######..', '.#########.', '.#########.', '.##########', '..########.#', '..#.#..#.#.#'];
+const catPx = CAT.flatMap((row, y) => [...row].flatMap((ch, x) => (ch === '#' ? [{ x, y }] : [])));
+// For the horologe: the element that scrolls, a block chosen from outside,
+// and the day scrolled to a minute before the view rolls back into it.
+function select(id: number) { selId.value = id; }
+function reveal(minute: number) { if (root.value) root.value.scrollTop = (Math.max(0, minute) / 60) * props.hour; }
+defineExpose({ root, select, reveal });
 const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase();
 </script>
 
@@ -183,16 +226,19 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
       <div v-for="(d, i) in days" :key="d.date" class="col" :data-date="d.date"
            :class="{ today: d.date === todayStr, sag: d.stat.wired > d.stat.capacity }"
            @pointerdown="press(d.date, $event)" @dragover.prevent @drop.prevent="drop">
+        <canvas class="sky" :data-date="d.date" aria-hidden="true"></canvas>
+        <span class="dawn fell" :style="{ top: px(sun(d.date).rise) }">sunrise {{ hm(Math.round(sun(d.date).rise)) }}</span>
+        <span class="dawn fell" :style="{ top: px(sun(d.date).set) }">nightfall {{ hm(Math.round(sun(d.date).set)) }}</span>
         <div class="bus"><i class="live" :style="{ height: px(liveTo(d.date)) }"></i></div>
         <i v-for="(s, k) in d.drawn" :key="k" class="drawn" :style="{ top: px(s.start), height: px(s.end - s.start) }"></i>
 
         <template v-for="it in d.items" :key="it.key">
-          <div v-if="it.l" class="tap lock" :class="{ exam: it.l.exam }" :style="place(it)" :title="`${it.l.label}, ${hm(it.start)} to ${hm(it.end)}, ${it.l.room}`" @pointerdown.stop>
+          <div v-if="it.l" class="tap lock" :class="{ exam: it.l.exam }" :data-tap="it.key" :style="place(it)" :title="`${it.l.label}, ${hm(it.start)} to ${hm(it.end)}, ${it.l.room}`" @pointerdown.stop>
             <span class="time pix">{{ hm(it.start) }} // {{ it.l.exam ? 'exam' : 'locked' }}</span><b class="t">{{ it.l.label }}</b>
           </div>
           <template v-else-if="it.b">
             <i v-if="it.lane === 0" class="stub" :style="{ top: `calc(${px(it.start)} + 9px)`, '--ink': SHADES[it.b.shade]!.ink }"></i>
-            <div class="tap" :class="{ sel: selId === it.b.id, short: it.end - it.start < 45, held: drag?.id === it.b.id && drag.moved, ghost: it.b.id < 0 }"
+            <div class="tap" :data-tap="it.key" :class="{ sel: selId === it.b.id, short: it.end - it.start < 45, held: drag?.id === it.b.id && drag.moved, ghost: it.b.id < 0 }"
                  :style="{ ...place(it), '--ink': SHADES[it.b.shade]!.ink }" @pointerdown.stop="grab(it.b, $event)">
               <i v-for="(k, j) in keptIn(it, d.drawn)" :key="j" class="kept" :style="{ top: px(k.start), height: px(k.end - k.start) }"></i>
               <span class="time pix">{{ hm(it.start) }}-{{ hm(it.end) }}</span>
@@ -210,7 +256,10 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
         </form>
 
         <div v-if="d.date === todayStr" class="now" :style="{ top: px(nowMin) }">
-          <svg class="eye" viewBox="0 0 22 12" aria-hidden="true"><g><path class="lid" d="M1 6 Q11 -2.5 21 6 Q11 14.5 1 6 Z" /><ellipse class="slit" cx="11" cy="6" rx="1.4" ry="4.2" /></g></svg>
+          <svg class="cat" viewBox="0 0 12 14" aria-hidden="true">
+            <rect v-for="p in catPx" :key="`${p.x}.${p.y}`" :x="p.x" :y="p.y" width="1" height="1" />
+            <rect class="glint" x="2" y="4" width="1" height="1" /><rect class="glint" x="6" y="4" width="1" height="1" />
+          </svg>
           <span class="pix">{{ hm(nowMin) }}</span>
         </div>
 
@@ -248,33 +297,36 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .gutter { position: relative; width: 38px; flex: none; }
 .gutter span { position: absolute; left: 4px; transform: translateY(-50%); font-size: 9.5px; }
 
-.col { position: relative; flex: 1; min-width: 0; border-left: 1px dotted var(--faint); touch-action: pan-y; cursor: crosshair;
-  background:
-    repeating-linear-gradient(to bottom, rgba(52, 49, 45, .6) 0 1px, transparent 1px var(--hour)),
-    repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) / 2), rgba(31, 29, 27, .95) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px), transparent calc(var(--hour) / 2 + 1px) var(--hour)); }
+.col { position: relative; flex: 1; min-width: 0; border-left: 1px dotted var(--faint); touch-action: pan-y; cursor: crosshair; }
+.col::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) - 1px), rgba(52, 49, 45, .35) calc(var(--hour) - 1px) var(--hour)); }
+.sky { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.dawn { position: absolute; right: 58px; transform: translateY(-50%); font-style: italic; font-size: 12px; color: var(--dim); pointer-events: none; }
 .col.today { background-color: rgba(197, 188, 171, .018); }
 
 /* The bus: dotted where nothing has run yet, lit where the day has passed. */
-.bus { position: absolute; left: 14px; top: 0; bottom: 0; width: 2px; background: repeating-linear-gradient(to bottom, var(--low) 0 3px, transparent 3px 7px); pointer-events: none; }
-.bus .live { position: absolute; left: 0; top: 0; width: 2px; background: var(--low); }
+.bus { position: absolute; left: 14px; top: 0; bottom: 0; width: 1px; background: repeating-linear-gradient(to bottom, rgba(122, 116, 104, .5) 0 1px, transparent 1px 5px); pointer-events: none; }
+.bus .live { position: absolute; left: 0; top: 0; width: 1px; background: var(--low); }
 .today .bus .live { background: var(--dim); }
 .sag .bus { animation: sag 5s ease-in-out infinite; }
 .sag .bus .live { background: var(--hi); }
 @keyframes sag { 50% { opacity: .35; } }
 .drawn { position: absolute; left: 12px; width: 6px; background: var(--phos); box-shadow: 0 0 9px rgba(197, 188, 171, .55); pointer-events: none; }
 
-.stub { position: absolute; left: 15px; width: 13px; height: 2px; background: var(--ink); pointer-events: none; }
+.stub { position: absolute; left: 15px; width: 13px; height: 1px; background: var(--ink); pointer-events: none; }
 .stub::before { content: ''; position: absolute; left: -4px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 
-.tap { position: absolute; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 3px 8px 3px 9px; overflow: hidden; cursor: grab; touch-action: pan-y;
-  border: 1.5px solid var(--ink); border-left-width: 5px; background: color-mix(in srgb, var(--ink) 22%, var(--deep));
+/* A tap: an engraved card, a double rule in its grey and a dotted edge. */
+.tap { position: absolute; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px 5px 12px; overflow: hidden; cursor: grab; touch-action: pan-y;
+  background: var(--ground); border: 1px solid var(--ink); box-shadow: inset 0 0 0 2px var(--ground), inset 0 0 0 3px color-mix(in srgb, var(--ink) 45%, transparent);
   transition: top .22s var(--out), height .22s var(--out), left .25s var(--out), width .25s var(--out), box-shadow .25s var(--out), opacity .3s var(--out); }
 .tap.held { transition: none; cursor: grabbing; z-index: 5; box-shadow: 0 10px 30px rgba(0, 0, 0, .55), 0 0 0 1px var(--hi); }
 .tap.sel { z-index: 4; touch-action: none; box-shadow: 0 0 0 1px var(--hi), 0 0 22px rgba(197, 188, 171, .16); }
 .tap.ghost { opacity: .6; }
 .tap.short { flex-direction: row; align-items: center; gap: 8px; }
-.tap .time { position: relative; font-size: 9px; line-height: 1.3; color: var(--dim); background: var(--deep); padding: 0 3px; margin-left: -3px; }
-.tap .t { position: relative; max-width: 100%; font: 500 12.5px/1.3 var(--mono); color: var(--hi); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; background: var(--deep); padding: 0 3px; margin-left: -3px; }
+.tap::before { content: ''; position: absolute; left: 4px; top: 4px; bottom: 4px; width: 3px; background: repeating-linear-gradient(to bottom, var(--ink) 0 1px, transparent 1px 3px); }
+.tap .time { position: relative; font-size: 9px; line-height: 1.3; color: var(--dim); }
+.tap .t { position: relative; max-width: 100%; font: italic 400 16px/1.2 var(--fell); color: var(--hi); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .kept { position: absolute; left: 0; right: 0; pointer-events: none; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 60%, transparent) 0 2px, transparent 2px 6px); }
 .grip { position: absolute; left: 0; right: 0; height: 8px; cursor: ns-resize; }
 .grip.top { top: -2px; }
@@ -287,12 +339,11 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .tap.draft input { border: 0; outline: 0; width: 100%; }
 .tap.draft input::placeholder { color: var(--dim); }
 
-.now { position: absolute; left: 30px; right: 0; border-top: 1px solid rgba(230, 224, 212, .55); z-index: 7; pointer-events: none; }
-/* He watches the hour from the bus: a slit eye that closes once in a long while. */
-.eye { position: absolute; left: -24px; top: -8.5px; width: 28px; height: 15px; overflow: visible; filter: drop-shadow(0 0 5px rgba(230, 224, 212, .35)); }
-.eye g { transform-origin: 11px 6px; animation: blink 11s ease-in-out infinite; }
-.eye .lid { fill: var(--ground); stroke: var(--hi); stroke-width: 1.2; }
-.eye .slit { fill: var(--hi); }
+.now { position: absolute; left: 30px; right: 0; border-top: 1px dotted rgba(230, 224, 212, .6); z-index: 7; pointer-events: none; }
+/* Kael'thos sitting on the hour; now and then he blinks. */
+.cat { position: absolute; left: -26px; bottom: 0; width: 24px; height: 28px; overflow: visible; filter: drop-shadow(0 0 6px rgba(197, 188, 171, .25)); }
+.cat rect { fill: var(--phos); }
+.cat .glint { fill: var(--ground); animation: blink 13s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.08); } }
 .now span { position: absolute; right: 4px; top: -16px; color: var(--hi); font-size: 9px; background: var(--ground); padding: 0 3px; }
 
@@ -308,5 +359,6 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .bin { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--low); color: var(--dim); transition: color .2s var(--out), border-color .2s var(--out); }
 .bin:hover { color: var(--hi); border-color: var(--hi); }
 .bin svg { width: 13px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: square; }
-@media (prefers-reduced-motion: reduce) { .eye g, .sag .bus { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .cat .glint, .sag .bus { animation: none; } }
+
 </style>

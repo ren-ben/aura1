@@ -60,3 +60,41 @@ export function hisLine(date: string): string {
   if (over && kept < wired * 0.3) return 'The lines were drawn and nothing ran through them. A plan is only copper until you close the switch.';
   return `${hours(wired)} hours wired. Keep to the lines and I will keep the rest.`;
 }
+
+// Sunrise and sunset in Vienna, in minutes after local midnight (NOAA's
+// approximation, as the API has it): where the night sky thins into day.
+export function sunOf(date: string): { rise: number; set: number } {
+  const d = new Date(`${date}T12:00:00`);
+  const n = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / 86_400_000) + 1;
+  const g = ((2 * Math.PI) / 365) * (n - 1), rad = Math.PI / 180, lat = 48.2082 * rad, lon = 16.3738;
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g)
+    + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const ha = Math.acos(Math.cos(90.833 * rad) / (Math.cos(lat) * Math.cos(decl)) - Math.tan(lat) * Math.tan(decl)) / rad;
+  const local = -d.getTimezoneOffset();
+  return { rise: 720 - 4 * (lon + ha) - eq + local, set: 720 - 4 * (lon - ha) - eq + local };
+}
+
+// One sky for both views of the day: each star a minute of it and a depth
+// across it (0 at the bus, 1 at the far edge), thick in the dark hours. The
+// column lays them down its length, the dial round its face; the same stars,
+// so the one can be rolled into the other.
+export type Star = { m: number; u: number; b: number; dark: number };
+export function starsOf(date: string): Star[] {
+  const { rise, set } = sunOf(date);
+  let seed = [...date].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 2147483647 || 1;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const out: Star[] = [];
+  for (let i = 0; i < 2400; i++) {
+    const m = rnd() * 1440, u = rnd(), b = rnd();
+    const dark = Math.min(1, Math.max(0, Math.max(rise + 30 - m, m - set + 30) / 70));
+    if (rnd() < 0.1 + dark * 0.9) out.push({ m, u, b, dark });
+  }
+  return out;
+}
+// How bright a star is in the column, and on the dial (fainter, so the face
+// stays quiet round the words).
+export const starInk = (s: Star) => (0.18 + s.b * 0.62) * (0.4 + s.dark * 0.6);
+export const starDial = (s: Star) => starInk(s) * (s.b > 0.35 ? 0.55 : 0);
+// A star's radius on the dial, in its own units (the face is 480 across).
+export const starR = (s: Star) => 24 + s.u * 204;

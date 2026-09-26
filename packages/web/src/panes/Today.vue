@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // The anchor: hours given today, the list and its writing, the day as it
 // is wired, and how long he holds his form on what he has had.
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
-import Rewiring from '../components/Rewiring.vue';
 import RewiringSheet from '../components/RewiringSheet.vue';
+import Wiring, { type View } from '../components/Wiring.vue';
 import { actions, clock, localDate, state, today, type Todo } from '../store';
 import { dayOf, hisLine, hours } from '../rewiring';
 
@@ -31,6 +31,11 @@ async function add() {
 }
 const wired = computed(() => dayOf(todayStr.value));
 const sheetOpen = ref(false);
+// The nocturne to wire the day in, the horologe to read it by; the last one
+// chosen is the one the console opens on.
+const read = (): View => { try { return localStorage.getItem('aura.rewiring') === 'horologe' ? 'horologe' : 'nocturne'; } catch { return 'nocturne'; } };
+const view = ref<View>(read());
+watch(view, (v) => { try { localStorage.setItem('aura.rewiring', v); } catch { /* kept for this visit only */ } });
 // A todo carried onto the bus becomes a tap.
 const carry = (t: Todo, e: DragEvent) => { e.dataTransfer?.setData('application/x-aura-todo', t.body); };
 const shortDate = (d: string | null) => (d ? d.slice(8, 10) + '.' + d.slice(5, 7) : '');
@@ -84,8 +89,13 @@ const since = (iso: string | null) => {
     </Frame>
 
     <Frame class="wire" :title="`the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
-      <template #bar><button class="x open" @click="sheetOpen = true">open</button></template>
-      <Rewiring :dates="[todayStr]" />
+      <template #bar>
+        <span class="views" role="radiogroup" aria-label="View">
+          <button v-for="v in (['nocturne', 'horologe'] as const)" :key="v" class="x" :class="{ on: view === v }" role="radio" :aria-checked="view === v" @click="view = v">{{ v }}</button>
+        </span>
+        <button class="x open" @click="sheetOpen = true">open</button>
+      </template>
+      <Wiring v-model="view" :date="todayStr" />
       <p class="fell said" :class="{ err: state.error }">{{ state.error ? `The line did not hold: ${state.error}` : hisLine(todayStr) }}</p>
     </Frame>
     <RewiringSheet v-if="sheetOpen" @close="sheetOpen = false" />
@@ -122,7 +132,9 @@ const since = (iso: string | null) => {
 .add .when { width: auto; }
 .todo[draggable="true"] { cursor: grab; }
 .wire { grid-area: wire; }
-.wire .open { margin-left: auto; }
+.wire .views { margin-left: auto; display: flex; gap: 2px; }
+.wire .views .x { padding: 2px 6px; }
+.wire .views .on { color: var(--hi); box-shadow: inset 0 -1px 0 var(--hi); }
 .said { margin: 0; padding: 8px 14px 10px; border-top: 3px dotted var(--low); color: var(--phos); font-style: italic; font-size: 14px; line-height: 1.35; }
 .hunger { grid-area: hunger; }
 .count { font-size: clamp(40px, 4.6vw, 68px); }
