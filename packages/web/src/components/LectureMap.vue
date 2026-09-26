@@ -94,7 +94,7 @@ async function start() {
   } catch (e) { error.value = e instanceof Error ? e.message : 'failed'; }
   busy.value = false;
 }
-const phase = computed(() => dto.value?.status === 'writing' ? 'schreibt es nieder' : 'liest die Quellen');
+const phase = computed(() => dto.value?.status === 'writing' ? 'writing it down' : 'reading the sources');
 
 // ---- the canvas -------------------------------------------------------------
 const heights = reactive<Record<string, number>>({});
@@ -165,6 +165,7 @@ watch(map, async (m) => {
     last = now;
   }
   fit(false, true);
+  skyFrom.x = view.x; skyFrom.y = view.y;
   await new Promise((r) => requestAnimationFrame(r));
   intro.value = true;
   born.value = true;
@@ -237,6 +238,24 @@ const links = computed(() => {
   return out;
 });
 
+// ---- written anew -----------------------------------------------------------
+// The research is kept; only the writing is done again. Asked first: it costs.
+const asking = ref(false);
+const rewriting = ref(false);
+async function rewrite() {
+  if (!dto.value) return;
+  asking.value = false; error.value = '';
+  try {
+    const next = await lectureMaps.start(props.course.id, props.begin, dto.value.topic, true);
+    rewriting.value = true;
+    born.value = false;
+    for (const k of Object.keys(heights)) delete heights[k];
+    dto.value = next;
+    started.value = Date.now(); elapsed.value = 0;
+    watchJob();
+  } catch (e) { error.value = e instanceof Error ? e.message : 'failed'; }
+}
+
 // ---- going deeper -------------------------------------------------------------
 const growing = ref('');
 async function deeper(key: string, kind: string, title: string, text: string) {
@@ -253,28 +272,29 @@ const revealed = reactive(new Set<number>());
 // He sits at the corner and turns to whatever is being read, with a word on it.
 const hovered = ref<string>('');
 const LINES: Record<string, string> = {
-  core: 'Das ist schon alles. Der Rest dieser Karte ist dasselbe, von einer anderen Seite betrachtet.',
-  hook: 'Fang hier an. Wenn du es noch nicht beantworten kannst: gut. Genau dieses Jucken lässt die Vorlesung hängen bleiben.',
-  questions: past ? 'Nicht spicken. Was ohne Nachsehen übrig bleibt, ist das, was du wirklich hast.' : 'Rate, bevor du gehst. Heute Abend falsch zu liegen, ist so billig wie nie wieder.',
-  outline: 'Der wahrscheinliche Gang. Wenn der Professor abschweift, merkst du es jetzt.',
-  terms: 'Den Namen eines Dings zu kennen, heißt nicht, das Ding zu kennen. Lies, was jedes tut.',
-  equations: 'Jede Gleichung ist ein Satz. Lies sie laut, in Worten, bevor du ihr traust.',
-  pictures: 'Sieh zu, wie es sich bewegt. Eine Kurve ist eine Idee, die man auf einmal ganz sieht.',
-  worked: 'Geh jeden Schritt mit und frag dich, warum dieser und kein anderer.',
-  traps: 'Kluge Leute fallen hier hinein. Du gehst jetzt daran vorbei.',
-  refresh: 'Schau dir das zuerst an. Eine Vorlesung ist leicht, wenn der Boden darunter trägt.',
-  further: 'Da habe ich gelesen. Geh hin, wenn das Jucken nicht aufhört.',
-  grown: 'Tiefer. Es hört nie auf. Das ist das Schöne daran.',
+  core: 'That is the whole of it. Everything else on this map is that, looked at from a different side.',
+  hook: 'Start here. If you cannot answer it yet, good: that itch is what makes the lecture stick.',
+  questions: past ? 'No peeking. What is left without looking is what you actually have.' : 'Guess before you go. Being wrong tonight is the cheapest it will ever be.',
+  outline: 'The likely order. Your professor may wander; now you will notice when.',
+  terms: 'Knowing the name of a thing is not knowing the thing. Read what each one does.',
+  equations: 'Every equation is a sentence. Read it out loud, in words, before you trust it.',
+  pictures: 'Watch it move. A curve is an idea you can see all of at once.',
+  worked: 'Follow each step and ask why that one, and not another.',
+  traps: 'Smart people fall into these. Now you will step around them.',
+  refresh: 'Look at these first. A lecture is easy when the floor under it is solid.',
+  further: 'Where I read. Go and look, if the itch does not stop.',
+  grown: 'Deeper. It keeps going, it always does. That is the beautiful part.',
 };
 const line = computed(() => {
   if (!map.value) {
-    if (flying.value) return 'Ah. Ein Brief.';
-    if (dto.value?.status === 'researching') return 'Ich lese deinen Brief, und alles, was seit Newton darüber geschrieben wurde.';
-    if (dto.value?.status === 'writing') return 'Ich schreibe es für dich nieder. Geduld; das Gute braucht einen Moment.';
-    if (dto.value?.status === 'failed') return `Unterwegs ist etwas zerrissen: ${dto.value.error}. Schreib noch einmal.`;
-    return 'Schreib mir. Meine Vermutung steht schon auf dem Blatt; der Studienplan liegt neben dir.';
+    if (flying.value) return 'Ah. A letter.';
+    if (dto.value?.status === 'researching') return rewriting.value ? 'Again, then. I remember what I read; this time I only write.' : 'Reading your letter, and everything written on this since Newton.';
+    if (dto.value?.status === 'writing') return 'Writing it down for you. Patience; the good part takes a moment.';
+    if (dto.value?.status === 'failed') return `Something tore on the way: ${dto.value.error}. Write again.`;
+    return 'Write to me. My guess is on the page already; the syllabus is at your side.';
   }
-  return LINES[hovered.value.includes('.') ? 'grown' : hovered.value] ?? 'Zieh, um zu wandern. Zeig auf eine Karte, und ich sage dir, wozu sie da ist.';
+  if (asking.value) return 'Throw this one away and write it anew? It costs a few cents; I keep what I read.';
+  return LINES[hovered.value.includes('.') ? 'grown' : hovered.value] ?? 'Drag to wander. Hover a card and I will tell you what it is for.';
 });
 const facing = computed(() => { const b = at.value[hovered.value]; return b ? (b.x + b.w / 2 < 0 ? -1 : 1) : 1; });
 const sprites = ref<{ curious: HTMLCanvasElement; reading: HTMLCanvasElement } | null>(null);
@@ -298,7 +318,14 @@ const drawCat: Draw = (g, w, h, t) => {
 // The sky behind it all: stars at three depths and far bodies, drifting
 // less the farther they are as the map is dragged.
 const sky = cosmos();
-const drawSky: Draw = (g, w, h, t) => sky(g, w, h, t, view.x / 3, view.y / 3);
+// Its drift is measured from where the map first settles, so it does not
+// jump when the map appears.
+const skyFrom = { x: 0, y: 0 };
+const drawSky: Draw = (g, w, h, t) => sky(g, w, h, t, (view.x - skyFrom.x) / 3, (view.y - skyFrom.y) / 3);
+// How soft the sky is, kept in this browser.
+const BLUR_KEY = 'aura.map.skyBlur';
+const skyBlur = ref((() => { try { return Number(localStorage.getItem(BLUR_KEY) ?? 0) || 0; } catch { return 0; } })());
+watch(skyBlur, (v) => { try { localStorage.setItem(BLUR_KEY, String(v)); } catch { /* kept for this visit only */ } });
 
 // A plot drawn from its expression, moving if it has a t in it.
 const plots = computed(() => (map.value?.pictures ?? []).map((p) => {
@@ -346,19 +373,28 @@ const GLYPHS: Record<Kind, string> = {
     <div class="lm-back" :class="{ closing }" @pointerdown.self="shut()">
       <section class="lm" role="dialog" aria-modal="true" :aria-label="`Lecture map, ${course.name}, ${day}`">
         <header class="lm-bar">
-          <span class="pix">{{ course.name }} // {{ course.type }}<template v-if="lecture"> // lecture {{ lecture.index + 1 }} of {{ lecture.total }}</template> // {{ day }}</span>
+          <span class="lm-title">
+            <span class="pix">{{ course.name }} // {{ course.type }}<template v-if="lecture"> // lecture {{ lecture.index + 1 }} of {{ lecture.total }}</template> // {{ day }}</span>
+            <template v-if="map">
+              <button v-if="!asking" class="redo" title="write this map anew" aria-label="write this map anew" @click="asking = true">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 6.5A5.5 5.5 0 0 0 3.2 4.6M2.5 9.5a5.5 5.5 0 0 0 10.3 1.9" /><path d="M3 1.8v3h3M13 14.2v-3h-3" /></svg>
+              </button>
+              <span v-else class="ask pix">write it anew? <button class="x" @click="rewrite">yes</button><button class="x" @click="asking = false">no</button></span>
+            </template>
+          </span>
           <span class="lm-tools">
             <template v-if="map">
               <button class="x" title="the whole map in view" @click="fit()">fit</button>
               <button class="x" title="an Obsidian canvas with its note, zipped" @click="toObsidian">obsidian</button>
               <button class="x" title="print, or save as pdf" @click="print">pdf</button>
             </template>
+            <label class="blur pix" title="how soft the sky is">sky <input v-model.number="skyBlur" type="range" min="0" max="6" step="0.5" aria-label="blur the sky" /></label>
             <button class="x" aria-label="close" @click="shut()">close</button>
           </span>
         </header>
 
         <div ref="stage" class="lm-stage" :class="{ grab: dragging }" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @wheel="wheel">
-          <Plate class="lm-sky" :draw="drawSky" :active="true" :animated="true" :cell="3" />
+          <Plate class="lm-sky" :style="{ filter: skyBlur ? `blur(${skyBlur}px)` : 'none' }" :draw="drawSky" :active="true" :animated="true" :cell="3" />
 
           <!-- the map -->
           <div v-if="map" class="lm-world" :class="{ born }" :style="{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }">
@@ -484,7 +520,14 @@ const GLYPHS: Record<Kind, string> = {
 @keyframes lm-fade { from { opacity: 0; } }
 @keyframes lm-open { from { clip-path: inset(49% 30% 49% 30%); opacity: .3; } 60% { clip-path: inset(0 0 0 0); } }
 .lm-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 12px; border-bottom: 3px dotted var(--low); min-width: 0; }
-.lm-bar > .pix { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lm-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lm-title > .pix { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.redo { flex: none; width: 22px; height: 22px; display: grid; place-items: center; color: var(--dim); transition: color .3s var(--out), transform .6s var(--out); }
+.redo svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: square; }
+.redo:hover { color: var(--hi); transform: rotate(-180deg); }
+.ask { flex: none; display: flex; align-items: center; gap: 6px; color: var(--phos); white-space: nowrap; }
+.blur { display: flex; align-items: center; gap: 6px; }
+.blur input { width: 70px; accent-color: var(--phos); }
 .lm-tools { display: flex; gap: 10px; flex: none; }
 .lm-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; }
 .lm-stage.grab { cursor: grabbing; }

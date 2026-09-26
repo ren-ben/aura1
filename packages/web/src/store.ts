@@ -156,7 +156,7 @@ const reDevice = async () => { state.device = await call<Device>('GET', '/device
 // Lecture maps: fetched when a lecture is opened, never held in the console.
 export const lectureMaps = {
   lecture: (courseId: number, begin: string) => call<LectureDto>('GET', `/academy/lectures/${courseId}?begin=${encodeURIComponent(begin)}`),
-  start: (courseId: number, begin: string, topic: string) => call<LectureMapDto>('POST', '/academy/maps', { courseId, begin, topic }),
+  start: (courseId: number, begin: string, topic: string, rewrite = false) => call<LectureMapDto>('POST', '/academy/maps', { courseId, begin, topic, ...(rewrite ? { rewrite } : {}) }),
   get: (id: number) => call<LectureMapDto>('GET', `/academy/maps/${id}`),
   list: () => call<MapMark[]>('GET', '/academy/maps'),
   deeper: (id: number, node: { key: string; kind: string; title: string; text: string }) =>

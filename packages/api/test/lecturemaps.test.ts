@@ -142,6 +142,16 @@ test('a map is researched, then written, and kept with its sources and cost', as
   assert.deepEqual(listed, [{ id: map.id, courseId: course.id, begin, status: 'ready', title: "Newton's laws" }]);
   const got = (await call('GET', `/academy/lectures/${course.id}?begin=${encodeURIComponent(begin)}`)).json();
   assert.equal(got.map.id, map.id);
+
+  // Rewritten: the research is kept, only the writing is paid for again.
+  asked = [];
+  replies = [reply(JSON.stringify({ ...MAP, title: 'Newtonsche Gesetze' }), 0.05)];
+  const again = await call('POST', '/academy/maps', { courseId: course.id, begin, topic: "Newton's laws", rewrite: true });
+  assert.equal(again.statusCode, 202);
+  const rewritten = await settled(again.json().id);
+  assert.equal(rewritten.map.title, 'Newtonsche Gesetze');
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0]!.model, 'writer-model');
 });
 
 test('a malformed map is sent back once, and a second failure is kept as failed', async () => {

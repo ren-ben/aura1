@@ -187,21 +187,22 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
     return dto;
   });
 
-  // Starts a map, or starts a failed one again; answered at once, the passes
-  // run on and the page polls.
+  // Starts a map, starts a failed one again, or (with rewrite) writes a
+  // finished one anew; answered at once, the passes run on and the page polls.
   r.post('/academy/maps', {
-    schema: { body: z.object({ courseId: z.number().int().positive(), begin: z.string(), topic: z.string().trim().min(3).max(300) }) },
+    schema: { body: z.object({ courseId: z.number().int().positive(), begin: z.string(), topic: z.string().trim().min(3).max(300), rewrite: z.boolean().optional() }) },
   }, async (request, reply) => {
-    const { courseId, begin, topic } = request.body;
+    const { courseId, begin, topic, rewrite } = request.body;
     if (!(await findLecture(courseId, begin))) return reply.code(404).send({ message: 'no such lecture' });
     if (!settings.key) return reply.code(503).send({ message: 'no OpenRouter key is set on the server' });
     if ((await spentThisMonth(db)) >= settings.budgetUsd) return reply.code(402).send({ message: `this month's budget of $${settings.budgetUsd} is spent` });
     const [existing] = await db.select().from(lectureMaps).where(and(eq(lectureMaps.courseId, courseId), eq(lectureMaps.begin, begin)));
-    if (existing && existing.status !== 'failed') return reply.code(409).send({ message: 'already mapped' });
+    if (existing && existing.status !== 'failed' && !(rewrite && existing.status === 'ready')) return reply.code(409).send({ message: 'already mapped' });
     // A new topic needs new research; the same one keeps what was found.
-    const again = existing && existing.topic === topic;
+    // Rewritten, the map and what grew out of it go.
+    const same = existing && existing.topic === topic;
     const [row] = existing
-      ? await db.update(lectureMaps).set({ topic, status: 'researching', error: null, createdAt: new Date(), ...(again ? {} : { notes: null, sources: [] }) })
+      ? await db.update(lectureMaps).set({ topic, status: 'researching', error: null, map: null, grown: [], createdAt: new Date(), ...(same ? {} : { notes: null, sources: [] }) })
         .where(eq(lectureMaps.id, existing.id)).returning()
       : await db.insert(lectureMaps).values({ courseId, begin, topic, status: 'researching' }).returning();
     void generate(db, openrouter, settings, row!.id);
