@@ -183,7 +183,7 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
       <div v-for="(d, i) in days" :key="d.date" class="col" :data-date="d.date"
            :class="{ today: d.date === todayStr, sag: d.stat.wired > d.stat.capacity }"
            @pointerdown="press(d.date, $event)" @dragover.prevent @drop.prevent="drop">
-        <div class="bus"><i class="live" :style="{ height: px(liveTo(d.date)) }"></i><i v-if="d.date === todayStr" class="pulse" :style="{ '--to': px(nowMin) }"></i></div>
+        <div class="bus"><i class="live" :style="{ height: px(liveTo(d.date)) }"></i></div>
         <i v-for="(s, k) in d.drawn" :key="k" class="drawn" :style="{ top: px(s.start), height: px(s.end - s.start) }"></i>
 
         <template v-for="it in d.items" :key="it.key">
@@ -209,7 +209,10 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
                  @keydown.esc="draft = null" @blur="commit">
         </form>
 
-        <div v-if="d.date === todayStr" class="now" :style="{ top: px(nowMin) }"><span class="pix">{{ hm(nowMin) }}</span></div>
+        <div v-if="d.date === todayStr" class="now" :style="{ top: px(nowMin) }">
+          <svg class="eye" viewBox="0 0 22 12" aria-hidden="true"><g><path class="lid" d="M1 6 Q11 -2.5 21 6 Q11 14.5 1 6 Z" /><ellipse class="slit" cx="11" cy="6" rx="1.4" ry="4.2" /></g></svg>
+          <span class="pix">{{ hm(nowMin) }}</span>
+        </div>
 
         <div v-if="sel && sel.date === d.date && !drag" class="pop" :style="popAt(sel, i)" @pointerdown.stop>
           <input class="field" :value="sel.title" maxlength="120" aria-label="Name" @change="rename(sel, $event)" @keydown.enter="($event.target as HTMLInputElement).blur()">
@@ -224,7 +227,9 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
             </optgroup>
           </select>
           <div class="foot"><span class="pix">{{ hm(sel.start) }}-{{ hm(sel.end) }} // {{ hours(sel.end - sel.start) }} h</span>
-            <span><button class="x" @click="cut(sel)">cut</button><button class="x" @click="selId = null">done</button></span></div>
+            <span class="acts"><button class="bin" aria-label="Remove this block" title="remove" @click="cut(sel)">
+              <svg viewBox="0 0 14 16" aria-hidden="true"><path d="M1 3.5h12M5 3.5V1.5h4v2M2.5 3.5l.8 11h7.4l.8-11M5.5 6.5v5.5M8.5 6.5v5.5" /></svg>
+            </button><button class="x" @click="selId = null">done</button></span></div>
         </div>
       </div>
     </div>
@@ -253,11 +258,9 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .bus { position: absolute; left: 14px; top: 0; bottom: 0; width: 2px; background: repeating-linear-gradient(to bottom, var(--low) 0 3px, transparent 3px 7px); pointer-events: none; }
 .bus .live { position: absolute; left: 0; top: 0; width: 2px; background: var(--low); }
 .today .bus .live { background: var(--dim); }
-.pulse { position: absolute; left: -2px; top: 0; width: 6px; height: 16px; border-radius: 3px; background: var(--hi); box-shadow: 0 0 10px rgba(230, 224, 212, .8); animation: flow 3.6s cubic-bezier(.5, 0, .5, 1) infinite; }
-@keyframes flow { from { transform: translateY(0); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } to { transform: translateY(var(--to)); opacity: 0; } }
-.sag .bus { animation: sag .16s steps(2) infinite; }
+.sag .bus { animation: sag 5s ease-in-out infinite; }
 .sag .bus .live { background: var(--hi); }
-@keyframes sag { 50% { transform: translateX(1.5px); opacity: .55; } }
+@keyframes sag { 50% { opacity: .35; } }
 .drawn { position: absolute; left: 12px; width: 6px; background: var(--phos); box-shadow: 0 0 9px rgba(197, 188, 171, .55); pointer-events: none; }
 
 .stub { position: absolute; left: 15px; width: 13px; height: 2px; background: var(--ink); pointer-events: none; }
@@ -284,8 +287,13 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .tap.draft input { border: 0; outline: 0; width: 100%; }
 .tap.draft input::placeholder { color: var(--dim); }
 
-.now { position: absolute; left: 10px; right: 0; border-top: 1.5px solid var(--hi); z-index: 7; pointer-events: none; }
-.now::before { content: ''; position: absolute; left: 0; top: -5.5px; width: 9px; height: 9px; border-radius: 50%; background: var(--hi); box-shadow: 0 0 10px rgba(230, 224, 212, .7); }
+.now { position: absolute; left: 30px; right: 0; border-top: 1px solid rgba(230, 224, 212, .55); z-index: 7; pointer-events: none; }
+/* He watches the hour from the bus: a slit eye that closes once in a long while. */
+.eye { position: absolute; left: -24px; top: -8.5px; width: 28px; height: 15px; overflow: visible; filter: drop-shadow(0 0 5px rgba(230, 224, 212, .35)); }
+.eye g { transform-origin: 11px 6px; animation: blink 11s ease-in-out infinite; }
+.eye .lid { fill: var(--ground); stroke: var(--hi); stroke-width: 1.2; }
+.eye .slit { fill: var(--hi); }
+@keyframes blink { 0%, 95.5%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.08); } }
 .now span { position: absolute; right: 4px; top: -16px; color: var(--hi); font-size: 9px; background: var(--ground); padding: 0 3px; }
 
 .pop { position: absolute; z-index: 8; width: 250px; max-width: calc(100vw - 40px); display: grid; gap: 8px; padding: 10px; cursor: default; user-select: text;
@@ -296,5 +304,9 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .inks button:hover { transform: translateY(-1px); }
 .inks button.on { outline: 2px solid var(--hi); }
 .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-@media (prefers-reduced-motion: reduce) { .pulse, .sag .bus { animation: none; } }
+.acts { display: flex; align-items: center; gap: 8px; }
+.bin { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--low); color: var(--dim); transition: color .2s var(--out), border-color .2s var(--out); }
+.bin:hover { color: var(--hi); border-color: var(--hi); }
+.bin svg { width: 13px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: square; }
+@media (prefers-reduced-motion: reduce) { .eye g, .sag .bus { animation: none; } }
 </style>

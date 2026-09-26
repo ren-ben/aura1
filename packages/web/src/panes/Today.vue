@@ -86,7 +86,7 @@ const since = (iso: string | null) => {
     <Frame class="wire" :title="`the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
       <template #bar><button class="x open" @click="sheetOpen = true">open</button></template>
       <Rewiring :dates="[todayStr]" />
-      <p class="fell said">{{ hisLine(todayStr) }}</p>
+      <p class="fell said" :class="{ err: state.error }">{{ state.error ? `The line did not hold: ${state.error}` : hisLine(todayStr) }}</p>
     </Frame>
     <RewiringSheet v-if="sheetOpen" @close="sheetOpen = false" />
 

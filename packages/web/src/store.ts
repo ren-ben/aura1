@@ -176,6 +176,8 @@ export const lectureMaps = {
   deeper: (id: number, node: { key: string; kind: string; title: string; text: string }) =>
     call<LectureMapDto>('POST', `/academy/maps/${id}/expand`, { node }),
 };
+// Back to the server's plan after a change it refused.
+const settle = async (ok: boolean) => { if (!ok) await rePlan().catch(() => {}); return ok; };
 // The plan changes in place first, so a drag never waits on the network;
 // the server's copy comes back after.
 export const plan = {
@@ -185,9 +187,21 @@ export const plan = {
     if (to > planRange[1]!) planRange[1] = to;
     await rePlan();
   },
-  add: (b: Omit<Block, 'id'>) => { state.blocks.push({ ...b, id: -Date.now() }); return act('POST', '/blocks', b, [rePlan]); },
-  change: (b: Block, patch: Partial<Omit<Block, 'id'>>) => { Object.assign(b, patch); return act('PATCH', `/blocks/${b.id}`, patch, [rePlan]); },
-  remove: (b: Block) => { state.blocks = state.blocks.filter((x) => x.id !== b.id); return act('DELETE', `/blocks/${b.id}`, undefined, [rePlan]); },
+  add: async (b: Omit<Block, 'id'>) => {
+    const id = -Date.now();
+    state.blocks.push({ ...b, id });
+    const ok = await act('POST', '/blocks', b, [rePlan]);
+    if (!ok) state.blocks = state.blocks.filter((x) => x.id !== id);
+    return ok;
+  },
+  change: async (b: Block, patch: Partial<Omit<Block, 'id'>>) => {
+    Object.assign(b, patch);
+    return settle(await act('PATCH', `/blocks/${b.id}`, patch, [rePlan]));
+  },
+  remove: async (b: Block) => {
+    state.blocks = state.blocks.filter((x) => x.id !== b.id);
+    return settle(await act('DELETE', `/blocks/${b.id}`, undefined, [rePlan]));
+  },
   capacity: (date: string, capacity: number) => act('PUT', `/plan-days/${date}`, { capacity }, [rePlan]),
 };
 export type { GrownNode, LectureDto, LectureMapDto, MapMark };
