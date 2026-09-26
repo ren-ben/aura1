@@ -302,7 +302,6 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
   background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) - 1px), rgba(52, 49, 45, .35) calc(var(--hour) - 1px) var(--hour)); }
 .sky { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .dawn { position: absolute; right: 58px; transform: translateY(-50%); font-style: italic; font-size: 12px; color: var(--dim); pointer-events: none; }
-.col.today { background-color: rgba(197, 188, 171, .018); }
 
 /* The bus: dotted where nothing has run yet, lit where the day has passed. */
 .bus { position: absolute; left: 14px; top: 0; bottom: 0; width: 1px; background: repeating-linear-gradient(to bottom, rgba(122, 116, 104, .5) 0 1px, transparent 1px 5px); pointer-events: none; }
