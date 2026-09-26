@@ -1,36 +1,43 @@
 <script setup lang="ts">
-// A letter to Kael'thos, asking for a lecture's map: parchment in the
-// console's dither, written on in ink. Sealed, it folds, takes the wax, and
+// A letter to Kael'thos, asking for a lecture's map: parchment, written on
+// in ink. Sent, it folds, a blot of red wax is pressed with his mark, and it
 // flies to the corner where he sits.
 import { onBeforeUnmount, ref, watch } from 'vue';
 import * as THREE from 'three';
 import Gl from './Gl.vue';
 import { reduced } from '../gl/engine';
-import { lights } from '../gl/models';
 
 const props = defineProps<{ modelValue: string; topics: string[]; guessed: number; heading: string; note: string; busy: boolean }>();
 const emit = defineEmits<{ 'update:modelValue': [string]; send: []; arrived: [] }>();
 
-// The letter's page, in canvas pixels, and where the reader writes on it.
+// The page, in canvas pixels, and where the reader writes on it.
 const PW = 1000, PH = 1300;
-const BODY = { x: 90, y: 400, w: 820, h: 560 };
+const BODY = { x: 90, y: 420, w: 820, h: 560 };
+const LINE = 48;
 const W = 2.0, H = (W * PH) / PW;
-const ink = '#1c1916';
+const INK = '#17130f';
+// Kept free under the letter for the button.
+const STRIP = 76;
 
 const page = document.createElement('canvas'); page.width = PW; page.height = PH;
 const back = document.createElement('canvas'); back.width = PW; back.height = PH;
-const pageTex = new THREE.CanvasTexture(page); pageTex.colorSpace = THREE.SRGBColorSpace;
+const pageTex = new THREE.CanvasTexture(page); pageTex.colorSpace = THREE.SRGBColorSpace; pageTex.anisotropy = 8;
 const backTex = new THREE.CanvasTexture(back); backTex.colorSpace = THREE.SRGBColorSpace;
 
+// Parchment in the console's own ink: the off-white, grained, darker toward
+// the edges in a printed dither rather than a blur.
 function parchment(g: CanvasRenderingContext2D) {
-  g.fillStyle = '#e4dccb'; g.fillRect(0, 0, PW, PH);
+  g.fillStyle = '#d6cdba'; g.fillRect(0, 0, PW, PH);
   let s = 9;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 2600; i++) { const v = 170 + r() * 60; g.fillStyle = `rgba(${v},${v - 6},${v - 16},.35)`; g.fillRect(r() * PW, r() * PH, 2 + r() * 8, 1 + r() * 3); }
-  // Foxing at the edges, darker toward the corners.
-  const edge = g.createRadialGradient(PW / 2, PH / 2, PH * 0.35, PW / 2, PH / 2, PH * 0.78);
-  edge.addColorStop(0, 'rgba(0,0,0,0)'); edge.addColorStop(1, 'rgba(60,50,40,.55)');
-  g.fillStyle = edge; g.fillRect(0, 0, PW, PH);
+  for (let i = 0; i < 3200; i++) { const v = 150 + r() * 70; g.fillStyle = `rgba(${v},${v - 8},${v - 22},.28)`; g.fillRect(r() * PW, r() * PH, 2 + r() * 10, 1 + r() * 2); }
+  const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  g.fillStyle = 'rgba(70,60,48,.55)';
+  for (let y = 0; y < PH; y += 4) for (let x = 0; x < PW; x += 4) {
+    const dx = Math.min(x, PW - x) / PW, dy = Math.min(y, PH - y) / PH;
+    const e = Math.max(0, 1 - Math.min(dx, dy) * 9);
+    if (e * 16 > B[((y / 4) % 4) * 4 + ((x / 4) % 4)]! + 1) g.fillRect(x, y, 3, 3);
+  }
 }
 function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, lh: number) {
   for (const para of text.split('\n')) {
@@ -42,36 +49,83 @@ function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, w
     g.fillText(line, x, y); y += lh;
   }
 }
-// The page: the salutation and the ask are his to read; the body is what is
-// written, drawn in only once it is sealed (until then the page is written
-// on directly).
+// The body is drawn in only once it is sealed; until then it is written on
+// the page directly.
 function drawPage(withBody: boolean) {
   const g = page.getContext('2d')!;
   parchment(g);
-  g.fillStyle = ink; g.textBaseline = 'alphabetic';
-  g.font = '64px UnifrakturMaguntia, serif'; g.fillText("To Kael'thos,", 90, 170);
-  g.font = 'italic 34px "IM Fell English", serif'; g.fillText('at the event horizon.', 96, 222);
-  g.font = '30px "IM Fell English", serif';
-  wrap(g, props.heading, 90, 300, 820, 40);
-  // Faint ruled lines for the writing.
-  g.strokeStyle = 'rgba(40,34,28,.22)'; g.lineWidth = 2;
-  for (let y = BODY.y + 44; y < BODY.y + BODY.h; y += 44) { g.beginPath(); g.moveTo(BODY.x, y); g.lineTo(BODY.x + BODY.w, y); g.stroke(); }
-  if (withBody) { g.font = '36px "IM Fell English", serif'; wrap(g, props.modelValue, BODY.x, BODY.y + 36, BODY.w, 44); }
-  g.font = 'italic 32px "IM Fell English", serif'; g.fillText('Yours, in study,', 560, 1080);
-  g.font = '44px UnifrakturMaguntia, serif'; g.fillText('the one you chose', 560, 1140);
+  g.fillStyle = INK; g.textBaseline = 'alphabetic';
+  g.font = '76px UnifrakturMaguntia, serif'; g.fillText("To Kael'thos,", 90, 180);
+  g.font = 'italic 36px "IM Fell English", serif'; g.fillText('at the event horizon.', 96, 234);
+  g.font = '32px "IM Fell English", serif';
+  wrap(g, props.heading, 90, 314, 820, 42);
+  g.strokeStyle = 'rgba(40,32,24,.28)'; g.lineWidth = 2;
+  for (let y = BODY.y + LINE; y <= BODY.y + BODY.h; y += LINE) { g.beginPath(); g.moveTo(BODY.x, y - 10); g.lineTo(BODY.x + BODY.w, y - 10); g.stroke(); }
+  if (withBody) { g.font = '38px "IM Fell English", serif'; wrap(g, props.modelValue, BODY.x, BODY.y + LINE - 16, BODY.w, LINE); }
+  g.font = 'italic 34px "IM Fell English", serif'; g.fillText('Yours, in study,', 560, 1090);
+  g.font = '48px UnifrakturMaguntia, serif'; g.fillText('the one you chose', 560, 1154);
   pageTex.needsUpdate = true;
 }
 function drawBack() {
   const g = back.getContext('2d')!;
   parchment(g);
-  // Folded, the back of the upper half is what shows, turned over: the
-  // address is written there, upside down on the flat page.
-  g.save(); g.translate(PW / 2, PH * 0.09); g.rotate(Math.PI);
-  g.fillStyle = ink; g.font = '44px UnifrakturMaguntia, serif'; g.textAlign = 'center';
+  // Folded, the back of the upper half shows turned over: the address is
+  // written there upside down on the flat page.
+  g.save(); g.translate(PW / 2, PH * 0.1); g.rotate(Math.PI);
+  g.fillStyle = INK; g.font = '52px UnifrakturMaguntia, serif'; g.textAlign = 'center';
   g.fillText("Kael'thos", 0, 0);
   g.restore();
   backTex.needsUpdate = true;
 }
+
+// His mark, for the wax: a ring of runes round an eye that does not close,
+// and the arms that reach out of it.
+function sigil(size: number, pressed: boolean): HTMLCanvasElement {
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const g = cv.getContext('2d')!, c = size / 2, R = size * 0.46;
+  const wax = g.createRadialGradient(c * 0.8, c * 0.7, 0, c, c, R * 1.1);
+  wax.addColorStop(0, '#9a2a22'); wax.addColorStop(0.7, '#6a1812'); wax.addColorStop(1, '#3e0c08');
+  g.fillStyle = wax; g.fillRect(0, 0, size, size);
+  if (!pressed) return cv;
+  // Everything cut twice: a dark line for the hollow, a light one above it
+  // for the edge that catches the light.
+  const cut = (draw: () => void, w: number) => {
+    g.save(); g.translate(2, 2); g.strokeStyle = '#2a0805'; g.lineWidth = w; draw(); g.restore();
+    g.save(); g.strokeStyle = '#c2574b'; g.lineWidth = w * 0.7; draw(); g.restore();
+  };
+  const u = size / 512;
+  cut(() => { g.beginPath(); g.arc(c, c, R * 0.92, 0, 7); g.stroke(); g.beginPath(); g.arc(c, c, R * 0.74, 0, 7); g.stroke(); }, 6 * u);
+  // Runes between the rings.
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2, rr = R * 0.83, x = c + Math.cos(a) * rr, y = c + Math.sin(a) * rr;
+    cut(() => {
+      g.save(); g.translate(x, y); g.rotate(a + Math.PI / 2); g.beginPath();
+      const k = i % 3;
+      if (k === 0) { g.moveTo(0, -12 * u); g.lineTo(0, 12 * u); g.moveTo(-8 * u, -4 * u); g.lineTo(8 * u, 4 * u); }
+      else if (k === 1) { g.moveTo(-8 * u, 10 * u); g.lineTo(0, -10 * u); g.lineTo(8 * u, 10 * u); }
+      else { g.arc(0, 0, 7 * u, 0, Math.PI); g.moveTo(0, -12 * u); g.lineTo(0, 0); }
+      g.stroke(); g.restore();
+    }, 4 * u);
+  }
+  // The arms, curling out of the eye.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.2;
+    cut(() => {
+      g.beginPath();
+      const p = (t: number, off: number) => [c + Math.cos(a + off) * R * t, c + Math.sin(a + off) * R * t] as const;
+      const [x0, y0] = p(0.3, 0), [x1, y1] = p(0.52, 0.35), [x2, y2] = p(0.68, -0.1), [x3, y3] = p(0.62, -0.32);
+      g.moveTo(x0, y0); g.bezierCurveTo(x1, y1, x2, y2, x3, y3); g.stroke();
+    }, 7 * u);
+  }
+  // The eye: an almond, and a slit of a pupil.
+  cut(() => {
+    g.beginPath(); g.moveTo(c - R * 0.34, c);
+    g.quadraticCurveTo(c, c - R * 0.34, c + R * 0.34, c); g.quadraticCurveTo(c, c + R * 0.34, c - R * 0.34, c); g.stroke();
+  }, 8 * u);
+  g.fillStyle = '#2a0805'; g.beginPath(); g.ellipse(c, c, R * 0.045, R * 0.15, 0, 0, 7); g.fill();
+  return cv;
+}
+
 drawPage(false); drawBack();
 document.fonts.ready.then(() => { drawPage(phase.value !== 'write'); drawBack(); });
 watch(() => props.heading, () => drawPage(phase.value !== 'write'));
@@ -80,23 +134,18 @@ watch(() => props.heading, () => drawPage(phase.value !== 'write'));
 type Phase = 'write' | 'fold' | 'seal' | 'fly' | 'gone';
 const phase = ref<Phase>('write');
 const box = ref({ left: 0, top: 0, width: 0, height: 0, font: 20 });
-const sealAt = ref({ left: 0, top: 0 });
 let started = 0;
 
-// A half of the page: front and back, each showing its own half of its canvas.
 function half(top: boolean) {
   const g = new THREE.Group();
   const geo = (flip: boolean) => {
     const pg = new THREE.PlaneGeometry(W, H / 2);
     const uv = pg.attributes.uv!;
-    for (let i = 0; i < uv.count; i++) {
-      const u = uv.getX(i), v = uv.getY(i);
-      uv.setXY(i, flip ? 1 - u : u, top ? 0.5 + v / 2 : v / 2);
-    }
+    for (let i = 0; i < uv.count; i++) { const u = uv.getX(i), v = uv.getY(i); uv.setXY(i, flip ? 1 - u : u, top ? 0.5 + v / 2 : v / 2); }
     return pg;
   };
-  const front = new THREE.Mesh(geo(false), new THREE.MeshStandardMaterial({ map: pageTex, roughness: 0.9 }));
-  const rear = new THREE.Mesh(geo(true), new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.9 }));
+  const front = new THREE.Mesh(geo(false), new THREE.MeshBasicMaterial({ map: pageTex }));
+  const rear = new THREE.Mesh(geo(true), new THREE.MeshBasicMaterial({ map: backTex }));
   rear.rotation.y = Math.PI;
   g.add(front, rear);
   return g;
@@ -107,57 +156,81 @@ const build = ({ scene, group, camera, canvas }: { scene: THREE.Scene; group: TH
   const hinge = new THREE.Group(); letter.add(hinge);
   const upper = half(true); upper.position.y = H / 4; hinge.add(upper);
   const lower = half(false); lower.position.y = -H / 4; letter.add(lower);
-  // The seal: dark wax, pressed with his mark.
-  const mark = document.createElement('canvas'); mark.width = mark.height = 256;
-  const m = mark.getContext('2d')!;
-  m.fillStyle = '#3a3531'; m.fillRect(0, 0, 256, 256);
-  m.strokeStyle = '#d8d0bf'; m.lineWidth = 7; m.beginPath(); m.arc(128, 128, 96, 0, 7); m.stroke();
-  m.beginPath(); for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5; m.lineTo(128 + Math.cos(a) * 80, 128 + Math.sin(a) * 80); } m.stroke();
-  const markTex = new THREE.CanvasTexture(mark); markTex.colorSpace = THREE.SRGBColorSpace;
-  const waxSide = new THREE.MeshStandardMaterial({ color: 0x2e2a26, roughness: 0.4 });
-  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 28), [waxSide, new THREE.MeshStandardMaterial({ map: markTex, roughness: 0.4 }), waxSide]);
-  seal.rotation.x = Math.PI / 2; seal.visible = false; letter.add(seal);
-  lights(scene, 1.1, 0.6, 0.55);
 
-  // The corner where he sits, as a point in the letter's plane.
-  const corner = () => new THREE.Vector3(-0.9, -0.86, 0.5).unproject(camera).sub(camera.position).normalize();
+  // The wax: a blot with a ragged edge, first smooth, then pressed.
+  const smooth = new THREE.CanvasTexture(sigil(512, false)), pressed = new THREE.CanvasTexture(sigil(512, true));
+  smooth.colorSpace = pressed.colorSpace = THREE.SRGBColorSpace;
+  const blotGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.035, 48, 1);
+  const pos = blotGeo.attributes.position!;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), rr = Math.hypot(x, z);
+    if (rr > 0.2) { const a = Math.atan2(z, x), k = 1 + 0.07 * Math.sin(a * 5) + 0.05 * Math.sin(a * 11 + 1); pos.setX(i, x * k); pos.setZ(i, z * k); }
+  }
+  blotGeo.computeVertexNormals();
+  const waxSide = new THREE.MeshStandardMaterial({ color: 0x5a140f, roughness: 0.35, emissive: 0x2a0806 });
+  const waxTop = new THREE.MeshStandardMaterial({ map: smooth, roughness: 0.35, emissive: 0x220605, emissiveMap: smooth });
+  const blot = new THREE.Mesh(blotGeo, [waxSide, waxTop, waxSide]);
+  blot.rotation.x = Math.PI / 2; blot.visible = false; letter.add(blot);
+  // The stamp: a dark handle, a brass neck and the die.
+  const stamp = new THREE.Group(); stamp.visible = false; letter.add(stamp);
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb8a67e, roughness: 0.3, metalness: 0.8 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x241f1b, roughness: 0.55, metalness: 0.1 });
+  const part = (geo: THREE.BufferGeometry, m: THREE.Material, z: number) => { const x = new THREE.Mesh(geo, m); x.rotation.x = Math.PI / 2; x.position.z = z; stamp.add(x); };
+  part(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 40), brass, 0.03);
+  part(new THREE.CylinderGeometry(0.06, 0.12, 0.1, 24), brass, 0.11);
+  part(new THREE.CylinderGeometry(0.075, 0.055, 0.42, 24), wood, 0.37);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), wood); knob.position.z = 0.62; stamp.add(knob);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xfff0e0, 1.6); key.position.set(-2, 3, 4); scene.add(key);
+
   const v = new THREE.Vector3();
   const toScreen = (x: number, y: number) => {
     v.set(x, y, 0).applyMatrix4(letter.matrixWorld).project(camera);
     return { x: ((v.x + 1) / 2) * canvas.clientWidth, y: ((1 - v.y) / 2) * canvas.clientHeight };
   };
   const ease = (u: number) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
+  const clamp = (u: number) => Math.max(0, Math.min(1, u));
+  const SEAL_Y = -H / 4;
   return (t: number) => {
-    // Framed to fill the height, whatever the width.
-    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const d = Math.max((H / 2 + 0.12) / f, (W / 2 + 0.2) / (f * camera.aspect));
-    camera.position.set(0, 0, d); camera.lookAt(0, 0, 0);
+    // The letter fills the height above the strip kept for the button.
+    const f = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), h = canvas.clientHeight || 600;
+    const half = (H / 2 + 0.08) * (h / Math.max(1, h - STRIP));
+    const d = Math.max(half / f, (W / 2 + 0.25) / (f * camera.aspect));
+    const V = d * f, strip = (STRIP / h) * 2 * V;
+    camera.position.set(0, -strip / 2, d); camera.lookAt(0, -strip / 2, 0);
     const now = performance.now() / 1000, u = now - started, calm = reduced();
     if (phase.value === 'write') {
-      letter.position.set(0, calm ? 0 : Math.sin(t * 0.8) * 0.012, 0);
-      letter.rotation.set(0, 0, 0); letter.scale.setScalar(1); hinge.rotation.x = 0; seal.visible = false;
-      // Where the body is on screen, for the pen.
+      letter.position.set(0, calm ? 0 : Math.sin(t * 0.8) * 0.01, 0);
       group.updateMatrixWorld();
       const a = toScreen(-W / 2 + (BODY.x / PW) * W, H / 2 - (BODY.y / PH) * H);
       const b = toScreen(-W / 2 + ((BODY.x + BODY.w) / PW) * W, H / 2 - ((BODY.y + BODY.h) / PH) * H);
-      const s = toScreen(-W / 2 + (720 / PW) * W, H / 2 - (1210 / PH) * H);
-      box.value = { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y, font: ((b.x - a.x) / BODY.w) * 36 };
-      sealAt.value = { left: s.x, top: s.y };
+      box.value = { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y, font: ((b.x - a.x) / BODY.w) * 38 };
     } else if (phase.value === 'fold') {
-      hinge.rotation.x = Math.PI * ease(Math.min(1, u / 0.7));
-      hinge.position.z = 0.004 * Math.min(1, u / 0.7);
-      if (u >= 0.75) { phase.value = 'seal'; started = now; }
+      // The upper half folds down over the writing.
+      const k = ease(clamp(u / 0.75));
+      hinge.rotation.x = Math.PI * k;
+      hinge.position.z = 0.006 * k;
+      if (u >= 0.85) { phase.value = 'seal'; started = now; }
     } else if (phase.value === 'seal') {
-      seal.visible = true;
-      const k = Math.min(1, u / 0.45);
-      seal.position.set(0, -H / 4, 0.03 + (1 - ease(k)) * 1.2);
-      seal.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.25);
-      if (u >= 0.8) { phase.value = 'fly'; started = now; }
+      // Wax drips onto the fold, the stamp comes down, presses, and lifts
+      // away with his mark left in it.
+      blot.visible = true; stamp.visible = true;
+      const drip = ease(clamp(u / 0.35));
+      const down = ease(clamp((u - 0.3) / 0.4)), up = ease(clamp((u - 1.05) / 0.45));
+      const press = clamp((u - 0.7) / 0.1) * (1 - clamp((u - 0.95) / 0.1));
+      blot.position.set(0, SEAL_Y, 0.03);
+      blot.scale.set(drip * (1 + press * 0.12), 1 - press * 0.35, drip * (1 + press * 0.12));
+      if (u > 0.82 && waxTop.map !== pressed) { waxTop.map = pressed; waxTop.emissiveMap = pressed; waxTop.needsUpdate = true; }
+      stamp.position.set(0, SEAL_Y, 0.05 + (1 - down) * 1.8 + up * 2.2 - press * 0.012);
+      stamp.rotation.z = (1 - down) * 0.8 - up * 0.6;
+      stamp.scale.setScalar(1 - up * 0.4);
+      // The page shudders under the blow.
+      letter.position.x = calm ? 0 : press * Math.sin(u * 90) * 0.008;
+      if (u >= 1.7) { stamp.visible = false; letter.position.x = 0; phase.value = 'fly'; started = now; }
     } else if (phase.value === 'fly') {
-      const k = ease(Math.min(1, u / 1.3));
-      const dir = corner(), dist = camera.position.z * 0.62;
-      const end = camera.position.clone().addScaledVector(dir, dist);
-      // An arc up and over, turning as it goes.
+      const k = ease(clamp(u / 1.3));
+      const dir = new THREE.Vector3(-0.9, -0.86, 0.5).unproject(camera).sub(camera.position).normalize();
+      const end = camera.position.clone().addScaledVector(dir, camera.position.z * 0.62);
       letter.position.set(end.x * k, end.y * k + Math.sin(k * Math.PI) * 0.5, end.z * k);
       letter.rotation.set(-0.5 * Math.sin(k * Math.PI), 0, k * 0.9);
       letter.scale.setScalar(1 - 0.88 * k);
@@ -175,27 +248,27 @@ function send() {
 }
 const onKey = (e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); };
 onBeforeUnmount(() => { pageTex.dispose(); backTex.dispose(); });
-defineExpose({ send });
 </script>
 
 <template>
   <div class="letter">
     <div class="desk">
-      <Gl :build="build" :active="true" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, fov: 30 }" label="A letter to Kael'thos, on parchment." hint="" />
-      <template v-if="phase === 'write'">
-        <textarea class="pen" :value="modelValue" spellcheck="false" autocomplete="off" maxlength="300" aria-label="What the lecture is about"
-                  :style="{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, fontSize: `${box.font}px`, lineHeight: `${box.font * 44 / 36}px` }"
-                  @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)" @keydown="onKey"></textarea>
-        <button class="wax" :style="{ left: `${sealAt.left}px`, top: `${sealAt.top}px` }" :disabled="busy || modelValue.trim().length < 3" title="seal it and send it (ctrl + enter)" @click="send">
-          <span>seal &amp;<br>send</span>
+      <Gl :build="build" :active="true" :options="{ dither: false, drift: 0, tilt: 0, yaw: 0, fov: 30 }" label="A letter to Kael'thos, on parchment." hint="" />
+      <textarea v-if="phase === 'write'" class="pen" :value="modelValue" spellcheck="false" autocomplete="off" maxlength="300" aria-label="What the lecture is about"
+                :style="{ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, fontSize: `${box.font}px`, lineHeight: `${(box.font * LINE) / 38}px` }"
+                @input="emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)" @keydown="onKey"></textarea>
+      <Transition name="fade">
+        <button v-if="phase === 'write'" class="btn send" :disabled="busy || modelValue.trim().length < 3" title="ctrl + enter" @click="send">
+          <i class="blot" aria-hidden="true"></i>seal it // send it to him
         </button>
-      </template>
+      </Transition>
     </div>
     <aside v-if="phase === 'write' && topics.length" class="syllabus">
       <p class="pix">the syllabus, in order</p>
       <ol>
-        <li v-for="(t, i) in topics" :key="i">
-          <button :class="{ near: i === guessed, now: modelValue.includes(t) }" @click="emit('update:modelValue', t)">{{ t }}</button>
+        <li v-for="(t, i) in topics" :key="i" :class="{ near: i === guessed, now: modelValue.includes(t) }">
+          <span class="n pix">{{ String(i + 1).padStart(2, '0') }}</span>
+          <button class="fell" @click="emit('update:modelValue', t)">{{ t }}</button>
         </li>
       </ol>
       <p class="note">{{ note }}</p>
@@ -204,27 +277,33 @@ defineExpose({ send });
 </template>
 
 <style scoped>
-.letter { position: absolute; inset: 0; display: flex; }
+.letter { position: absolute; inset: 0; display: flex; text-align: left; }
 .desk { position: relative; flex: 1; min-width: 0; display: flex; }
 .desk :deep(.gl) { width: 100%; height: 100%; flex: 1; cursor: default; pointer-events: none; }
 .desk :deep(.hint) { display: none; }
 .pen { position: absolute; background: transparent; border: 0; outline: none; resize: none; padding: 0; margin: 0; overflow: hidden;
-  font-family: 'IM Fell English', Georgia, serif; color: #1c1916; caret-color: #1c1916; text-shadow: 0 0 1px rgba(228, 220, 203, .9); }
-.pen::selection { background: rgba(28, 25, 22, .25); color: #1c1916; }
-.wax { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(circle at 38% 34%, #4a4540, #2a2623 62%, #1c1a18); color: #d8d0bf; font: 400 9.5px/1.2 var(--pix); text-transform: uppercase; text-align: center;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, .55), inset 0 0 0 3px rgba(216, 208, 191, .28), inset 0 0 0 6px #2a2623, inset 0 0 0 7px rgba(216, 208, 191, .2);
-  transition: transform .25s var(--out), box-shadow .25s var(--out); }
-.wax:hover:not(:disabled) { transform: rotate(-8deg) scale(1.06); }
-.wax:active:not(:disabled) { transform: scale(.94); }
-.wax:disabled { opacity: .5; cursor: default; }
-.syllabus { width: 300px; flex: none; overflow: auto; padding: 22px 18px 120px; border-left: 3px dotted var(--low); scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
-.syllabus ol { margin: 10px 0 14px; padding-left: 22px; display: grid; gap: 4px; color: var(--dim); }
-.syllabus button { text-align: left; color: var(--dim); font-family: var(--fell); font-size: 14.5px; line-height: 1.3; transition: color .25s var(--out); }
-.syllabus button:hover, .syllabus button.now { color: var(--hi); }
-.syllabus button.near { color: var(--phos); text-decoration: underline dotted; text-underline-offset: 3px; }
+  font-family: 'IM Fell English', Georgia, serif; color: #17130f; caret-color: #17130f; }
+.pen::selection { background: rgba(23, 19, 15, .2); color: #17130f; }
+.send { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: var(--ground); }
+.send:hover:not(:disabled) { transform: translateX(-50%); }
+.send:active:not(:disabled) { transform: translateX(-50%) scale(.985); }
+.send:disabled { opacity: .45; cursor: default; }
+.blot { width: 12px; height: 12px; border-radius: 50% 46% 52% 44%; background: radial-gradient(circle at 35% 35%, #a33a30, #5e140f 70%); box-shadow: 0 0 6px rgba(160, 50, 40, .45); }
+.fade-leave-active { transition: opacity .3s var(--out); }
+.fade-leave-to { opacity: 0; }
+.syllabus { position: relative; z-index: 1; width: 320px; flex: none; overflow: auto; padding: 20px 20px 130px; background: var(--ground); border-left: 3px dotted var(--low);
+  scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
+.syllabus ol { list-style: none; margin: 12px 0 16px; padding: 0; display: grid; gap: 0; }
+.syllabus li { display: grid; grid-template-columns: 26px 1fr; align-items: baseline; padding: 6px 0; border-bottom: 1px dotted var(--faint); }
+.syllabus .n { color: var(--low); }
+.syllabus li button { text-align: left; color: var(--dim); font-size: 15px; line-height: 1.3; transition: color .25s var(--out); }
+.syllabus li button:hover { color: var(--hi); }
+.syllabus li.near .n, .syllabus li.near button { color: var(--phos); }
+.syllabus li.near button { text-decoration: underline dotted; text-underline-offset: 4px; }
+.syllabus li.now button { color: var(--hi); }
+.syllabus .note { line-height: 1.5; }
 @media (max-width: 860px) {
   .letter { flex-direction: column; }
-  .syllabus { width: auto; max-height: 30%; border-left: 0; border-top: 3px dotted var(--low); padding: 12px 16px 90px; }
+  .syllabus { width: auto; max-height: 32%; border-left: 0; border-top: 3px dotted var(--low); padding: 12px 16px 100px; }
 }
 </style>

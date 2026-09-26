@@ -18,6 +18,13 @@ import { lectureMaps, type Course, type LectureDto, type LectureMapDto } from '.
 
 const props = defineProps<{ course: Course; begin: string }>();
 const emit = defineEmits<{ close: [] }>();
+// Closing plays the opening backwards, then goes.
+const closing = ref(false);
+function shut(then: () => void = () => emit('close')) {
+  if (closing.value) return;
+  closing.value = true;
+  setTimeout(then, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 420);
+}
 
 const lecture = ref<LectureDto | null>(null);
 const dto = ref<LectureMapDto | null>(null);
@@ -40,7 +47,7 @@ onMounted(async () => {
   } catch (e) { error.value = e instanceof Error ? e.message : 'failed'; }
 });
 onBeforeUnmount(() => { window.removeEventListener('keydown', key); clearTimeout(poll); });
-const key = (e: KeyboardEvent) => { if (e.key === 'Escape') emit('close'); };
+const key = (e: KeyboardEvent) => { if (e.key === 'Escape') shut(); };
 
 // ---- making it --------------------------------------------------------------
 let poll = 0;
@@ -295,7 +302,7 @@ const GLYPHS: Record<Kind, string> = {
 
 <template>
   <Teleport to="body">
-    <div class="lm-back" @pointerdown.self="emit('close')">
+    <div class="lm-back" :class="{ closing }" @pointerdown.self="shut()">
       <section class="lm" role="dialog" aria-modal="true" :aria-label="`Lecture map, ${course.name}, ${day}`">
         <header class="lm-bar">
           <span class="pix">{{ course.name }} // {{ course.type }}<template v-if="lecture"> // lecture {{ lecture.index + 1 }} of {{ lecture.total }}</template> // {{ day }}</span>
@@ -305,7 +312,7 @@ const GLYPHS: Record<Kind, string> = {
               <button class="x" title="an Obsidian canvas with its note, zipped" @click="toObsidian">obsidian</button>
               <button class="x" title="print, or save as pdf" @click="print">pdf</button>
             </template>
-            <button class="x" aria-label="close" @click="emit('close')">close</button>
+            <button class="x" aria-label="close" @click="shut()">close</button>
           </span>
         </header>
 
@@ -532,6 +539,10 @@ li:hover > .more, dt:hover > .more, .eq:hover > .more { opacity: 1; }
   .grow { padding: 7px 10px; }
   .lm-tools .x { padding: 8px 6px; }
 }
+.lm-back.closing { animation: shut-fade .42s var(--ease) forwards; }
+.lm-back.closing > .lm { animation: shut .42s var(--ease) forwards; pointer-events: none; }
+@keyframes shut-fade { to { opacity: 0; } }
+@keyframes shut { 40% { clip-path: inset(0 0 0 0); opacity: 1; } to { clip-path: inset(49% 30% 49% 30%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .lm, .lm-back, .lk, .grown { animation: none; }
   .node { transition: opacity .2s; }

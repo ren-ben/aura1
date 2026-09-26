@@ -8,6 +8,13 @@ import { lectureMaps, state, type MapMark } from '../store';
 
 const props = defineProps<{ start?: Date }>();
 const emit = defineEmits<{ close: []; open: [Slot] }>();
+// Closing plays the opening backwards, then goes.
+const closing = ref(false);
+function shut(then: () => void = () => emit('close')) {
+  if (closing.value) return;
+  closing.value = true;
+  setTimeout(then, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 420);
+}
 
 const at = ref(new Date((props.start ?? new Date()).getFullYear(), (props.start ?? new Date()).getMonth(), 1));
 const days = computed(() => monthOf(state.courses, at.value.getFullYear(), at.value.getMonth()));
@@ -28,7 +35,7 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => window.removeEventListener('keydown', key));
 const key = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') emit('close');
+  if (e.key === 'Escape') shut();
   if (e.key === 'ArrowLeft') step(-1);
   if (e.key === 'ArrowRight') step(1);
 };
@@ -38,7 +45,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: 
 
 <template>
   <Teleport to="body">
-    <div class="cal-back" @pointerdown.self="emit('close')">
+    <div class="cal-back" :class="{ closing }" @pointerdown.self="shut()">
       <section class="cal" role="dialog" aria-modal="true" :aria-label="`The month of ${title} ${year}`">
         <header class="cal-bar">
           <span class="pix">the almanac // {{ counts.lectures }} lectures, {{ counts.exams }} exams this month</span>
@@ -46,7 +53,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: 
             <button class="x" aria-label="the month before" @click="step(-1)">prev</button>
             <button class="x" @click="at = new Date(new Date().getFullYear(), new Date().getMonth(), 1)">now</button>
             <button class="x" aria-label="the month after" @click="step(1)">next</button>
-            <button class="x" aria-label="close" @click="emit('close')">close</button>
+            <button class="x" aria-label="close" @click="shut()">close</button>
           </span>
         </header>
         <div class="cal-head">
@@ -69,7 +76,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: 
               </button>
               <button v-for="s in d.slots" :key="s.begin + s.label" class="ev" :class="{ ue: !s.mappable, mapped: mapped(s) }" :disabled="!s.mappable"
                       :title="`${s.course.name} ${s.course.type}, ${s.from} to ${s.to}, ${s.room}${mapped(s)?.title ? ` // mapped: ${mapped(s)!.title}` : s.mappable ? ' // open its map' : ''}`"
-                      @click="emit('open', s)">
+                      @click="shut(() => emit('open', s))">
                 <span class="t">{{ s.from }}</span><span class="l">{{ s.label }}</span><i v-if="mapped(s)" class="star" aria-label="mapped"></i>
               </button>
             </div>
@@ -135,5 +142,9 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: 
   .ev.exam span { display: none; }
   .cal-head .note { display: none; }
 }
+.cal-back.closing { animation: shut-fade .42s var(--ease) forwards; }
+.cal-back.closing > .cal { animation: shut .42s var(--ease) forwards; pointer-events: none; }
+@keyframes shut-fade { to { opacity: 0; } }
+@keyframes shut { 40% { clip-path: inset(0 0 0 0); opacity: 1; } to { clip-path: inset(49% 30% 49% 30%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cal, .cal-back { animation: none; } .day { transition: none; } }
 </style>
