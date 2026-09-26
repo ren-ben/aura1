@@ -176,7 +176,12 @@ function zoom(by: number, cx: number, cy: number) {
   view.x = px - ((px - view.x) * k) / view.k; view.y = py - ((py - view.y) * k) / view.k;
   view.k = k;
 }
-const wheel = (e: WheelEvent) => zoom(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
+// Only the map zooms; anywhere else (the letter's syllabus) scrolls as usual.
+function wheel(e: WheelEvent) {
+  if (!map.value) return;
+  e.preventDefault();
+  zoom(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
+}
 
 const pos = (id: string, i: number) => {
   const b = at.value[id];
@@ -316,7 +321,7 @@ const GLYPHS: Record<Kind, string> = {
           </span>
         </header>
 
-        <div ref="stage" class="lm-stage" :class="{ grab: dragging }" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @wheel.prevent="wheel">
+        <div ref="stage" class="lm-stage" :class="{ grab: dragging }" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @wheel="wheel">
           <Plate class="lm-sky" :draw="drawSky" :active="true" :animated="true" :cell="3" />
 
           <!-- the map -->

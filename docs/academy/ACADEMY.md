@@ -123,8 +123,10 @@ lecture, to read the evening before and then write your own notes from.
    which lecture of the term this is and finds the same point in the
    course's syllabus on u:find; that guess is already written in. Beside the
    letter, the syllabus's topics in order, the guessed one underlined: click
-   one to write it in, or add what the slides say. Press the **wax seal**
-   (or ctrl + enter): the letter folds, takes the seal, and flies to him.
+   one to write it in, or add what the slides say. Press **fold it // seal
+   it** (or ctrl + enter): the letter folds and red wax drips on it. Take the
+   stamp hovering beside it and press it into the wax, where the ring of
+   runes glows (or just click the stamp). Then the letter flies to him.
 2. **The wait,** about a minute, while he reads. A fast model searches the web and takes
    notes (reading the sources), then Kael'thos writes the map from them
    (writing it down). About 11 cents a map, 2 a *deeper*.
