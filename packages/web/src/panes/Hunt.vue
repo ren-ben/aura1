@@ -198,9 +198,9 @@ watch(() => [h.value.verdict.word, h.value.verdict.group] as const, async ([word
 const drawDoing = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
   const c = doing.value;
   if (!c) return;
-  // The pose's own margin is cut away: he fills his corner.
-  const s = Math.min(w, hh) * 1.5;
-  g.drawImage(c, w / 2 - s / 2, hh - s * 0.93 + Math.sin(t * 1.6) * s * 0.008, s, s);
+  // Whole, standing on the foot of his corner.
+  const s = Math.min(w, hh);
+  g.drawImage(c, w / 2 - s / 2, hh - s + Math.sin(t * 1.6) * s * 0.008, s, s);
 };
 watch(open, async (i) => {
   pose.value = null;
@@ -537,9 +537,10 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .side { grid-area: side; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 10px; min-height: 0; }
 .motto { margin: -4px 0 0; font-style: italic; color: var(--dim); font-size: 16px; }
 .verdict { position: relative; display: grid; gap: 4px; padding: 12px 0; border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); }
-.doing { position: absolute; right: 0; top: 0; width: 150px; height: 128px; display: flex; flex-direction: column; pointer-events: none; }
-.verdict > .pix, .verdict > .word { padding-right: 150px; }
-.verdict > p { padding-right: 120px; }
+.verdict { grid-template-columns: minmax(0, 1fr) 132px; }
+.verdict > :not(.doing) { grid-column: 1; }
+.verdict > .ready { grid-column: 1 / -1; }
+.doing { grid-column: 2; grid-row: 1 / 4; align-self: end; height: 124px; display: flex; flex-direction: column; pointer-events: none; }
 .word { font-size: clamp(44px, 4.6vw, 74px); animation: struck .9s var(--out) both; }
 .word small { font: 400 16px var(--pix); color: var(--dim); text-transform: uppercase; margin-left: 6px; vertical-align: .5em; }
 @keyframes struck { from { opacity: 0; letter-spacing: .25em; filter: blur(3px); } }
