@@ -26,8 +26,7 @@ const body = ref(''), when = ref('today'), date = ref(localDate());
 async function add() {
   const text = body.value.trim();
   if (!text) return;
-  const t = new Date(); if (when.value === 'tomorrow') t.setDate(t.getDate() + 1);
-  const due = when.value === 'someday' ? null : when.value === 'date' ? date.value : localDate(t);
+  const due = when.value === 'someday' ? null : when.value === 'date' ? date.value : when.value === 'tomorrow' ? tomorrow() : localDate();
   if (await actions.addTodo(text, due)) body.value = '';
 }
 // The day the rewiring shows: today unless stepped away from.
@@ -43,7 +42,16 @@ const read = (): View => { try { return localStorage.getItem('aura.rewiring') ==
 const view = ref<View>(read());
 watch(view, (v) => { try { localStorage.setItem('aura.rewiring', v); } catch { /* kept for this visit only */ } });
 // A todo carried onto the bus becomes a tap.
-const carry = (t: Todo, e: DragEvent) => { e.dataTransfer?.setData('application/x-aura-todo', t.body); };
+// Let down past the list, it waits for tomorrow. The band shows a tick late,
+// or the browser drops the drag as the list shifts under it.
+const carried = ref<Todo | null>(null), over = ref(false);
+const carry = (t: Todo, e: DragEvent) => {
+  e.dataTransfer?.setData('application/x-aura-todo', t.body);
+  setTimeout(() => { carried.value = t; });
+};
+const letGo = () => { carried.value = null; over.value = false; };
+const tomorrow = () => { const t = new Date(); t.setDate(t.getDate() + 1); return localDate(t); };
+const defer = () => { const t = carried.value; letGo(); if (t) actions.moveTodo(t, tomorrow()); };
 const shortDate = (d: string | null) => (d ? d.slice(8, 10) + '.' + d.slice(5, 7) : '');
 
 // He holds his form a day past the last session; counted down live.
@@ -76,13 +84,14 @@ const since = (iso: string | null) => {
     <Frame class="list" :title="`today's list // ${kept} of ${groups[0]!.items.length} kept`" scroll>
       <template v-for="g in groups" :key="g.name">
         <div v-if="g.items.length && g.name !== 'today'" class="pix group">{{ g.name }}</div>
-        <div v-for="t in g.items" :key="t.id" class="todo" :class="{ done: t.done }" :draggable="!t.done" @dragstart="carry(t, $event)">
+        <div v-for="t in g.items" :key="t.id" class="todo" :class="{ done: t.done }" :draggable="!t.done" @dragstart="carry(t, $event)" @dragend="letGo">
           <button class="led" :aria-label="t.done ? 'Undo' : 'Done'" :aria-pressed="t.done" @click="actions.toggleTodo(t)"></button>
           <span class="t">{{ t.body }}</span>
           <span class="pix">{{ g.name === 'today' && t.dueDate! < todayStr ? 'overdue' : g.name === 'coming' ? shortDate(t.dueDate) : '' }}</span>
           <button class="x" :aria-label="`Delete ${t.body}`" @click="actions.removeTodo(t as Todo)">del</button>
         </div>
       </template>
+      <div v-if="carried" class="pix tomorrow" :class="{ over }" @dragover.prevent="over = true" @dragleave="over = false" @drop.prevent="defer">let it wait for tomorrow</div>
       <p v-if="!state.todos.length" class="empty">The list is empty. Write the first line below.</p>
       <form class="add" @submit.prevent="add">
         <input v-model="body" class="field grow" placeholder="a thing to do" maxlength="200" aria-label="New todo">
@@ -142,6 +151,8 @@ const since = (iso: string | null) => {
 .add .grow { flex: 1; min-width: 160px; }
 .add .when { width: auto; }
 .todo[draggable="true"] { cursor: grab; }
+.tomorrow { margin-top: 10px; padding: 18px 0; text-align: center; border: 2px dashed var(--low); color: var(--dim); }
+.tomorrow.over { border-color: var(--phos); color: var(--hi); }
 .wire { grid-area: wire; }
 .wire .days { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 .wire .days .x { padding: 2px 6px; font-size: 12px; }

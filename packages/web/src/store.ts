@@ -223,6 +223,7 @@ export type { GrownNode, LectureDto, LectureMapDto, MapMark };
 export const actions = {
   addTodo: (body: string, dueDate: string | null) => act('POST', '/todos', { body, dueDate }, [reTodos]),
   toggleTodo: (t: Todo) => act('PATCH', `/todos/${t.id}`, { done: !t.done }, [reTodos]),
+  moveTodo: (t: Todo, dueDate: string | null) => act('PATCH', `/todos/${t.id}`, { dueDate }, [reTodos]),
   removeTodo: (t: Todo) => act('DELETE', `/todos/${t.id}`, undefined, [reTodos]),
   addHabit: (name: string) => act('POST', '/habits', { name }, [reHabits]),
   archiveHabit: (h: Habit) => act('PATCH', `/habits/${h.id}`, { archived: true }, [reHabits]),
