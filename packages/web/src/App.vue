@@ -480,6 +480,7 @@ onBeforeUnmount(() => {
 .map.narrow .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: repeat(7, minmax(0, 1fr)) !important; gap: 8px; }
 .map.narrow .card { gap: 3px; padding: 6px; min-height: 0; }
 .map.narrow .card .sigil { width: 26px; height: 26px; margin-bottom: 2px; }
+.map.narrow .card span:not(.stat) { display: none; }
 
 /* The key for the web: top edge for a thumb reaching up, bottom for down. */
 .webkey { position: fixed; z-index: 30; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;

@@ -713,17 +713,19 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 
 <template>
   <div class="academy">
-    <Frame class="instrument" title="the degree as an astrolabe // hover a ring, drag to turn the rete" flush>
+    <Frame class="instrument" :title="narrow ? 'the degree as an astrolabe' : 'the degree as an astrolabe // hover a ring, drag to turn the rete'" flush>
       <div class="stage" @pointerdown="grab" @pointermove="turnRete" @pointerup="letGo" @pointercancel="letGo">
-        <Plate :draw="drawAstrolabe" :active="active" animated :cell="narrow ? 1 : 2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
-        <svg class="arcs" viewBox="-112 -112 224 224" preserveAspectRatio="xMidYMid meet">
-          <g v-for="l in labels" :key="l.code" class="arc" :class="[l.status, { hot: hovered === l.code, sel: chosen === l.code }]">
-            <path class="hit" :d="l.d" tabindex="0" role="button" :aria-label="`${l.name}, ${l.ects} ECTS, ${STATUS[l.status]}`"
-                  @pointerenter="overArc(l.code)" @pointerleave="offArc" @focus="overArc(l.code)" @blur="offArc" @click="choose(l.code)" @keydown.enter="choose(l.code)" />
-            <text :transform="`translate(${l.x.toFixed(2)} ${l.y.toFixed(2)}) rotate(${l.rot.toFixed(1)})`" text-anchor="middle" dominant-baseline="middle">{{ l.code }} {{ l.ects }}</text>
-          </g>
-          <text v-for="n in 6" :key="n" class="sem" :x="-3.5" :y="-(34 + n * 12) + 1.8" text-anchor="end">{{ ['i', 'ii', 'iii', 'iv', 'v', 'vi'][n - 1] }}</text>
-        </svg>
+        <div class="dial">
+          <Plate :draw="drawAstrolabe" :active="active" animated :cell="narrow ? 1 : 2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
+          <svg class="arcs" viewBox="-112 -112 224 224" preserveAspectRatio="xMidYMid meet">
+            <g v-for="l in labels" :key="l.code" class="arc" :class="[l.status, { hot: hovered === l.code, sel: chosen === l.code }]">
+              <path class="hit" :d="l.d" tabindex="0" role="button" :aria-label="`${l.name}, ${l.ects} ECTS, ${STATUS[l.status]}`"
+                    @pointerenter="overArc(l.code)" @pointerleave="offArc" @focus="overArc(l.code)" @blur="offArc" @click="choose(l.code)" @keydown.enter="choose(l.code)" />
+              <text :transform="`translate(${l.x.toFixed(2)} ${l.y.toFixed(2)}) rotate(${l.rot.toFixed(1)})`" text-anchor="middle" dominant-baseline="middle">{{ l.code }} {{ l.ects }}</text>
+            </g>
+            <text v-for="n in 6" :key="n" class="sem" :x="-3.5" :y="-(34 + n * 12) + 1.8" text-anchor="end">{{ ['i', 'ii', 'iii', 'iv', 'v', 'vi'][n - 1] }}</text>
+          </svg>
+        </div>
         <Transition name="card" mode="out-in">
           <div v-if="card" :key="card.m.code" class="mcard">
             <span class="pix">{{ card.m.code }} // semester {{ card.m.sem }} // {{ STATUS[card.m.status] }}</span>
@@ -842,6 +844,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .instrument :deep(.flush) { overflow: hidden; }
 .stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; cursor: grab; touch-action: none; }
 .stage:active { cursor: grabbing; }
+.dial { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .arcs { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; cursor: pointer; outline: none; }
 .arc text { font: 400 5.2px var(--pix); fill: var(--phos); text-transform: uppercase; letter-spacing: .04em; pointer-events: none; transition: fill .25s var(--out); }
@@ -967,6 +970,20 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 .sphere :deep(.flush) { overflow: hidden; }
 .sphere :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
 @media (max-aspect-ratio: 5/4) { .academy { grid-template-columns: minmax(0, 1fr) minmax(0, .6fr); grid-template-rows: minmax(0, 1.2fr) auto minmax(260px, .6fr); grid-template-areas: "instrument instrument" "side side" "stacks sphere"; } }
-@media (max-width: 860px) { .academy { display: flex; flex-direction: column; } .instrument { min-height: 480px; } .legend { grid-template-columns: auto auto; gap: 4px 18px; bottom: 10px; } .week { min-height: 340px; overflow-x: auto; } .grid { min-width: 560px; } .sphere { min-height: 280px; } .mcard { width: auto; right: 14px; } }
+@media (max-width: 860px) {
+  .academy { display: flex; flex-direction: column; }
+  .instrument { min-height: 0; }
+  /* The plate whole and square, the key and the card beneath it, and only
+     this term's arcs named. */
+  .dial { flex: none; aspect-ratio: 1; }
+  .legend, .mcard { position: static; width: auto; margin: 0 12px 12px; }
+  .legend { grid-template-columns: auto auto; gap: 6px 18px; }
+  .legend .how { display: none; }
+  .arc text { display: none; font-size: 6px; }
+  .arc.running text, .arc.hot text, .arc.sel text { display: inline; }
+  .week { min-height: 340px; overflow-x: auto; }
+  .grid { min-width: 560px; }
+  .sphere { min-height: 280px; }
+}
 @media (prefers-reduced-motion: reduce) { .grade.press, .word, .card-enter-active, .add.asking input, .now::before { animation: none; transition: none; } }
 </style>

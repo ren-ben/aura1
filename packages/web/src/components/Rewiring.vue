@@ -7,6 +7,7 @@
 // dropped on the bus becomes one.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { localDate, plan, state, type Block } from '../store';
+import { narrow } from '../screen';
 import { SHADES, SNAP, blocksOn, dayOf, drawnOn, hm, hours, lecturesOn, overlap, starInk, starsOf, sunOf, type Lecture, type Span } from '../rewiring';
 
 const props = withDefaults(defineProps<{ dates: string[]; hour?: number; heads?: boolean }>(), { hour: 44, heads: false });
@@ -42,7 +43,7 @@ function lay(date: string): Item[] {
 const days = computed(() => props.dates.map((date) => ({ date, items: lay(date), drawn: drawnOn(date), stat: dayOf(date) })));
 const place = (it: Item) => ({
   top: `calc(${px(it.start)} + 1px)`, height: `calc(${px(it.end - it.start)} - 2px)`,
-  left: `calc(28px + (100% - 34px) * ${it.lane / it.lanes})`, width: `calc((100% - 34px) / ${it.lanes} - ${it.lanes > 1 ? 3 : 0}px)`,
+  left: `calc(var(--tl) + (100% - var(--tl) - 6px) * ${it.lane / it.lanes})`, width: `calc((100% - var(--tl) - 6px) / ${it.lanes} - ${it.lanes > 1 ? 3 : 0}px)`,
 });
 const keptIn = (b: Span, drawn: Span[]) => drawn.filter((s) => overlap(b, s) > 0)
   .map((s) => ({ start: Math.max(s.start, b.start) - b.start, end: Math.min(s.end, b.end) - b.start }));
@@ -204,11 +205,13 @@ const catPx = CAT.flatMap((row, y) => [...row].flatMap((ch, x) => (ch === '#' ? 
 function select(id: number) { selId.value = id; }
 function reveal(minute: number) { if (root.value) root.value.scrollTop = (Math.max(0, minute) / 60) * props.hour; }
 defineExpose({ root, select, reveal });
+// A week on a phone: each day a sliver, so only the bus and its taps.
+const cram = computed(() => narrow.value && props.dates.length > 3);
 const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase();
 </script>
 
 <template>
-  <div ref="root" class="rw" :style="{ '--hour': `${hour}px` }">
+  <div ref="root" class="rw" :class="{ cram }" :style="{ '--hour': `${hour}px` }">
     <div v-if="heads" class="heads">
       <div v-for="d in days" :key="d.date" class="head" :class="{ today: d.date === todayStr, over: d.stat.wired > d.stat.capacity }">
         <span class="pix">{{ weekday(d.date) }} <b class="tek">{{ d.date.slice(8) }}.{{ d.date.slice(5, 7) }}</b></span>
@@ -248,7 +251,7 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
           </template>
         </template>
 
-        <form v-if="draft && draft.date === d.date" class="tap draft" :style="{ top: px(draft.start), height: px(draft.end - draft.start), left: '28px', width: 'calc(100% - 34px)' }"
+        <form v-if="draft && draft.date === d.date" class="tap draft" :style="{ top: px(draft.start), height: px(draft.end - draft.start), left: 'var(--tl)', width: 'calc(100% - var(--tl) - 6px)' }"
               @submit.prevent="commit" @pointerdown.stop>
           <span class="time pix">{{ hm(draft.start) }}-{{ hm(draft.end) }}</span>
           <input v-if="draft.typing" ref="draftIn" v-model="draft.title" class="t" maxlength="120" placeholder="name the tap" aria-label="New block"
@@ -286,7 +289,7 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 </template>
 
 <style scoped>
-.rw { position: relative; flex: 1 1 0; height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--low) transparent; user-select: none; -webkit-user-select: none; }
+.rw { --tl: 28px; position: relative; flex: 1 1 0; height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--low) transparent; user-select: none; -webkit-user-select: none; }
 .heads { position: sticky; top: 0; z-index: 9; display: flex; padding-left: 38px; background: var(--ground); border-bottom: 3px dotted var(--low); }
 .head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-left: 1px dotted var(--faint); }
 .head .tek { font-size: 17px; margin-left: 4px; }
@@ -359,5 +362,24 @@ const weekday = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-
 .bin:hover { color: var(--hi); border-color: var(--hi); }
 .bin svg { width: 13px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: square; }
 @media (prefers-reduced-motion: reduce) { .cat .glint, .sag .bus { animation: none; } }
+
+.cram { --tl: 8px; }
+.cram .heads { padding-left: 24px; }
+.cram .gutter { width: 24px; }
+.cram .gutter span { left: 2px; }
+.cram .head { padding: 5px 2px; align-items: center; gap: 1px; }
+.cram .head > .pix:first-child { display: flex; flex-direction: column; align-items: center; }
+.cram .head .tek { font-size: 12px; margin: 0; }
+.cram .head .load { font-size: 8.5px; }
+.cram .head .load .x, .cram .dawn, .cram .stub, .cram .tap .time, .cram .tap::before, .cram .cat { display: none; }
+.cram .bus { left: 4px; }
+.cram .drawn { left: 2px; width: 5px; }
+.cram .tap { padding: 3px; }
+.cram .tap .t { font-size: 11px; }
+.cram .tap.lock .t { font-size: 8px; }
+.cram .now { left: 0; }
+.cram .now span { right: auto; left: 0; }
+/* A sliver has no room beside it: the card rises from the foot of the screen. */
+.cram .pop { position: fixed; inset: auto 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px !important; width: auto; max-width: none; }
 
 </style>

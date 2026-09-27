@@ -7,6 +7,7 @@ import RewiringSheet from '../components/RewiringSheet.vue';
 import Wiring, { type View } from '../components/Wiring.vue';
 import { actions, clock, localDate, plan, state, today, type Todo } from '../store';
 import { dateShift, dayOf, hisLine, hours } from '../rewiring';
+import { narrow } from '../screen';
 
 defineProps<{ active: boolean }>();
 
@@ -93,7 +94,7 @@ const since = (iso: string | null) => {
       </form>
     </Frame>
 
-    <Frame class="wire" :title="`the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
+    <Frame class="wire" :title="narrow ? 'the rewiring' : `the rewiring // rev ${wired.rev} // ${hours(wired.wired)} of ${hours(wired.capacity)} h wired // ${hours(wired.kept)} drawn`" flush>
       <template #bar>
         <span class="days">
           <button class="x" aria-label="The day before" @click="step(-1)">&lsaquo;</button>
@@ -160,5 +161,13 @@ const since = (iso: string | null) => {
   .today { display: flex; flex-direction: column; }
   .list { min-height: 360px; }
   .wire { height: 70vh; min-height: 460px; flex: none; }
+  /* The bar under the title, the whole of it inside the frame. */
+  .wire > :deep(.bar) { flex-wrap: wrap; gap: 6px; }
+  .wire > :deep(.bar) > span:first-child { flex-basis: 100%; }
+  .wire .days { margin-left: 0; }
+  .wire .days .x, .wire .views .x { padding: 2px 3px; }
+  .wire .days .day { min-width: 58px; }
+  .wire .views { margin-left: 4px; }
+  .wire .open { margin-left: auto; }
 }
 </style>
