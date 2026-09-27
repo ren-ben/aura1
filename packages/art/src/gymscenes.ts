@@ -34,12 +34,13 @@ const belt = (hip: Pt, hang: Pt, p: Palette) =>
 export const GYM: GymScene[] = [
   // ---- The road and the stairs ----
   { id: 'jog', name: 'Jogging', draw: (p) => figure({
-    hip: [196, 300], shoulder: [210, 232], neck: [214, 226], turn: 4, watch: true,
-    arms: { near: [[214, 240], [240, 270], [266, 250]], far: [[204, 240], [178, 264], [160, 286]] },
-    legs: { near: [[202, 306], [240, 322], [232, 364]], far: [[190, 310], [176, 350], [150, 378]] },
-    tail: [[170, 300], [138, 304], [112, 292], [98, 270]],
-  }, E.happy, p) + floor(p) },
-
+    // In the flow: leaning into it, both feet off the ground, the front one
+    // reaching, the back one just pushed off, arms swinging at ninety.
+    hip: [190, 292], shoulder: [216, 230], neck: [222, 224], turn: 8, watch: true,
+    arms: { near: [[222, 238], [246, 262], [268, 240]], far: [[212, 238], [188, 262], [168, 252]] },
+    legs: { near: [[196, 298], [238, 314], [258, 350]], far: [[184, 302], [160, 334], [118, 348]] },
+    tail: [[166, 292], [130, 288], [104, 278], [88, 262]],
+  }, E.vowing, p) + floor(p) },
   { id: 'stairs', name: 'Stairmaster', draw: (p) => {
     const steps = 'M150 392 V360 H200 V328 H250 V296 H300 V264 H330 V392 Z';
     return `<path d="${steps}" fill="url(#d50)" stroke="${p.ink}" stroke-width="5" stroke-linejoin="round"/>`
@@ -110,27 +111,28 @@ export const GYM: GymScene[] = [
     }, E.vowing, p) + floor(p) },
 
   { id: 'machinefly', name: 'Machine Fly', draw: (p) =>
-    frame(60, 340, 120, p) + solid(150, 180, 100, 150, p, 12) + tube([200, 336], [200, FLOOR], 12, p) + solid(150, 330, 100, 18, p, 6)
-    + tube([200, 136], [108, 214], 10, p) + tube([200, 136], [292, 214], 10, p)
+    // The pec deck: the back pad, and the two arm pads his forearms press.
+    frame(60, 340, 120, p) + tube([200, 336], [200, FLOOR], 12, p)
+    + light('M150 190h100v140h-100z', p, 5) + light('M150 330h100v16h-100z', p, 4)
+    + tube([200, 150], [118, 208], 8, p) + tube([200, 150], [282, 208], 8, p) + tube([200, 136], [200, 190], 12, p)
     + figure({
       front: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
       arms: { near: [[222, 262], [276, 264], [282, 222]], far: [[178, 262], [124, 264], [118, 222]] },
       legs: { near: [[214, 326], [226, 352], [228, 388]], far: [[186, 326], [174, 352], [172, 388]] },
-      over: solid(266, 206, 26, 76, p, 8) + solid(108, 206, 26, 76, p, 8),
-    }, E.content, p) + floor(p) },
-
+      over: light('M270 206h24v74h-24z', p, 4) + light('M106 206h24v74h-24z', p, 4),
+    }, E.vowing, p) + floor(p) },
   { id: 'tricep', name: 'Tricep Ext', draw: (p) =>
+    // Upper arms level on the pad, elbows at its front; the forearms travel
+    // from pointing up to straight ahead.
     tower(318, 60, 120, p) + tube([168, 344], [246, 344], 22, p) + tube([204, 354], [204, FLOOR], 12, p)
-    + tube([218, 270], [284, 302], 22, p)
+    + tube([226, 280], [290, 280], 22, p) + tube([258, 292], [258, FLOOR], 12, p)
     + figure({
-      hip: [192, 326], shoulder: [206, 256], neck: [212, 248], turn: 4,
-      arms: { near: [[214, 262], [276, 292], [274, 342]], far: [[206, 262], [268, 294], [266, 344]] },
+      hip: [192, 326], shoulder: [206, 256], neck: [212, 248], turn: 2,
+      arms: { near: [[214, 264], [278, 266], [292, 222]], far: [[206, 264], [270, 268], [282, 224]] },
       legs: { near: [[198, 330], [246, 336], [250, 386]], far: [[190, 332], [238, 340], [240, 388]] },
       tail: [[168, 334], [140, 350], [120, 372], [106, 390]],
-      over: tube([284, 298], [276, 350], 8, p),
+      over: tube([284, 270], [296, 214], 7, p) + light('M286 206h14v22h-14z', p),
     }, E.vowing, p) + floor(p) },
-
-  // ---- Pull ----
   { id: 'latpush', name: 'Lat Pushdown', draw: (p) =>
     tower(318, 62, 70, p, [92]) + cable([349, 92], [236, 322], p)
     + figure({
@@ -156,10 +158,11 @@ export const GYM: GymScene[] = [
       front: true, hip: [200, 342], shoulder: [200, 280], neck: [200, 264],
       arms: { near: [[222, 280], [276, 298], [262, 256]], far: [[178, 280], [124, 298], [138, 256]] },
       legs: { near: [[212, 350], [224, 376], [214, 398]], far: [[188, 350], [176, 376], [186, 398]] },
-      held: belt([200, 350], [200, 386], p),
-      over: tube([20, 258], [380, 258], 12, p),
+      over: tube([20, 258], [380, 258], 12, p)
+        // The belt's chain, and the plate hanging from it, face on.
+        + `<path d="M186 348L200 364L214 348" fill="none" stroke="${p.paper}" stroke-width="7"/><path d="M186 348L200 364L214 348" fill="none" stroke="${p.ink}" stroke-width="3.5" stroke-dasharray="5 3"/>`
+        + plate([200, 372], 30, p),
     }, E.vowing, p) },
-
   { id: 'pulldown', name: 'Lat Pulldown', draw: (p) =>
     tube([64, 30], [64, FLOOR], 14, p) + tube([336, 30], [336, FLOOR], 14, p) + tube([64, 30], [336, 30], 14, p) + pulley([200, 44], p)
     + cable([200, 44], [200, 252], p)
@@ -223,26 +226,27 @@ export const GYM: GymScene[] = [
     }, E.vowing, p) + floor(p) },
 
   { id: 'reversefly', name: 'Reverse Fly', draw: (p) =>
-    frame(40, 360, 110, p) + tube([200, 124], [74, 250], 10, p) + tube([200, 124], [326, 250], 10, p)
-    + tube([200, 336], [200, FLOOR], 12, p) + solid(150, 330, 100, 18, p, 6)
+    // Chest to the pad, straight arms swung out level at shoulder height; the
+    // handles ride on arms from the post behind him.
+    tube([200, 150], [200, FLOOR], 16, p) + tube([200, 252], [74, 252], 9, p) + tube([200, 252], [326, 252], 9, p)
+    + tube([200, 336], [200, FLOOR], 12, p) + light('M150 330h100v16h-100z', p, 4)
     + figure({
       front: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
-      arms: { near: [[222, 262], [276, 258], [326, 252]], far: [[178, 262], [124, 258], [74, 252]] },
+      arms: { near: [[222, 262], [276, 260], [326, 258]], far: [[178, 262], [124, 260], [74, 258]] },
       legs: { near: [[214, 326], [226, 352], [228, 388]], far: [[186, 326], [174, 352], [172, 388]] },
-      over: solid(164, 270, 72, 56, p, 12) + light('M320 238h12v30h-12z', p) + light('M68 238h12v30h-12z', p),
+      over: solid(164, 272, 72, 54, p, 10) + light('M320 240h12v34h-12z', p) + light('M68 240h12v34h-12z', p),
     }, E.vowing, p) + floor(p) },
-
-  // ---- Arms ----
   { id: 'egyptian', name: 'Egyptian Raise', draw: (p) =>
-    tube([46, 90], [46, FLOOR], 18, p) + pulley([60, 368], p) + cable([60, 368], [336, 236], p)
+    // Holding the column, leaning away; the far arm raises the cable from the
+    // low pulley out to the side.
+    tube([116, 90], [116, FLOOR], 18, p) + pulley([130, 368], p) + cable([130, 368], [336, 236], p)
     + figure({
       front: true, hip: [214, 318], shoulder: [228, 258], neck: [230, 244], turn: 14,
-      arms: { near: [[250, 258], [296, 244], [338, 236]], far: [[206, 262], [136, 258], [58, 250]] },
+      arms: { near: [[250, 258], [296, 244], [338, 236]], far: [[206, 262], [166, 258], [128, 252]] },
       legs: { near: [[226, 326], [240, 358], [246, 386]], far: [[200, 326], [178, 358], [164, 386]] },
       tail: [[236, 348], [274, 364], [302, 350], [312, 322]],
       over: dHandle([338, 236], p),
     }, E.vowing, p) + floor(p) },
-
   { id: 'preacher', name: 'Preacher Curl', draw: (p) =>
     tube([160, 344], [232, 344], 22, p) + tube([196, 354], [196, FLOOR], 12, p)
     + tube([232, 258], [292, 302], 24, p) + tube([292, 302], [300, FLOOR], 14, p) + tube([290, 304], [262, 250], 8, p)
