@@ -59,6 +59,14 @@ cannot be switched off from the middle of a book; go to the menu first.
 - **At midnight** (the server's time zone) todos you finished drop off and habits open
   for the new day, even before the next sync.
 - **Ticks work offline.** They go out with the next sync, and the web shows them after.
+- **HUNT** is the gym. It opens on his verdict for the day (REST, IRON with the group,
+  RUN or STAIRS) and every movement with what to lift next beside it. SUN walks, POWER
+  starts the hunt on one: a HUNT/lifting session begins and the first set is on the glass,
+  `100 x 8`, with last time's sets under it and him in the movement's pose. POWER: done as
+  shown. SUN: it went otherwise, pick the reps, then the load, POWER takes each. Rest
+  counts down in fifteens and a bell rings when it is over (POWER skips it). After the
+  last set, how it felt: EASY, SOLID or GRIND. END HUNT, last on the list, seals it. Every
+  set is kept on the card and goes out with the next sync; nothing needs Wi-Fi at the gym.
 - **PEACE** is a sit (the Vigil's). SUN walks the practices (each with its length beside it), POWER
   picks one; SUN walks the lengths (5 to 60 minutes, or OPEN), POWER sits, holding SUN
   goes back a step. A knock opens the sit. He sits still in one of four places; the
@@ -113,7 +121,17 @@ with Kael'thos at its centre.
   the button to lay it flat and read it), Rituals (habits: click any dot to set that
   day), Intercept (the quotes he says on the device: write them in here), The Vessel
   (the device as it last reported, and its looks: send one and it wears it at the next
-  sync), The Orrery, The Pact, The Library, The Vigil, The Academy, and one sealed room.
+  sync), The Orrery, The Pact, The Library, The Vigil, The Academy and The Hunt.
+- **The Hunt:** the body he borrows. Your photographs, dithered, each group marked by
+  how recently it was fed. The transformation: the week's energy (from Garmin) flowing
+  into work and heat, and a thread of it into him, `m = E / c^2`, with the week by day and
+  the counters under it. His verdict and your readiness, then the iron: every movement
+  with its next sets, its e1RM line and a PR mark. Click one for his pose, the history,
+  every set to correct, how each visit felt, a visit written in by hand, and its tuning
+  (rep range, step, rest) or retirement. The coach: at the top of the rep range on the
+  top set, one step up; inside it, one more rep (two when it felt easy, none after a
+  grind); twice under it, one step down. Back-offs drop by your own usual drop. The road:
+  kilometres by week, zone two share, and the last runs and stairs.
 - **The Vigil:** the ten gates of [the ascent](vigil/ASCENT.md) on the Tree of Life,
   every sit as a star in the night record, and Stillness counted apart from Insight.
   Click a gate for its practices, the signs to tick off, its secret and its shadow. The
@@ -206,7 +224,22 @@ On the web he lives in the bottom-right corner, drawn live from the same rig: he
 breathes, blinks, looks around, reacts to what you tick and log, and blushes when you
 click him. His resting mood follows his decay.
 
-### 4. Install the dashboard on your phone
+### 4. Link Garmin (about 5 min)
+
+Put `GARMIN_EMAIL` and `GARMIN_PASSWORD` in the server's `.env`, then log in once, with
+the code Garmin sends:
+
+```bash
+docker compose run --rm garmin python garmin_sync.py login
+docker compose up -d garmin
+```
+
+The tokens stay in a volume; after that it pulls every 30 minutes (the first pull reaches
+back 400 days), and *pull now* on The Hunt asks at once. It uses the community
+python-garminconnect, so a change at Garmin can break it: the iron and the device carry on
+without it, and Strava can take its place behind the same route.
+
+### 5. Install the dashboard on your phone
 
 Open `aura.amygdala-inc.org`, log in, then install it: Safari's Share menu, *Add to Home
 Screen* on iPhone, or the install prompt in Chrome on Android. It opens full screen with
@@ -214,7 +247,7 @@ Kael'thos as its icon. The shell opens offline; data needs a connection.
 
 ## What to test
 
-These eleven checks cover what the software tests on the PC cannot reach. The full list is
+These twelve checks cover what the software tests on the PC cannot reach. The full list is
 in [hardware-checklist.md](hardware-checklist.md).
 
 | # | Do this | It passes when |
@@ -230,6 +263,7 @@ in [hardware-checklist.md](hardware-checklist.md).
 | 9 | PEACE, Cyclic Sigh, 5 MIN, with a speaker on the header | A knock at the start, rings breathing each second, the swell and knock at 5 minutes |
 | 10 | PEACE, Noting, 10 MIN | A faint bell at 5 minutes, the caption goes 10 then 5 MIN LEFT, the sit shows on The Vigil after sync |
 | 11 | Cyclic Sigh for its whole 5 minutes, watching the glass | The rings keep time without smearing, and there is no full-screen flash |
+| 12 | Hotspot off: HUNT, two movements, one set adjusted, a rest left to run out | The bell at the end of the rest; after a sync the sets, the adjusted one and the feel are on The Hunt |
 
 **Send back:**
 
@@ -278,7 +312,9 @@ in [hardware-checklist.md](hardware-checklist.md).
 7. **Phase 7, the Vigil:** built. Sits on the device with its sounds, the ascent on the
    web. Still to check on the hardware: the speaker (tests 9 and 10).
 8. **Phase 8, the Academy:** built. Exam dates will follow once u:find posts them.
-9. **Phase 9, workout tracker:** weights and cardio. Details to come.
+9. **Phase 9, the Hunt:** built. Sets on the device, the coach, Garmin through the
+   sidecar, the verdict, the energy ledger. Still to check: the Garmin login from the Pi,
+   and the rest bell on the hardware (test 12).
 
 **Open along the way:** the Bloodborne and Halloween skins (phase 4b, planned); check the
 latest firmware on the hardware (sync speed, the

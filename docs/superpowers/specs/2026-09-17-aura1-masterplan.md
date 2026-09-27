@@ -178,7 +178,9 @@ contract has exactly one definition.
   the curriculum. Course data comes from u:find's public XML
   (`m1-ufind.univie.ac.at/courses/<nr>/<semester>`: name, type, ECTS, module
   codes, dates, rooms); grades are entered by hand, u:space has no API.
-- **Phase 9** Workout tracker, weights and cardio/runs. Details to come.
+- **Phase 9** The Hunt (built 2026-09-27): sets on the device, the coach, Garmin runs
+  and recovery through a sidecar, the daily verdict, and the energy ledger. Spec:
+  `2026-09-27-the-hunt-design.md`.
 - Audio: only the meditation chimes on the onboard speaker. No mic capture.
 
 ---

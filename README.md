@@ -60,6 +60,7 @@ packages/
   web/       Vue 3 + Vite dashboard
   shared/    the sync wire format (zod), used by the api and the web
   art/       Kael'thos: the rig, faces, poses, scenes, and the bake to the device
+  garmin/    the sidecar that pulls runs and recovery from Garmin into the Hunt
 docs/        the guide, deploy notes, the hardware checklist
 ```
 

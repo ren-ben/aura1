@@ -1,7 +1,7 @@
 # The Hunt (Phase 9)
 
 Date: 2026-09-27
-Status: design, awaiting review
+Status: built
 
 The body's pane. Iron and distance in one place: a coach that says what to
 lift next, sets logged on AURA-1 at the gym, runs and recovery pulled from
@@ -190,9 +190,9 @@ END HUNT          stops the session; the sealed scene shows the session's work
                   in kJ
 ```
 
-Sets and feels go into the existing queue and sync file as their own event
-kinds, keyed by uuid, so resending is harmless. Hold SUN leaves a set without
-logging. The morning verdict is drawn on the wake screen and in TODAY.
+Sets and feels queue on the card as their own lines, keyed by uuid, and leave
+it once the server settles them, so resending is harmless. Hold SUN leaves a
+set without logging. The verdict heads the HUNT place.
 
 **Poses.** Nine poses on the art rig, shared by the glass and the pane: press
 (bench, incline, chest press), fly, dip, hang (pull-up, muscle up, pulldowns),
@@ -203,9 +203,8 @@ the locked style (packages/art/STYLE.md), checked against the reference.
 
 ## 8. The pane
 
-The pinnacle of the dashboard. Visual direction is chosen from rendered
-mockups first (three distinct directions built in the app on sample data,
-screenshotted in demo mode); the content is fixed here:
+The pinnacle of the dashboard, built directly on the user's word (no
+mockup round):
 
 - **The verdict**: the word, the line, readiness, sleep, HRV, body battery.
 - **The body**: the user's own physique, dithered in the house style (the back pose
@@ -258,7 +257,7 @@ that fails; Strava can replace it behind the same ingest route.
 
 ## 11. Build order
 
-1. Mockups: three directions for the pane and the device screens; pick.
+1. The pane built on the user's word, checked in demo screenshots.
 2. shared (coach, verdict, ledger) and the API with seeds.
 3. Garmin sidecar.
 4. Firmware HUNT mode and the poses.
