@@ -10,12 +10,13 @@ import art from '../gl/art.json';
 import { catSprite } from '../gl/plate';
 import { hunt as act, state } from '../store';
 import {
-  along, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
+  along, ARM_MARKS, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
   type HuntExercise, type HuntSetRow, type Iron, type Mark, type Source,
 } from '../hunt';
 import { EFFICIENCY, FEELS, POSES as ALL_POSES, type Group, type Pose } from '@aura/shared';
 import backUrl from '../assets/hunt/back.png';
 import frontUrl from '../assets/hunt/front.png';
+import armUrl from '../assets/hunt/arm.png';
 
 const props = defineProps<{ active: boolean }>();
 const h = computed(() => state.hunt);
@@ -59,7 +60,7 @@ function photo(url: string) {
   src.src = url;
   return { img, ready };
 }
-const back = photo(backUrl), front = photo(frontUrl);
+const back = photo(backUrl), front = photo(frontUrl), arm = photo(armUrl);
 // The photograph in the plate's grey, lifted a little, a slow band of light
 // passing over it like a lamp carried past an engraving.
 const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
@@ -73,7 +74,7 @@ const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: nu
   g.fillStyle = band; g.fillRect(0, 0, w, hh);
   g.globalCompositeOperation = 'source-over';
 };
-const drawBack = lit(back), drawFront = lit(front);
+const drawBack = lit(back), drawFront = lit(front), drawArm = lit(arm);
 const glow = (m: Mark) => freshness(rest.value[m.group]);
 
 // ---- The transformation -------------------------------------------------------
@@ -322,6 +323,18 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
             <b>{{ GROUP_WORDS[m.group] }}</b><i>{{ ago(rest[m.group]) }}</i>
           </span>
         </figure>
+        <figure class="photo armp">
+          <Plate :draw="drawArm" :active="active" animated :cell="1" label="Your arm, flexed, dithered in the console's two inks" />
+          <svg class="marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <g v-for="m in ARM_MARKS" :key="m.group" class="mark" :style="{ '--glow': glow(m) }">
+              <circle :cx="m.x * 100" :cy="m.y * 100" r="1.6" vector-effect="non-scaling-stroke" />
+              <circle class="ring" :cx="m.x * 100" :cy="m.y * 100" r="3" vector-effect="non-scaling-stroke" />
+            </g>
+          </svg>
+          <span v-for="m in ARM_MARKS" :key="m.group" class="tag" :class="m.side" :style="{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, '--glow': glow(m) }">
+            <b>{{ GROUP_WORDS[m.group] }}</b><i>{{ ago(rest[m.group]) }}</i>
+          </span>
+        </figure>
       </div>
       <div class="legs"><span class="pix">legs</span><span class="note">carried by the road and the stairs, last {{ ago(rest.legs) }}</span>
         <span class="pix weight">vessel <input v-model.number="weight" type="number" min="30" max="200" step="0.1" aria-label="bodyweight in kilograms" @change="act.bodyweight(weight)"> kg</span></div>
@@ -496,6 +509,9 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .backp { top: 3cqh; right: 4cqw; height: var(--bh); width: calc(var(--bh) * 388 / 640); }
 .frontp { left: 4cqw; bottom: 20cqh; width: min(70cqw, calc((94cqh - var(--bh) * .62) * 537 / 460)); aspect-ratio: 537 / 460;
   border: 3px double var(--low); background: var(--ground); }
+/* The third print: the arm, flexed, pinned under the back's lower corner on
+   the other side, where the empty ground was. */
+.armp { right: 3cqw; bottom: 2cqh; width: min(64cqw, 40cqh * 442 / 296); aspect-ratio: 442 / 296; border: 3px double var(--low); background: var(--ground); }
 .marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mark circle { fill: rgba(230, 224, 212, calc(.25 + var(--glow) * .75)); stroke: none; }
 .mark .ring { fill: none; stroke: rgba(230, 224, 212, calc(.15 + var(--glow) * .7)); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
