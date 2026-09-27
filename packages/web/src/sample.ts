@@ -4,6 +4,8 @@ import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quot
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
+import { sampleHunt, type Hunt } from './hunt';
+import { verdict, bouts } from '@aura/shared';
 
 const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const r = rng(1789);
@@ -206,9 +208,36 @@ const reading: Reading = {
 };
 
 // The API's routes, in memory.
+let hunt: Hunt = sampleHunt();
+function huntApi(method: string, seg: string[], body: any): unknown {
+  const key = `${method} ${seg.slice(1).map((x) => (/^[0-9a-f-]{6,}$/.test(x) ? ':id' : x)).join('/')}`;
+  switch (key) {
+    case 'GET ': return structuredClone(hunt);
+    case 'POST sets': hunt.sets.push(...body.sets.map((s: any) => ({ ...s, source: 'phone' }))); hunt.sets.sort((a, b) => a.at.localeCompare(b.at)); break;
+    case 'PATCH sets/:id': Object.assign(hunt.sets.find((s) => s.uuid === seg[2])!, body); break;
+    case 'DELETE sets/:id': hunt.sets = hunt.sets.filter((s) => s.uuid !== seg[2]); break;
+    case 'PUT feels': hunt.feels = [...hunt.feels.filter((f) => !(f.exerciseId === body.exerciseId && f.date === body.date)), body]; break;
+    case 'POST exercises': hunt.exercises.push({ ...body, id: nextId++, archived: false }); break;
+    case 'PATCH exercises/:id': {
+      const e = hunt.exercises.find((x) => x.id === Number(seg[2]))!;
+      const { archived, ...rest } = body;
+      Object.assign(e, rest, archived === undefined ? {} : { archived });
+      break;
+    }
+    case 'PUT bodyweight': hunt.bodyweight = body.kg; break;
+    case 'POST garmin/refresh': hunt.garminSyncedAt = new Date().toISOString(); break;
+    default: throw new Error(`demo: ${method} /hunt/${seg.slice(1).join('/')}`);
+  }
+  const groups = new Map(hunt.exercises.map((e) => [e.id, e.group]));
+  hunt.verdict = verdict({ now: new Date(), today: day(new Date()), days: hunt.days, activities: hunt.activities,
+    lifts: bouts(hunt.sets).map((b) => ({ at: b[0]!.at, group: groups.get(b[0]!.exerciseId)! })) });
+  return undefined;
+}
+
 export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
   const seg = route!.split('/').filter(Boolean);
+  if (seg[0] === 'hunt') return huntApi(method, seg, body);
   const id = Number(seg[1]);
   const second = seg[1] === undefined ? '' : /^\d+$/.test(seg[1]) ? '/:id' : `/${seg[1]}`;
   const key = `${method} /${seg[0]}${second}${seg[2] && !/^\d+$/.test(seg[2]) ? `/${seg[2]}` : ''}`;

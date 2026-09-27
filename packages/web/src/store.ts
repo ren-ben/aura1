@@ -3,6 +3,7 @@
 import { computed, reactive } from 'vue';
 import type { GrownNode, LectureDto, LectureMapDto, MapMark } from '@aura/shared';
 import { demoApi } from './sample';
+import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
 
 export type Progress = { xp: number; level: number; nextLevelXp: number };
 export type Form = 'stable' | 'thinning' | 'fragmenting' | 'dormant';
@@ -82,6 +83,7 @@ export const state = reactive({
   blocks: [] as Block[],
   planDays: [] as PlanDay[],
   reading: { current: [], read: [] } as Reading,
+  hunt: EMPTY_HUNT as Hunt,
 });
 
 export function localDate(d = new Date()): string {
@@ -130,7 +132,7 @@ export async function load(): Promise<void> {
     call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
     call<Device>('GET', '/device'), call<Book[]>('GET', '/books'), call<Mark[]>('GET', '/marks'),
     call<Vigil>('GET', '/vigil'), call<Course[]>('GET', '/academy'), call<Plan>('GET', blocksPath()),
-    call<Reading>('GET', '/reading'),
+    call<Reading>('GET', '/reading'), call<Hunt>('GET', '/hunt'),
   ]);
   let got;
   try {
@@ -142,7 +144,7 @@ export async function load(): Promise<void> {
   }
   let plan: Plan;
   [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device,
-    state.books, state.marks, state.vigil, state.courses, plan, state.reading] = got;
+    state.books, state.marks, state.vigil, state.courses, plan, state.reading, state.hunt] = got;
   [state.blocks, state.planDays] = [plan.blocks, plan.days];
   state.ready = true;
 }
@@ -175,6 +177,7 @@ export const chapterOf = (bookId: number, idx: number) =>
 const reVigil = async () => { state.vigil = await call<Vigil>('GET', '/vigil'); };
 const reCourses = async () => { state.courses = await call<Course[]>('GET', '/academy'); };
 const rePlan = async () => { const p = await call<Plan>('GET', blocksPath()); [state.blocks, state.planDays] = [p.blocks, p.days]; };
+const reHunt = async () => { state.hunt = await call<Hunt>('GET', '/hunt'); };
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.
@@ -261,6 +264,24 @@ export const actions = {
   gradeCourse: (c: Course, grade: number | null) => act('PATCH', `/academy/courses/${c.id}`, { grade }, [reCourses]),
   groupCourse: (c: Course, groupId: string | null) => act('PATCH', `/academy/courses/${c.id}`, { groupId }, [reCourses]),
   removeCourse: (c: Course) => act('DELETE', `/academy/courses/${c.id}`, undefined, [reCourses]),
+};
+
+// The Hunt: sets written in or put right on the phone, how a visit felt,
+// the list of movements, the body's weight, and a pull from Garmin now.
+export const hunt = {
+  addSets: (sets: Omit<HuntSetRow, 'source'>[]) => act('POST', '/hunt/sets', { sets }, [reHunt]),
+  editSet: (s: HuntSetRow, patch: { load?: number; reps?: number }) => act('PATCH', `/hunt/sets/${s.uuid}`, patch, [reHunt]),
+  removeSet: (s: HuntSetRow) => act('DELETE', `/hunt/sets/${s.uuid}`, undefined, [reHunt]),
+  feel: (exerciseId: number, date: string, feel: string) => act('PUT', '/hunt/feels', { exerciseId, date, feel }, [reHunt]),
+  addExercise: (e: Omit<HuntExercise, 'id' | 'archived'>) => act('POST', '/hunt/exercises', e, [reHunt]),
+  editExercise: (e: HuntExercise, patch: Partial<Omit<HuntExercise, 'id'>>) => act('PATCH', `/hunt/exercises/${e.id}`, patch, [reHunt]),
+  bodyweight: (kg: number) => act('PUT', '/hunt/bodyweight', { kg }, [reHunt]),
+  refresh: async () => {
+    const ok = await act('POST', '/hunt/garmin/refresh', undefined, []);
+    // The sidecar pulls, then posts back; give it a moment before asking again.
+    if (ok) setTimeout(() => { reHunt().catch(() => {}); }, 8000);
+    return ok;
+  },
 };
 
 // Hours per local day, the last n days, oldest first.

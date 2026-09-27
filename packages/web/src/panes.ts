@@ -33,5 +33,5 @@ export const PANES: Pane[] = [
   { id: 'library', c: -1, r: 2, name: 'The Library', kind: 'the reading', component: Library },
   { id: 'vigil', c: 1, r: 2, name: 'The Vigil', kind: 'the stillness', component: Vigil },
   { id: 'academy', c: -2, r: 1, name: 'The Academy', kind: 'the degree', component: Academy },
-  { id: 'hunt', c: 2, r: 1, name: 'The Hunt', kind: 'sealed', component: Hunt },
+  { id: 'hunt', c: 2, r: 1, name: 'The Hunt', kind: 'the body', component: Hunt },
 ];
