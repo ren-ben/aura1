@@ -1576,7 +1576,9 @@ void planPage(Canvas& c, const Look& look, const ViewModel& vm) {
 }
 
 Corner pageCorner(const Look& look, const ViewModel& vm, bool scene) {
-  if (!scene && vm.place == Place::Plan) return { 2, look.negative() ? PAPER : INK };
+  // The plan and the hunt keep the top right for it in every look: their
+  // foot is taken by what the buttons do.
+  if (!scene && (vm.place == Place::Plan || vm.place == Place::Hunt)) return { 2, look.negative() ? PAPER : INK };
   return look.corner(vm, scene);
 }
 

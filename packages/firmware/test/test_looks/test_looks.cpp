@@ -17,7 +17,7 @@ class FileArt : public ArtSource {
 public:
   bool draw(Canvas& c, const std::string& id, int x, int y, uint8_t colour) override {
     const std::string name = id == "cameo" ? "cameo-content" : id;
-    const int size = id.rfind("watch", 0) == 0 ? 64 : id == "cameo" ? 72 : 200;
+    const int size = id.rfind("watch", 0) == 0 ? 64 : id == "cameo" ? 72 : id.rfind("hunt-", 0) == 0 ? 80 : 200;
     std::ifstream f("/art/" + name + "-0.bin", std::ios::binary);
     if (!f) return false;
     const std::vector<uint8_t> bits((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
@@ -118,6 +118,32 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
                 { 960, 1050, "Prolegomena", 3 }, { 1200, 1260, "Essay draft", 0 } };
   plan.now = 14 * 60 + 32;
   out.push_back({ "cplan", plan });
+
+  // The Hunt: the verdict and the list, a set, its adjustment, the rest.
+  ViewModel hlist = base(Place::Hunt);
+  hlist.title = "IRON PULL";
+  hlist.hunt.line = "Pull has rested three days. Go and feed it.";
+  hlist.items = { "Weighted Pullup", "Lat Pulldown", "Muscle Ups", "Cable Row", "Chest Press" };
+  hlist.values = { "20x11", "90x12", "16", "90x9", "115x8" };
+  hlist.cursor = 1;
+  out.push_back({ "dhunt", hlist });
+  ViewModel hset = base(Place::Hunt);
+  hset.hunt.stage = HuntStage::Set;
+  hset.hunt.exercise = "Weighted Pullup";
+  hset.hunt.pose = "hang";
+  hset.hunt.set = 2; hset.hunt.of = 4;
+  hset.hunt.target = "17.5 x 12";
+  hset.hunt.last = "20x10 17.5x12 15x12 12.5x12";
+  out.push_back({ "ehuntset", hset });
+  ViewModel hadj = hset;
+  hadj.hunt.stage = HuntStage::Adjust;
+  hadj.hunt.field = "REPS";
+  hadj.hunt.value = "10";
+  out.push_back({ "fhuntadj", hadj });
+  ViewModel hrest = hset;
+  hrest.hunt.stage = HuntStage::Rest;
+  hrest.hunt.rest = 135;
+  out.push_back({ "ghuntrest", hrest });
   return out;
 }
 
