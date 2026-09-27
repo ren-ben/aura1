@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { todos } from '../db/schema.ts';
+import { localDate } from '../sync/today.ts';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const body = z.string().trim().min(1).max(200);
@@ -13,6 +14,7 @@ const todoDto = z.object({
   body: z.string(),
   dueDate: z.iso.date().nullable(),
   done: z.boolean(),
+  doneOn: z.iso.date().nullable(),
 });
 
 export const todoRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {
@@ -27,7 +29,7 @@ export const todoRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {
       asc(todos.sortOrder),
       asc(todos.id),
     );
-    return rows.map((t) => ({ id: t.id, body: t.body, dueDate: t.dueDate, done: t.doneAt !== null }));
+    return rows.map((t) => ({ id: t.id, body: t.body, dueDate: t.dueDate, done: t.doneAt !== null, doneOn: t.doneAt && localDate(t.doneAt) }));
   });
 
   r.post('/todos', {

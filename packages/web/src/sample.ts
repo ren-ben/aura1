@@ -48,12 +48,12 @@ sessions.reverse();
 const todayStr = day(new Date());
 const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
 let todos: Todo[] = [
-  { id: 1, body: 'Read Kant, Prolegomena, sections 1 to 3', dueDate: todayStr, done: true },
-  { id: 2, body: 'Gym, pull day', dueDate: todayStr, done: false },
-  { id: 3, body: 'Ship the sync fix', dueDate: todayStr, done: true },
-  { id: 4, body: 'Call mom', dueDate: todayStr, done: false },
-  { id: 5, body: 'Problem set 4, linear algebra', dueDate: day(tomorrow), done: false },
-  { id: 6, body: 'Draft the essay on Schopenhauer', dueDate: null, done: false },
+  { id: 1, body: 'Read Kant, Prolegomena, sections 1 to 3', dueDate: todayStr, done: true, doneOn: todayStr },
+  { id: 2, body: 'Gym, pull day', dueDate: todayStr, done: false, doneOn: null },
+  { id: 3, body: 'Ship the sync fix', dueDate: todayStr, done: true, doneOn: todayStr },
+  { id: 4, body: 'Call mom', dueDate: todayStr, done: false, doneOn: null },
+  { id: 5, body: 'Problem set 4, linear algebra', dueDate: day(tomorrow), done: false, doneOn: null },
+  { id: 6, body: 'Draft the essay on Schopenhauer', dueDate: null, done: false, doneOn: null },
 ];
 
 // Today, wired: the morning's two sessions fall inside the first two taps.
@@ -288,8 +288,8 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       if (b) b.marks = Math.max(0, b.marks - 1);
       return;
     }
-    case 'POST /todos': todos.push({ id: nextId++, body: body.body, dueDate: body.dueDate, done: false }); return;
-    case 'PATCH /todos/:id': todos = todos.map((t) => (t.id === id ? { ...t, ...body } : t)); return;
+    case 'POST /todos': todos.push({ id: nextId++, body: body.body, dueDate: body.dueDate, done: false, doneOn: null }); return;
+    case 'PATCH /todos/:id': todos = todos.map((t) => (t.id === id ? { ...t, ...body, ...('done' in body ? { doneOn: body.done ? todayStr : null } : {}) } : t)); return;
     case 'DELETE /todos/:id': todos = todos.filter((t) => t.id !== id); return;
     case 'POST /habits': habits.push({ id: nextId++, name: body.name, done: [] }); return;
     case 'PATCH /habits/:id': if (body.archived) habits = habits.filter((h) => h.id !== id); return;

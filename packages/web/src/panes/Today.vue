@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import RewiringSheet from '../components/RewiringSheet.vue';
 import Wiring, { type View } from '../components/Wiring.vue';
-import { actions, clock, localDate, plan, state, today, type Todo } from '../store';
+import { actions, clock, dueBy, localDate, plan, state, today, type Todo } from '../store';
 import { dateShift, dayOf, hisLine, hours } from '../rewiring';
 import { narrow } from '../screen';
 
@@ -15,7 +15,7 @@ const todayStr = computed(() => localDate());
 const groups = computed(() => {
   const d = todayStr.value;
   return [
-    { name: 'today', items: state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d) },
+    { name: 'today', items: dueBy(d) },
     { name: 'coming', items: state.todos.filter((t) => !t.done && t.dueDate !== null && t.dueDate > d) },
     { name: 'someday', items: state.todos.filter((t) => !t.done && t.dueDate === null) },
   ];

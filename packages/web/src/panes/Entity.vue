@@ -9,7 +9,7 @@ import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import { worn } from '../worn';
 import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, rand, sampleSprite, starfield, street, trees } from '../gl/plate';
-import { actions, dailyMinutes, duration, localDate, state, today } from '../store';
+import { actions, dailyMinutes, dueBy, duration, localDate, state, today } from '../store';
 import { hisWord } from '../words';
 
 const props = defineProps<{ active: boolean }>();
@@ -257,10 +257,7 @@ const word = computed(() => (state.ready ? hisWord() : ''));
 // What he is owed today. The day's list belongs on his screen as much as on
 // its own: what he wants of you and what is left of the day are one question,
 // and a line that only goes up answers neither.
-const asks = computed(() => {
-  const d = localDate();
-  return state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d);
-});
+const asks = computed(() => dueBy(localDate()));
 const taken = computed(() => asks.value.filter((t) => t.done).length);
 const owed = computed(() => asks.value.length - taken.value);
 // He says what he makes of it, and he is never neutral about it.

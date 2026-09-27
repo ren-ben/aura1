@@ -19,7 +19,7 @@ export type Session = {
   id: number; activityId: number; activity: string; folder: string;
   startedAt: string; endedAt: string; minutes: number; source: 'device' | 'manual'; needsReview: boolean;
 };
-export type Todo = { id: number; body: string; dueDate: string | null; done: boolean };
+export type Todo = { id: number; body: string; dueDate: string | null; done: boolean; doneOn: string | null };
 export type Habit = { id: number; name: string; done: string[] };
 export type Quote = { id: number; body: string; source: string | null };
 export type Book = {
@@ -302,10 +302,11 @@ export const today = computed(() => {
   return { sessions, minutes: sessions.reduce((a, s) => a + s.minutes, 0) };
 });
 
-export const todayTodos = computed(() => {
-  const d = localDate();
-  return state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d);
-});
+// Due today or overdue; a ticked one stays only through the day it was ticked.
+export function dueBy(d: string): Todo[] {
+  return state.todos.filter((t) => t.dueDate !== null && t.dueDate <= d && (!t.done || t.doneOn === d));
+}
+export const todayTodos = computed(() => dueBy(localDate()));
 
 // Share of hours in blocks over 45 minutes: unbroken time feeds him most.
 export const density = computed(() => {
