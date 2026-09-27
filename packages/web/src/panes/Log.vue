@@ -1,8 +1,12 @@
 <script setup lang="ts">
 // The record: every session by day, the long ones waiting to be confirmed,
-// a session written in by hand, and the last two weeks at a glance.
+// a session written in by hand, the last two weeks at a glance, and him on
+// the summit of Mount Yeezus above it all.
 import { computed, ref } from 'vue';
 import Frame from '../components/Frame.vue';
+import Gl from '../components/Gl.vue';
+import { yeezus } from '../gl/yeezus';
+import { narrow } from '../screen';
 import { actions, clock, dailyMinutes, daysAgo, duration, localDate, state, type Session } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -62,6 +66,11 @@ const week = computed(() => fortnight.value.slice(7).reduce((a, x) => a + x.m, 0
       </div>
     </Frame>
 
+    <Frame class="stage" title="mount yeezus // he takes the summit" flush>
+      <Gl :build="yeezus" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0 }"
+        label="Kael'thos in the jewelled mask on the summit of Mount Yeezus, a white disc behind him, beams through the smoke, the crowd below. Drag to look round." hint="drag to look round" />
+    </Frame>
+
     <Frame class="write" title="write one in by hand">
       <form class="grid" @submit.prevent="add">
         <label class="lab span"><span>the path</span>
@@ -88,8 +97,10 @@ const week = computed(() => fortnight.value.slice(7).reduce((a, x) => a + x.m, 0
 </template>
 
 <style scoped>
-.log { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "days write" "days fort"; }
+.log { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); grid-template-rows: minmax(240px, 1fr) auto auto; grid-template-areas: "days stage" "days write" "days fort"; }
 .days { grid-area: days; }
+.stage { grid-area: stage; }
+.stage :deep(.gl) { flex: 1; min-height: 0; width: 100%; }
 .write { grid-area: write; }
 .fort { grid-area: fort; }
 .review { border: 3px dotted var(--dim); padding: 10px; margin-bottom: 14px; }
@@ -106,7 +117,7 @@ const week = computed(() => fortnight.value.slice(7).reduce((a, x) => a + x.m, 0
 .stack i { width: 10px; height: 6px; background: var(--low); }
 .stack i.on { background: var(--phos); box-shadow: 0 0 4px rgba(197, 188, 171, .35); }
 @media (max-aspect-ratio: 5/4) {
-  .log { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "days days" "write fort"; }
+  .log { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "days stage" "write fort"; }
 }
-@media (max-width: 860px) { .log { display: flex; flex-direction: column; } .days { min-height: 420px; } }
+@media (max-width: 860px) { .log { display: flex; flex-direction: column; } .days { min-height: 420px; } .stage { min-height: 360px; } }
 </style>
