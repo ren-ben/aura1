@@ -12,8 +12,11 @@ let raf = 0;
 let observer: ResizeObserver | null = null;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Thirty frames a second is all a dithered picture needs, and each one is a
+// whole scene rasterised on the processor.
+let last = 0;
 function loop(now: number) {
-  render?.(now / 1000);
+  if (now - last >= 32) { last = now; render?.(now / 1000); }
   if (props.animated && props.active && !reduced()) raf = requestAnimationFrame(loop);
 }
 // Stopping draws nothing: the canvas keeps its last frame, and the moment a

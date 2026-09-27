@@ -3,6 +3,8 @@
 // night, the bond, what he says today, and the chronicle of the pact.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import Frame from '../components/Frame.vue';
+import Gl from '../components/Gl.vue';
+import { vault } from '../gl/vault';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import art from '../gl/art.json';
@@ -35,6 +37,32 @@ const form = { u: 0 };
 const points = ref<{ x: number; y: number; v: number }[]>([]);
 const shape = greatOne(9000);
 
+// The sky, the moon and the city, drawn once for as long as they stay put.
+const back = { key: '', c: document.createElement('canvas') };
+function paintBack(g: CanvasRenderingContext2D, w: number, h: number, t: number, horizon: number, tall: boolean, scale: number) {
+  const drift_ = eye;
+  const sky = g.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.58, 'rgb(6,6,6)'); sky.addColorStop(0.88, 'rgb(52,52,52)'); sky.addColorStop(1, 'rgb(158,158,158)');
+  g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+  g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
+  starfield(g, w, horizon * 0.72, Math.round((w * h) / 260), 17, drift_.x * -3, drift_.y * -2);
+  moonDisc(g, w * (tall ? 0.8 : 0.78) + drift_.x * -5, h * (tall ? 0.15 : 0.19) + drift_.y * -4, Math.min(w, h) * (tall ? 0.11 : 0.09), 7);
+  for (let k = 0; k < 3; k++) {
+    const y = h * (0.2 + k * 0.13) + Math.sin(t * 0.05 + k) * 4;
+    const band = g.createLinearGradient(0, y - 12, 0, y + 12);
+    band.addColorStop(0, 'rgba(255,255,255,0)');
+    band.addColorStop(0.5, `rgba(255,255,255,${0.025 + k * 0.012})`);
+    band.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = band; g.fillRect(0, y - 12, w, 24);
+  }
+  // The city in three streets, each nearer and darker than the one behind,
+  // the cathedral standing over the middle one.
+  street(g, w, horizon - h * 0.055, 31, scale * 0.55, 0.85);
+  street(g, w, horizon - h * 0.03, 47, scale * 0.78, 0.45);
+  church(g, w * 0.27 + drift_.x * -2, horizon - h * 0.02, scale * 0.92, 5);
+  street(g, w, horizon + 2, 19, scale * 1.05, 0.05);
+}
+
 const draw = computed(() => {
   const cat = sprite.value;
   const dots = points.value;
@@ -48,26 +76,16 @@ const draw = computed(() => {
     // Upright on a phone: he stands in the middle, larger, the moon over him.
     const tall = w / h < 1;
     const horizon = h * 0.84;
-    const sky = g.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, 'rgb(2,2,2)'); sky.addColorStop(0.58, 'rgb(6,6,6)'); sky.addColorStop(0.88, 'rgb(52,52,52)'); sky.addColorStop(1, 'rgb(158,158,158)');
-    g.fillStyle = sky; g.fillRect(0, 0, w, horizon);
-    starfield(g, w, horizon * 0.72, Math.round((w * h) / 260), 17, drift_.x * -3, drift_.y * -2);
-    moonDisc(g, w * (tall ? 0.8 : 0.78) + drift_.x * -5, h * (tall ? 0.15 : 0.19) + drift_.y * -4, Math.min(w, h) * (tall ? 0.11 : 0.09), 7);
-    for (let k = 0; k < 3; k++) {
-      const y = h * (0.2 + k * 0.13) + Math.sin(t * 0.05 + k) * 4;
-      const band = g.createLinearGradient(0, y - 12, 0, y + 12);
-      band.addColorStop(0, 'rgba(255,255,255,0)');
-      band.addColorStop(0.5, `rgba(255,255,255,${0.025 + k * 0.012})`);
-      band.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = band; g.fillRect(0, y - 12, w, 24);
-    }
-    // The city in three streets, each nearer and darker than the one behind,
-    // the cathedral standing over the middle one, and the ledge in front.
     const scale = Math.max(0.42, w / 300);
-    street(g, w, horizon - h * 0.055, 31, scale * 0.55, 0.85);
-    street(g, w, horizon - h * 0.03, 47, scale * 0.78, 0.45);
-    church(g, w * 0.27 + drift_.x * -2, horizon - h * 0.02, scale * 0.92, 5);
-    street(g, w, horizon + 2, 19, scale * 1.05, 0.05);
+    // Everything behind the trees only moves with the eye, and slowly: it is
+    // drawn again only when it has moved by a mark, and copied otherwise.
+    const key = `${w}x${h}|${Math.round(drift_.x * 6)}|${Math.round(drift_.y * 6)}|${Math.round(Math.sin(t * 0.05) * 4)}|${tall}`;
+    if (key !== back.key) {
+      back.key = key;
+      if (back.c.width !== w || back.c.height !== h) { back.c.width = w; back.c.height = h; }
+      paintBack(back.c.getContext('2d')!, w, h, t, horizon, tall, scale);
+    }
+    g.drawImage(back.c, 0, 0);
     trees(g, w, horizon + 2, t, Math.max(2, Math.round(w / 90)), 61, scale * 1.7);
     lamp(g, w * 0.12, horizon + 1, h * 0.17, scale);
     lamp(g, w * 0.88, horizon + 1, h * 0.13, scale);
@@ -194,6 +212,27 @@ function openHim(g: CanvasRenderingContext2D, w: number, h: number, t: number, u
   }
 }
 
+// The reading, from Goodreads, kept in the vault under the ledge.
+const current = computed(() => state.reading.current[0] ?? null);
+const read = computed(() => state.reading.read);
+const hovered = ref(-1);
+// Which case is brought round, and how to send it back.
+const focused = ref(0);
+let sendBack = () => {};
+const below = computed(() => vault(current.value, read.value, {
+  hover: (i) => { hovered.value = i; },
+  pick: (i) => { open(read.value[i]!.url, '_blank', 'noopener'); },
+  focus: (side) => { focused.value = side; },
+  bind: (back) => { sendBack = back; },
+}));
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const when = (d: string | null) => (d ? `${MONTHS[+d.slice(5, 7) - 1]} ${d.slice(2, 4)}` : '');
+const since = computed(() => {
+  const s = current.value?.startedAt;
+  return s ? Math.max(1, Math.round((Date.now() - new Date(s).getTime()) / 864e5)) : 0;
+});
+const shown = computed(() => (hovered.value >= 0 ? read.value[hovered.value] ?? null : null));
+
 const bond = computed(() => state.stats?.bond);
 const into = computed(() => {
   const b = bond.value;
@@ -252,7 +291,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="entity">
-    <Frame class="scene" title="the cathedral ward, before dawn" flush>
+    <Frame class="scene" :class="{ focused }" title="the cathedral ward, before dawn" flush>
       <div class="plateHost">
         <Plate :draw="draw" :active="active" animated :cell="2" label="Kael'thos on a ledge above the cathedral ward at night" />
         <button class="open" :class="{ held: opening }" aria-label="Hold to see what he is"
@@ -261,6 +300,22 @@ onBeforeUnmount(() => {
           hold // what he is
         </button>
         <span v-if="opening" class="said pix">the cat is a courtesy</span>
+      </div>
+      <div class="under">
+        <Gl :build="below" :options="{ drift: 0, tilt: 0, yaw: 0, px: 1 }" :active="active" label="The vault under the ledge, where the reading is kept" hint="" />
+        <button v-if="focused" class="back" @click="sendBack()">return // the altar</button>
+        <div v-if="!focused" class="plaque">
+          <template v-if="current">
+            <span class="pix">now reading // day {{ since }}</span>
+            <span class="fell t">{{ current.title }}</span>
+            <span class="note">{{ current.author }}, {{ current.pages }} pages</span>
+          </template>
+          <span class="pix">{{ read.length }} read<i class="more">, kept below // touch a case</i></span>
+        </div>
+        <div v-if="shown" class="caught">
+          <span class="fell">{{ shown.title }}</span>
+          <span class="pix">{{ shown.author }} // read {{ when(shown.readAt) }} // no. {{ hovered + 1 }} of {{ read.length }}</span>
+        </div>
       </div>
     </Frame>
 
@@ -306,6 +361,26 @@ onBeforeUnmount(() => {
 <style scoped>
 .entity { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "scene side" "chron chron"; }
 .scene { grid-area: scene; }
+.scene :deep(.flush) { display: flex; flex-direction: column; }
+.plateHost { flex: 60 1 0 !important; transition: flex-grow .9s var(--ease); }
+/* A row brought round takes the frame: the ward goes up to a strip. */
+.scene.focused .plateHost { flex-grow: 14 !important; }
+.scene.focused .under { flex-grow: 86; }
+.under { flex: 40 1 0; transition: flex-grow .9s var(--ease); position: relative; display: flex; min-height: 0; border-top: 3px dotted var(--low); background: var(--ground); }
+.under :deep(.gl) { width: 100%; height: 100%; display: block; }
+.under :deep(.hint) { display: none; }
+.plaque { position: absolute; right: 12px; bottom: 12px; display: grid; gap: 3px; max-width: 38%; padding: 9px 12px; background: var(--ground); border: 2px solid var(--low); pointer-events: none; }
+.plaque .t { font: italic 400 19px/1.15 var(--fell); color: var(--hi); }
+.plaque .more { font-style: normal; }
+.back { position: absolute; right: 12px; bottom: 12px; border: 2px solid var(--phos); background: var(--ground); color: var(--hi);
+  padding: 8px 12px; font: 400 10.5px var(--pix); text-transform: uppercase; transition: background .3s var(--out), color .3s var(--out); }
+.back:hover { background: var(--phos); color: var(--ground); }
+.caught { position: absolute; left: 12px; bottom: 12px; display: grid; gap: 2px; padding: 8px 11px; background: var(--ground); border: 2px solid var(--phos); pointer-events: none; }
+.caught .fell { color: var(--hi); font-size: 17px; }
+@media (max-width: 600px) {
+  .plaque { top: 8px; left: 8px; right: 8px; bottom: auto; max-width: none; padding: 5px 8px; grid-template-columns: 1fr auto; align-items: baseline; }
+  .plaque .t { font-size: 15px; grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .plaque .more { display: none; } .plaque .note { display: none; } .plaque .pix:first-child { display: none; }
+}
 .plateHost { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .open { position: absolute; left: 12px; bottom: 12px; border: 2px solid var(--low); background: rgba(18, 18, 18, .8);
   color: var(--dim); padding: 7px 11px; font: 400 10px var(--pix); text-transform: uppercase; touch-action: none;
@@ -351,7 +426,7 @@ onBeforeUnmount(() => {
   .sym { grid-row: 3; grid-column: 1 / -1; }
   .chron { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) { .side { order: -1; } .scene { flex: none; height: min(118vw, 460px); } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 860px) { .side { order: -1; } .scene { flex: none; height: min(170vw, 700px); } .plateHost { flex-grow: 50 !important; } .under { flex-grow: 50; } .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .entity { display: flex; flex-direction: column; }
   .side { display: flex; }
   .chron { grid-template-columns: repeat(2, minmax(0, 1fr)); }

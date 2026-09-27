@@ -4,6 +4,11 @@
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 const INK = [197, 188, 171];
 const GROUND = [18, 18, 18];
+// The same as whole little-endian RGBA words, and the Bayer thresholds scaled
+// to the weighted sum the loop computes.
+const word = ([r, g, b]: number[]) => ((255 << 24) | (b! << 16) | (g! << 8) | r!) >>> 0;
+const INK32 = word(INK), GROUND32 = word(GROUND);
+const LIMIT = BAYER.map((v) => v * 255000);
 
 export type Draw = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => void;
 
@@ -26,14 +31,17 @@ export function makePlate(canvas: HTMLCanvasElement, draw: Draw, cell = 3) {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
     draw(g, w, h, t);
-    const src = g.getImageData(0, 0, w, h);
+    const src = g.getImageData(0, 0, w, h).data;
     const dst = o.createImageData(w, h);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const l = (src.data[i]! * 0.299 + src.data[i + 1]! * 0.587 + src.data[i + 2]! * 0.114) / 255;
-      const on = l > BAYER[(y % 4) * 4 + (x % 4)]!;
-      dst.data.set(on ? INK : GROUND, i);
-      dst.data[i + 3] = 255;
+    // One word a pixel, and the luminance compared in 0..255000 against a
+    // threshold table: this runs on every frame of every animated plate.
+    const out32 = new Uint32Array(dst.data.buffer);
+    for (let y = 0; y < h; y++) {
+      const row = (y % 4) * 4;
+      for (let x = 0, i = y * w; x < w; x++, i++) {
+        const j = i * 4;
+        out32[i] = src[j]! * 299 + src[j + 1]! * 587 + src[j + 2]! * 114 > LIMIT[row + (x % 4)]! ? INK32 : GROUND32;
+      }
     }
     o.putImageData(dst, 0, 0);
     // Sized only when the size changes: every resize wipes the canvas, and an

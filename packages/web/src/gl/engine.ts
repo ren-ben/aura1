@@ -12,7 +12,7 @@ const DITHER = `
     vec3 c = texture2D(tex, (cell + 0.5) / cells).rgb;
     float l = dot(c, vec3(0.299, 0.587, 0.114));
     bool on = l > bayer(cell) + 0.015;
-    gl_FragColor = on ? vec4(ink, 1.0) : vec4(ground, 0.0);
+    gl_FragColor = on ? vec4(ink, 1.0) : vec4(0.0);
   }`;
 
 export const INK = 0xc5bcab;
@@ -55,7 +55,9 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   const material = new THREE.ShaderMaterial({
     uniforms: {
       tex: { value: target?.texture ?? null }, cells: { value: new THREE.Vector2(1, 1) }, px: { value: px },
-      ink: { value: new THREE.Color(INK) }, ground: { value: new THREE.Color(GROUND) },
+      // Written straight to the glass, so given as the hex says: converted to
+      // linear they come out darker and browner than the plates beside them.
+      ink: { value: new THREE.Color().setHex(INK, THREE.LinearSRGBColorSpace) }, ground: { value: new THREE.Color().setHex(GROUND, THREE.LinearSRGBColorSpace) },
     },
     vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: DITHER,

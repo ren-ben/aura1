@@ -40,6 +40,8 @@ services:
       ACADEMY_RESEARCH_MODEL: ${ACADEMY_RESEARCH_MODEL:-}
       ACADEMY_WRITER_MODEL: ${ACADEMY_WRITER_MODEL:-}
       ACADEMY_BUDGET_USD: ${ACADEMY_BUDGET_USD:-}
+      # The reading: a public Goodreads profile's user id.
+      GOODREADS_USER: ${GOODREADS_USER:-}
     ports: ["127.0.0.1:13000:3000"]
     depends_on:
       postgres: { condition: service_healthy }

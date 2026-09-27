@@ -51,6 +51,14 @@ export type Device = {
 
 // The rewiring: a block of planned time on one local day, in minutes after
 // its midnight; and each planned day's revision count and capacity to draw.
+// Goodreads: what is being read now, and every book shelved as read, newest
+// first. The cover is Goodreads' own image, which it serves to anyone.
+export type Tome = {
+  title: string; author: string; cover: string | null; pages: number | null;
+  startedAt: string | null; readAt: string | null; rating: number; url: string;
+};
+export type Reading = { current: Tome[]; read: Tome[] };
+
 export type Block = { id: number; date: string; start: number; end: number; title: string; shade: number; activityId: number | null };
 export type PlanDay = { date: string; rev: number; capacity: number };
 
@@ -73,6 +81,7 @@ export const state = reactive({
   courses: [] as Course[],
   blocks: [] as Block[],
   planDays: [] as PlanDay[],
+  reading: { current: [], read: [] } as Reading,
 });
 
 export function localDate(d = new Date()): string {
@@ -121,6 +130,7 @@ export async function load(): Promise<void> {
     call<Todo[]>('GET', '/todos'), call<Habit[]>('GET', habitsPath()), call<Quote[]>('GET', '/quotes'),
     call<Device>('GET', '/device'), call<Book[]>('GET', '/books'), call<Mark[]>('GET', '/marks'),
     call<Vigil>('GET', '/vigil'), call<Course[]>('GET', '/academy'), call<Plan>('GET', blocksPath()),
+    call<Reading>('GET', '/reading'),
   ]);
   let got;
   try {
@@ -132,7 +142,7 @@ export async function load(): Promise<void> {
   }
   let plan: Plan;
   [state.stats, state.folders, state.sessions, state.todos, state.habits, state.quotes, state.device,
-    state.books, state.marks, state.vigil, state.courses, plan] = got;
+    state.books, state.marks, state.vigil, state.courses, plan, state.reading] = got;
   [state.blocks, state.planDays] = [plan.blocks, plan.days];
   state.ready = true;
 }

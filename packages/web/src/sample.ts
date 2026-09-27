@@ -1,6 +1,6 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
-import type { Block, Book, Course, PlanDay, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
+import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
@@ -175,6 +175,36 @@ let courses: Course[] = sampleCourses();
 // Lecture maps: every one the same Newton, "written" over two polls.
 const maps: LectureMapDto[] = [];
 
+// Goodreads, as the shelves might stand: one book open, the rest behind it.
+const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
+const tome = (title: string, author: string, isbn: string, pages: number, readAt: string | null, rating: number) =>
+  ({ title, author, cover: cover(isbn), pages, startedAt: null, readAt, rating, url: 'https://www.goodreads.com' });
+const reading: Reading = {
+  current: [{ ...tome('The Secret History', 'Donna Tartt', '9781400031702', 559, null, 0), cover: 'https://m.media-amazon.com/images/S/compressed.photo.goodreads.com/books/1751820530i/29044.jpg', startedAt: '2026-09-14' }],
+  read: [
+    tome('Piranesi', 'Susanna Clarke', '9781635575637', 272, '2026-09-06', 5),
+    tome('Blindsight', 'Peter Watts', '9780765319647', 384, '2026-08-21', 4),
+    tome('Babel', 'R. F. Kuang', '9780063021426', 545, '2026-08-02', 4),
+    tome('The Haunting of Hill House', 'Shirley Jackson', '9780143039983', 182, '2026-07-11', 5),
+    tome('Frankenstein', 'Mary Shelley', '9780141439471', 273, '2026-06-24', 5),
+    tome('House of Leaves', 'Mark Z. Danielewski', '9780375703768', 709, '2026-06-01', 4),
+    tome('Solaris', 'Stanisław Lem', '9780156027601', 204, '2026-04-19', 5),
+    tome('If We Were Villains', 'M. L. Rio', '9781250095282', 354, '2026-03-30', 3),
+    tome('The Name of the Rose', 'Umberto Eco', '9780156001311', 536, '2026-02-22', 4),
+    tome('Dracula', 'Bram Stoker', '9780141439846', 488, '2026-01-15', 4),
+    tome('Mexican Gothic', 'Silvia Moreno-Garcia', '9780525620785', 301, '2025-12-03', 3),
+    tome('The King in Yellow', 'Robert W. Chambers', '9780486442242', 208, '2025-10-31', 4),
+    tome('The Picture of Dorian Gray', 'Oscar Wilde', '9780141439570', 254, '2025-10-02', 5),
+    tome('Rebecca', 'Daphne du Maurier', '9780380730407', 410, '2025-08-17', 4),
+    tome('Jane Eyre', 'Charlotte Brontë', '9780141441146', 532, '2025-07-09', 4),
+    // And the years before: enough to fill a room.
+    ...'Carmilla|Sheridan Le Fanu;The Castle of Otranto|Horace Walpole;The Monk|Matthew Lewis;Melmoth the Wanderer|Charles Maturin;Wuthering Heights|Emily Brontë;The Turn of the Screw|Henry James;Strange Case of Dr Jekyll and Mr Hyde|R. L. Stevenson;The Great God Pan|Arthur Machen;The Willows|Algernon Blackwood;At the Mountains of Madness|H. P. Lovecraft;The Shadow over Innsmouth|H. P. Lovecraft;The Call of Cthulhu|H. P. Lovecraft;The Fall of the House of Usher|Edgar Allan Poe;The Narrative of Arthur Gordon Pym|Edgar Allan Poe;Northanger Abbey|Jane Austen;The Mysteries of Udolpho|Ann Radcliffe;Vathek|William Beckford;Uncle Silas|Sheridan Le Fanu;The Woman in White|Wilkie Collins;The Moonstone|Wilkie Collins;Great Expectations|Charles Dickens;Bleak House|Charles Dickens;Crime and Punishment|Fyodor Dostoevsky;The Brothers Karamazov|Fyodor Dostoevsky;Notes from Underground|Fyodor Dostoevsky;Demons|Fyodor Dostoevsky;The Master and Margarita|Mikhail Bulgakov;The Trial|Franz Kafka;The Castle|Franz Kafka;The Metamorphosis|Franz Kafka;The Magic Mountain|Thomas Mann;Death in Venice|Thomas Mann;Doctor Faustus|Thomas Mann;Steppenwolf|Hermann Hesse;The Glass Bead Game|Hermann Hesse;Siddhartha|Hermann Hesse;Demian|Hermann Hesse;Thus Spoke Zarathustra|Friedrich Nietzsche;Beyond Good and Evil|Friedrich Nietzsche;The World as Will and Representation|Arthur Schopenhauer;Essays and Aphorisms|Arthur Schopenhauer;Meditations|Marcus Aurelius;Letters from a Stoic|Seneca;The Consolation of Philosophy|Boethius;Confessions|Augustine;Inferno|Dante Alighieri;Paradise Lost|John Milton;Faust|J. W. von Goethe;The Sorrows of Young Werther|J. W. von Goethe;Gormenghast|Mervyn Peake;Titus Groan|Mervyn Peake;Jonathan Strange and Mr Norrell|Susanna Clarke;The Night Circus|Erin Morgenstern;The Starless Sea|Erin Morgenstern;Ninth House|Leigh Bardugo;Hell Bent|Leigh Bardugo;A Deadly Education|Naomi Novik;Vita Nostra|Marina and Sergey Dyachenko;The Atlas Six|Olivie Blake;Bunny|Mona Awad;Annihilation|Jeff VanderMeer;Authority|Jeff VanderMeer;Acceptance|Jeff VanderMeer;Roadside Picnic|Arkady and Boris Strugatsky;Hard to Be a God|Arkady and Boris Strugatsky;The Cyberiad|Stanisław Lem;His Master\'s Voice|Stanisław Lem;Echopraxia|Peter Watts;Children of Time|Adrian Tchaikovsky;Anathem|Neal Stephenson;Gideon the Ninth|Tamsyn Muir;Harrow the Ninth|Tamsyn Muir;Nona the Ninth|Tamsyn Muir;The Library at Mount Char|Scott Hawkins;Hell House|Richard Matheson;I Am Legend|Richard Matheson;The Shining|Stephen King;Pet Sematary|Stephen King;Interview with the Vampire|Anne Rice;The Historian|Elizabeth Kostova;The Thirteenth Tale|Diane Setterfield;My Cousin Rachel|Daphne du Maurier;We Have Always Lived in the Castle|Shirley Jackson;The Lottery|Shirley Jackson;Something Wicked This Way Comes|Ray Bradbury;The Ocean at the End of the Lane|Neil Gaiman;Norwegian Wood|Haruki Murakami;Kafka on the Shore|Haruki Murakami;The Remains of the Day|Kazuo Ishiguro;Never Let Me Go|Kazuo Ishiguro;Stoner|John Williams;The Secret Garden|Frances Hodgson Burnett'.split(';').map((line, i) => {
+      const [title, author] = line.split('|') as [string, string];
+      return { title, author, cover: null, pages: 180 + ((i * 97) % 520), startedAt: null, readAt: day(new Date(2025, 5, 20 - i * 9)), rating: 3 + (i % 3), url: 'https://www.goodreads.com' };
+    }),
+  ],
+};
+
 // The API's routes, in memory.
 export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
@@ -192,6 +222,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'GET /device': return { ...device };
     case 'GET /books': return structuredClone(books);
     case 'GET /marks': return structuredClone(marks);
+    case 'GET /reading': return structuredClone(reading);
     case 'GET /books/:id/chapters': {
       const idx = Number(seg[3]);
       return { idx, title: BOOK_CHAPTERS[idx] ?? `Part ${idx + 1}`, body: chapterBody(idx) };

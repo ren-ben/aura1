@@ -14,11 +14,13 @@ import { bookRoutes } from './routes/books.ts';
 import { vigilRoutes } from './routes/vigil.ts';
 import { academyRoutes } from './routes/academy.ts';
 import { blockRoutes } from './routes/blocks.ts';
+import { readingRoutes, type Shelf } from './routes/reading.ts';
 import type { Fetch, Settings } from './academy/openrouter.ts';
 
 export function buildApp(
   db: Db,
-  opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null>; openrouter?: Fetch; settings?: Settings } = {},
+  opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null>; openrouter?: Fetch; settings?: Settings;
+    goodreads?: { user?: string; shelf?: Shelf } } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? true });
   app.setValidatorCompiler(validatorCompiler);
@@ -35,6 +37,7 @@ export function buildApp(
   app.register(bookRoutes, { db, prefix: '/api/v1' });
   app.register(vigilRoutes, { db, prefix: '/api/v1' });
   app.register(blockRoutes, { db, prefix: '/api/v1' });
+  app.register(readingRoutes, { prefix: '/api/v1', user: opts.goodreads ? opts.goodreads.user : process.env.GOODREADS_USER, shelf: opts.goodreads?.shelf });
   app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind, openrouter: opts.openrouter, settings: opts.settings });
 
   if (opts.webRoot) {
