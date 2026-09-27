@@ -148,17 +148,25 @@ best e1RM, or a new best reps at a load. No projections, no goals.
 One word and one line, each morning, from Kael'thos: `REST`, `IRON`, `RUN`
 or `STAIRS`, with the muscle group for IRON. Rules, first match wins:
 
-1. Garmin readiness < 30, or HRV low and sleep score < 50: REST.
-2. A run over 90 min or a hard run (Garmin load) in the last 36 h: IRON on the
-   group rested longest, or REST if iron was also yesterday.
-3. No run for 3 days and readiness >= 50: RUN (long if the last long one is 7+
-   days old, else easy zone 2).
-4. A group unworked 72 h+: IRON on it (push, pull, arms as a lighter day).
-5. Legs fresh and no stairs for 5 days: STAIRS.
-6. Otherwise: RUN, easy.
+The big picture first: the rhythm is six days trained, one rested, and
+sickness is rare. One bad night never forces a rest day.
+
+1. Sick or wrecked: HRV status low or poor two days running, and sleep score
+   < 40 or readiness < 15: REST.
+2. Six days trained in a row: REST, the seventh day.
+3. A run over 90 min or a hard run (Garmin load) in the last 36 h: IRON on the
+   upper group rested longest.
+4. No run for 3 days: RUN (long if the last long one is 7+ days old, else easy
+   zone 2).
+5. A group unworked 72 h+: IRON on it (push, pull, arms as a lighter day).
+6. Legs fresh and no stairs for 5 days: STAIRS.
+7. Otherwise: RUN, easy.
+
+Low readiness on its own only softens the line (easy pace, fewer sets), it
+never changes the word.
 
 The line names the reason ("Back rested four days. Sunday's 31k is still in
-your legs."). Without Garmin data rules 1 and 2 fall back to the log alone.
+your legs."). Without Garmin data rule 1 is skipped and 3 reads the log alone.
 Tunable thresholds live next to the rules.
 
 ---
@@ -204,8 +212,13 @@ screenshotted in demo mode); the content is fixed here:
   as the hero; the mirror photo cropped to the torso so the cut shoulder
   goes). Muscle groups are drawn over it as engraved regions, lit by how
   recently each was worked.
-- **The ledger**: energy this week and all time (MJ), work this week (kJ),
-  mass taken (ug).
+- **The transformation**: the ledger as moving physics, the pane's signature.
+  An animated flow (a Sankey drawn in engraved lines, particles running along
+  it) from the week's energy into runs, iron, stairs and climbs, each splitting
+  into work and heat (muscle at a nominal 25% efficiency), and a thin last
+  thread into him: the mass taken, `m = E / c^2`. Beside it, the week's energy
+  as a stream by day, and all-time energy, work and mass as counters that
+  roll up when the pane opens.
 - **Iron**: every exercise with its next prescription, e1RM trend, last PR;
   opening one shows its pose, history chart and every set, editable.
 - **Distance**: runs, stairs and climbs from Garmin: weekly km, zone 2 share,
