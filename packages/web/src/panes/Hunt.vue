@@ -10,7 +10,7 @@ import art from '../gl/art.json';
 import { catSprite } from '../gl/plate';
 import { hunt as act, state } from '../store';
 import {
-  along, BACK_MARKS, flow, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
+  along, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
   type HuntExercise, type HuntSetRow, type Iron, type Mark, type Source,
 } from '../hunt';
 import { EFFICIENCY, FEELS, type Group, type Pose } from '@aura/shared';
@@ -133,6 +133,7 @@ const labels = computed(() => graph.value.nodes.map((n) => ({
   id: n.id, x: n.x, y: (n.y0 + n.y1) / 2,
   name: n.id === 'work' ? 'work' : n.id === 'heat' ? 'heat' : n.id === 'him' ? 'into him' : NAMES[n.id as Source],
   value: n.id === 'him' ? `${Math.round(massOf(n.kj))} ng` : mj(n.kj),
+  icon: (ICONS as Record<string, string>)[n.id] ?? '',
 })));
 // A week's energy is a few nanograms of mass; all of it, micrograms.
 const massOf = (kj: number) => (kj * 1000) / (299_792_458 ** 2) * 1e12;
@@ -179,14 +180,32 @@ function close() { open.value = null; openId.value = 0; }
 
 const pose = ref<HTMLCanvasElement | null>(null);
 const sprites = new Map<Pose, Promise<HTMLCanvasElement>>();
+const sprite = (key: Pose) => {
+  const src = (art as Record<string, string>)[`hunt-${key}`];
+  if (!src) return null;
+  if (!sprites.has(key)) sprites.set(key, catSprite(src, 360));
+  return sprites.get(key)!;
+};
+
+// Him, beside his word for the day, already doing it.
+const VERDICT_POSE: Record<string, Pose> = { RUN: 'run', STAIRS: 'stairs', REST: 'core' };
+const GROUP_POSE: Record<Group, Pose> = { push: 'press', pull: 'hang', arms: 'curl', core: 'core', legs: 'deadlift' };
+const doing = ref<HTMLCanvasElement | null>(null);
+watch(() => [h.value.verdict.word, h.value.verdict.group] as const, async ([word, group]) => {
+  const key = word === 'IRON' ? GROUP_POSE[group ?? 'push'] : VERDICT_POSE[word] ?? 'run';
+  doing.value = await sprite(key);
+}, { immediate: true });
+const drawDoing = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
+  const c = doing.value;
+  if (!c) return;
+  // The pose's own margin is cut away: he fills his corner.
+  const s = Math.min(w, hh) * 1.5;
+  g.drawImage(c, w / 2 - s / 2, hh - s * 0.93 + Math.sin(t * 1.6) * s * 0.008, s, s);
+};
 watch(open, async (i) => {
   pose.value = null;
   if (!i) return;
-  const key = i.ex.pose;
-  const src = (art as Record<string, string>)[`hunt-${key}`];
-  if (!src) return;
-  if (!sprites.has(key)) sprites.set(key, catSprite(src, 360));
-  pose.value = await sprites.get(key)!;
+  pose.value = await sprite(i.ex.pose);
 });
 const drawPose = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
   const c = pose.value;
@@ -312,7 +331,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
         <p v-if="!graph.total" class="none note">Nothing spent this week yet. The road, the iron and the stairs all flow in here once Garmin has them.</p>
         <Plate :draw="drawFlow" :active="active" animated :cell="2" label="The week's energy flowing from each kind of training into work and heat, and a thread into him" />
         <span v-for="l in labels" :key="l.id" class="node" :class="{ left: l.x < 0.3, him: l.id === 'him' }" :style="{ left: `${l.x * 100}%`, top: `${l.y * 100}%` }">
-          <b class="pix">{{ l.name }}</b><span>{{ l.value }}</span>
+          <b class="pix"><svg v-if="l.icon" class="ic" viewBox="0 0 16 16" aria-hidden="true"><path :d="l.icon" /></svg>{{ l.name }}</b><span>{{ l.value }}</span>
         </span>
       </div>
       <div class="ledgerrow">
@@ -325,7 +344,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
           <Plate :draw="drawDays" :active="active" animated :cell="2" label="The week's energy by day" />
           <div class="dn"><span v-for="(d, i) in dayNames" :key="i">{{ d }}</span></div>
         </div>
-        <div class="key"><span v-for="k in SOURCES" :key="k" :style="{ '--g': GREY[k] }"><i></i>{{ NAMES[k] }}</span>
+        <div class="key"><span v-for="k in SOURCES" :key="k" :style="{ '--g': GREY[k] }"><i></i><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path :d="ICONS[k]" /></svg>{{ NAMES[k] }}</span>
           <span class="note">{{ Math.round(EFFICIENCY * 100) }}% becomes work, the rest heat</span></div>
       </div>
     </Frame>
@@ -335,6 +354,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
       <div class="head"><h1 class="title">The Hunt</h1></div>
       <p class="motto fell">Mens agitat molem.</p>
       <div class="verdict" :class="{ soft: h.verdict.soft }">
+        <div class="doing" aria-hidden="true"><Plate :draw="drawDoing" :active="active" animated :cell="1" /></div>
         <span class="pix">today, he says</span>
         <span class="word tek">{{ h.verdict.word }}<small v-if="h.verdict.group"> {{ h.verdict.group }}</small><small v-else-if="h.verdict.long"> long</small></span>
         <p class="fell">{{ h.verdict.line }}</p>
@@ -378,8 +398,9 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
         <div class="runs">
           <p v-if="!runs.length" class="empty">Nothing from Garmin yet. Log in once on the server and it arrives on its own.</p>
           <div v-for="a in runs" :key="a.id" class="run">
+            <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path :d="iconOf(a.kind)" /></svg>
             <span class="pix">{{ new Date(a.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) }}</span>
-            <span class="fell">{{ a.kind === 'run' ? `${(a.meters / 1000).toFixed(1)} km` : a.kind === 'stairs' ? `${Math.round(a.ascent / 3)} floors` : a.name }}</span>
+            <span class="fell">{{ a.kind === 'run' ? `${(a.meters / 1000).toFixed(1)} km` : a.kind === 'stairs' ? (a.ascent ? `${Math.round(a.ascent / 3)} floors` : 'the stairs') : a.name }}</span>
             <span class="note">{{ hms(a.seconds) }}</span>
             <span class="note">{{ a.kind === 'run' ? pace(a) : '' }}</span>
             <span class="note">{{ a.hrAvg ? `${a.hrAvg} bpm` : '' }}</span>
@@ -469,7 +490,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
    second print laid on the first. */
 .photo { position: absolute; margin: 0; display: flex; flex-direction: column; }
 .backp { top: 4%; bottom: 0; right: 4%; aspect-ratio: 388 / 640; max-width: 78%; }
-.frontp { left: 5%; bottom: 5%; height: 46%; aspect-ratio: 394 / 560; border: 3px double var(--low); background: var(--ground); }
+.frontp { left: 4%; bottom: 4%; width: 74%; aspect-ratio: 537 / 460; border: 3px double var(--low); background: var(--ground); }
 .marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mark circle { fill: rgba(230, 224, 212, calc(.25 + var(--glow) * .75)); stroke: none; }
 .mark .ring { fill: none; stroke: rgba(230, 224, 212, calc(.15 + var(--glow) * .7)); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
@@ -495,7 +516,8 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .node.left { transform: translate(14px, -50%); }
 .node:not(.left) { transform: translate(-50%, calc(-100% - 10px)); text-align: center; }
 .node.him { transform: translate(-100%, -50%); left: auto; text-align: right; }
-.node b { color: var(--phos); font-size: 9.5px; }
+.node b { color: var(--phos); font-size: 9.5px; display: flex; gap: 5px; align-items: center; }
+.node .ic { width: 11px; height: 11px; }
 .node { white-space: nowrap; }
 .node span { font: 400 14px var(--mono); color: var(--hi); font-variant-numeric: tabular-nums; }
 @keyframes nodein { from { opacity: 0; } }
@@ -506,13 +528,18 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .days { grid-area: days; display: flex; flex-direction: column; min-height: 96px; }
 .dn { display: grid; grid-template-columns: repeat(7, 1fr); font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; text-align: center; padding-top: 3px; }
 .key { grid-area: key; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font: 400 9.5px var(--pix); color: var(--dim); text-transform: uppercase; }
+.key span { display: inline-flex; align-items: center; gap: 5px; }
+.key .ic { width: 12px; height: 12px; }
 .key i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; background: rgb(calc(var(--g) * 197), calc(var(--g) * 188), calc(var(--g) * 171)); }
 .key .note { margin-left: auto; text-transform: none; font: italic 400 12px var(--fell); }
 
 /* The side */
 .side { grid-area: side; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 10px; min-height: 0; }
 .motto { margin: -4px 0 0; font-style: italic; color: var(--dim); font-size: 16px; }
-.verdict { display: grid; gap: 4px; padding: 12px 0; border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); }
+.verdict { position: relative; display: grid; gap: 4px; padding: 12px 0; border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); }
+.doing { position: absolute; right: 0; top: 0; width: 150px; height: 128px; display: flex; flex-direction: column; pointer-events: none; }
+.verdict > .pix, .verdict > .word { padding-right: 150px; }
+.verdict > p { padding-right: 120px; }
 .word { font-size: clamp(44px, 4.6vw, 74px); animation: struck .9s var(--out) both; }
 .word small { font: 400 16px var(--pix); color: var(--dim); text-transform: uppercase; margin-left: 6px; vertical-align: .5em; }
 @keyframes struck { from { opacity: 0; letter-spacing: .25em; filter: blur(3px); } }
@@ -552,9 +579,11 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .wk .tek { font-size: 24px; }
 .wk i { font-style: normal; }
 .runs { border-left: 3px dotted var(--low); padding: 8px 12px; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
-.run { display: grid; grid-template-columns: 50px minmax(64px, 1fr) auto auto auto; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 3px dotted var(--faint); white-space: nowrap; }
+.ic { width: 15px; height: 15px; fill: none; stroke: var(--phos); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.run .ic { align-self: center; }
+.run { display: grid; grid-template-columns: 15px 54px minmax(52px, 1fr) auto auto auto; gap: 6px; align-items: baseline; padding: 5px 0; border-bottom: 3px dotted var(--faint); white-space: nowrap; }
 .run .fell { color: var(--hi); font-size: 15px; }
-.run .note { font-size: 11.5px; }
+.run .note { font-size: 11px; }
 
 /* The sheet */
 .sheet { position: fixed; inset: 0; z-index: 40; background: rgba(12, 11, 10, .74); backdrop-filter: blur(10px); display: grid; place-items: center; padding: 20px; }

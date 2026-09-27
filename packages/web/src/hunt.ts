@@ -85,8 +85,9 @@ export const BACK_MARKS: Mark[] = [
   { group: 'push', x: 0.15, y: 0.31, side: 'r' },
 ];
 export const FRONT_MARKS: Mark[] = [
-  { group: 'push', x: 0.33, y: 0.58, side: 'r' },
-  { group: 'core', x: 0.44, y: 0.82, side: 'r' },
+  { group: 'push', x: 0.36, y: 0.3, side: 'r' },
+  { group: 'arms', x: 0.12, y: 0.56, side: 'r' },
+  { group: 'core', x: 0.43, y: 0.64, side: 'r' },
 ];
 
 // ---- The ledger ----------------------------------------------------------------
@@ -193,6 +194,16 @@ export function along(b: Band, u: number, v = 0): [number, number] {
   const top = b.from[1] + (b.to[1] - b.from[1]) * e, bottom = b.from[2] + (b.to[2] - b.from[2]) * e;
   return [x0 + (x1 - x0) * u, (top + bottom) / 2 + ((bottom - top) / 2) * v];
 }
+
+// Line icons for each kind of hunt, in a 16 unit square.
+export const ICONS: Record<Source | 'other', string> = {
+  run: 'M10.5 1.6a1.5 1.5 0 1 0 .01 0ZM9.2 4.6 6.4 8.2l3.1 1.7-1.6 4.4M9.2 4.6l2.3 2.8h2.9M6.4 8.2l-3-.6M7.9 10.4l-3.6 3.8',
+  stairs: 'M1.5 14.5h3v-3h3v-3h3v-3h3v-3h2',
+  iron: 'M1 8h14M3.2 5v6M5.4 3.6v8.8M10.6 3.6v8.8M12.8 5v6',
+  climb: 'M1.5 14.5 6 4.5l2.7 5 1.8-2.6 4 7.1ZM6 4.5l1.2 2.2',
+  other: 'M8 2.5a5.5 5.5 0 1 0 .01 0Z',
+};
+export const iconOf = (k: ActivityKind): string => ICONS[sourceOf(k) ?? 'other'];
 
 export const mj = (kj: number) => (kj >= 1000 ? `${(kj / 1000).toFixed(1)} MJ` : `${Math.round(kj)} kJ`);
 export const pace = (a: GarminActivity) => {
