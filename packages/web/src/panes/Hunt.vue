@@ -336,6 +336,12 @@ async function addMovement() {
   if (ok) { adding.value = false; fresh.value.name = ''; }
 }
 
+// The nights are shown on asking: hidden, the two prints sit centred as one;
+// shown, they rise together and the nights come up beneath them. Kept per
+// browser, as a view is.
+const NIGHTS_KEY = 'aura.hunt.nights';
+const showNights = ref((() => { try { return localStorage.getItem(NIGHTS_KEY) === '1'; } catch { return false; } })());
+watch(showNights, (on) => { try { localStorage.setItem(NIGHTS_KEY, on ? '1' : '0'); } catch { /* private window */ } });
 const weight = ref(state.hunt.bodyweight);
 watch(() => state.hunt.bodyweight, (v) => { weight.value = v; });
 const pulling = ref(false);
@@ -348,7 +354,8 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
   <div class="hunt">
     <!-- The body he borrows -->
     <Frame class="vessel" title="the vessel he borrows // each part lit by how fresh it is" flush>
-      <div class="bodies">
+      <div class="bodies" :class="{ nights: showNights }">
+        <div class="prints">
         <figure class="photo backp">
           <Plate :draw="drawBack" :active="active" animated :cell="1" label="Your back, dithered in the console's two inks" />
           <svg class="marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -373,7 +380,9 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
             <b>{{ GROUP_WORDS[m.group] }}</b><i>{{ ago(rest[m.group]) }}</i>
           </span>
         </figure>
-        <div class="recovery">
+        </div>
+        <Transition name="nights">
+        <div v-if="showNights" class="recovery">
           <div class="rhead"><span class="pix">recovery // 14 nights</span>
             <span class="rkey"><i class="bar"></i>sleep<i class="line"></i>readiness</span></div>
           <div class="rchart"><Plate :draw="drawRecovery" :active="active" animated :cell="1" label="Sleep score as bars and readiness as a line, the last fourteen nights" /></div>
@@ -385,8 +394,10 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
             <span><b class="tek">{{ lastNight?.bodyBattery ?? '-' }}</b><i class="pix">battery</i></span>
           </div>
         </div>
+        </Transition>
       </div>
       <div class="legs"><span class="pix">legs</span><span class="note">carried by the road and the stairs, last {{ ago(rest.legs) }}</span>
+        <button class="x nightsbtn" :class="{ on: showNights }" :aria-pressed="showNights" @click="showNights = !showNights"><i></i>nights</button>
         <span class="pix weight">vessel <input v-model.number="weight" type="number" min="30" max="200" step="0.1" aria-label="bodyweight in kilograms" @change="act.bodyweight(weight)"> kg</span></div>
     </Frame>
 
@@ -562,7 +573,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 /* Under the prints, the nights: how the vessel is recovering. */
 .recovery { position: absolute; left: 4cqw; right: 3cqw; bottom: 2cqh; height: 16cqh; min-height: 96px; display: grid;
   grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto; gap: 3px 14px; }
-.rhead { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; }
+.rhead { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; white-space: nowrap; }
 .rkey { display: flex; gap: 6px; align-items: center; font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; }
 .rkey .bar { width: 12px; height: 8px; background: linear-gradient(#787878, #282828); border-top: 1px solid #aaa; }
 .rkey .line { width: 12px; height: 2px; background: var(--hi); margin-left: 6px; }
@@ -588,7 +599,19 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .tag b { font: 400 10px var(--pix); text-transform: uppercase; color: rgba(230, 224, 212, calc(.45 + var(--glow) * .55)); }
 .tag i { font: italic 400 12px var(--fell); color: var(--dim); }
 .legs { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; border-top: 3px dotted var(--low); flex-wrap: wrap; }
-.legs .weight { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.legs .nightsbtn { margin-left: auto; display: flex; gap: 6px; align-items: center; text-transform: uppercase; }
+.nightsbtn i { width: 9px; height: 9px; border: 2px solid var(--low); transition: background .25s var(--out), border-color .25s var(--out); }
+.nightsbtn.on { color: var(--phos); }
+.nightsbtn.on i { background: var(--phos); border-color: var(--phos); }
+.legs .weight { display: flex; gap: 6px; align-items: center; }
+/* The two prints move as one: centred in the frame while the nights are
+   away (their stack runs from 3 to 80 of the frame's height), back up where
+   they were when the nights come in. */
+.prints { position: absolute; inset: 0; transform: translateY(8.5cqh); transition: transform .7s var(--out); }
+.bodies.nights .prints { transform: translateY(0); }
+.nights-enter-active { transition: opacity .5s var(--out) .15s, transform .6s var(--out) .15s; }
+.nights-leave-active { transition: opacity .25s var(--ease), transform .3s var(--ease); }
+.nights-enter-from, .nights-leave-to { opacity: 0; transform: translateY(12px); }
 .legs input { width: 64px; background: var(--deep); border: 2px solid var(--low); color: var(--hi); padding: 2px 6px; font: 400 12px var(--mono); }
 
 /* The transformation */
