@@ -357,7 +357,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
       <p class="motto fell">Mens agitat molem.</p>
       <div class="verdict" :class="{ soft: h.verdict.soft }">
         <div class="doing" aria-hidden="true"><Plate :draw="drawDoing" :active="active" animated :cell="1" /></div>
-        <span class="pix">today, he says</span>
+        <span class="pix">{{ h.verdict.when }}, he says</span>
         <span class="word tek">{{ h.verdict.word }}<small v-if="h.verdict.group"> {{ h.verdict.group }}</small><small v-else-if="h.verdict.long"> long</small></span>
         <p class="fell">{{ h.verdict.line }}</p>
         <div class="ready">
@@ -489,12 +489,12 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .vessel :deep(.flush) { overflow: hidden; }
 .bodies { flex: 1; min-height: 0; position: relative; container-type: size; }
 /* The back is the plate; the front is pinned over its lower corner like a
-   second print laid on the first. Both keep their true proportions, and the
-   front never climbs past the lower 38% of the back, so the shoulders and lats
-   always show. */
+   second print laid on the first, high enough to cover the hands behind the
+   back. Both keep their true proportions, and the shoulders and lats always
+   show above it. */
 .photo { position: absolute; margin: 0; display: flex; flex-direction: column; --bh: min(94cqh, 138cqw); }
 .backp { top: 3cqh; right: 4cqw; height: var(--bh); width: calc(var(--bh) * 388 / 640); }
-.frontp { left: 4cqw; bottom: 3cqh; width: min(70cqw, calc((94cqh - var(--bh) * .62) * 537 / 460)); aspect-ratio: 537 / 460;
+.frontp { left: 4cqw; bottom: 20cqh; width: min(70cqw, calc((94cqh - var(--bh) * .62) * 537 / 460)); aspect-ratio: 537 / 460;
   border: 3px double var(--low); background: var(--ground); }
 .marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mark circle { fill: rgba(230, 224, 212, calc(.25 + var(--glow) * .75)); stroke: none; }

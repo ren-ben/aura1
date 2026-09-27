@@ -21,7 +21,7 @@ export type Hunt = {
 
 export const EMPTY_HUNT: Hunt = {
   exercises: [], sets: [], feels: [], activities: [], days: [], bodyweight: 75, garminSyncedAt: null,
-  verdict: { word: 'RUN', group: null, long: false, soft: false, line: '', short: 'RUN' },
+  verdict: { word: 'RUN', group: null, long: false, soft: false, line: '', short: 'RUN', when: 'today' },
 };
 
 const DAY = 86_400_000;

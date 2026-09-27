@@ -156,7 +156,8 @@ export type GarminDay = {
 // ---- The verdict ------------------------------------------------------------
 // Six days trained, one rested; one bad night never forces a rest.
 export type Word = 'REST' | 'IRON' | 'RUN' | 'STAIRS';
-export type Verdict = { word: Word; group: Group | null; long: boolean; soft: boolean; line: string; short: string };
+// when: the day it is for. Once today has been trained, he speaks of tomorrow.
+export type Verdict = { word: Word; group: Group | null; long: boolean; soft: boolean; line: string; short: string; when: 'today' | 'tomorrow' };
 export type VerdictInput = {
   now: Date; today: string; days: GarminDay[]; activities: GarminActivity[];
   // Every lift visit, by the group it mostly hit.
@@ -167,13 +168,30 @@ const HOUR = 3600_000;
 const TRAINED_KINDS: ActivityKind[] = ['run', 'stairs', 'boulder', 'strength'];
 const word = (n: number) => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n);
 
-export function verdict({ now, today, days, activities, lifts }: VerdictInput): Verdict {
+const TRAINING_MINUTES = 20;
+const trainedOn = (date: string, { activities, lifts }: VerdictInput) =>
+  lifts.some((l) => l.at.slice(0, 10) === date)
+  || activities.some((a) => TRAINED_KINDS.includes(a.kind) && a.seconds >= TRAINING_MINUTES * 60 && a.startedAt.slice(0, 10) === date);
+
+export function verdict(input: VerdictInput): Verdict {
+  if (!trainedOn(input.today, input)) return { ...judge(input), when: 'today' };
+  // Today's hunt is done: judge tomorrow morning, today counted as trained,
+  // and tonight's recovery standing in for tomorrow's until it is measured.
+  const tomorrow = new Date(Date.parse(`${input.today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const last = input.days.find((d) => d.date === input.today);
+  return {
+    ...judge({ ...input, today: tomorrow, now: new Date(Date.parse(`${tomorrow}T05:00:00Z`)), days: last ? [...input.days, { ...last, date: tomorrow }] : input.days }),
+    when: 'tomorrow',
+  };
+}
+
+function judge({ now, today, days, activities, lifts }: VerdictInput): Omit<Verdict, 'when'> {
   const t = now.getTime();
   const dayOf = (date: string) => days.find((d) => d.date === date);
   const back = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
   const todayDay = dayOf(today);
   const soft = (todayDay?.readiness ?? 100) < 40;
-  const say = (w: Word, line: string, group: Group | null = null, long = false): Verdict => ({
+  const say = (w: Word, line: string, group: Group | null = null, long = false): Omit<Verdict, 'when'> => ({
     word: w, group, long, soft, line: soft && w !== 'REST' ? `${line} Readiness is low: fewer sets, nothing to failure.` : line,
     short: group ? `${w} ${group.toUpperCase()}` : long ? `${w} LONG` : w,
   });
@@ -188,7 +206,7 @@ export function verdict({ now, today, days, activities, lifts }: VerdictInput): 
   // 2. The seventh day.
   const trained = new Set([
     ...lifts.map((l) => l.at.slice(0, 10)),
-    ...activities.filter((a) => TRAINED_KINDS.includes(a.kind) && a.seconds >= 20 * 60).map((a) => a.startedAt.slice(0, 10)),
+    ...activities.filter((a) => TRAINED_KINDS.includes(a.kind) && a.seconds >= TRAINING_MINUTES * 60).map((a) => a.startedAt.slice(0, 10)),
   ]);
   let streak = 0;
   while (trained.has(back(streak + 1))) streak++;

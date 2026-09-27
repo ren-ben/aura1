@@ -156,3 +156,19 @@ test('every verdict has a line and a short form for the glass', () => {
   assert.ok(v.line.length > 10);
   assert.ok(v.short.length <= 15);
 });
+
+test('once today is trained, he speaks of tomorrow', () => {
+  const lifts = [lift('2026-09-25T17:00:00.000Z', 'push'), lift('2026-09-24T17:00:00.000Z', 'pull')];
+  const before = verdict({ now: NOW, today: '2026-09-27', days: [], activities: [run('2026-09-22T08:00:00.000Z', 50)], lifts });
+  assert.equal(before.when, 'today');
+  assert.equal(before.word, 'RUN');
+  // He ran as told: the word moves on to tomorrow, and the run counts.
+  const after = verdict({ now: NOW, today: '2026-09-27', days: [], activities: [run('2026-09-22T08:00:00.000Z', 50), run('2026-09-27T05:00:00.000Z', 60)], lifts });
+  assert.equal(after.when, 'tomorrow');
+  assert.notEqual(after.word, 'RUN');
+});
+
+test('a short walk is not a hunt', () => {
+  const v = verdict({ now: NOW, today: '2026-09-27', days: [], activities: [run('2026-09-27T05:00:00.000Z', 12)], lifts: [] });
+  assert.equal(v.when, 'today');
+});

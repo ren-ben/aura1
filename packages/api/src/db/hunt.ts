@@ -102,7 +102,7 @@ export function deviceHunt(data: HuntData, lifting: number) {
   return {
     word: data.verdict.word,
     short: data.verdict.short,
-    line: data.verdict.line,
+    line: data.verdict.when === 'tomorrow' ? `Tomorrow: ${data.verdict.line}` : data.verdict.line,
     liftingId: lifting,
     exercises: order.map((e) => {
       const mine = data.sets.filter((s) => s.exerciseId === e.id);
