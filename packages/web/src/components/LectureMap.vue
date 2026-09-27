@@ -8,7 +8,7 @@ import 'katex/dist/katex.min.css';
 import Gl from './Gl.vue';
 import Plate from './Plate.vue';
 import Letter from './Letter.vue';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { catSprite, type Draw } from '../gl/plate';
 import { cosmos } from '../gl/cosmos';
 import { sceneFor } from '../gl/lecture';
@@ -306,7 +306,7 @@ const line = computed(() => {
 });
 const facing = computed(() => { const b = at.value[hovered.value]; return b ? (b.x + b.w / 2 < 0 ? -1 : 1) : 1; });
 const sprites = ref<{ curious: HTMLCanvasElement; reading: HTMLCanvasElement } | null>(null);
-Promise.all([catSprite(art.curious, 300), catSprite(art.reading, 300)]).then(([curious, reading]) => { sprites.value = { curious, reading }; });
+watch(() => [worn('curious'), worn('reading')], ([a, b]) => Promise.all([catSprite(a!, 300), catSprite(b!, 300)]).then(([curious, reading]) => { sprites.value = { curious, reading }; }), { immediate: true });
 // He reads while the map is being made.
 const reading = computed(() => !flying.value && (dto.value?.status === 'researching' || dto.value?.status === 'writing'));
 const drawCat: Draw = (g, w, h, t) => {

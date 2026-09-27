@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import { drawLogo, logoFor, mixLogo } from '../gl/logogram';
 import Plate from '../components/Plate.vue';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { catSprite, makePlate } from '../gl/plate';
 import { actions, state, type Quote } from '../store';
 
@@ -29,7 +29,7 @@ const glyph = ref<HTMLCanvasElement | null>(null);
 // the dither, which at this size turns him into grain - and tinted phosphor.
 const readerCanvas = ref<HTMLCanvasElement | null>(null);
 const him = ref<HTMLCanvasElement | null>(null);
-catSprite(art.cameo, 300).then((c) => { him.value = c; drawHim(); });
+watch(() => worn('cameo'), (svg) => catSprite(svg, 300).then((c) => { him.value = c; drawHim(); }), { immediate: true });
 
 function drawHim() {
   const canvas = readerCanvas.value, sprite = him.value;

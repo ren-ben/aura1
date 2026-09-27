@@ -112,9 +112,9 @@ SessionMachine::SessionMachine(Carousel& carousel, EventQueue& queue, Clock& clo
   : carousel_(carousel), queue_(queue), clock_(clock),
     storage_(storage), renderer_(renderer), random_(random) {}
 
-// The skins he can wear, chosen freely: Jiji, and a bedsheet ghost in a
-// Halloween of his own.
-static const char* const SKINS[] = { "jiji", "halloween" };
+// The skins he can wear, chosen freely: Jiji, a bedsheet ghost in a
+// Halloween of his own, and Ye, every era of Kanye.
+static const char* const SKINS[] = { "jiji", "halloween", "ye" };
 
 void SessionMachine::begin() {
   book_.begin();

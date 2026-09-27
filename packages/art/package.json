@@ -9,6 +9,7 @@
   "scripts": {
     "bake": "tsx src/bake.ts",
     "fonts": "tsx src/fonts.ts",
+    "web": "tsx src/web.ts",
     "test": "tsx --test test/bitmap.test.ts"
   },
   "devDependencies": {

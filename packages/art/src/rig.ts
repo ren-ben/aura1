@@ -15,6 +15,7 @@ import polygonClipping, { type Polygon } from 'polygon-clipping';
 import { blush, eye, EYES, mouth, type Palette } from './face.ts';
 import { marks } from './marks.ts';
 import { EXPRESSIONS, type Ears, type Expression } from './expressions.ts';
+import { yeChest, yeHead, type Costume } from './ye.ts';
 
 export type { Palette } from './face.ts';
 export { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
@@ -24,7 +25,7 @@ export const SIZE = 400;
 export const POSES = ['idle', 'focused'] as const;
 export type Pose = (typeof POSES)[number];
 
-export const SKINS = ['default', 'halo', 'halloween'] as const;
+export const SKINS = ['default', 'halo', 'halloween', 'ye'] as const;
 export type Skin = (typeof SKINS)[number];
 
 export const DEVICE_PALETTE: Palette = { ink: '#000', paper: '#fff', background: '#fff' };
@@ -186,8 +187,10 @@ function sheet(p: Palette, hem: number, tilt: number, ears: Pt[][], seed: number
 }
 
 // hat: the hunter's tricorn, for the Hunter's Dream and the hunt. hem: how
-// far the Halloween sheet hangs, for the pose.
-export type Wear = { skin?: Skin; headphones?: boolean; hat?: boolean; hem?: number };
+// far the Halloween sheet hangs, for the pose. ye: which era the Ye skin
+// dresses him in (ye.ts), shades unless a scene says; pitch: the Yeezus
+// mask's tile size, bigger when he is drawn small.
+export type Wear = { skin?: Skin; headphones?: boolean; hat?: boolean; hem?: number; ye?: Costume; pitch?: number };
 
 // The head in canonical coordinates, tilted about the neck. Scenes place it
 // with a transform; the bust puts it on the body as drawn.
@@ -214,6 +217,12 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
     ...(expr.blush ? blush(120, q) : []),
   ];
   const ghost = wear.skin === 'halloween';
+  const earShapes = ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink));
+  const drawnHead = shape(wobble(HEAD, 7, 1.8), p.ink);
+  const worn = wear.skin === 'ye' ? yeHead(wear.ye ?? 'shades', {
+    whiskers, ears: earShapes, head: drawnHead, openings, eyes: eyePair, nose: features(p)[0]!, features: features(p).slice(1),
+    silhouette: [wobble(HEAD, 7, 1.8), ...ears.map((e, i) => wobble(e, 20 + i, 1.2))],
+  }, p, wear.pitch) : null;
   // Under the sheet his eyes show through the holes; the rest of the face is
   // drawn in reverse, ink on the cloth.
   const holes = EYES.map(([x, y], i) => toPath(wobble(ellipse(x, y, 32, 40, 40), 140 + i, 1.2)));
@@ -226,12 +235,17 @@ export function head(expr: Expression, p: Palette, wear: Wear = {}): string {
     ...features({ ink: p.paper, paper: p.ink }),
     ...(wear.headphones ? headphonesFront(p, 90) : []),
     ...marks(expr.marks ?? [], 200, p),
+  ] : worn ? [
+    ...(wear.headphones ? headphonesBehind(p, 90) : []),
+    ...worn,
+    ...(wear.headphones ? headphonesFront(p, 90) : []),
+    ...marks(expr.marks ?? [], 200, p),
   ] : [
     wear.skin === 'halo' ? halo(p, 70).join('') : '',
     ...(wear.headphones ? headphonesBehind(p, 90) : []),
     ...whiskers,
-    ...ears.map((e, i) => shape(wobble(e, 20 + i, 1.2), p.ink)),
-    shape(wobble(HEAD, 7, 1.8), p.ink),
+    ...earShapes,
+    drawnHead,
     ...openings,
     ...eyePair,
     ...features(p),
@@ -262,7 +276,8 @@ export function svg(inner: string, p: Palette): string {
 
 // Head and shoulders in canonical coordinates, for scenes to place.
 export function bustArt(expr: Expression, p: Palette, wear: Wear = {}): string {
-  return shape(wobble(BODY, 11, 2.2), p.ink) + head(expr, p, wear);
+  const chest = wear.skin === 'ye' ? yeChest(wear.ye ?? 'shades', p) : '';
+  return shape(wobble(BODY, 11, 2.2), p.ink) + chest + head(expr, p, wear);
 }
 
 // Head and shoulders, as on the device's portrait screens.

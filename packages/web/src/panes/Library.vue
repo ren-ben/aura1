@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import Plate from '../components/Plate.vue';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { catSprite, sigil } from '../gl/plate';
 import { lights } from '../gl/models';
 import { CELL, stacks, type ShelfEntry, type Stacks } from '../gl/stacks';
@@ -118,7 +118,7 @@ function onDrop(e: DragEvent) { take(e.dataTransfer?.files ?? null); }
 
 // Him, reading over your shoulder.
 const him = ref<HTMLCanvasElement | null>(null);
-catSprite(art.reading, 300).then((c) => { him.value = c; });
+watch(() => worn('reading'), (svg) => catSprite(svg, 300).then((c) => { him.value = c; }), { immediate: true });
 const studious = (g: CanvasRenderingContext2D, w: number, h: number, t: number) => {
   const c = him.value;
   if (!c) return;

@@ -80,6 +80,7 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     s["millivolts"] = status->millivolts;
     s["charging"] = status->charging;
     s["look"] = status->look;
+    s["skin"] = status->skin;
   }
   // The server takes thirty books, and fifty passages of each, at a time.
   JsonArray read;

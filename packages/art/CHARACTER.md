@@ -90,6 +90,22 @@ sealed haul, level up, neglect, cameos); under ten minutes the pail comes back
 empty. Decay, the rite, the Vigil and copying a book stay as they are.
 `src/scenes.ts` (`halloweenScenes`), ids `hw-*`.
 
+## The Ye skin
+
+Every era of Kanye, worn by choice from the device's settings. Each scene is
+in its own era's costume on its own era's stage (`src/ye.ts` the costumes,
+`src/yestages.ts` the stages): the Dropout Bear at the library desk for study
+and waking, in the Graduation caps for a level up; the 808s suit with the
+heart balloon gone flat when he thins; the Horus chain of MBDTF raising a
+toast by the Runaway piano when a session is sealed or the list is done, and
+under the sword of Power for heresy; the Yeezus mask alone on the carved peak,
+and on the world in Bully when neglected; bare on the Saint Pablo stage, out
+on the sage flats under the Tetons of ye (waking, sleeping, dreaming), riding
+the Kids See Ghosts ghost, and in the doorway of the Jesus Is King chapel;
+Donda in the stadium for the hunt and the marathon. Day to day, and in the
+cameos and on the dashboard, he wears the shutter shades. The Vigil, the rite,
+copying a book and dormancy stay as they are. `yeScenes`, ids `ye-*`.
+
 ## Batches
 
 1. Face kit: all expressions on the bust, one sheet to review.

@@ -77,7 +77,7 @@ static void startSync(unsigned long connectMs = 20000, bool forceScan = false) {
   if (syncClient.busy()) return;
   knownAtSync = !machine.daily().date().empty();
   levelAtSync = machine.daily().level();
-  syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName() });
+  syncClient.setStatus({ gauge.percent(), gauge.millivolts(), gauge.charging(), machine.lookName(), machine.skin() });
   // Where the reading got to in every book read since the last sync, and
   // whatever was kept in them.
   syncClient.setReadings(machine.book().readings());

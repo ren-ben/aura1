@@ -7,7 +7,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { EXPRESSIONS, POSES, SKINS, SIZE, bust, compose, type Pose, type Skin } from './rig.ts';
 import { cArray, packBits } from './bitmap.ts';
 import { pose, type Pose as BodyPose } from './body.ts';
-import { halloweenScenes, scenes } from './scenes.ts';
+import { halloweenScenes, scenes, yeScenes } from './scenes.ts';
 import { writeSounds } from './sound.ts';
 import { svg as frame, bustArt, DEVICE_PALETTE } from './rig.ts';
 
@@ -122,7 +122,7 @@ writeFileSync(resolve(out, 'poses.png'), new Resvg(`<svg xmlns="http://www.w3.or
 // art/index.txt, one line per scene: moment id frames size [env [skin]].
 // A skin's scenes carry its name, env '-' when they have none. His
 // Halloween-week screensavers in the Halloween skin are its lore.
-const library = [...scenes(), ...halloweenScenes()];
+const library = [...scenes(), ...halloweenScenes(), ...yeScenes()];
 const sd = resolve(out, 'sd/art');
 mkdirSync(sd, { recursive: true });
 const index: string[] = [];

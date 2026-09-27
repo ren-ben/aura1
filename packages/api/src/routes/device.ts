@@ -11,6 +11,7 @@ const deviceDto = z.object({
   millivolts: z.number().int().nullable(),
   charging: z.boolean().nullable(),
   look: z.string().nullable(),
+  skin: z.string().nullable(),
   pendingLook: z.string().nullable(),
 });
 
@@ -27,6 +28,7 @@ export const deviceRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) =>
       millivolts: row?.millivolts ?? null,
       charging: row?.charging ?? null,
       look: row?.look ?? null,
+      skin: row?.skin ?? null,
       pendingLook: row?.pendingLook ?? null,
     };
   });

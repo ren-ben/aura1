@@ -12,7 +12,7 @@ import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
 import { narrow } from '../screen';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { rng } from '../gl/engine';
 import { lights } from '../gl/models';
 import { moonDisc, rand, starfield } from '../gl/plate';
@@ -120,7 +120,7 @@ function out() { hovered.value = -1; live.hover = -1; }
 // Him in negative, the way the device's dark looks show him: the fur lit,
 // the eyes and ear marks dark, nothing around him.
 const sprite = ref<HTMLCanvasElement | null>(null);
-{
+watch(() => worn('still'), (still) => {
   const img = new Image();
   img.onload = () => {
     const n = 300, c = document.createElement('canvas');
@@ -137,8 +137,8 @@ const sprite = ref<HTMLCanvasElement | null>(null);
     x.putImageData(d, 0, 0);
     sprite.value = c;
   };
-  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(art.still.replace('<svg ', '<svg width="400" height="400" '))}`;
-}
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(still.replace('<svg ', '<svg width="400" height="400" '))}`;
+}, { immediate: true });
 
 const grey = (v: number) => `rgb(${Math.max(0, Math.min(255, v * 255)) | 0},${Math.max(0, Math.min(255, v * 255)) | 0},${Math.max(0, Math.min(255, v * 255)) | 0})`;
 const drawTree = computed(() => {

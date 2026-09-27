@@ -97,7 +97,7 @@ sit, wave, loaf, peek, reach, hold, still (the Vigil: serene face, tail
 wrapped round the front of the feet, one ink shape with the body), keeper
 (the horologe: square to us, the day's hourglass held to his chest).
 
-Skins: default, astrolabe halo, halloween. Planned: pumpkin-head, blood moon.
+Skins: default, astrolabe halo, halloween, ye. Planned: pumpkin-head, blood moon.
 
 Halloween (`inspiration/ghost*.png`): a bedsheet thrown over him. The cloth
 takes his ears as two smaller bumps set in on a round dome (his own ears are
@@ -109,3 +109,14 @@ The cloth is the same size in every pose: it hangs to just above his feet
 tail up out of the back. It falls differently every time (seeded sway, an
 uneven hem, wandering folds), never stiff, and hangs plumb while his head
 tilts.
+
+Ye (`src/ye.ts`, `inspiration/kanye`): a costume per era, never a new body.
+The Dropout Bear's head goes over his (round ears, paper muzzle, his own
+eyes) with a graduation cap; the Yeezus mask tiles his whole head, ears too,
+its eyes cut out, tiles bigger when he is small (`wear.pitch`); the Donda
+balaclava leaves his ears two soft points and no openings, and its spikes
+stand off the body with a paper rim so they read on his fur; shutter shades
+cut paper slats across his eyes. Chains come out from behind his neck under
+the chin, never lie over it. Full-body wear (suit to the sneakers, Donda to
+the boots) runs the whole body, fitted to the body square to us, so the
+skin's scenes use front, still, hold and reach.

@@ -109,7 +109,7 @@ export const meta = pgTable('meta', {
 
 export const CONFIG_VERSION_KEY = 'config_version';
 
-// The one device, as it last reported itself; and a look chosen on the web
+// The one device, as it last reported itself (the skin he wears too); and a look chosen on the web
 // that it takes on at its next sync.
 export const device = pgTable('device', {
   id: integer('id').primaryKey(),
@@ -118,6 +118,7 @@ export const device = pgTable('device', {
   millivolts: integer('millivolts'),
   charging: boolean('charging'),
   look: text('look'),
+  skin: text('skin'),
   pendingLook: text('pending_look'),
 });
 

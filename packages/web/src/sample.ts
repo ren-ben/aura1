@@ -87,7 +87,7 @@ let quotes: Quote[] = [
 ];
 
 const device: Device = {
-  lastSyncAt: new Date(Date.now() - 38 * 60_000).toISOString(), battery: 70, millivolts: 3912, charging: false, look: 'CATHEDRAL', pendingLook: null,
+  lastSyncAt: new Date(Date.now() - 38 * 60_000).toISOString(), battery: 70, millivolts: 3912, charging: false, look: 'CATHEDRAL', skin: 'jiji', pendingLook: null,
 };
 
 const level = (xp: number) => Math.floor(Math.sqrt(xp / 30));

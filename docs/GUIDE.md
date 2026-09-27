@@ -45,7 +45,8 @@ cannot be switched off from the middle of a book; go to the menu first.
   the day around it (a dial, a bus or a tape, by the look). POWER starts the session on
   the block's activity; the page stays up instead of the screensaver and moves every
   five minutes.
-- **Settings:** TEXT (small or large quotes), LOOK, SKIN (only Jiji so far) and SYNC
+- **Settings:** TEXT (small or large quotes), LOOK, SKIN (Jiji, Halloween or Ye; the dashboard
+  dresses him the same after the next sync) and SYNC
   (POWER syncs now; then SYNCED, NO WIFI or SERVER ERROR). Below them the battery: a
   gauge, its percent, the voltage, and whether it is charging.
 - **Looks** change how every page is drawn, picked with POWER on LOOK and kept across
@@ -316,7 +317,7 @@ in [hardware-checklist.md](hardware-checklist.md).
    sidecar, the verdict, the energy ledger. Still to check: the Garmin login from the Pi,
    and the rest bell on the hardware (test 12).
 
-**Open along the way:** the Bloodborne and Halloween skins (phase 4b, planned); check the
+**Open along the way:** the Bloodborne skin (planned); check the
 latest firmware on the hardware (sync speed, the
 charging bolt, the looks); the RESURRECTION ritual (for now any session wakes him);
 upgrade Node to 22+, which removes three workarounds. Audio is only the meditation chimes.

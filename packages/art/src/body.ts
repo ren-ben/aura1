@@ -8,6 +8,7 @@
 import { curve, ellipse, outline, sampleCubics, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
 import { fold, head, NECK, type Palette, type Wear } from './rig.ts';
 import { hourglass, tricorn } from './props.ts';
+import { yeBody } from './ye.ts';
 import type { Expression } from './expressions.ts';
 
 // Places the head so its neck lands on `neck` at `scale`, keeping lines
@@ -83,6 +84,8 @@ const paperLine = (pts: Pt[], p: Palette, seed: number) => shape(wobble(stroke(c
 const sitting = (p: Palette) => tail(TURNED_TAIL, p, 5) + ink(TURNED_BODY, p, 3) + paperLine(TURNED_LEG, p, 9);
 const sittingFront = (p: Palette) => tail(FRONT_TAIL, p, 5) + ink(FRONT_BODY, p, 3);
 const paw = (x: number, y: number, p: Palette, seed: number, rx = 13, ry = 11) => outlined(ellipse(x, y, rx, ry, 24), p, seed);
+// What the Ye skin puts on his body, over it and under his head.
+const dressed = (p: Palette, wear: Wear) => (wear.skin === 'ye' ? yeBody(wear.ye ?? 'shades', p) : '');
 
 // Sitting still, for the Vigil: square to us, the tail grown out of the right
 // haunch and wrapped round the front of his feet, lying on the floor. It is
@@ -110,6 +113,7 @@ export function holding(expr: Expression, p: Palette, held: string, wear: Wear =
   const [x, y] = HOLD;
   return [
     sittingFront(p),
+    dressed(p, wear),
     placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),
     held ? `<g filter="url(#halo)">${held}</g>` : '',
     paw(x - 32, y + 2, p, 33),
@@ -138,17 +142,17 @@ function loafUnderSheet(expr: Expression, p: Palette, wear: Wear): string {
 export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, frame = 0): string {
   switch (kind) {
     case 'sit':
-      return sitting(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
+      return sitting(p) + dressed(p, wear) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'front':
-      return sittingFront(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
+      return sittingFront(p) + dressed(p, wear) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'still':
-      return ink(FRONT_BODY, p, 3) + stillTail(p) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
+      return ink(FRONT_BODY, p, 3) + stillTail(p) + dressed(p, wear) + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear);
     case 'wave': {
       // His near paw raised beside his cheek, swinging between frames.
       const swing = frame % 2 === 0 ? 0 : 12;
       const tip: Pt = [314 - swing, 208 + swing * 0.3];
       const arm = [[226, 282], [262, 270], [292 - swing * 0.5, 244], tip] as Pt[];
-      return sitting(p)
+      return sitting(p) + dressed(p, wear)
         + shape(wobble(stroke(curve(arm), (t) => 20 - 4 * t), 8, 0.8), p.ink)
         + placeHead(expr, p, SIT_NECK, SIT_SCALE, wear)
         + paw(tip[0], tip[1] - 6, p, 9, 13, 15);
@@ -172,6 +176,7 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
       return [
         tail([[232, 380], [270, 374], [294, 350], [298, 322], [292, 300], [302, 282], [318, 278]], p, 5),
         ink(STAND_BODY, p, 3),
+        dressed(p, wear),
         shape(wobble(stroke(curve(armL), (t) => 18 - 4 * t), 41, 0.7), p.ink),
         shape(wobble(stroke(curve(armR), (t) => 18 - 4 * t), 42, 0.7), p.ink),
         placeHead(expr, p, SIT_NECK, SIT_SCALE, wear),

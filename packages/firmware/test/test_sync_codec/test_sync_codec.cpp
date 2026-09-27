@@ -162,12 +162,13 @@ void test_today_is_returned_when_present() {
 }
 
 void test_request_carries_the_status_and_response_a_look() {
-  DeviceStatus status{ 70, 3912, true, "CODEX" };
+  DeviceStatus status{ 70, 3912, true, "CODEX", "ye" };
   JsonDocument doc;
   TEST_ASSERT_FALSE(deserializeJson(doc, buildRequest("aura-1", 1, {}, {}, "", &status)));
   TEST_ASSERT_EQUAL_INT(70, doc["status"]["battery"].as<int>());
   TEST_ASSERT_TRUE(doc["status"]["charging"].as<bool>());
   TEST_ASSERT_EQUAL_STRING("CODEX", doc["status"]["look"].as<const char*>());
+  TEST_ASSERT_EQUAL_STRING("ye", doc["status"]["skin"].as<const char*>());
   const SyncResult r = parseResponse("{\"acked\":[],\"rejected\":[],\"look\":\"CARMILLA\"}");
   TEST_ASSERT_EQUAL_STRING("CARMILLA", r.look.c_str());
 }

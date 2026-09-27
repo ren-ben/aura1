@@ -71,6 +71,13 @@
       "when": 1790503134240,
       "tag": "0009_hunt",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790517068309,
+      "tag": "0010_device_skin",
+      "breakpoints": true
     }
   ]
 }

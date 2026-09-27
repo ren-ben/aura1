@@ -50,6 +50,7 @@ public:
   // The look by name, as chosen on the web; unknown names change nothing.
   void setLook(const std::string& name);
   const char* lookName() const;
+  const std::string& skin() const { return skin_; }
   // The speaker, for the Vigil's sounds. Without one a sit is silent.
   void setSound(Sound* sound) { sound_ = sound; }
 

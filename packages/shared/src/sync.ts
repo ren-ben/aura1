@@ -39,6 +39,8 @@ export const syncRequestSchema = z.object({
     millivolts: z.number().int().min(0).max(6000),
     charging: z.boolean(),
     look: z.string().max(20),
+    // The skin he wears on the glass, so the dashboard dresses him the same.
+    skin: z.string().max(20).optional(),
   }).optional(),
 });
 

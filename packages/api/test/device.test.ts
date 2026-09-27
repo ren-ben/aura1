@@ -30,9 +30,9 @@ beforeEach(async () => {
   await seed(db);
 });
 
-const sync = (look: string) => applySync(db, {
+const sync = (look: string, skin = 'jiji') => applySync(db, {
   deviceId: 'aura-1', configVersion: 1, events: [],
-  status: { battery: 70, millivolts: 3912, charging: false, look },
+  status: { battery: 70, millivolts: 3912, charging: false, look, skin },
 });
 
 test('a sync records how the device is', async () => {
@@ -43,7 +43,13 @@ test('a sync records how the device is', async () => {
   assert.equal(got.battery, 70);
   assert.equal(got.millivolts, 3912);
   assert.equal(got.look, 'CODEX');
+  assert.equal(got.skin, 'jiji');
   assert.ok(got.lastSyncAt);
+});
+
+test('the skin he wears on the device reaches the dashboard', async () => {
+  await sync('CODEX', 'ye');
+  assert.equal((await app.inject({ method: 'GET', url: '/api/v1/device' })).json().skin, 'ye');
 });
 
 test('a look chosen on the web goes out until the device wears it', async () => {

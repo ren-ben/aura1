@@ -22,6 +22,8 @@ import {
 } from './props.ts';
 import { bustArt, DEVICE_PALETTE, SIZE, type Palette, type Skin, type Wear } from './rig.ts';
 import { vigilScenes } from './vigil.ts';
+import type { Costume } from './ye.ts';
+import { bookStack, caps, chapel, crowd, flatHeart, floatingStage, flute, frieze, ghostRide, grain, NIGHT, peak, RUNAWAY_FLOOR, runawayHall, stadium, tetons, world } from './yestages.ts';
 
 export type Moment =
   | 'wake' | 'sleep' | 'session-axiom' | 'session-workshop' | 'session-heresy' | 'session-dream' | 'session-hunt'
@@ -30,7 +32,7 @@ export type Moment =
   | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected' | 'transcribe'
   | 'vigil' | 'vigil-breath' | 'vigil-kept' | 'hunt';
 
-export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween' | 'manor' | 'patch';
+export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween' | 'manor' | 'patch' | 'tetons' | 'library';
 // skin: the scene belongs to a skin's own set, which the device prefers
 // while he wears it; moments the set leaves out fall back to his usual ones.
 export type Scene = { id: string; moment: Moment; size: number; frames: string[]; env?: Env; skin?: Skin };
@@ -366,6 +368,81 @@ export function halloweenScenes(): Scene[] {
     ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
       hs(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35, G, 2.2)
         + hideBelow(392))], undefined, 64)),
+  ];
+}
+
+// The Ye skin (ye.ts): every era of Kanye, each scene in its own era's
+// costume on its own era's stage. The Dropout Bear at the library desk and in
+// the Graduation caps, the Yeezus mask on the carved peak, the Saint Pablo
+// stage, the Tetons of ye, the Kids See Ghosts ghost, the Jesus Is King
+// chapel, the Horus chain of Power and Runaway, Donda in the stadium, the
+// mask again on the world in Bully, and the 808s heart gone flat. The Vigil,
+// the rite, copying a book and dormancy stay his usual.
+export function yeScenes(): Scene[] {
+  const Y = (ye: Costume, extra: Wear = {}): Wear => ({ skin: 'ye', ye, ...extra });
+  const y = (kind: Pose, f: Face, ye: Costume, frame = 0, extra: Wear = {}) => cat(kind, f, Y(ye, extra), frame);
+  const ys = (id: string, moment: Moment, frames: string[], env?: Env, size = 200): Scene =>
+    ({ ...scene(`ye-${id}`, moment, frames, env, size), skin: 'ye' });
+  // The mask's tiles sized for how small he stands.
+  const masked = (k: number): Wear => ({ pitch: 10 / (SIT_SCALE * k) });
+  const field = (c: string) => svg(tetons(P) + lifted(at(c, 300, 376, 0.42)));
+  const library = (f: Face, slump = 0) => atDesk(f, bookStack(16, DESK_Y, P) + book(214, DESK_Y - 4, P, 57),
+    { wear: Y('bear'), paws: [148, 290], slump });
+  const runaway = (f: Face) => svg(runawayHall(P) + at(y('wave', f, 'horus') + flute(318, 188, P), 306, RUNAWAY_FLOOR, 0.6));
+  const peakWith = (f: Face) => svg(NIGHT + peak(P) + lifted(at(y('front', f, 'mask', 0, masked(0.52)), 200, 266, 0.52)));
+  const onWorld = (f: Face) => svg(NIGHT + world(P) + lifted(at(y('front', f, 'mask', 0, masked(0.56)), 200, 304, 0.56)));
+  const pablo = (f: Face) => svg(floatingStage(P) + lifted(at(y('reach', f, 'bare'), 200, 262, 0.42)) + crowd(P));
+  const donda = (f: Face) => svg(stadium(P) + y('front', f, 'balaclava'));
+  const heartbreak = () => svg(flatHeart(P) + at(y('hold', 'lonely', 'suit'), 220, 392, 0.94));
+
+  return [
+    // Waking and sleeping out on the sage flats under the Tetons, and over
+    // the books at the library desk.
+    ys('wake-tetons', 'wake', [field(y('loaf', 'asleep', 'bare')), field(y('front', 'sleepy', 'bare')), field(y('wave', 'happy', 'bare')),
+      field(y('wave', 'delighted', 'bare', 1))], 'tetons'),
+    ys('sleep-tetons', 'sleep', [field(y('front', 'content', 'bare')), field(y('front', 'sleepy', 'bare')), field(y('loaf', 'asleep', 'bare'))], 'tetons'),
+    ys('wake-library', 'wake', [svg(library('asleep', 40)), svg(library('sleepy', 18)), svg(library('delighted'))], 'library'),
+    ys('sleep-library', 'sleep', [svg(library('content')), svg(library('sleepy', 18)), svg(library('asleep', 40))], 'library'),
+
+    // Sessions.
+    ys('axiom-library', 'session-axiom', [svg(library('determined'))], 'library'),
+    ys('axiom-laptop', 'session-axiom', [svg(atDesk('content', laptop(200, DESK_Y, P) + mug(335, DESK_Y, P), { wear: Y('shades', { headphones: true }), paws: [] }))], 'desk'),
+    ys('workshop-laptop', 'session-workshop', [svg(atDesk('determined', laptop(200, DESK_Y, P), { wear: Y('shades'), paws: [110, 290] }))], 'desk'),
+    ys('workshop-pablo', 'session-workshop', [pablo('content')]),
+    ys('heresy-power', 'session-heresy', [svg(frieze(P) + at(y('still', 'determined', 'horus'), 200, 380, 0.62))]),
+    ys('heresy-yeezus', 'session-heresy', [peakWith('content')]),
+    ys('dream-ghost', 'session-dream', [svg(ghostRide(P) + lifted(at(y('loaf', 'asleep', 'bare'), 206, 262, 0.42)))]),
+    ys('dream-tetons', 'session-dream', [field(y('loaf', 'asleep', 'bare'))], 'tetons'),
+    ys('hunt-donda', 'session-hunt', [donda('determined')]),
+
+    // A session sealed.
+    ys('sealed-proud', 'sealed', [svg(y('front', 'proud', 'bear'))]),
+    ys('sealed-toast', 'sealed', [runaway('happy')]),
+    ys('sealed-long', 'sealed-long', [svg(caps(P) + y('front', 'flustered', 'shades'))]),
+    ys('sealed-short', 'sealed-short', [svg(y('front', 'annoyed', 'suit'))]),
+    ys('sealed-marathon', 'sealed-marathon', [donda('dizzy')]),
+    ys('levelup', 'levelup', [svg(caps(P) + y('reach', withMarks('delighted', ['sparkles']), 'bear'))]),
+    ys('todos-done', 'todos-done', [runaway(withMarks('overjoyed', ['hearts']))]),
+    ys('neglected', 'neglected', [onWorld('furious')]),
+    // Thinning: alone with the heart gone flat.
+    ys('thinning', 'decay-thinning', [heartbreak()]),
+
+    // Screensavers: a stage from every era.
+    ys('lore-library', 'lore', [svg(library({ ...face('determined'), look: [2, 12] }))], 'library'),
+    ys('lore-graduation', 'lore', [svg(caps(P) + y('reach', 'delighted', 'bear'))]),
+    ys('lore-808s', 'lore', [heartbreak()]),
+    ys('lore-runaway', 'lore', [runaway('happy')]),
+    ys('lore-power', 'lore', [svg(frieze(P) + at(y('still', 'vowing', 'horus'), 200, 380, 0.62))]),
+    ys('lore-yeezus', 'lore', [peakWith('vowing')]),
+    ys('lore-pablo', 'lore', [pablo('delighted')]),
+    ys('lore-ye', 'lore', [field(y('front', 'content', 'bare'))], 'tetons'),
+    ys('lore-ghosts', 'lore', [svg(ghostRide(P) + lifted(at(y('reach', 'overjoyed', 'bare'), 206, 258, 0.4)))]),
+    ys('lore-jik', 'lore', [svg(NIGHT + chapel(P) + at(y('still', 'serene', 'bare'), 200, 380, 0.46) + grain(P))]),
+    ys('lore-donda', 'lore', [donda('vowing')]),
+    ys('lore-bully', 'lore', [onWorld('determined')]),
+
+    ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])
+      .map((name) => ys(`cameo-${name}`, 'cameo', [svg(bustAt(name, [200, 395], 1.28, Y('shades')))], undefined, 72)),
   ];
 }
 

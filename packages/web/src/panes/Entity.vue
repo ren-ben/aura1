@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // Kael'thos himself: his own drawing, on a ledge over the cathedral ward at
 // night, the bond, what he says today, and the chronicle of the pact.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import { vault } from '../gl/vault';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { bats, catSprite, church, drift, greatOne, lamp, moonDisc, railing, rand, sampleSprite, starfield, street, trees } from '../gl/plate';
 import { actions, dailyMinutes, duration, localDate, state, today } from '../store';
 import { hisWord } from '../words';
@@ -16,7 +16,7 @@ const props = defineProps<{ active: boolean }>();
 
 // His drawing, prepared once: body dark, a moonlit rim, eyes bright.
 const sprite = ref<HTMLCanvasElement | null>(null);
-catSprite(art.sitting, 420).then((c) => { sprite.value = c; points.value = sampleSprite(c, 4); });
+watch(() => worn('sitting'), (svg) => catSprite(svg, 420).then((c) => { sprite.value = c; points.value = sampleSprite(c, 4); }), { immediate: true });
 // Where the scene is leaning, and where it is being asked to lean. It travels
 // between the two every frame, so leaving the pane eases back instead of
 // snapping flat.

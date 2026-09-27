@@ -47,7 +47,7 @@ export type Course = {
 };
 export type Device = {
   lastSyncAt: string | null; battery: number | null; millivolts: number | null;
-  charging: boolean | null; look: string | null; pendingLook: string | null;
+  charging: boolean | null; look: string | null; skin: string | null; pendingLook: string | null;
 };
 
 // The rewiring: a block of planned time on one local day, in minutes after

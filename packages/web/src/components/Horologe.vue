@@ -5,7 +5,7 @@
 // behind it all, and Kael'thos at the centre with the hand going round him.
 // A tap, or REWIRE, rolls the dial back out into the nocturne to be edited.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import art from '../gl/art.json';
+import { worn } from '../worn';
 import { localDate } from '../store';
 import { SHADES, blocksOn, drawnOn, hm, lecturesOn, starDial, starR, starsOf, sunOf } from '../rewiring';
 
@@ -59,8 +59,7 @@ const hand = computed(() => ({ a: pt(now.value, 140), b: pt(now.value, 226), bea
 // out solid against the dark of the dial.
 const done = computed(() => taps.value.length > 0 && !on.value && !next.value.length);
 const inked = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg.replaceAll('#000', '#c5bcab').replaceAll('#fff', '#121212'))}`;
-const KEEPING = inked(art.keeper), KEPT = inked(art.keeperDone);
-const kael = computed(() => (done.value ? KEPT : KEEPING));
+const kael = computed(() => inked(worn(done.value ? 'keeperDone' : 'keeper')));
 
 // The sky behind the face: the nocturne's own stars, laid round the dial.
 const svg = ref<SVGSVGElement | null>(null), sky = ref<HTMLCanvasElement | null>(null);

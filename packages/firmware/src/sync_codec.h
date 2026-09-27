@@ -29,6 +29,7 @@ struct DeviceStatus {
   int millivolts = 0;
   bool charging = false;
   std::string look;
+  std::string skin;  // what he wears, so the dashboard dresses him the same
 };
 
 // The request body, with at most the first MAX_SYNC_EVENTS events and
