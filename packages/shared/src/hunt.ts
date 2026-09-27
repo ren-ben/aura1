@@ -237,6 +237,7 @@ export const huntSetSchema = z.object({
   reps: z.number().int().min(0).max(200),
 });
 export const huntFeelSchema = z.object({
+  uuid: z.uuid(),
   exerciseId: z.number().int().positive(),
   date: z.iso.date(),
   feel: z.enum(['easy', 'solid', 'grind']),

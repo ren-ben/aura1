@@ -64,6 +64,13 @@
       "when": 1790434585423,
       "tag": "0008_rewiring",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790503134240,
+      "tag": "0009_hunt",
+      "breakpoints": true
     }
   ]
 }

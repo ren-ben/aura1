@@ -4,7 +4,7 @@ import { MIN_SESSION_MINUTES, sessionMinutes, type ConfigDto, type SyncRequest, 
 import { vigilPractices } from '../db/vigil.ts';
 import type { Db } from '../db/client.ts';
 import {
-  activities, folders, sessions, meta, habitEntries, habits, todos, device, books, chapters, marks,
+  activities, folders, sessions, meta, habitEntries, habits, todos, device, books, chapters, marks, exercises, huntSets, huntFeels,
   CONFIG_VERSION_KEY,
 } from '../db/schema.ts';
 import { buildToday } from './today.ts';
@@ -97,11 +97,33 @@ async function readerFor(db: Db, readings: NonNullable<SyncRequest['readings']>)
 
 }
 
+// Sets and feels from the gym. A set for an exercise that is gone is
+// rejected so the device lets it go; one resent is stored once.
+async function applyHunt(db: Db, request: SyncRequest, acked: string[], rejected: string[]): Promise<void> {
+  const sets = request.sets ?? [], feels = request.feels ?? [];
+  if (!sets.length && !feels.length) return;
+  const known = new Set((await db.select({ id: exercises.id }).from(exercises)).map((e) => e.id));
+  const good = sets.filter((s) => known.has(s.exerciseId));
+  if (good.length) {
+    await db.insert(huntSets).values(good.map((s) => ({ ...s, at: new Date(s.at), source: 'device' as const })))
+      .onConflictDoNothing({ target: huntSets.uuid });
+  }
+  for (const s of sets) (known.has(s.exerciseId) ? acked : rejected).push(s.uuid);
+  for (const f of feels) {
+    if (known.has(f.exerciseId)) {
+      await db.insert(huntFeels).values({ exerciseId: f.exerciseId, date: f.date, feel: f.feel })
+        .onConflictDoUpdate({ target: [huntFeels.exerciseId, huntFeels.date], set: { feel: f.feel } });
+    }
+    acked.push(f.uuid);
+  }
+}
+
 export async function applySync(db: Db, request: SyncRequest): Promise<SyncResponse> {
   await applyTicks(db, request.ticks ?? []);
   const version = await configVersion(db);
   const acked: string[] = [];
   const rejected: string[] = [];
+  await applyHunt(db, request, acked, rejected);
 
   if (request.events.length > 0) {
     const ids = [...new Set(request.events.map((e) => e.activityId))];

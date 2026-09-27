@@ -1,4 +1,4 @@
-import type { GrownNode, LectureMap, MapStatus } from '@aura/shared';
+import type { ActivityKind, Feel, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, Pose } from '@aura/shared';
 import {
   pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision,
 } from 'drizzle-orm/pg-core';
@@ -187,4 +187,71 @@ export const planDays = pgTable('plan_days', {
   date: date('date', { mode: 'string' }).primaryKey(),
   rev: integer('rev').notNull().default(0),
   capacity: integer('capacity').notNull().default(480),
+});
+
+// The Hunt. An exercise as the coach sees it (packages/shared/src/hunt.ts);
+// seeded from his own list, edited on the web, archived, never deleted.
+export const exercises = pgTable('exercises', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').$type<Kind>().notNull(),
+  group: text('muscle_group').$type<Group>().notNull(),
+  sets: integer('sets').notNull(),
+  repLo: integer('rep_lo').notNull(),
+  repHi: integer('rep_hi').notNull(),
+  step: doublePrecision('step').notNull(),
+  bwShare: doublePrecision('bw_share').notNull().default(0),
+  path: doublePrecision('path').notNull(),
+  pose: text('pose').$type<Pose>().notNull(),
+  rest: integer('rest').notNull(),
+  start: doublePrecision('start').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+});
+
+// A set: from the device (keyed by its uuid, so a resent sync stores it once)
+// or written in on the phone.
+export const huntSets = pgTable('hunt_sets', {
+  uuid: text('uuid').primaryKey(),
+  exerciseId: integer('exercise_id').notNull().references(() => exercises.id),
+  at: timestamp('at', { withTimezone: true }).notNull(),
+  idx: integer('idx').notNull(),
+  load: doublePrecision('load').notNull(),
+  reps: integer('reps').notNull(),
+  source: text('source', { enum: ['device', 'phone'] }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// How an exercise felt on a day: the coach's nudge.
+export const huntFeels = pgTable('hunt_feels', {
+  exerciseId: integer('exercise_id').notNull().references(() => exercises.id),
+  date: date('date', { mode: 'string' }).notNull(),
+  feel: text('feel').$type<Feel>().notNull(),
+}, (t) => [primaryKey({ columns: [t.exerciseId, t.date] })]);
+
+// What Garmin knows: activities, and each day's recovery.
+export const garminActivities = pgTable('garmin_activities', {
+  id: text('id').primaryKey(),
+  kind: text('kind').$type<ActivityKind>().notNull(),
+  name: text('name').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  seconds: integer('seconds').notNull(),
+  meters: doublePrecision('meters').notNull(),
+  ascent: doublePrecision('ascent').notNull(),
+  hrAvg: integer('hr_avg'),
+  hrMax: integer('hr_max'),
+  kj: doublePrecision('kj').notNull(),
+  load: doublePrecision('load'),
+  zones: jsonb('zones').$type<number[]>().notNull().default([]),
+});
+
+export const garminDays = pgTable('garmin_days', {
+  date: date('date', { mode: 'string' }).primaryKey(),
+  readiness: integer('readiness'),
+  hrvStatus: text('hrv_status').$type<HrvStatus>(),
+  sleepScore: integer('sleep_score'),
+  bodyBattery: integer('body_battery'),
+  restingHr: integer('resting_hr'),
+  acuteLoad: doublePrecision('acute_load'),
+  chronicLoad: doublePrecision('chronic_load'),
 });

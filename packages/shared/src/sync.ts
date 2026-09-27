@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FORM_STATES } from './xp.ts';
+import { huntFeelSchema, huntSetSchema } from './hunt.ts';
 
 export const sessionEndedSchema = z.object({
   uuid: z.uuid(),
@@ -21,6 +22,10 @@ export const syncRequestSchema = z.object({
   configVersion: z.number().int().nonnegative(),
   events: z.array(sessionEndedSchema).max(200),
   ticks: z.array(tickSchema).max(200).default([]),
+  // The Hunt: sets done at the gym, and how each exercise felt. Acked by uuid
+  // with the sessions.
+  sets: z.array(huntSetSchema).max(400).default([]),
+  feels: z.array(huntFeelSchema).max(60).default([]),
   // The hash of the bundle the device holds: an unchanged bundle is not sent.
   todayHash: z.string().max(64).optional(),
   // Where it got to in the book it is reading, and what it marked there.
@@ -96,6 +101,24 @@ export const todayDtoSchema = z.object({
     shade: z.number().int(),
     activityId: z.number().int().nullable(),
   })).default([]),
+  // The Hunt: the morning's verdict, the session a hunt runs as, and every
+  // exercise with what to lift next (the verdict's group first, then the
+  // longest untouched). last: the last visit, as "100x9 90x12".
+  hunt: z.object({
+    word: z.string(),
+    short: z.string(),
+    line: z.string(),
+    liftingId: z.number().int(),
+    exercises: z.array(z.object({
+      id: z.number().int(),
+      name: z.string(),
+      pose: z.string(),
+      rest: z.number().int(),
+      bodyweight: z.boolean(),
+      sets: z.array(z.object({ load: z.number(), reps: z.number().int() })),
+      last: z.string(),
+    })),
+  }).optional(),
 });
 
 // Every book on the shelf, as the device lists them. Only what a list needs:
