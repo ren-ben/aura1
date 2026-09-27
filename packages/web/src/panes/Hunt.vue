@@ -13,7 +13,7 @@ import {
   along, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
   type HuntExercise, type HuntSetRow, type Iron, type Mark, type Source,
 } from '../hunt';
-import { EFFICIENCY, FEELS, type Group, type Pose } from '@aura/shared';
+import { EFFICIENCY, FEELS, POSES as ALL_POSES, type Group, type Pose } from '@aura/shared';
 import backUrl from '../assets/hunt/back.png';
 import frontUrl from '../assets/hunt/front.png';
 
@@ -188,11 +188,11 @@ const sprite = (key: Pose) => {
 };
 
 // Him, beside his word for the day, already doing it.
-const VERDICT_POSE: Record<string, Pose> = { RUN: 'run', STAIRS: 'stairs', REST: 'core' };
-const GROUP_POSE: Record<Group, Pose> = { push: 'press', pull: 'hang', arms: 'curl', core: 'core', legs: 'deadlift' };
+const VERDICT_POSE: Record<string, Pose> = { RUN: 'jog', STAIRS: 'stairs', REST: 'rest' };
+const GROUP_POSE: Record<Group, Pose> = { push: 'bench', pull: 'pullup', arms: 'preacher', core: 'core', legs: 'deadlift' };
 const doing = ref<HTMLCanvasElement | null>(null);
 watch(() => [h.value.verdict.word, h.value.verdict.group] as const, async ([word, group]) => {
-  const key = word === 'IRON' ? GROUP_POSE[group ?? 'push'] : VERDICT_POSE[word] ?? 'run';
+  const key = word === 'IRON' ? GROUP_POSE[group ?? 'push'] : VERDICT_POSE[word] ?? 'jog';
   doing.value = await sprite(key);
 }, { immediate: true });
 const drawDoing = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
@@ -210,8 +210,9 @@ watch(open, async (i) => {
 const drawPose = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
   const c = pose.value;
   if (!c) return;
-  const s = Math.min(w * 1.3, hh * 0.9);
-  g.drawImage(c, w / 2 - s / 2, (hh - s) * 0.45 + Math.sin(t * 1.4) * s * 0.012, s, s);
+  // The whole scene, machine and all, fitted to the panel.
+  const s = Math.min(w, hh) * 0.98;
+  g.drawImage(c, w / 2 - s / 2, (hh - s) / 2 + Math.sin(t * 1.4) * s * 0.006, s, s);
 };
 
 // The visits, newest first, each set editable.
@@ -273,9 +274,10 @@ async function saveSettings() {
 async function retire() { if (open.value) { await act.editExercise(open.value.ex, { archived: true }); close(); } }
 
 // A new movement.
-const POSES: Pose[] = ['press', 'fly', 'dip', 'hang', 'row', 'curl', 'raise', 'deadlift', 'core'];
+// A new movement borrows the scene of the one it is most like.
+const POSES = ALL_POSES.filter((x) => x !== 'jog' && x !== 'stairs' && x !== 'rest');
 const adding = ref(false);
-const fresh = ref({ name: '', group: 'push' as Group, pose: 'press' as Pose, kind: 'machine' as HuntExercise['kind'], start: 40, repLo: 8, repHi: 12, step: 2.5, sets: 3 });
+const fresh = ref({ name: '', group: 'push' as Group, pose: 'chestpress' as Pose, kind: 'machine' as HuntExercise['kind'], start: 40, repLo: 8, repHi: 12, step: 2.5, sets: 3 });
 async function addMovement() {
   const f = fresh.value;
   if (!f.name.trim()) return;

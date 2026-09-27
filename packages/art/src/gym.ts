@@ -27,6 +27,8 @@ export type Figure = {
   // Things he holds, drawn between his far arm and near arm, or over all.
   held?: string; over?: string;
   watch?: boolean;
+  // Front views with arms across the chest: no paper rim on the arms.
+  plain?: boolean;
 };
 
 // A shape with a paper rim round the whole of it: the rim is laid first as a
@@ -85,7 +87,7 @@ export function figure(f: Figure, expr: Expression, p: Palette): string {
     f.held ?? '',
     limb(legs.near, p, 65, true, 24, 18), foot(legs.near.at(-1)!, p, 66),
     head(f, expr, p),
-    limb(arms.near, p, 67, true), paw(arms.near.at(-1)!, p, 68),
+    limb(arms.near, p, 67, !f.plain), paw(arms.near.at(-1)!, p, 68),
     f.watch ? watch(arms.near, p) : '',
     f.over ?? '',
   ].join('');

@@ -78,6 +78,13 @@
       "when": 1790517068309,
       "tag": "0010_device_skin",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790517168309,
+      "tag": "0010_hunt_scenes",
+      "breakpoints": true
     }
   ]
 }

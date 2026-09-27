@@ -40,7 +40,8 @@ function opening(): Pt[] {
 export function profileHead(expr: Expression, p: Palette): string {
   const kind = Array.isArray(expr.eyes) ? expr.eyes[1] : expr.eyes;
   // The look runs along the face: forward is +x; a little up or down stays.
-  const look: Pt = [Math.abs(expr.look?.[0] ?? 6) * 0.9, expr.look?.[1] ?? 0];
+  // Always ahead, never back at you: the pupil sits at the front of the eye.
+  const look: Pt = [Math.max(11, Math.abs(expr.look?.[0] ?? 11)), expr.look?.[1] ?? 0];
   const eyeParts = eye(kind, EYE, 1, look, expr.lid ?? 0.45, 60, p);
   const parts = [
     shape(wobble(outline(FAR_EAR), 24, 1.2), p.ink),

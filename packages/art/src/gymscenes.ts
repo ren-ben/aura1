@@ -116,7 +116,7 @@ export const GYM: GymScene[] = [
     + light('M150 190h100v140h-100z', p, 5) + light('M150 330h100v16h-100z', p, 4)
     + tube([200, 150], [118, 208], 8, p) + tube([200, 150], [282, 208], 8, p) + tube([200, 136], [200, 190], 12, p)
     + figure({
-      front: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
+      front: true, plain: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
       arms: { near: [[222, 262], [276, 264], [282, 222]], far: [[178, 262], [124, 264], [118, 222]] },
       legs: { near: [[214, 326], [226, 352], [228, 388]], far: [[186, 326], [174, 352], [172, 388]] },
       over: light('M270 206h24v74h-24z', p, 4) + light('M106 206h24v74h-24z', p, 4),
@@ -159,9 +159,9 @@ export const GYM: GymScene[] = [
       arms: { near: [[222, 280], [276, 298], [262, 256]], far: [[178, 280], [124, 298], [138, 256]] },
       legs: { near: [[212, 350], [224, 376], [214, 398]], far: [[188, 350], [176, 376], [186, 398]] },
       over: tube([20, 258], [380, 258], 12, p)
-        // The belt's chain, and the plate hanging from it, face on.
-        + `<path d="M186 348L200 364L214 348" fill="none" stroke="${p.paper}" stroke-width="7"/><path d="M186 348L200 364L214 348" fill="none" stroke="${p.ink}" stroke-width="3.5" stroke-dasharray="5 3"/>`
-        + plate([200, 372], 30, p),
+        // The belt's chain through the plate, which hangs edge on to us.
+        + `<path d="M186 348L200 344L214 348" fill="none" stroke="${p.paper}" stroke-width="7"/><path d="M186 348L200 344L214 348" fill="none" stroke="${p.ink}" stroke-width="3.5" stroke-dasharray="5 3"/>`
+        + slab(200, 372, 58, p, 18) + solid(195, 340, 10, 6, p, 2),
     }, E.vowing, p) },
   { id: 'pulldown', name: 'Lat Pulldown', draw: (p) =>
     tube([64, 30], [64, FLOOR], 14, p) + tube([336, 30], [336, FLOOR], 14, p) + tube([64, 30], [336, 30], 14, p) + pulley([200, 44], p)
@@ -226,12 +226,10 @@ export const GYM: GymScene[] = [
     }, E.vowing, p) + floor(p) },
 
   { id: 'reversefly', name: 'Reverse Fly', draw: (p) =>
-    // Chest to the pad, straight arms swung out level at shoulder height; the
-    // handles ride on arms from the post behind him.
-    tube([200, 150], [200, FLOOR], 16, p) + tube([200, 252], [74, 252], 9, p) + tube([200, 252], [326, 252], 9, p)
-    + tube([200, 336], [200, FLOOR], 12, p) + light('M150 330h100v16h-100z', p, 4)
+    // Chest to the pad, straight arms swung out level at shoulder height.
+    tube([200, 336], [200, FLOOR], 12, p) + light('M150 330h100v16h-100z', p, 4)
     + figure({
-      front: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
+      front: true, plain: true, hip: [200, 318], shoulder: [200, 262], neck: [200, 246],
       arms: { near: [[222, 262], [276, 260], [326, 258]], far: [[178, 262], [124, 260], [74, 258]] },
       legs: { near: [[214, 326], [226, 352], [228, 388]], far: [[186, 326], [174, 352], [172, 388]] },
       over: solid(164, 272, 72, 54, p, 10) + light('M320 240h12v34h-12z', p) + light('M68 240h12v34h-12z', p),

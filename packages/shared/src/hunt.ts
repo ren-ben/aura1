@@ -6,7 +6,14 @@ import { z } from 'zod';
 export type Kind = 'barbell' | 'machine' | 'cable' | 'dumbbell' | 'bodyweight' | 'weighted';
 export type Group = 'push' | 'pull' | 'arms' | 'core' | 'legs';
 // The movements he is drawn in; run and stairs are for the Garmin side.
-export type Pose = 'press' | 'fly' | 'dip' | 'hang' | 'row' | 'curl' | 'raise' | 'deadlift' | 'core' | 'run' | 'stairs';
+// Each exercise's scene in the art pack (packages/art/src/gymscenes.ts), and
+// the three the verdict adds: the jog, the stairs, the rest.
+export const POSES = [
+  'bench', 'incline', 'chestpress', 'dips', 'cablefly', 'machinefly', 'tricep', 'latpush', 'muscleup', 'pullup', 'pulldown',
+  'onearm', 'cablerow', 'bbrow', 'chestsup', 'rowmachine', 'reversefly', 'egyptian', 'preacher', 'bayesian', 'deadlift', 'core',
+  'jog', 'stairs', 'rest',
+] as const;
+export type Pose = (typeof POSES)[number];
 export type Feel = 'easy' | 'solid' | 'grind';
 export const FEELS: Feel[] = ['easy', 'solid', 'grind'];
 
@@ -25,26 +32,26 @@ const def = (name: string, kind: Kind, group: Group, sets: number, [repLo, repHi
 
 // His iron, as he gave it. Loads per side for the cable fly.
 export const EXERCISES: ExerciseDef[] = [
-  def('Bench Press', 'barbell', 'push', 4, [6, 10], 2.5, 100, 'press', 0.4),
-  def('Incline Bench', 'barbell', 'push', 4, [8, 12], 2.5, 70, 'press', 0.45),
-  def('Chest Press', 'machine', 'push', 4, [8, 12], 5, 105, 'press', 0.4),
-  def('Weighted Dips', 'weighted', 'push', 4, [8, 12], 2.5, 40, 'dip', 0.5, 1),
-  def('Cable Fly', 'cable', 'push', 3, [10, 14], 2.5, 27.5, 'fly', 0.5),
-  def('Machine Fly', 'machine', 'push', 3, [12, 15], 5, 70, 'fly', 0.4),
-  def('Tricep Ext', 'machine', 'arms', 3, [15, 20], 5, 50, 'press', 0.3),
-  def('Pushdown', 'cable', 'arms', 3, [10, 15], 2.5, 30, 'curl', 0.35),
-  def('Muscle Ups', 'bodyweight', 'pull', 4, [1, 99], 0, 15, 'hang', 1.1, 1, 180),
-  def('Weighted Pullup', 'weighted', 'pull', 4, [8, 12], 2.5, 17.5, 'hang', 0.6, 1),
-  def('Lat Pulldown', 'cable', 'pull', 4, [8, 12], 5, 75, 'hang', 0.6),
-  def('1-Arm Pulldown', 'cable', 'pull', 3, [8, 12], 2.5, 80, 'hang', 0.55),
-  def('Cable Row', 'cable', 'pull', 4, [8, 12], 5, 70, 'row', 0.5),
-  def('Barbell Row', 'barbell', 'pull', 4, [8, 12], 2.5, 70, 'row', 0.45),
-  def('Chest Sup Row', 'machine', 'pull', 3, [8, 12], 2.5, 45, 'row', 0.4),
-  def('Row Machine', 'machine', 'pull', 3, [10, 12], 5, 65, 'row', 0.4),
-  def('Reverse Fly', 'machine', 'pull', 3, [12, 15], 5, 40, 'fly', 0.4),
-  def('Egyptian Raise', 'cable', 'arms', 3, [10, 15], 2.5, 30, 'raise', 0.5),
-  def('Preacher Curl', 'machine', 'arms', 3, [8, 12], 2.5, 50, 'curl', 0.4),
-  def('Bayesian Curl', 'cable', 'arms', 3, [8, 10], 2.5, 32.5, 'curl', 0.45),
+  def('Bench Press', 'barbell', 'push', 4, [6, 10], 2.5, 100, 'bench', 0.4),
+  def('Incline Bench', 'barbell', 'push', 4, [8, 12], 2.5, 70, 'incline', 0.45),
+  def('Chest Press', 'machine', 'push', 4, [8, 12], 5, 105, 'chestpress', 0.4),
+  def('Weighted Dips', 'weighted', 'push', 4, [8, 12], 2.5, 40, 'dips', 0.5, 1),
+  def('Cable Fly', 'cable', 'push', 3, [10, 14], 2.5, 27.5, 'cablefly', 0.5),
+  def('Machine Fly', 'machine', 'push', 3, [12, 15], 5, 70, 'machinefly', 0.4),
+  def('Tricep Ext', 'machine', 'arms', 3, [15, 20], 5, 50, 'tricep', 0.3),
+  def('Lat Pushdown', 'cable', 'pull', 3, [10, 15], 2.5, 30, 'latpush', 0.6),
+  def('Muscle Ups', 'bodyweight', 'pull', 4, [1, 99], 0, 15, 'muscleup', 1.1, 1, 180),
+  def('Weighted Pullup', 'weighted', 'pull', 4, [8, 12], 2.5, 17.5, 'pullup', 0.6, 1),
+  def('Lat Pulldown', 'cable', 'pull', 4, [8, 12], 5, 75, 'pulldown', 0.6),
+  def('1-Arm Pulldown', 'cable', 'pull', 3, [8, 12], 2.5, 80, 'onearm', 0.55),
+  def('Cable Row', 'cable', 'pull', 4, [8, 12], 5, 70, 'cablerow', 0.5),
+  def('Barbell Row', 'barbell', 'pull', 4, [8, 12], 2.5, 70, 'bbrow', 0.45),
+  def('Chest Sup Row', 'machine', 'pull', 3, [8, 12], 2.5, 45, 'chestsup', 0.4),
+  def('Row Machine', 'machine', 'pull', 3, [10, 12], 5, 65, 'rowmachine', 0.4),
+  def('Reverse Fly', 'machine', 'pull', 3, [12, 15], 5, 40, 'reversefly', 0.4),
+  def('Egyptian Raise', 'cable', 'arms', 3, [10, 15], 2.5, 30, 'egyptian', 0.5),
+  def('Preacher Curl', 'machine', 'arms', 3, [8, 12], 2.5, 50, 'preacher', 0.4),
+  def('Bayesian Curl', 'cable', 'arms', 3, [8, 10], 2.5, 32.5, 'bayesian', 0.45),
   def('Deadlift', 'barbell', 'legs', 3, [3, 6], 5, 130, 'deadlift', 0.55, 0, 180),
   def('Core', 'bodyweight', 'core', 1, [1, 1], 0, 1, 'core', 0, 0, 60),
 ];

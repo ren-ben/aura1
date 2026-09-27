@@ -1627,6 +1627,25 @@ void huntPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art) 
     return;
   }
 
+  // Resting: the whole scene of him at it fills the glass, and a small card
+  // over its corner keeps the time and what comes next.
+  if (h.stage == HuntStage::Rest) {
+    // Nothing is on the page yet, so the scene goes straight onto it.
+    if (art.draw(c, "huntbig-" + h.pose, 0, 0, ink)) {
+      const int m = h.rest / 60, s = h.rest % 60;
+      c.fillRect(0, 0, 108, 66, ground);
+      c.hline(0, 66, 108, ink);
+      c.vline(108, 0, 67, ink);
+      c.font(&Silk8);
+      c.text("REST", 8, 14, ink);
+      c.font(&Tek16);
+      c.text(std::to_string(m) + ":" + (s < 10 ? "0" : "") + std::to_string(s), 8, 38, ink);
+      c.font(&Silk8);
+      c.text(fit(c, "NEXT " + h.target, 96), 8, 58, ink);
+      return;
+    }
+  }
+
   // An exercise: its name and which set, then the one thing that matters.
   c.font(&Silk8);
   const std::string of = "SET " + std::to_string(h.set) + "/" + std::to_string(h.of);
@@ -1675,5 +1694,5 @@ void huntPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art) 
     for (size_t i = 0; i < lines.size() && i < 3; ++i) c.text(lines[i], 10, 116 + static_cast<int>(i) * 11, ink);
   }
   c.text("POWER: DONE", 10, 178, ink);
-  c.text("SUN: IT WENT OTHERWISE", 10, 190, ink);
+  c.text("SUN: OTHERWISE", 10, 190, ink);
 }

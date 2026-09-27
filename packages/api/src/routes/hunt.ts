@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { eq, sql } from 'drizzle-orm';
-import { garminIngestSchema, huntFeelSchema, huntSetSchema } from '@aura/shared';
+import { garminIngestSchema, huntFeelSchema, huntSetSchema, POSES } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { exercises, garminActivities, garminDays, huntFeels, huntSets, meta } from '../db/schema.ts';
 import { BODYWEIGHT_KEY, ensureExercises, GARMIN_SYNC_KEY, huntData } from '../db/hunt.ts';
@@ -18,7 +18,7 @@ const exerciseBody = z.object({
   step: z.number().min(0).max(50),
   bwShare: z.number().min(0).max(1),
   path: z.number().min(0).max(3),
-  pose: z.enum(['press', 'fly', 'dip', 'hang', 'row', 'curl', 'raise', 'deadlift', 'core']),
+  pose: z.enum(POSES),
   rest: z.number().int().min(0).max(900),
   start: z.number().min(0).max(1000),
 });

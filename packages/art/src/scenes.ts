@@ -11,7 +11,8 @@
 // wakes in the place it fell asleep. Nothing big sits behind his head: moons
 // and windows keep to the corners.
 
-import { HOLD, holding, HUNT_POSES, huntPose, placeHead, pose, SIT_NECK, SIT_SCALE, type Pose } from './body.ts';
+import { HOLD, holding, placeHead, pose, SIT_NECK, SIT_SCALE, type Pose } from './body.ts';
+import { GYM } from './gymscenes.ts';
 import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
@@ -275,8 +276,12 @@ export function scenes(): Scene[] {
         + hideBelow(392))], undefined, 64)),
     // The Vigil: sitting still (src/vigil.ts).
     ...vigilScenes().map((v) => scene(v.id, v.moment, v.frames)),
-    // The Hunt: him at each movement, small, beside the set on the glass.
-    ...HUNT_POSES.map((k) => scene(`hunt-${k}`, 'hunt', [svg(huntPose(k, face(k === 'run' ? 'happy' : k === 'core' || k === 'stairs' ? 'content' : 'vowing'), P))], undefined, 80)),
+    // The Hunt: every exercise, small beside the set on the glass, and whole
+    // while he rests between sets.
+    ...GYM.flatMap((g) => [
+      scene(`hunt-${g.id}`, 'hunt', [svg(g.draw(P))], undefined, 80),
+      scene(`huntbig-${g.id}`, 'hunt', [svg(g.draw(P))], undefined, 200),
+    ]),
   ];
 }
 

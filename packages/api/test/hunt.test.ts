@@ -139,7 +139,7 @@ test('refresh says plainly when there is no Garmin link', async () => {
 
 test('a new exercise joins the list; names longer than the glass are refused', async () => {
   const ex = { name: 'Hammer Curl', kind: 'dumbbell', group: 'arms', sets: 3, repLo: 8, repHi: 12, step: 2, bwShare: 0,
-    path: 0.4, pose: 'curl', rest: 120, start: 22 };
+    path: 0.4, pose: 'preacher', rest: 120, start: 22 };
   assert.equal((await call('POST', '/hunt/exercises', ex)).statusCode, 201);
   assert.equal((await call('POST', '/hunt/exercises', { ...ex, name: 'A Name Far Too Long' })).statusCode, 400);
   assert.equal((await hunt()).exercises.length, 23);

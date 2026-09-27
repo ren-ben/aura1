@@ -63,7 +63,8 @@ cannot be switched off from the middle of a book; go to the menu first.
 - **HUNT** is the gym. It opens on his verdict for the day (REST, IRON with the group,
   RUN or STAIRS) and every movement with what to lift next beside it. SUN walks, POWER
   starts the hunt on one: a HUNT/lifting session begins and the first set is on the glass,
-  `100 x 8`, with last time's sets under it and him in the movement's pose. POWER: done as
+  `100 x 8`, with last time's sets under it and him at that very exercise, small. While you rest,
+  the whole scene of him at it fills the glass, with the countdown in its corner. POWER: done as
   shown. SUN: it went otherwise, pick the reps, then the load, POWER takes each. Rest
   counts down in fifteens and a bell rings when it is over (POWER skips it). After the
   last set, how it felt: EASY, SOLID or GRIND. END HUNT, last on the list, seals it. Every

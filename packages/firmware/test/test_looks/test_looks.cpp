@@ -130,7 +130,7 @@ static std::vector<std::pair<std::string, ViewModel>> pages() {
   ViewModel hset = base(Place::Hunt);
   hset.hunt.stage = HuntStage::Set;
   hset.hunt.exercise = "Weighted Pullup";
-  hset.hunt.pose = "hang";
+  hset.hunt.pose = "pullup";
   hset.hunt.set = 2; hset.hunt.of = 4;
   hset.hunt.target = "17.5 x 12";
   hset.hunt.last = "20x10 17.5x12 15x12 12.5x12";
