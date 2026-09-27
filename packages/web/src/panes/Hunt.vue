@@ -487,12 +487,15 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 /* The vessel */
 .vessel { grid-area: vessel; min-height: 0; }
 .vessel :deep(.flush) { overflow: hidden; }
-.bodies { flex: 1; min-height: 0; position: relative; }
+.bodies { flex: 1; min-height: 0; position: relative; container-type: size; }
 /* The back is the plate; the front is pinned over its lower corner like a
-   second print laid on the first. */
-.photo { position: absolute; margin: 0; display: flex; flex-direction: column; }
-.backp { top: 4%; bottom: 0; right: 4%; aspect-ratio: 388 / 640; max-width: 78%; }
-.frontp { left: 4%; bottom: 4%; width: 74%; aspect-ratio: 537 / 460; border: 3px double var(--low); background: var(--ground); }
+   second print laid on the first. Both keep their true proportions, and the
+   front never climbs past the lower 38% of the back, so the shoulders and lats
+   always show. */
+.photo { position: absolute; margin: 0; display: flex; flex-direction: column; --bh: min(94cqh, 138cqw); }
+.backp { top: 3cqh; right: 4cqw; height: var(--bh); width: calc(var(--bh) * 388 / 640); }
+.frontp { left: 4cqw; bottom: 3cqh; width: min(70cqw, calc((94cqh - var(--bh) * .62) * 537 / 460)); aspect-ratio: 537 / 460;
+  border: 3px double var(--low); background: var(--ground); }
 .marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mark circle { fill: rgba(230, 224, 212, calc(.25 + var(--glow) * .75)); stroke: none; }
 .mark .ring { fill: none; stroke: rgba(230, 224, 212, calc(.15 + var(--glow) * .7)); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
