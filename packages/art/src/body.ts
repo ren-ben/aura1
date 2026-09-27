@@ -194,3 +194,97 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
       ].join('');
   }
 }
+
+// ---- The Hunt ----------------------------------------------------------------
+// Him at the iron, one pose per movement, the face always to us: he borrows
+// the lift, he does not grimace at it. The iron is ink with a paper rim, so
+// it reads across his black fur; the bar is always drawn in front of him.
+export type HuntPose = 'press' | 'fly' | 'dip' | 'hang' | 'row' | 'curl' | 'raise' | 'deadlift' | 'core' | 'run' | 'stairs';
+export const HUNT_POSES: HuntPose[] = ['press', 'fly', 'dip', 'hang', 'row', 'curl', 'raise', 'deadlift', 'core', 'run', 'stairs'];
+
+const rimmed = (d: string, p: Palette, w = 5) =>
+  `<path d="${d}" fill="${p.ink}" stroke="${p.paper}" stroke-width="${w}" paint-order="stroke"/>`;
+const rect = (x: number, y: number, w: number, h: number, r = 4) =>
+  `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y + h - r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`;
+// A bar from x0 to x1 at y, with plates of half-height h at each end.
+function barbell(x0: number, x1: number, y: number, h: number, p: Palette): string {
+  const bar = rimmed(rect(x0, y - 5, x1 - x0, 10, 3), p);
+  const plates = [x0 + 6, x1 - 34].map((x) => rimmed(rect(x, y - h, 28, 2 * h, 6), p) + rimmed(rect(x + 30 * (x < 200 ? 1 : -0.25), y - h * 0.7, 8, h * 1.4, 3), p)).join('');
+  return bar + plates;
+}
+// Iron held against his fur is paper with an ink edge, or it vanishes into him.
+const light = (d: string, p: Palette) => `<path d="${d}" fill="${p.paper}" stroke="${p.ink}" stroke-width="5"/>`;
+const dumbbell = (x: number, y: number, p: Palette) =>
+  light(rect(x - 22, y - 5, 44, 10, 3), p) + [x - 34, x + 18].map((px) => light(rect(px, y - 18, 16, 36, 5), p)).join('');
+const handle = (x: number, y: number, p: Palette, onFur = false) => (onFur ? light : rimmed)(rect(x - 20, y - 6, 40, 12, 5), p);
+const cable = (from: Pt, to: Pt, p: Palette, seed: number) => shape(wobble(stroke([from, to], () => 4), seed, 0.3), p.ink);
+const arm = (pts: Pt[], p: Palette, seed: number) => shape(wobble(stroke(curve(pts), (t) => 18 - 4 * t), seed, 0.7), p.ink);
+const standing = (p: Palette) =>
+  tail([[232, 380], [270, 374], [294, 350], [298, 322], [292, 300], [302, 282], [318, 278]], p, 5) + ink(STAND_BODY, p, 3);
+// Arms from the shoulders to the two paws, then the paws.
+const arms = (l: Pt[], r: Pt[], p: Palette) => arm([[180, 266], ...l], p, 41) + arm([[220, 266], ...r], p, 42);
+const paws = (l: Pt, r: Pt, p: Palette) => paw(l[0], l[1], p, 43) + paw(r[0], r[1], p, 46);
+
+export function huntPose(kind: HuntPose, expr: Expression, p: Palette): string {
+  const face = (neck: Pt = SIT_NECK, wear: Wear = {}) => placeHead(expr, p, neck, SIT_SCALE, wear);
+  const floor = shape(wobble(stroke([[-4, 394], [404, 394]], () => 6), 261, 0.6), p.ink);
+  switch (kind) {
+    case 'press': {
+      // The bar held high over his ears.
+      const l: Pt = [104, 104], r: Pt = [296, 104];
+      return standing(p) + arms([[150, 210], l], [[250, 210], r], p) + face() + barbell(34, 366, 100, 44, p) + paws(l, r, p) + floor;
+    }
+    case 'deadlift': {
+      // Standing tall, the bar at his shins, the plates on the floor.
+      const l: Pt = [158, 348], r: Pt = [242, 348];
+      return standing(p) + arms([[168, 310], l], [[232, 310], r], p) + face() + barbell(22, 378, 350, 44, p) + paws(l, r, p) + floor;
+    }
+    case 'hang': {
+      // From the bar, feet off the floor.
+      const l: Pt = [130, 92], r: Pt = [270, 92];
+      const bar = rimmed(rect(-10, 82, 420, 12, 4), p);
+      return `<g transform="translate(0 -20)">${standing(p)}</g>` + arms([[150, 190], l], [[250, 190], r], p) + face([200, 226]) + bar + paws(l, r, p);
+    }
+    case 'dip': {
+      // Between the parallel bars, locked out over them.
+      const l: Pt = [112, 300], r: Pt = [288, 300];
+      const posts = [100, 276].map((x) => rimmed(rect(x, 300, 24, 110, 4), p)).join('')
+        + [[40, 300, 110], [276, 300, 130]].map(([x, y, w]) => rimmed(rect(x!, y! - 8, w!, 14, 4), p)).join('');
+      return `<g transform="translate(0 -26)">${standing(p)}</g>` + posts + arms([[150, 290], l], [[250, 290], r], p) + face([200, 220]) + paws(l, r, p);
+    }
+    case 'fly': {
+      // Arms spread wide, a cable to each hand from the towers.
+      const l: Pt = [64, 262], r: Pt = [336, 262];
+      return standing(p) + cable([-4, 120], l, p, 51) + cable([404, 120], r, p, 52)
+        + arms([[120, 262], l], [[280, 262], r], p) + face() + handle(l[0], l[1], p) + handle(r[0], r[1], p) + paws(l, r, p) + floor;
+    }
+    case 'raise': {
+      // One arm out to the side, the cable running down to the floor.
+      const l: Pt = [176, 342], r: Pt = [334, 250];
+      return standing(p) + cable(r, [396, 394], p, 53) + arms([[170, 306], l], [[276, 254], r], p) + face()
+        + handle(r[0], r[1] + 4, p) + paws(l, r, p) + floor;
+    }
+    case 'row':
+      // Sitting, the handle pulled in to his chest, the cable running away.
+      return cable([HOLD[0], HOLD[1]], [404, HOLD[1] - 6], p, 54) + holding(expr, p, handle(HOLD[0], HOLD[1], p, true)) + floor;
+    case 'curl':
+      // Sitting, a dumbbell curled up to his chest.
+      return holding(expr, p, dumbbell(HOLD[0], HOLD[1] - 4, p)) + floor;
+    case 'core':
+      return pose('loaf', expr, p) + floor;
+    case 'run': {
+      // Out on the road in his headphones, the road running away behind him.
+      const streaks = [[20, 250, 90], [10, 290, 120], [30, 330, 80]]
+        .map(([x, y, w], i) => shape(wobble(stroke([[x!, y!], [x! + w!, y!]], () => 5), 70 + i, 0.4), p.ink)).join('');
+      const l: Pt = [150, 318], r: Pt = [254, 296];
+      return streaks + standing(p) + arms([[160, 300], l], [[238, 284], r], p) + face(SIT_NECK, { headphones: true }) + paws(l, r, p) + floor;
+    }
+    case 'stairs': {
+      // Climbing: a flight of steps rising to the right, him on the first.
+      const pts: string[] = ['M-4 394', 'H120', 'V364'];
+      for (let i = 1; i <= 7; i++) pts.push(`H${120 + i * 40}`, `V${364 - i * 30}`);
+      const flight = `<path d="${pts.join(' ')} H404 V404 H-4 Z" fill="url(#d50)" stroke="${p.ink}" stroke-width="6" stroke-linejoin="miter"/>`;
+      return flight + `<g transform="translate(-40 -30)">${sitting(p)}${face()}</g>`;
+    }
+  }
+}

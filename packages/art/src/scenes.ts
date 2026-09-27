@@ -11,7 +11,7 @@
 // wakes in the place it fell asleep. Nothing big sits behind his head: moons
 // and windows keep to the corners.
 
-import { HOLD, holding, placeHead, pose, SIT_NECK, SIT_SCALE, type Pose } from './body.ts';
+import { HOLD, holding, HUNT_POSES, huntPose, placeHead, pose, SIT_NECK, SIT_SCALE, type Pose } from './body.ts';
 import { marks } from './marks.ts';
 import { EXPRESSIONS, type Expression, type ExpressionName } from './expressions.ts';
 import { ellipse, rng, stroke, toPath, wobble, type Pt } from './ink.ts';
@@ -28,7 +28,7 @@ export type Moment =
   | 'sealed' | 'sealed-long' | 'sealed-short' | 'sealed-marathon' | 'levelup' | 'todos-done' | 'neglected'
   | 'decay-thinning' | 'decay-fragmenting' | 'decay-dormant' | 'lore' | 'halloween' | 'cameo' | 'watch'
   | 'ritual-0' | 'ritual-1' | 'ritual-2' | 'ritual-3' | 'ritual-4' | 'resurrected' | 'transcribe'
-  | 'vigil' | 'vigil-breath' | 'vigil-kept';
+  | 'vigil' | 'vigil-breath' | 'vigil-kept' | 'hunt';
 
 export type Env = 'room' | 'desk' | 'window' | 'dream' | 'yharnam' | 'void' | 'halloween' | 'manor' | 'patch';
 // skin: the scene belongs to a skin's own set, which the device prefers
@@ -273,6 +273,8 @@ export function scenes(): Scene[] {
         + hideBelow(392))], undefined, 64)),
     // The Vigil: sitting still (src/vigil.ts).
     ...vigilScenes().map((v) => scene(v.id, v.moment, v.frames)),
+    // The Hunt: him at each movement, small, beside the set on the glass.
+    ...HUNT_POSES.map((k) => scene(`hunt-${k}`, 'hunt', [svg(huntPose(k, face(k === 'run' ? 'happy' : k === 'core' || k === 'stairs' ? 'content' : 'vowing'), P))], undefined, 80)),
   ];
 }
 
