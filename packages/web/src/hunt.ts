@@ -77,18 +77,26 @@ export function rested(h: Hunt, now = Date.now()): Record<Group, number> {
 export const freshness = (hours: number) => Math.max(0, Math.min(1, 1 - hours / 168));
 export const ago = (hours: number) => (!Number.isFinite(hours) ? 'never yet' : hours < 20 ? 'today' : hours < 44 ? 'yesterday' : `${Math.round(hours / 24)} days ago`);
 
-// Where each group sits on the photographs, as fractions of the frame: the
-// back, the front, and the arm flexed.
+// Where each group sits on the two photographs, as fractions of the frame.
 export type Mark = { group: Group; x: number; y: number; side: 'l' | 'r' };
 export const BACK_MARKS: Mark[] = [
   { group: 'pull', x: 0.8, y: 0.28, side: 'l' },
+  { group: 'arms', x: 0.53, y: 0.37, side: 'r' },
   { group: 'push', x: 0.15, y: 0.31, side: 'r' },
 ];
 export const FRONT_MARKS: Mark[] = [
   { group: 'push', x: 0.36, y: 0.3, side: 'r' },
+  { group: 'arms', x: 0.12, y: 0.56, side: 'r' },
   { group: 'core', x: 0.43, y: 0.64, side: 'r' },
 ];
-export const ARM_MARKS: Mark[] = [{ group: 'arms', x: 0.3, y: 0.42, side: 'r' }];
+
+// The last n nights, oldest first, a night without a measure left empty.
+export function nights(h: Hunt, n = 14, now = Date.now()) {
+  return Array.from({ length: n }, (_, i) => {
+    const date = localDay(now - (n - 1 - i) * DAY);
+    return { date, day: h.days.find((d) => d.date === date) ?? null };
+  });
+}
 
 // ---- The ledger ----------------------------------------------------------------
 export type Source = 'run' | 'iron' | 'stairs' | 'climb';

@@ -134,7 +134,8 @@ def pull():
     start = (today - timedelta(days=back)).isoformat()
     acts = [x for x in (parse_activity(a) for a in g.get_activities_by_date(start, today.isoformat())) if x]
     days = []
-    for i in range(7):
+    # The recovery chart shows fourteen nights: the first pull fills a month.
+    for i in range(7 if back == 7 else 30):
         d = (today - timedelta(days=i)).isoformat()
         days.append(parse_day(d, quietly(g.get_morning_training_readiness, d) or quietly(g.get_training_readiness, d),
                               quietly(g.get_hrv_data, d), quietly(g.get_sleep_data, d), quietly(g.get_user_summary, d),

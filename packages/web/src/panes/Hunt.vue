@@ -10,13 +10,12 @@ import art from '../gl/art.json';
 import { catSprite } from '../gl/plate';
 import { hunt as act, state } from '../store';
 import {
-  along, ARM_MARKS, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
+  along, BACK_MARKS, flow, ICONS, iconOf, freshness, FRONT_MARKS, hms, ironOf, nights, kg, ledger, mj, pace, rested, road, SOURCES, target, ago,
   type HuntExercise, type HuntSetRow, type Iron, type Mark, type Source,
 } from '../hunt';
 import { EFFICIENCY, FEELS, POSES as ALL_POSES, type Group, type Pose } from '@aura/shared';
 import backUrl from '../assets/hunt/back.png';
 import frontUrl from '../assets/hunt/front.png';
-import armUrl from '../assets/hunt/arm.png';
 
 const props = defineProps<{ active: boolean }>();
 const h = computed(() => state.hunt);
@@ -60,7 +59,7 @@ function photo(url: string) {
   src.src = url;
   return { img, ready };
 }
-const back = photo(backUrl), front = photo(frontUrl), arm = photo(armUrl);
+const back = photo(backUrl), front = photo(frontUrl);
 // The photograph in the plate's grey, lifted a little, a slow band of light
 // passing over it like a lamp carried past an engraving.
 const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
@@ -74,7 +73,58 @@ const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: nu
   g.fillStyle = band; g.fillRect(0, 0, w, hh);
   g.globalCompositeOperation = 'source-over';
 };
-const drawBack = lit(back), drawFront = lit(front), drawArm = lit(arm);
+const drawBack = lit(back), drawFront = lit(front);
+
+// ---- The recovery -------------------------------------------------------------
+// Fourteen nights under the photographs, as curves where the road is bars:
+// the sleep score a soft hill of dither, readiness a lit line riding over it,
+// both out of a hundred. A night with no measure breaks the curve.
+const night = computed(() => nights(h.value, 14, now.value));
+const lastNight = computed(() => [...night.value].reverse().find((n) => n.day)?.day ?? null);
+type P = readonly [number, number];
+// A smooth path through runs of points (Catmull-Rom as cubic Beziers).
+function smooth(g: CanvasRenderingContext2D, pts: P[]) {
+  g.moveTo(pts[0]![0], pts[0]![1]);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i - 1] ?? pts[i]!, b = pts[i]!, c = pts[i + 1]!, d = pts[i + 2] ?? c;
+    g.bezierCurveTo(b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6, c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6, c[0], c[1]);
+  }
+}
+const stretches = (vals: (number | null | undefined)[], x: (i: number) => number, y: (v: number) => number) => {
+  const out: P[][] = [];
+  let cur: P[] = [];
+  vals.forEach((v, i) => {
+    if (v == null) { if (cur.length) out.push(cur); cur = []; return; }
+    cur.push([x(i), y(v)]);
+  });
+  if (cur.length) out.push(cur);
+  return out;
+};
+const drawRecovery = (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
+  const ns = night.value;
+  const p = reveal(t);
+  const top = 4, span = hh - 6, bottom = top + span;
+  const x = (i: number) => (ns.length < 2 ? w / 2 : 3 + (i / (ns.length - 1)) * (w - 6));
+  g.save();
+  g.beginPath(); g.rect(0, 0, w * (0.02 + 0.98 * p), hh); g.clip();
+  // The sleep: a filled hill, its crest a little brighter than its body.
+  for (const r of stretches(ns.map((n) => n.day?.sleepScore), x, (v) => top + span * (1 - v / 100))) {
+    if (r.length < 2) continue;
+    g.beginPath(); smooth(g, r); g.lineTo(r.at(-1)![0], bottom); g.lineTo(r[0]![0], bottom); g.closePath();
+    const fill = g.createLinearGradient(0, top, 0, bottom);
+    fill.addColorStop(0, 'rgb(120,120,120)'); fill.addColorStop(1, 'rgb(40,40,40)');
+    g.fillStyle = fill; g.fill();
+    g.beginPath(); smooth(g, r); g.strokeStyle = 'rgb(170,170,170)'; g.lineWidth = 1; g.stroke();
+  }
+  // Readiness: the lit line, with a bead on each night that has one.
+  g.strokeStyle = '#fff'; g.lineWidth = 1.8; g.fillStyle = '#fff';
+  for (const r of stretches(ns.map((n) => n.day?.readiness), x, (v) => top + span * (1 - v / 100))) {
+    if (r.length > 1) { g.beginPath(); smooth(g, r); g.stroke(); }
+    for (const [px, py] of r) g.fillRect(px - 1.5, py - 1.5, 3, 3);
+  }
+  g.restore();
+};
+const hrvMark = (s: string | null | undefined) => (s === 'balanced' ? 'on' : s === 'unbalanced' ? 'half' : s ? 'low' : '');
 const glow = (m: Mark) => freshness(rest.value[m.group]);
 
 // ---- The transformation -------------------------------------------------------
@@ -323,18 +373,18 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
             <b>{{ GROUP_WORDS[m.group] }}</b><i>{{ ago(rest[m.group]) }}</i>
           </span>
         </figure>
-        <figure class="photo armp">
-          <Plate :draw="drawArm" :active="active" animated :cell="1" label="Your arm, flexed, dithered in the console's two inks" />
-          <svg class="marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <g v-for="m in ARM_MARKS" :key="m.group" class="mark" :style="{ '--glow': glow(m) }">
-              <circle :cx="m.x * 100" :cy="m.y * 100" r="1.6" vector-effect="non-scaling-stroke" />
-              <circle class="ring" :cx="m.x * 100" :cy="m.y * 100" r="3" vector-effect="non-scaling-stroke" />
-            </g>
-          </svg>
-          <span v-for="m in ARM_MARKS" :key="m.group" class="tag" :class="m.side" :style="{ left: `${m.x * 100}%`, top: `${m.y * 100}%`, '--glow': glow(m) }">
-            <b>{{ GROUP_WORDS[m.group] }}</b><i>{{ ago(rest[m.group]) }}</i>
-          </span>
-        </figure>
+        <div class="recovery">
+          <div class="rhead"><span class="pix">recovery // 14 nights</span>
+            <span class="rkey"><i class="bar"></i>sleep<i class="line"></i>readiness</span></div>
+          <div class="rchart"><Plate :draw="drawRecovery" :active="active" animated :cell="1" label="Sleep score as bars and readiness as a line, the last fourteen nights" /></div>
+          <div class="hrv" aria-label="HRV status each night"><i v-for="n in night" :key="n.date" :class="hrvMark(n.day?.hrvStatus)" :title="`${n.date}: ${n.day?.hrvStatus ?? 'no measure'}`"></i></div>
+          <div class="rnow">
+            <span><b class="tek">{{ lastNight?.sleepScore ?? '-' }}</b><i class="pix">slept</i></span>
+            <span><b class="tek">{{ lastNight?.readiness ?? '-' }}</b><i class="pix">ready</i></span>
+            <span><b class="tek">{{ lastNight?.restingHr ?? '-' }}</b><i class="pix">resting bpm</i></span>
+            <span><b class="tek">{{ lastNight?.bodyBattery ?? '-' }}</b><i class="pix">battery</i></span>
+          </div>
+        </div>
       </div>
       <div class="legs"><span class="pix">legs</span><span class="note">carried by the road and the stairs, last {{ ago(rest.legs) }}</span>
         <span class="pix weight">vessel <input v-model.number="weight" type="number" min="30" max="200" step="0.1" aria-label="bodyweight in kilograms" @change="act.bodyweight(weight)"> kg</span></div>
@@ -509,9 +559,23 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 .backp { top: 3cqh; right: 4cqw; height: var(--bh); width: calc(var(--bh) * 388 / 640); }
 .frontp { left: 4cqw; bottom: 20cqh; width: min(70cqw, calc((94cqh - var(--bh) * .62) * 537 / 460)); aspect-ratio: 537 / 460;
   border: 3px double var(--low); background: var(--ground); }
-/* The third print: the arm, flexed, pinned under the back's lower corner on
-   the other side, where the empty ground was. */
-.armp { right: 3cqw; bottom: 2cqh; width: min(64cqw, 40cqh * 442 / 296); aspect-ratio: 442 / 296; border: 3px double var(--low); background: var(--ground); }
+/* Under the prints, the nights: how the vessel is recovering. */
+.recovery { position: absolute; left: 4cqw; right: 3cqw; bottom: 2cqh; height: 16cqh; min-height: 96px; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto; gap: 3px 14px; }
+.rhead { grid-column: 1; display: flex; justify-content: space-between; align-items: baseline; }
+.rkey { display: flex; gap: 6px; align-items: center; font: 400 9px var(--pix); color: var(--dim); text-transform: uppercase; }
+.rkey .bar { width: 12px; height: 8px; background: linear-gradient(#787878, #282828); border-top: 1px solid #aaa; }
+.rkey .line { width: 12px; height: 2px; background: var(--hi); margin-left: 6px; }
+.rchart { grid-column: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--low); }
+.hrv { grid-column: 1; display: grid; grid-template-columns: repeat(14, 1fr); justify-items: center; }
+.hrv i { width: 6px; height: 6px; border: 1px solid var(--low); }
+.hrv i.on { background: var(--phos); border-color: var(--phos); }
+.hrv i.half { background: linear-gradient(to top, var(--phos) 50%, transparent 50%); border-color: var(--phos); }
+.hrv i.low { border-color: var(--hi); }
+.rnow { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-columns: auto auto; gap: 4px 14px; align-content: center; }
+.rnow span { display: grid; }
+.rnow .tek { font-size: 22px; }
+.rnow i { font-style: normal; font-size: 8.5px; }
 .marks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mark circle { fill: rgba(230, 224, 212, calc(.25 + var(--glow) * .75)); stroke: none; }
 .mark .ring { fill: none; stroke: rgba(230, 224, 212, calc(.15 + var(--glow) * .7)); stroke-width: 1.5; transform-box: fill-box; transform-origin: center;
