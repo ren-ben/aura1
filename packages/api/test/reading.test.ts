@@ -12,6 +12,7 @@ const item = (n: number, read: string, extra = '') => `
     <book id="${1000 + n}"><num_pages>${200 + n}</num_pages></book>
     <author_name>Author ${n}</author_name>
     <user_rating>${n % 6}</user_rating>
+    <average_rating>4.1${n}</average_rating>
     <user_read_at><![CDATA[${read}]]></user_read_at>
     <user_date_added><![CDATA[Fri, 11 Sep 2026 10:07:58 -0700]]></user_date_added>
     ${extra}
@@ -30,8 +31,14 @@ test('a shelf item becomes a book', () => {
   const [b] = parseShelf(feed([item(3, 'Tue, 18 Aug 2026 00:00:00 +0000')]));
   assert.deepEqual(b, {
     title: 'Book 3: A & B', author: 'Author 3', cover: 'https://i.gr-assets.com/books/3.jpg', pages: 203,
-    startedAt: '2026-09-11', readAt: '2026-08-18', rating: 3, url: 'https://www.goodreads.com/book/show/1003',
+    startedAt: '2026-09-11', readAt: '2026-08-18', rating: 3,
+    average: 4.13, review: null, url: 'https://www.goodreads.com/book/show/1003',
   });
+});
+
+test('a review keeps its lines and loses its markup', () => {
+  const [b] = parseShelf(feed([item(1, '', '<user_review><![CDATA[Vast.<br /><br />Would <i>drown</i> again &amp; again.]]></user_review>')]));
+  assert.equal(b!.review, 'Vast.\n\nWould drown again & again.');
 });
 
 test('no date read and no picture come back as null', () => {

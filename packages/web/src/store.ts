@@ -56,7 +56,8 @@ export type Device = {
 // first. The cover is Goodreads' own image, which it serves to anyone.
 export type Tome = {
   title: string; author: string; cover: string | null; pages: number | null;
-  startedAt: string | null; readAt: string | null; rating: number; url: string;
+  startedAt: string | null; readAt: string | null; rating: number;
+  average: number | null; review: string | null; url: string;
 };
 export type Reading = { current: Tome[]; read: Tome[] };
 

@@ -19,7 +19,8 @@ const fetchShelf: Shelf = async (user, shelf, page) => {
 
 const tomeDto = z.object({
   title: z.string(), author: z.string(), cover: z.string().nullable(), pages: z.number().int().nullable(),
-  startedAt: z.string().nullable(), readAt: z.string().nullable(), rating: z.number().int(), url: z.string(),
+  startedAt: z.string().nullable(), readAt: z.string().nullable(), rating: z.number().int(),
+  average: z.number().nullable(), review: z.string().nullable(), url: z.string(),
 });
 export type Tome = z.infer<typeof tomeDto>;
 const readingDto = z.object({ current: z.array(tomeDto), read: z.array(tomeDto) });
@@ -44,6 +45,9 @@ export function parseShelf(xml: string): Tome[] {
   return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item]) => {
     const cover = field(item!, 'book_large_image_url');
     const pages = Number(field(item!, 'num_pages'));
+    const average = Number(field(item!, 'average_rating'));
+    // The review comes as HTML: its breaks kept as lines, the rest let go.
+    const review = field(item!, 'user_review').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
     return {
       title: field(item!, 'title'),
       author: field(item!, 'author_name'),
@@ -53,6 +57,8 @@ export function parseShelf(xml: string): Tome[] {
       startedAt: day(field(item!, 'user_date_added')),
       readAt: day(field(item!, 'user_read_at')),
       rating: Number(field(item!, 'user_rating')) || 0,
+      average: average > 0 ? average : null,
+      review: review || null,
       url: `https://www.goodreads.com/book/show/${field(item!, 'book_id')}`,
     };
   });

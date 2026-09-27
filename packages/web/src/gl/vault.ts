@@ -7,7 +7,8 @@
 // over it, the other row goes down into the floor, the great wheel turns, the
 // chain runs and the counterweight climbs, the seals under the cases wake,
 // and the cases turn one after another to stand in a line facing you. Drag
-// along the line; draw any book out; touch anything else to send it back.
+// along the line; draw any book out to look at it; touch anything else to
+// send it back.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rng, type Build } from './engine';
@@ -16,9 +17,9 @@ import type { Tome } from '../store';
 
 export type VaultHooks = {
   hover: (index: number) => void;         // a read book under the pointer, or -1
-  pick: (index: number) => void;          // a read book clicked
+  inspect: (index: number) => void;       // a read book drawn out to look at, or -1 as it goes back
   focus: (side: number) => void;          // -1 or 1 when a row is brought round, 0 when it goes back
-  bind: (back: () => void) => void;       // how the page sends it back
+  bind: (ctl: { back: () => void; shelve: () => void }) => void;   // how the page sends them back
 };
 
 const grey = (v: number) => new THREE.Color(v, v, v);
@@ -35,8 +36,10 @@ const CZF = -0.9;                                     // where the line stands, 
 const DUR = 4.6;                                      // seconds, altar to line
 
 // A spine, painted into its slot of a case's atlas: leather or vellum, two
-// raised bands, the title in the book hand, whose it is at the tail.
-function paintSpine(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, b: Tome, tone: number): void {
+// raised bands, the title in the book hand, whose it is at the tail. A fat
+// book stretches its slot across a wide spine, so its lettering is painted
+// squat to stand upright there.
+function paintSpine(g: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, b: Tome, tone: number, squat: number): void {
   g.save(); g.translate(x0, y0);
   const c = Math.round(tone * 255);
   g.fillStyle = `rgb(${c},${c},${c})`; g.fillRect(0, 0, w, h);
@@ -44,6 +47,7 @@ function paintSpine(g: CanvasRenderingContext2D, x0: number, y0: number, w: numb
   for (let i = 0; i < 120; i++) { g.fillStyle = `rgba(0,0,0,${r() * 0.18})`; g.fillRect(r() * w, r() * h, 2, 2); }
   g.fillStyle = tone > 0.45 ? '#141210' : '#efe9dc';
   g.fillRect(w * 0.05, 0, h * 0.12, h); g.fillRect(w * 0.95 - h * 0.12, 0, h * 0.12, h);
+  g.translate(0, h / 2); g.scale(1, squat); g.translate(0, -h / 2);
   g.textBaseline = 'middle'; g.textAlign = 'left';
   const room = w * 0.62;
   let size = h * 0.6;
@@ -128,7 +132,7 @@ class Mason {
   }
 }
 
-type Book = { mesh: THREE.Mesh; home: THREE.Vector3; index: number; owner: Case };
+type Book = { mesh: THREE.Mesh; home: THREE.Vector3; index: number; owner: Case; long: number };
 type Case = { group: THREE.Group; books: Book[]; seal: THREE.Mesh; lit: THREE.Material; spine: THREE.Material };
 type Row = { side: number; cases: Case[]; gear: THREE.Mesh; pinion: THREE.Mesh; links: THREE.InstancedMesh; weight: THREE.Mesh; sealMat: THREE.MeshBasicMaterial };
 
@@ -136,7 +140,7 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
   return ({ scene, camera, canvas: glass }) => {
     const held: { dispose: () => void }[] = [];
     const keep: Held = (x) => { held.push(x); return x; };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') back(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (drawn?.dir === 1) shelve(); else back(); } };
     addEventListener('keydown', onKey);
     glass.addEventListener('aura:dispose', () => { held.forEach((x) => x.dispose()); removeEventListener('keydown', onKey); }, { once: true });
     glass.style.touchAction = 'none';
@@ -235,13 +239,15 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
       };
       mine.forEach(({ b, index }) => {
         const r = rng(index * 131 + 7);
-        const l = 0.58 + r() * 0.14, t = 0.055 + Math.min(0.065, (b.pages ?? 300) / 7500), d = 0.38;
+        // Thick as its page count: Dumas takes three of a novella's room.
+        const l = 0.58 + r() * 0.14, t = 0.035 + Math.min(0.2, (b.pages ?? 300) / 9000), d = 0.38;
+        const squat = Math.min(1, 0.07 / t);
         if (!c || slot === CAP) open();
         if (at + t > IW - 0.08) { at = 0; row++; if (row === ROWS) open(); }
         const tone = Math.floor(r() * 6);
         const sx = (slot % 2) * 512, sy = Math.floor(slot / 2) * 64, g = atlas!;
-        paintSpine(g, sx, sy, 512, 64, b, TONES[tone]!);
-        document.fonts?.ready.then(() => { g.clearRect(sx, sy, 512, 64); paintSpine(g, sx, sy, 512, 64, b, TONES[tone]!); });
+        paintSpine(g, sx, sy, 512, 64, b, TONES[tone]!, squat);
+        document.fonts?.ready.then(() => { g.clearRect(sx, sy, 512, 64); paintSpine(g, sx, sy, 512, 64, b, TONES[tone]!, squat); });
         const geo = keep(new THREE.BoxGeometry(l, t, d));
         const uv = geo.attributes.uv!;
         // The face toward you (+z, the fifth) shows its slot.
@@ -252,7 +258,7 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
         const home = new THREE.Vector3(-IW / 2 + 0.04 + at + t / 2, 0.12 + (ROWS - 1 - row) * ROW + 0.018 + l / 2, -0.19 + d / 2);
         mesh.position.copy(home);
         c!.group.add(mesh);
-        c!.books.push({ mesh, home, index, owner: c! });
+        c!.books.push({ mesh, home, index, owner: c!, long: l });
         at += t + 0.004;
         slot++;
       });
@@ -345,14 +351,37 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
     const rowLights = [-1, 1].map((s) => { const l = new THREE.PointLight(0xffffff, 1.6, 3.2, 1.3); l.position.set(s * 0.7, FLOOR + 2.2, CZ + 0.6); scene.add(l); return l; });
     const far = new THREE.PointLight(0xffffff, 1.1, 3, 1.4); far.position.set(0, FLOOR + 2.4, z0 - SW * 1.5); scene.add(far);
     const lamp = new THREE.PointLight(0xffffff, 0, 5, 1.2); scene.add(lamp);
+    // And one held by the eye, for the book drawn out to look at.
+    const hand = new THREE.PointLight(0xffffff, 0, 3, 1.2); scene.add(hand);
 
     // ---- state -------------------------------------------------------------------------
     // Which row is brought round (0 for none), which is still showing on its
     // way back, how far the works have run, and where the eye is on the line.
     let chosen = 0, shown = 0, u = 0;
     const pan = { x: 0, to: 0, v: 0, max: 0 };
-    const back = () => { if (chosen) { chosen = 0; hooks.focus(0); } };
-    hooks.bind(back);
+    // The book drawn out to look at: its whole self, cover and all, carried
+    // from its slot to the eye and, shelved, back into the gap it left.
+    let drawn: { book: Book; model: TomeModel; holder: THREE.Group; bits: { dispose: () => void }[]; u: number; dir: 1 | -1;
+      from: { p: THREE.Vector3; q: THREE.Quaternion } } | null = null;
+    const draw = (b: Book) => {
+      const bits: { dispose: () => void }[] = [];
+      const t = read[b.index]!;
+      const model = tome(t.cover, t.title, t.pages, (x) => { bits.push(x); return x; });
+      // Stood up as it was on the shelf: spine out.
+      model.group.rotation.y = Math.PI / 2;
+      const holder = new THREE.Group();
+      holder.add(model.group);
+      const from = { p: b.mesh.getWorldPosition(new THREE.Vector3()), q: b.owner.group.getWorldQuaternion(new THREE.Quaternion()) };
+      holder.position.copy(from.p); holder.quaternion.copy(from.q); holder.scale.setScalar(b.long);
+      scene.add(holder);
+      b.mesh.visible = false;
+      drawn = { book: b, model, holder, bits, u: 0, dir: 1, from };
+      dirty = true;
+      hooks.inspect(b.index);
+    };
+    const shelve = () => { if (drawn && drawn.dir > 0) { drawn.dir = -1; hooks.inspect(-1); } };
+    const back = () => { shelve(); if (chosen) { chosen = 0; hooks.focus(0); } };
+    hooks.bind({ back, shelve });
     const bring = (side: number) => { chosen = side; shown = side; pan.to = pan.x = pan.v = 0; hooks.focus(side); };
     const dirOf = (side: number) => (side < 0 ? 1 : -1);
 
@@ -371,7 +400,7 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
       if (!drag || !e.buttons) return;
       const dx = e.clientX - drag.x;
       if (Math.abs(dx) > 6) drag.far = true;
-      if (chosen && u > 0.97) {
+      if (chosen && u > 0.97 && !drawn) {
         const now = performance.now();
         pan.v = (-(e.clientX - drag.lastX) * perPx()) / Math.max(0.008, (now - drag.lastT) / 1000);
         drag.lastX = e.clientX; drag.lastT = now;
@@ -382,7 +411,9 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
       if (drag && !drag.far) {
         // A tap has no hover before it: look now.
         aim(e); seek();
-        if (chosen) { if (u > 0.97) { if (hovered >= 0) hooks.pick(hovered); else if (!overCase) back(); } }
+        // Looking at a book, a touch anywhere but on it puts it back.
+        if (drawn) { ray.setFromCamera(pointer, camera); if (!solid(ray.intersectObjects(drawn.model.faces, false))) shelve(); }
+        else if (chosen) { if (u > 0.97) { if (hoveredBook) draw(hoveredBook); else if (!overCase) back(); } }
         else if (overCurrent) { if (phase === 0) phase = 0.001; }
         else if (overRow) bring(overRow);
       } else if (drag && performance.now() - drag.lastT > 80) pan.v = 0;
@@ -390,7 +421,7 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
     });
     glass.addEventListener('pointerleave', () => { pointer.set(9, 9); dirty = true; });
     glass.addEventListener('wheel', (e) => {
-      if (!chosen) return;
+      if (!chosen || drawn) return;
       e.preventDefault();
       pan.to += (e.deltaY + e.deltaX) * 0.004;
       pan.v = 0;
@@ -401,6 +432,8 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
     const look = new THREE.Vector3();
     const linkM = new THREE.Matrix4(), flat = new THREE.Quaternion(), turned = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
     const one = new THREE.Vector3(1, 1, 1), none = new THREE.Vector3(), at = new THREE.Vector3(), out = new THREE.Vector3(0, 0.03, 0.24);
+    const fwdV = new THREE.Vector3(), sideV = new THREE.Vector3(), upV = new THREE.Vector3(), to = new THREE.Vector3(), ctrl = new THREE.Vector3();
+    const toQ = new THREE.Quaternion(), yaw = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
     const pickable = rows.flatMap((r) => r.cases.map((c) => c.group));
     const books = rows.flatMap((r) => r.cases.flatMap((c) => c.books));
     // What the pointer is over: a book on the line brought round, or, at
@@ -408,7 +441,8 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
     function seek() {
       dirty = false;
       let over = -1, book: Book | null = null, cur = false, row = 0, onCase = false;
-      if (Math.abs(pointer.x) <= 1 && !drag?.far) {
+      // Nothing else is reached for while a book is in hand.
+      if (Math.abs(pointer.x) <= 1 && !drag?.far && !drawn) {
         ray.setFromCamera(pointer, camera);
         if (chosen && u > 0.97) {
           const r = rows.find((x) => x.side === chosen)!;
@@ -543,6 +577,38 @@ export function vault(current: Tome | null, read: Tome[], hooks: VaultHooks): Bu
       camera.position.lerpVectors(rest.pos, r ? near.pos : rest.pos, eye);
       look.lerpVectors(rest.look, r ? near.look : rest.look, eye);
       camera.lookAt(look);
+
+      // The book in hand: out of its gap in a stroke, over to the eye, turned
+      // to show its cover with its spine just in view, and held a little to
+      // the left of the card beside it. Shelved, the same way back.
+      if (drawn) {
+        const d = drawn;
+        d.u = Math.min(1, Math.max(0, d.u + d.dir * dt * 2.8));
+        const p = ease(d.u), turn = span(d.u, 0.15, 1);
+        // Beside the card on a wide glass; above it on a phone, where it sits low.
+        const D = 1.5, halfH = tan * D, wide = glass.clientWidth > 600;
+        camera.getWorldDirection(fwdV);
+        sideV.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        upV.set(0, 1, 0).applyQuaternion(camera.quaternion);
+        to.copy(camera.position).addScaledVector(fwdV, D)
+          .addScaledVector(sideV, wide ? -halfH * camera.aspect * 0.34 : 0).addScaledVector(upV, wide ? 0 : halfH * 0.5);
+        toQ.copy(camera.quaternion).multiply(yaw.setFromAxisAngle(Y, -Math.PI / 2 + 0.42 + Math.sin(t * 0.7) * 0.06));
+        // Straight out of the case first, then over.
+        ctrl.set(0, 0, 0.7).applyQuaternion(d.from.q).add(d.from.p);
+        d.holder.position.set(0, 0, 0)
+          .addScaledVector(d.from.p, (1 - p) * (1 - p)).addScaledVector(ctrl, 2 * (1 - p) * p).addScaledVector(to, p * p);
+        d.holder.quaternion.slerpQuaternions(d.from.q, toQ, turn);
+        d.holder.scale.setScalar(THREE.MathUtils.lerp(d.book.long, halfH * (wide ? 1.3 : 0.8), p));
+        hand.position.copy(camera.position).addScaledVector(fwdV, 0.4).addScaledVector(upV, 0.3);
+        hand.intensity = 2.6 * p;
+        if (d.dir < 0 && d.u === 0) {
+          d.holder.removeFromParent();
+          d.bits.forEach((x) => x.dispose());
+          d.book.mesh.visible = true;
+          drawn = null;
+          dirty = true;
+        }
+      } else hand.intensity = 0;
     };
   };
 }

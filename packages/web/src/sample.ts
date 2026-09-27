@@ -179,12 +179,15 @@ const maps: LectureMapDto[] = [];
 
 // Goodreads, as the shelves might stand: one book open, the rest behind it.
 const cover = (isbn: string) => `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
-const tome = (title: string, author: string, isbn: string, pages: number, readAt: string | null, rating: number) =>
-  ({ title, author, cover: cover(isbn), pages, startedAt: null, readAt, rating, url: 'https://www.goodreads.com' });
+const tome = (title: string, author: string, isbn: string, pages: number, readAt: string | null, rating: number, review: string | null = null) =>
+  ({ title, author, cover: cover(isbn), pages, startedAt: null, readAt, rating, average: 3.8 + (pages % 7) / 10, review, url: 'https://www.goodreads.com' });
 const reading: Reading = {
   current: [{ ...tome('The Secret History', 'Donna Tartt', '9781400031702', 559, null, 0), cover: 'https://m.media-amazon.com/images/S/compressed.photo.goodreads.com/books/1751820530i/29044.jpg', startedAt: '2026-09-14' }],
   read: [
-    tome('Piranesi', 'Susanna Clarke', '9781635575637', 272, '2026-09-06', 5),
+    tome('Piranesi', 'Susanna Clarke', '9781635575637', 272, '2026-09-06', 5,
+      'The Beauty of the House is immeasurable; its Kindness infinite.\n\nRead it in two nights. Would live in the flooded halls.'),
+    tome('The Count of Monte Cristo', 'Alexandre Dumas', '9780140449266', 1276, '2026-08-30', 5,
+      'Wait and hope. Twelve hundred pages of revenge and not one of them wasted.'),
     tome('Blindsight', 'Peter Watts', '9780765319647', 384, '2026-08-21', 4),
     tome('Babel', 'R. F. Kuang', '9780063021426', 545, '2026-08-02', 4),
     tome('The Haunting of Hill House', 'Shirley Jackson', '9780143039983', 182, '2026-07-11', 5),
@@ -202,7 +205,7 @@ const reading: Reading = {
     // And the years before: enough to fill a room.
     ...'Carmilla|Sheridan Le Fanu;The Castle of Otranto|Horace Walpole;The Monk|Matthew Lewis;Melmoth the Wanderer|Charles Maturin;Wuthering Heights|Emily Brontë;The Turn of the Screw|Henry James;Strange Case of Dr Jekyll and Mr Hyde|R. L. Stevenson;The Great God Pan|Arthur Machen;The Willows|Algernon Blackwood;At the Mountains of Madness|H. P. Lovecraft;The Shadow over Innsmouth|H. P. Lovecraft;The Call of Cthulhu|H. P. Lovecraft;The Fall of the House of Usher|Edgar Allan Poe;The Narrative of Arthur Gordon Pym|Edgar Allan Poe;Northanger Abbey|Jane Austen;The Mysteries of Udolpho|Ann Radcliffe;Vathek|William Beckford;Uncle Silas|Sheridan Le Fanu;The Woman in White|Wilkie Collins;The Moonstone|Wilkie Collins;Great Expectations|Charles Dickens;Bleak House|Charles Dickens;Crime and Punishment|Fyodor Dostoevsky;The Brothers Karamazov|Fyodor Dostoevsky;Notes from Underground|Fyodor Dostoevsky;Demons|Fyodor Dostoevsky;The Master and Margarita|Mikhail Bulgakov;The Trial|Franz Kafka;The Castle|Franz Kafka;The Metamorphosis|Franz Kafka;The Magic Mountain|Thomas Mann;Death in Venice|Thomas Mann;Doctor Faustus|Thomas Mann;Steppenwolf|Hermann Hesse;The Glass Bead Game|Hermann Hesse;Siddhartha|Hermann Hesse;Demian|Hermann Hesse;Thus Spoke Zarathustra|Friedrich Nietzsche;Beyond Good and Evil|Friedrich Nietzsche;The World as Will and Representation|Arthur Schopenhauer;Essays and Aphorisms|Arthur Schopenhauer;Meditations|Marcus Aurelius;Letters from a Stoic|Seneca;The Consolation of Philosophy|Boethius;Confessions|Augustine;Inferno|Dante Alighieri;Paradise Lost|John Milton;Faust|J. W. von Goethe;The Sorrows of Young Werther|J. W. von Goethe;Gormenghast|Mervyn Peake;Titus Groan|Mervyn Peake;Jonathan Strange and Mr Norrell|Susanna Clarke;The Night Circus|Erin Morgenstern;The Starless Sea|Erin Morgenstern;Ninth House|Leigh Bardugo;Hell Bent|Leigh Bardugo;A Deadly Education|Naomi Novik;Vita Nostra|Marina and Sergey Dyachenko;The Atlas Six|Olivie Blake;Bunny|Mona Awad;Annihilation|Jeff VanderMeer;Authority|Jeff VanderMeer;Acceptance|Jeff VanderMeer;Roadside Picnic|Arkady and Boris Strugatsky;Hard to Be a God|Arkady and Boris Strugatsky;The Cyberiad|Stanisław Lem;His Master\'s Voice|Stanisław Lem;Echopraxia|Peter Watts;Children of Time|Adrian Tchaikovsky;Anathem|Neal Stephenson;Gideon the Ninth|Tamsyn Muir;Harrow the Ninth|Tamsyn Muir;Nona the Ninth|Tamsyn Muir;The Library at Mount Char|Scott Hawkins;Hell House|Richard Matheson;I Am Legend|Richard Matheson;The Shining|Stephen King;Pet Sematary|Stephen King;Interview with the Vampire|Anne Rice;The Historian|Elizabeth Kostova;The Thirteenth Tale|Diane Setterfield;My Cousin Rachel|Daphne du Maurier;We Have Always Lived in the Castle|Shirley Jackson;The Lottery|Shirley Jackson;Something Wicked This Way Comes|Ray Bradbury;The Ocean at the End of the Lane|Neil Gaiman;Norwegian Wood|Haruki Murakami;Kafka on the Shore|Haruki Murakami;The Remains of the Day|Kazuo Ishiguro;Never Let Me Go|Kazuo Ishiguro;Stoner|John Williams;The Secret Garden|Frances Hodgson Burnett'.split(';').map((line, i) => {
       const [title, author] = line.split('|') as [string, string];
-      return { title, author, cover: null, pages: 180 + ((i * 97) % 520), startedAt: null, readAt: day(new Date(2025, 5, 20 - i * 9)), rating: 3 + (i % 3), url: 'https://www.goodreads.com' };
+      return { title, author, cover: null, pages: 180 + ((i * 97) % 520), startedAt: null, readAt: day(new Date(2025, 5, 20 - i * 9)), rating: 3 + (i % 3), average: 3.6 + (i % 9) / 10, review: null, url: 'https://www.goodreads.com' };
     }),
   ],
 };

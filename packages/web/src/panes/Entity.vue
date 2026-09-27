@@ -218,13 +218,24 @@ const read = computed(() => state.reading.read);
 const hovered = ref(-1);
 // Which case is brought round, and how to send it back.
 const focused = ref(0);
-let sendBack = () => {};
+// Which book is drawn out to look at, and how to put it back.
+const looking = ref(-1);
+let ctl = { back: () => {}, shelve: () => {} };
 const below = computed(() => vault(current.value, read.value, {
   hover: (i) => { hovered.value = i; },
-  pick: (i) => { open(read.value[i]!.url, '_blank', 'noopener'); },
+  inspect: (i) => { looking.value = i; },
   focus: (side) => { focused.value = side; },
-  bind: (back) => { sendBack = back; },
+  bind: (c) => { ctl = c; },
 }));
+const looked = computed(() => read.value[looking.value] ?? null);
+const goodreads = () => { if (looked.value) open(looked.value.url, '_blank', 'noopener'); };
+// E to go to it on Goodreads, Q to put it back: the Library's keys.
+function onKey(e: KeyboardEvent) {
+  if (!looked.value || !props.active || (e.target as HTMLElement).closest?.('input, textarea, select')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'e') { e.preventDefault(); goodreads(); }
+  else if (k === 'q') ctl.shelve();
+}
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const when = (d: string | null) => (d ? `${MONTHS[+d.slice(5, 7) - 1]} ${d.slice(2, 4)}` : '');
 const since = computed(() => {
@@ -281,10 +292,12 @@ const chron = computed(() => {
 
 onMounted(() => {
   addEventListener('pointermove', parallax, { passive: true });
+  addEventListener('keydown', onKey);
   document.addEventListener('mouseleave', rest);
 });
 onBeforeUnmount(() => {
   removeEventListener('pointermove', parallax);
+  removeEventListener('keydown', onKey);
   document.removeEventListener('mouseleave', rest);
 });
 </script>
@@ -303,7 +316,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="under">
         <Gl :build="below" :options="{ drift: 0, tilt: 0, yaw: 0, px: 1 }" :active="active" label="The vault under the ledge, where the reading is kept" hint="" />
-        <button v-if="focused" class="back" @click="sendBack()">return // the altar</button>
+        <button v-if="focused && !looked" class="back" @click="ctl.back()">return // the altar</button>
         <div v-if="!focused" class="plaque">
           <template v-if="current">
             <span class="pix">now reading // day {{ since }}</span>
@@ -312,9 +325,25 @@ onBeforeUnmount(() => {
           </template>
           <span class="pix">{{ read.length }} read<i class="more">, kept below // touch a case</i></span>
         </div>
-        <div v-if="shown" class="caught">
+        <div v-if="shown && !looked" class="caught">
           <span class="fell">{{ shown.title }}</span>
           <span class="pix">{{ shown.author }} // read {{ when(shown.readAt) }} // no. {{ hovered + 1 }} of {{ read.length }}</span>
+        </div>
+        <div v-if="looked" :key="looking" class="inspect">
+          <span class="pix">no. {{ looking + 1 }} of {{ read.length }}<template v-if="looked.readAt"> // read {{ when(looked.readAt) }}</template></span>
+          <b class="t">{{ looked.title }}</b>
+          <span class="note">{{ looked.author }}<template v-if="looked.pages">, {{ looked.pages }} pages</template></span>
+          <div class="scores">
+            <div><span class="pix">every reader</span><span class="tek">{{ looked.average?.toFixed(2) ?? '--' }}</span></div>
+            <div><span class="pix">yours</span>
+              <span class="pips" :aria-label="`${looked.rating} of 5`"><i v-for="n in 5" :key="n" :class="{ on: n <= looked.rating }"></i></span></div>
+          </div>
+          <p v-if="looked.review" class="review fell">{{ looked.review }}</p>
+          <p v-else class="review none note">you left no word on it.</p>
+          <div class="acts">
+            <a class="act go" :href="looked.url" target="_blank" rel="noopener"><kbd>E</kbd>goodreads</a>
+            <button class="act" @click="ctl.shelve()"><kbd>Q</kbd>shelve it</button>
+          </div>
         </div>
       </div>
     </Frame>
@@ -377,7 +406,34 @@ onBeforeUnmount(() => {
 .back:hover { background: var(--phos); color: var(--ground); }
 .caught { position: absolute; left: 12px; bottom: 12px; display: grid; gap: 2px; padding: 8px 11px; background: var(--ground); border: 2px solid var(--phos); pointer-events: none; }
 .caught .fell { color: var(--hi); font-size: 17px; }
+/* The book in hand: its card beside it, the way the Library asks. */
+.inspect { position: absolute; z-index: 2; top: 12px; right: 12px; bottom: 12px; width: min(340px, 44%); display: flex; flex-direction: column; gap: 8px;
+  border: 1px solid var(--phos); background: rgba(18, 18, 18, .92); padding: 12px 16px 14px; animation: inspectin .4s var(--out) .15s both; }
+@keyframes inspectin { from { opacity: 0; transform: translateX(12px); } }
+.inspect::before, .inspect::after { content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--hi); }
+.inspect::before { left: -5px; top: -5px; border-right: 0; border-bottom: 0; }
+.inspect::after { right: -5px; bottom: -5px; border-left: 0; border-top: 0; }
+.inspect .t { font: 400 26px/1.05 var(--goth); color: var(--hi); text-wrap: balance; }
+.inspect .note { margin: 0; }
+.scores { display: grid; grid-template-columns: 1fr 1fr; border-top: 3px dotted var(--low); border-bottom: 3px dotted var(--low); padding: 8px 0; }
+.scores > div { display: grid; gap: 4px; align-content: start; }
+.scores .tek { font-size: 30px; color: var(--hi); }
+.pips { display: flex; gap: 5px; padding-top: 8px; }
+.pips i { width: 10px; height: 10px; border: 1px solid var(--dim); transform: rotate(45deg); }
+.pips i.on { background: var(--hi); border-color: var(--hi); }
+.review { flex: 1 1 auto; min-height: 0; overflow: auto; margin: 0; font: italic 400 16px/1.5 var(--fell); color: var(--hi);
+  white-space: pre-line; text-wrap: pretty; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
+.review.none { flex: 1 1 auto; font-style: normal; color: var(--dim); }
+.inspect .acts { display: flex; gap: 8px; }
+.inspect .act { display: flex; gap: 7px; align-items: center; border: 1px solid var(--low); padding: 6px 11px; font: 400 10px var(--pix);
+  text-transform: uppercase; color: var(--phos); text-decoration: none; transition: background .2s var(--out), color .2s var(--out), border-color .2s var(--out); }
+.inspect .act:hover, .inspect .act.go { border-color: var(--phos); background: var(--phos); color: var(--ground); }
+.inspect .act.go:hover { background: var(--hi); }
+.inspect kbd { font: 400 9px var(--pix); border: 1px solid currentColor; padding: 0 4px; }
+@media (pointer: coarse) { .inspect kbd { display: none; } }
 @media (max-width: 600px) {
+  .inspect { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 56%; padding: 10px 12px; }
+  .inspect .t { font-size: 21px; }
   .plaque { top: 8px; left: 8px; right: 8px; bottom: auto; max-width: none; padding: 5px 8px; grid-template-columns: 1fr auto; align-items: baseline; }
   .plaque .t { font-size: 15px; grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .plaque .more { display: none; } .plaque .note { display: none; } .plaque .pix:first-child { display: none; }
 }

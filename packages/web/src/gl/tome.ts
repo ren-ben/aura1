@@ -96,7 +96,8 @@ export type TomeModel = {
 const SEG = 14;
 
 export function tome(cover: string | null, title: string, pages: number | null, keep: Held, leafCount = 7): TomeModel {
-  const h = 1, w = 0.68, t = 0.09 + Math.min(0.16, (pages ?? 300) / 3600);
+  // As fat as it is long: a novella is a board or two, Dumas a brick.
+  const h = 1, w = 0.68, t = 0.06 + Math.min(0.3, (pages ?? 300) / 5000);
   const board = 0.028, sq = 0.022;              // board thickness, and how far it stands proud of the leaves
   const group = new THREE.Group();
   const edgeMat = keep(new THREE.MeshLambertMaterial({ map: keep(canvasTexture(64, 128, (g) => paintEdge(g, 64, 128))) }));
