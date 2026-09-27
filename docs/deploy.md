@@ -57,6 +57,15 @@ echo "OPENROUTER_API_KEY=sk-or-..." >> .env
 It stays on the server: the browser never sees it. `ACADEMY_BUDGET_USD`
 (default 10) caps a month's spend; the two model names can be changed there too.
 
+The reading (the vault under Kael'thos) comes from Goodreads. The profile
+must be public; its user id is the number in its URL
+(`goodreads.com/user/show/12345678-name`). Add it the same way, then
+`docker compose up -d` again:
+
+```bash
+echo "GOODREADS_USER=12345678" >> .env
+```
+
 Check `docker compose logs api` for the "Server listening" line, and
 `curl -s http://127.0.0.1:13000/api/v1/sessions` for `[]`, before
 continuing. Do not touch the tunnel config yet: no Access policy exists to
