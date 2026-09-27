@@ -1,7 +1,8 @@
-// Mount Yeezus, seen from the floor: a white sun of a screen, the crumpled
-// peak rising in front of it, a blade of rock leaning out over the crowd,
-// three beams through the smoke, and on the summit Kael'thos, his face under
-// the jewelled mask. Drawn in grey for the dither; drag to look round a little.
+// Mount Yeezus, seen from the floor: a white disc hung tipped over the stage,
+// the crumpled pyramid under it, and at its front corner the tip, a crag that
+// rises over the crowd with Kael'thos on its point in the jewelled mask, one
+// hard shaft of light on him. Click the tip to lower or raise it; drag to look
+// round a little. Drawn in grey for the dither.
 import * as THREE from 'three';
 import { rng, type Build } from './engine';
 import { kaelthos } from './models';
@@ -116,13 +117,13 @@ function crowd() {
   });
 }
 
-export const yeezus: Build = ({ scene, camera, turn }) => {
+export const yeezus: Build = ({ scene, camera, turn, canvas }) => {
   const r = rng(9);
   const stone = rock();
-  const face = new THREE.MeshStandardMaterial({ color: 0x8a8781, map: stone, bumpMap: stone, bumpScale: 1, roughness: 0.95, flatShading: true });
+  const face = new THREE.MeshStandardMaterial({ color: 0xaeaba3, map: stone, bumpMap: stone, bumpScale: 1, roughness: 0.95, flatShading: true });
 
-  // The screen: a white disc taller than the mountain, faint weather moving
-  // across it, and a dim ring of light spilling round its edge.
+  // The screen: a white disc hung high over the stage and tipped down toward
+  // the floor, faint weather moving across it, a dim ring of light round it.
   const sky = paint(512, 512, (g) => {
     g.fillStyle = grey(1); g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 40; i++) {
@@ -134,69 +135,96 @@ export const yeezus: Build = ({ scene, camera, turn }) => {
     for (let i = 0; i < 70; i++) { g.fillStyle = grey(0.35); g.fillRect(r() * 512, r() * 512, 2, 2); }
   });
   sky.wrapS = sky.wrapT = THREE.RepeatWrapping;
-  const screen = new THREE.Mesh(new THREE.CircleGeometry(9.2, 96), new THREE.MeshBasicMaterial({ map: sky }));
-  screen.position.set(0, 9.4, -12);
-  scene.add(screen);
-  const halo = new THREE.Mesh(new THREE.RingGeometry(9.2, 12.5, 96), new THREE.MeshBasicMaterial({
+  const disc = new THREE.Group();
+  disc.position.set(2, 18, -8); disc.rotation.set(1.22, -0.3, 0, 'YXZ');
+  disc.add(new THREE.Mesh(new THREE.CircleGeometry(10, 96), new THREE.MeshBasicMaterial({ map: sky })));
+  const halo = new THREE.Mesh(new THREE.RingGeometry(10, 13, 96), new THREE.MeshBasicMaterial({
     map: paint(256, 256, (g) => {
-      const h = g.createRadialGradient(128, 128, 94, 128, 128, 128);
+      const h = g.createRadialGradient(128, 128, 98, 128, 128, 128);
       h.addColorStop(0, grey(0.3)); h.addColorStop(1, grey(0));
       g.fillStyle = h; g.fillRect(0, 0, 256, 256);
     }),
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
   }));
-  halo.position.copy(screen.position).z += 0.01;
-  scene.add(halo);
+  halo.position.z = 0.01;
+  disc.add(halo);
+  scene.add(disc);
 
   // The arena behind, far off: a scatter of small lights in the dark.
   const far = new THREE.BufferGeometry();
   const fp: number[] = [], fc: number[] = [];
   for (let i = 0; i < 500; i++) {
-    const x = (r() - 0.5) * 70, y = r() * 26 - 2;
-    if (Math.hypot(x, y - 9.4) < 12) continue;
-    fp.push(x, y, -18 - r() * 6);
+    fp.push((r() - 0.5) * 80, r() * 30 - 2, -22 - r() * 6);
     const v = 0.15 + r() ** 3 * 0.8; fc.push(v, v, v);
   }
   far.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3));
   far.setAttribute('color', new THREE.Float32BufferAttribute(fc, 3));
   scene.add(new THREE.Points(far, new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true })));
 
-  // The mountain: the main peak, a lower shoulder in front of it, the stage
-  // it stands on with its lit lip, and the blade leaning out to the left.
-  const main = peak(6, 0.32, 8.6, 5, 3, face);
-  main.rotation.y = 0.3;
+  // The mountain: a square pyramid, one ridge toward the floor, on a lower
+  // tier, and the dark floor it all stands on.
+  const tier = peak(9.4, 7.2, 1.8, 4, 8, face);
+  scene.add(tier);
+  const main = peak(6.9, 0.06, 6.4, 4, 3, face);
+  main.position.y += 1.8;
   scene.add(main);
-  const shoulder = peak(4.2, 0.2, 4.4, 4, 8, face);
-  shoulder.position.set(3.1, 2.2, 2.6); shoulder.rotation.y = 0.9;
-  scene.add(shoulder);
-  const stage = new THREE.Mesh(new THREE.BoxGeometry(24, 1.1, 11), new THREE.MeshStandardMaterial({ color: 0x3a3835, map: stone, roughness: 1 }));
-  stage.position.set(0, -0.55, 1);
+  const stage = new THREE.Mesh(new THREE.BoxGeometry(34, 1.1, 26), new THREE.MeshStandardMaterial({ color: 0x3a3835, map: stone, roughness: 1 }));
+  stage.position.set(0, -0.55, 0);
   scene.add(stage);
-  const lip = new THREE.Mesh(new THREE.BoxGeometry(24, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 0xd9d4ca }));
-  lip.position.set(0, 0, 6.5);
-  scene.add(lip);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(10, 2.4, 0.7), face);
-  blade.geometry.translate(-5, 0, 0);
-  blade.position.set(-2.8, 2.6, 1.8); blade.rotation.set(0, 0.35, -0.22);
-  scene.add(blade);
 
-  // Him, on the summit, facing the crowd.
+  // The tip: its own crag at the pyramid's front corner, its ridge climbing
+  // from the tier to a point over the crowd. It rises with him on it and sinks
+  // back into the tier; it starts raised.
+  const H = 6.6, CZ = 8.1 + 0.78;
+  const crag = new THREE.Shape();
+  crag.moveTo(-4.5, 0); crag.lineTo(1.5, 0);
+  for (let k = 1; k <= 6; k++) crag.lineTo(1.5 - k * 0.07 + (r() - 0.5) * 0.35, (k / 6) * H);
+  crag.lineTo(0.5, H + 0.04); crag.lineTo(-4.5, 1.7); crag.closePath();
+  const cragGeo = new THREE.ExtrudeGeometry(crag, { depth: 1.9, bevelEnabled: false });
+  cragGeo.translate(0, 0, -0.95); cragGeo.rotateY(-Math.PI / 2);
+  // Caps take the grooves as they come; the walls' uvs run the other way.
+  const cragStone = stone.clone(); cragStone.repeat.set(0.3, 0.3);
+  const wallStone = cragStone.clone(); wallStone.rotation = Math.PI / 2;
+  const cragMat = (map: THREE.Texture) => new THREE.MeshStandardMaterial({ color: 0x6f6c66, map, bumpMap: map, bumpScale: 1, roughness: 0.95, flatShading: true });
+  const tip = new THREE.Group();
+  tip.position.set(0, 0, 8.1);
+  tip.add(new THREE.Mesh(cragGeo, [cragMat(cragStone), cragMat(wallStone)]));
+  scene.add(tip);
+
+  // Him, at the point of it, facing the crowd.
   const cat = kaelthos();
   mask(cat.children.find((c): c is THREE.Group => c instanceof THREE.Group)!);
-  cat.scale.setScalar(0.8);
-  cat.position.set(0, 8.6, 0);
-  scene.add(cat);
+  cat.scale.setScalar(0.95);
+  cat.position.set(0, H, 0.78);
+  tip.add(cat);
+  const low = -(H - 1.5);
+  let lift = 1, raised = true;
 
   // The light: a cold key from the front and above, the screen's glow
-  // raking the rock from behind, and a spot straight down on him.
+  // raking the rock from behind, and one hard shaft straight down on him.
   scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  const key = new THREE.DirectionalLight(0xffffff, 4.5); key.position.set(-9, 9, 10); scene.add(key);
+  const key = new THREE.DirectionalLight(0xffffff, 4.5); key.position.set(10, 9, 8); scene.add(key);
   const back = new THREE.DirectionalLight(0xffffff, 3); back.position.set(-4, 6, -10); scene.add(back);
-  const spot = new THREE.SpotLight(0xffffff, 60, 20, 0.12, 0.6, 1.2);
-  spot.position.set(0, 20, 3); spot.target = cat; scene.add(spot);
+  const top = 30;
+  const spot = new THREE.SpotLight(0xffffff, 9, 0, 0.05, 0.5, 0);
+  spot.position.set(0, top, CZ); spot.target = cat; scene.add(spot);
+  const shaftGeo = new THREE.CylinderGeometry(0.1, 0.32, 1, 20, 1, true); shaftGeo.translate(0, -0.5, 0);
+  const shaft = new THREE.Mesh(shaftGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+  shaft.position.set(0, top, CZ);
+  scene.add(shaft);
+  const puff = paint(64, 64, (g) => {
+    const p = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    p.addColorStop(0, grey(1, 0.5)); p.addColorStop(1, grey(1, 0));
+    g.fillStyle = p; g.fillRect(0, 0, 64, 64);
+  });
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.setScalar(2.6);
+  // And the smoke at the crag's foot lit white from below, as it was.
+  const burst = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  burst.position.set(0, 1.2, 10.6); burst.scale.setScalar(6);
+  scene.add(glow, burst);
 
-  // Beams through the smoke: soft cones from lamps hung high, three in a row
-  // off to the side and one straight down on him.
+  // Beams through the smoke: soft cones from lamps hung high off to the sides.
   const fall = paint(4, 256, (g) => {
     const b = g.createLinearGradient(0, 0, 0, 256);
     b.addColorStop(0, grey(0.75)); b.addColorStop(0.5, grey(0.28)); b.addColorStop(1, grey(0));
@@ -218,18 +246,12 @@ export const yeezus: Build = ({ scene, camera, turn }) => {
   beam(-14, 16.5, -4, 2.2, 21, 0.2, 0.42);
   beam(-9.5, 17.5, -3, 2.0, 21, 0.08, 0.38);
   beam(12.5, 16.8, -4, 2.4, 21, -0.18, 0.42);
-  beam(0, 20, 3, 0.9, 11.4, 0, 0.5);
 
   // Smoke along the foot of the mountain, drifting.
-  const puff = paint(64, 64, (g) => {
-    const p = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    p.addColorStop(0, grey(1, 0.5)); p.addColorStop(1, grey(1, 0));
-    g.fillStyle = p; g.fillRect(0, 0, 64, 64);
-  });
   const smoke: THREE.Sprite[] = [];
   for (let i = 0; i < 26; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, opacity: 0.18 + r() * 0.2, blending: THREE.AdditiveBlending, depthWrite: false }));
-    s.position.set((r() - 0.5) * 30, 0.4 + r() * 3.2, 3 + r() * 5);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puff, opacity: 0.08 + r() * 0.14, blending: THREE.AdditiveBlending, depthWrite: false }));
+    s.position.set((r() - 0.5) * 34, 0.4 + r() * 3.2, 6 + r() * 6);
     s.scale.setScalar(4 + r() * 6);
     scene.add(s); smoke.push(s);
   }
@@ -243,26 +265,52 @@ export const yeezus: Build = ({ scene, camera, turn }) => {
     }),
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
   }));
-  haze.position.set(0, 1.2, 8.5);
+  haze.position.set(0, 1.2, 12);
   scene.add(haze);
   const people = new THREE.Mesh(new THREE.PlaneGeometry(48, 9.8), new THREE.MeshBasicMaterial({ map: crowd(), alphaTest: 0.5, transparent: true }));
-  people.position.set(0, 0.2, 10);
+  people.position.set(0, 0.2, 13.5);
   scene.add(people);
 
+  // A click on the tip, or on him, sends it down or back up; a drag does not.
+  const ray = new THREE.Raycaster(), at = new THREE.Vector2();
+  const hits = (e: PointerEvent) => {
+    const b = canvas.getBoundingClientRect();
+    at.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
+    ray.setFromCamera(at, camera);
+    return ray.intersectObject(tip).length > 0;
+  };
+  let press: { x: number; y: number } | null = null;
+  canvas.addEventListener('pointerdown', (e) => { press = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6 && hits(e)) raised = !raised;
+    press = null;
+  });
+  canvas.addEventListener('pointermove', (e) => { if (!press) canvas.style.cursor = hits(e) ? 'pointer' : ''; });
+
   // Stood back on the floor, far enough off to take in the disc and the
-  // lamps, and turned only a little by a drag.
-  return (t) => {
+  // lamps, a little to the left so the tip stands clear of the pyramid, and
+  // turned only a little by a drag.
+  return (t, dt) => {
     turn.y = Math.max(-0.35, Math.min(0.35, turn.y));
     turn.x = Math.max(-0.08, Math.min(0.2, turn.x));
     const half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const dist = Math.max(11.5 / half, 9.5 / (half * camera.aspect));
+    const dist = Math.max(12.5 / half, 11 / (half * camera.aspect));
     // A narrow window stands farther back; lifting the aim keeps the crowd on its bottom edge.
-    const aim = new THREE.Vector3(0, 7.2 + (dist * half - 11.5) * 0.85, 0);
-    const yaw = turn.y + Math.sin(t * 0.07) * 0.05;
-    camera.position.set(Math.sin(yaw) * dist, aim.y - 3.2 + turn.x * dist, Math.cos(yaw) * dist);
+    const aim = new THREE.Vector3(0, 8.5 + (dist * half - 12.5) * 0.85, 0);
+    const yaw = turn.y - 0.3 + Math.sin(t * 0.07) * 0.05;
+    camera.position.set(Math.sin(yaw) * dist, aim.y - 4 + turn.x * dist, Math.cos(yaw) * dist);
     camera.far = dist * 3;
     camera.updateProjectionMatrix();
-    camera.lookAt(aim);
+    camera.lookAt(aim.x + 2, aim.y, aim.z + 3);
+
+    // The tip rises and sinks over a few seconds, easing at both ends; the
+    // shaft and his glow go with him.
+    lift = THREE.MathUtils.clamp(lift + (raised ? dt : -dt) * 0.3, 0, 1);
+    tip.position.y = low * (1 - THREE.MathUtils.smootherstep(lift, 0, 1));
+    const head = tip.position.y + H + 1.35;
+    shaft.scale.y = top - head;
+    glow.position.set(0, head - 0.5, CZ + 0.2);
+
     sky.offset.set(t * 0.004, t * 0.0015);
     for (const b of beams) b.m.rotation.z = b.lean + Math.sin(t * 0.25 + b.phase) * 0.05;
     smoke.forEach((s, i) => { s.position.x += Math.sin(t * 0.1 + i) * 0.004; });

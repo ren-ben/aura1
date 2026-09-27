@@ -6,7 +6,6 @@ import { computed, ref } from 'vue';
 import Frame from '../components/Frame.vue';
 import Gl from '../components/Gl.vue';
 import { yeezus } from '../gl/yeezus';
-import { narrow } from '../screen';
 import { actions, clock, dailyMinutes, daysAgo, duration, localDate, state, type Session } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -66,9 +65,9 @@ const week = computed(() => fortnight.value.slice(7).reduce((a, x) => a + x.m, 0
       </div>
     </Frame>
 
-    <Frame class="stage" title="mount yeezus // he takes the summit" flush>
-      <Gl :build="yeezus" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0, tilt: 0, yaw: 0 }"
-        label="Kael'thos in the jewelled mask on the summit of Mount Yeezus, a white disc behind him, beams through the smoke, the crowd below. Drag to look round." hint="drag to look round" />
+    <Frame class="stage" title="mount yeezus // he takes the tip" flush>
+      <Gl :build="yeezus" :active="active" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0 }"
+        label="Kael'thos in the jewelled mask on the raised tip of Mount Yeezus, a hard shaft of light on him, the pyramid and a tilted white disc behind, the crowd below. Click the tip to lower or raise it; drag to look round." hint="click the tip // drag to look round" />
     </Frame>
 
     <Frame class="write" title="write one in by hand">
