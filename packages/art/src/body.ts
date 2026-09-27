@@ -278,11 +278,28 @@ export function huntPose(kind: HuntPose, expr: Expression, p: Palette): string {
     case 'core':
       return pose('loaf', expr, p) + floor;
     case 'run': {
-      // Out on the road in his headphones, the road running away behind him.
-      const streaks = [[20, 250, 90], [10, 290, 120], [30, 330, 80]]
-        .map(([x, y, w], i) => shape(wobble(stroke([[x!, y!], [x! + w!, y!]], () => 5), 70 + i, 0.4), p.ink)).join('');
-      const l: Pt = [150, 318], r: Pt = [254, 296];
-      return streaks + standing(p) + arms([[160, 300], l], [[238, 284], r], p) + face(SIT_NECK, { headphones: true }) + paws(l, r, p) + floor;
+      // Side on, mid-gallop, stretched out toward the right; his face still
+      // to us, as always, but his eyes on the road ahead.
+      const e = { ...expr, look: [10, -1] as Pt, tilt: -7 };
+      const body = sampleCubics([
+        'M 136 262',
+        'C 168 236, 250 232, 298 244',
+        'C 322 250, 330 276, 318 298',
+        'C 302 320, 250 324, 200 320',
+        'C 160 318, 126 306, 120 290',
+        'C 116 276, 122 268, 136 262',
+      ].join(' '), 10);
+      const leg = (pts: Pt[], seed: number) => arm(pts, p, seed);
+      return `<g transform="translate(-24 30)">${[
+        tail([[126, 272], [96, 256], [70, 236], [52, 226], [34, 230]], p, 5, 15, 10),
+        leg([[176, 304], [186, 334], [196, 352]], 81),
+        leg([[276, 302], [264, 332], [246, 350]], 82),
+        ink(body, p, 3),
+        leg([[146, 294], [110, 318], [78, 334]], 83),
+        leg([[300, 288], [334, 314], [362, 334]], 84),
+        paw(78, 336, p, 85, 12, 9), paw(364, 336, p, 86, 12, 9), paw(196, 356, p, 87, 12, 9), paw(244, 352, p, 88, 12, 9),
+        placeHead(e, p, [306, 252], 0.6),
+      ].join('')}</g>` + floor;
     }
     case 'stairs': {
       // Climbing: a flight of steps rising to the right, him on the first.

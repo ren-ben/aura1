@@ -443,6 +443,11 @@ export function yeScenes(): Scene[] {
 
     ...(['curious', 'content', 'happy', 'delighted', 'questioning', 'overjoyed', 'annoyed', 'proud', 'sleepy', 'flustered', 'hmph', 'surprised', 'scared'] as ExpressionName[])
       .map((name) => ys(`cameo-${name}`, 'cameo', [svg(bustAt(name, [200, 395], 1.28, Y('shades')))], undefined, 72)),
+    // The watcher on the menu, peeking up in the Yeezus mask, its eyes
+    // following along. Baked at 64 px, so the tiles are drawn big.
+    ...([[-11, -6], [0, -10], [11, -6]] as Pt[]).map((look, i) =>
+      ys(`watch-${['left', 'up', 'right'][i]}`, 'watch', [svg(placeHead({ ...face('curious'), look, tilt: 0 }, P, [200, 470], 1.35, Y('mask', { pitch: 20 }), 2.2)
+        + hideBelow(392))], undefined, 64)),
   ];
 }
 

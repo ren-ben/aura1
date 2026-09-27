@@ -103,7 +103,8 @@ and on the world in Bully when neglected; bare on the Saint Pablo stage, out
 on the sage flats under the Tetons of ye (waking, sleeping, dreaming), riding
 the Kids See Ghosts ghost, and in the doorway of the Jesus Is King chapel;
 Donda in the stadium for the hunt and the marathon. Day to day, and in the
-cameos and on the dashboard, he wears the shutter shades. The Vigil, the rite,
+cameos and on the dashboard, he wears the shutter shades; peeking up on the
+menu, the Yeezus mask. The Vigil, the rite,
 copying a book and dormancy stay as they are. `yeScenes`, ids `ye-*`.
 
 ## Batches
