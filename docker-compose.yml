@@ -42,10 +42,26 @@ services:
       ACADEMY_BUDGET_USD: ${ACADEMY_BUDGET_USD:-}
       # The reading: a public Goodreads profile's user id.
       GOODREADS_USER: ${GOODREADS_USER:-}
+      # The Hunt: where the Garmin sidecar listens for "pull now".
+      GARMIN_URL: ${GARMIN_URL:-http://garmin:8765}
     ports: ["127.0.0.1:13000:3000"]
     depends_on:
       postgres: { condition: service_healthy }
     restart: unless-stopped
 
+  # The Hunt's link to Garmin. Log in once, with the MFA code:
+  #   docker compose run --rm garmin python garmin_sync.py login
+  garmin:
+    build: packages/garmin
+    environment:
+      GARMIN_EMAIL: ${GARMIN_EMAIL:-}
+      GARMIN_PASSWORD: ${GARMIN_PASSWORD:-}
+      GARMINTOKENS: /tokens
+      API_URL: http://api:3000/api/v1
+    volumes: ["garmintokens:/tokens"]
+    depends_on: [api]
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  garmintokens:

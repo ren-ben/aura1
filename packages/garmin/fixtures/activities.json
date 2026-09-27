@@ -1,0 +1,13 @@
+[
+  {"activityId": 20571234567, "activityName": "Vienna Running", "startTimeGMT": "2026-09-20 07:02:11",
+   "activityType": {"typeKey": "running"}, "duration": 11400.4, "distance": 31500.0, "elevationGain": 350.0,
+   "averageHR": 149.0, "maxHR": 171.0, "calories": 2600.0, "bmrCalories": 190.0, "activityTrainingLoad": 310.2,
+   "hrTimeInZone_1": 600.0, "hrTimeInZone_2": 5000.0, "hrTimeInZone_3": 4800.0, "hrTimeInZone_4": 900.0, "hrTimeInZone_5": 100.0},
+  {"activityId": 20571234568, "activityName": "Stair Stepper", "startTimeGMT": "2026-09-19 16:00:00",
+   "activityType": {"typeKey": "stair_climbing"}, "duration": 3900.0, "distance": 0.0, "elevationGain": 1050.0,
+   "averageHR": 152.0, "maxHR": 168.0, "calories": 900.0, "bmrCalories": 70.0, "activityTrainingLoad": 160.0},
+  {"activityId": 20571234569, "activityName": "Strength", "startTimeGMT": "2026-09-18 17:00:00",
+   "activityType": {"typeKey": "strength_training"}, "duration": 4800.0, "calories": 520.0},
+  {"activityId": 20571234570, "activityName": "Bouldering", "startTimeGMT": "2026-09-10 18:00:00",
+   "activityType": {"typeKey": "bouldering"}, "duration": 5400.0, "calories": 600.0}
+]
