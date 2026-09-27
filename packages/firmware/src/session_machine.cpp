@@ -3,10 +3,23 @@
 #include "art_index.h"
 #include "looks.h"
 #include "validate.h"
+#include "time_util.h"
+#include <cstdio>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <vector>
+
+// A load as the glass writes it: 100, 27.5.
+static std::string kilos(double kg) {
+  char buf[24];
+  const long tenths = static_cast<long>(kg * 10 + (kg >= 0 ? 0.5 : -0.5));
+  if (tenths % 10 == 0) std::snprintf(buf, sizeof buf, "%ld", tenths / 10);
+  else std::snprintf(buf, sizeof buf, "%ld.%ld", tenths / 10, tenths % 10);
+  return buf;
+}
+
+static const char* const FEELS[] = { "easy", "solid", "grind" };
 
 // The lengths a sit can be, in minutes; 0 is open, ended by hand.
 static const int SIT_LENGTHS[] = { 5, 10, 15, 20, 25, 30, 45, 60, 0 };
@@ -203,7 +216,7 @@ void SessionMachine::startSession(int activityId) {
   startedAt_ = clock_.nowEpochSeconds();
   if (!writeMarker(startedAt_)) return;  // first write failed: stay Idle
   // Where the next boot reopens. Losing it only costs the resume position.
-  if (!ritual_ && !sit_) storage_.write(NAV, std::to_string(activityId_) + "\n");
+  if (!ritual_ && !sit_ && !hunt_) storage_.write(NAV, std::to_string(activityId_) + "\n");
   screen_ = Screen::Running;
   draw();
 }
@@ -274,6 +287,15 @@ void SessionMachine::handle(Input input) {
       break;
 
     case Screen::Running:
+      if (hunt_) {
+        if (input == Input::Tick) {
+          if (now - lastHeartbeat_ >= HEARTBEAT_SECONDS) appendHeartbeat(now);
+          huntTick(now);
+        } else {
+          hunt(input);
+        }
+        break;
+      }
       // Sun is deliberately inert while running. Changing activity mid-session
       // would make the logged block a lie.
       if (input == Input::PowerShort) { stopSession(); if (sit_ && screen_ == Screen::Stopped) chime("close"); }
@@ -295,11 +317,13 @@ void SessionMachine::handle(Input input) {
       if (input == Input::PowerShort || input == Input::SunShort || input == Input::SunDouble) {
         screen_ = Screen::Idle;
         sit_ = false;
+        hunt_ = false;
         draw();
       } else if (input == Input::Tick) {
         if (clock_.nowEpochSeconds() - stoppedAt_ >= STOPPED_HOLD_SECONDS) {
           screen_ = Screen::Idle;
           sit_ = false;
+          hunt_ = false;
           draw();
         }
       }
@@ -330,6 +354,9 @@ void SessionMachine::browse(Input input) {
       break;
     case Place::Vigil:
       vigil(input);
+      break;
+    case Place::Hunt:
+      hunt(input);
       break;
     case Place::Plan:
       if (input == Input::SunLong) { place_ = Place::Menu; draw(); }
@@ -533,7 +560,7 @@ void SessionMachine::redrawSettings() {
 std::vector<Place> SessionMachine::menu() const {
   std::vector<Place> places;
   if (daily_.resurrectionId() && daily_.form(clock_.nowEpochSeconds()) == "dormant") places.push_back(Place::Resurrect);
-  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Plan, Place::Vigil }) places.push_back(p);
+  for (Place p : { Place::Activities, Place::Todos, Place::Habits, Place::Plan, Place::Vigil, Place::Hunt }) places.push_back(p);
   // Always offered, empty or not: a menu that hides the library until a sync
   // has been through is a menu with a missing item as far as anyone holding
   // the device is concerned.
@@ -613,6 +640,7 @@ void SessionMachine::enter(Place place) {
   place_ = place;
   listCursor_ = 0;
   quotePage_ = 0;
+  stage_ = HuntStage::List;
   if (place == Place::Book) {
     listCursor_ = static_cast<size_t>(book_.chapterIdx());
     repaginate();
@@ -668,6 +696,7 @@ void SessionMachine::draw(int minutes) {
           case Place::Habits: vm.items.push_back("HABITS " + doneOf(daily_.habits())); break;
           case Place::Shelf: vm.items.push_back("READ"); break;
           case Place::Vigil: vm.items.push_back("PEACE"); break;
+          case Place::Hunt: vm.items.push_back("HUNT"); break;
           case Place::Plan: vm.items.push_back("KRONOS"); break;
           case Place::Settings: vm.items.push_back("SETTINGS"); break;
           default: vm.items.push_back("QUOTES"); break;
@@ -787,6 +816,53 @@ void SessionMachine::draw(int minutes) {
       }
       break;
     }
+    case Place::Hunt: {
+      const auto& xs = daily_.huntExercises();
+      vm.items.clear();
+      vm.values.clear();
+      vm.hunt.stage = stage_;
+      vm.hunt.line = daily_.huntLine();
+      vm.title = daily_.huntShort().empty() ? "HUNT" : daily_.huntShort();
+      if (xs.empty()) {
+        vm.items.push_back("SYNC FIRST");
+        vm.values.push_back("");
+        vm.cursor = 0;
+        break;
+      }
+      if (stage_ == HuntStage::List) {
+        for (const auto& x : xs) {
+          const auto it = done_.find(x.id);
+          const int n = it == done_.end() ? 0 : it->second;
+          vm.items.push_back(x.name);
+          vm.values.push_back(n >= static_cast<int>(x.sets.size()) ? "DONE"
+            : n ? std::to_string(n) + "/" + std::to_string(x.sets.size())
+            : x.bodyweight ? std::to_string(x.sets[0].reps) : kilos(x.sets[0].load) + "x" + std::to_string(x.sets[0].reps));
+        }
+        if (hunt_) { vm.items.push_back("END HUNT"); vm.values.push_back(""); }
+        listCursor_ %= vm.items.size();
+        vm.cursor = static_cast<int>(listCursor_);
+        break;
+      }
+      const HuntExercise& x = xs[exercise_ % xs.size()];
+      const HuntTarget t = target();
+      vm.hunt.exercise = x.name;
+      vm.hunt.pose = x.pose;
+      vm.hunt.set = setIdx_ + 1;
+      vm.hunt.of = static_cast<int>(x.sets.size());
+      vm.hunt.target = x.bodyweight ? std::to_string(t.reps) + " REPS" : kilos(t.load) + " x " + std::to_string(t.reps);
+      vm.hunt.last = x.last;
+      if (stage_ == HuntStage::Adjust) {
+        const auto values = adjustValues();
+        vm.hunt.field = adjustLoad_ ? "KG" : "REPS";
+        vm.hunt.value = values[adjustCursor_ % values.size()];
+      } else if (stage_ == HuntStage::Rest) {
+        vm.hunt.rest = restLeft(clock_.nowEpochSeconds());
+      } else if (stage_ == HuntStage::Feel) {
+        vm.items = { "EASY", "SOLID", "GRIND" };
+        vm.cursor = static_cast<int>(feelCursor_ % 3);
+      }
+      break;
+    }
     case Place::Activities:
       break;
   }
@@ -811,6 +887,8 @@ void SessionMachine::draw(int minutes) {
       }
     }
   }
+  // A hunt shows its pages while its session runs: the list, the set, the rest.
+  if (hunt_ && screen_ == Screen::Running) vm.screen = Screen::Idle;
   vm.largeText = largeText_;
   vm.look = look_;
   vm.skin = skin_;
@@ -896,4 +974,142 @@ void SessionMachine::sitTick(uint64_t now) {
   if (sitBell_ && minute > 0 && minute % sitBell_ == 0 && minute != lastBell_) { lastBell_ = minute; chime("bell"); }
   const int left = sitMinutes_ ? leftInFives(now) : -1;
   if (sitPacer_ != Pacer::None || left != shownLeft_) { shownLeft_ = left; draw(); }
+}
+
+// ---- The Hunt ----------------------------------------------------------------
+// Before a hunt: SUN walks the exercises, POWER starts the hunt on one.
+// During it: the list (END HUNT last), then an exercise a set at a time.
+// POWER does the set as shown, SUN adjusts it first (reps, then load),
+// holding SUN goes back up. Rest counts down between sets; after the last
+// one, how it felt.
+void SessionMachine::hunt(Input input) {
+  const auto& xs = daily_.huntExercises();
+  if (xs.empty() || !daily_.liftingId()) {
+    if (!hunt_ && (input == Input::SunLong || input == Input::PowerShort)) { place_ = Place::Menu; draw(); }
+    return;
+  }
+  const size_t rows = xs.size() + (hunt_ ? 1 : 0);
+  switch (stage_) {
+    case HuntStage::List:
+      if (input == Input::SunShort) { listCursor_ = (listCursor_ + 1) % rows; draw(); }
+      else if (input == Input::SunDouble) { listCursor_ = (listCursor_ + 2 * rows - 2) % rows; draw(); }
+      else if (input == Input::SunLong && !hunt_) { place_ = Place::Menu; draw(); }
+      else if (input == Input::PowerShort) {
+        if (hunt_ && listCursor_ % rows == xs.size()) { stopSession(); return; }
+        if (!hunt_) {
+          hunt_ = true;
+          done_.clear();
+          startSession(daily_.liftingId());
+          if (screen_ != Screen::Running) { hunt_ = false; return; }
+        }
+        openExercise(listCursor_ % rows);
+      }
+      break;
+    case HuntStage::Set:
+      if (input == Input::PowerShort) { const HuntTarget t = target(); logSet(t.load, t.reps); }
+      else if (input == Input::SunShort || input == Input::SunDouble) {
+        adjustLoad_ = false;
+        adjustCursor_ = 4;  // the target, in the middle of its window
+        stage_ = HuntStage::Adjust;
+        draw();
+      } else if (input == Input::SunLong) { stage_ = HuntStage::List; draw(); }
+      break;
+    case HuntStage::Adjust: {
+      const size_t n = adjustValues().size();
+      if (input == Input::SunShort) { adjustCursor_ = (adjustCursor_ + 1) % n; draw(); }
+      else if (input == Input::SunDouble) { adjustCursor_ = (adjustCursor_ + 2 * n - 2) % n; draw(); }
+      else if (input == Input::SunLong) { stage_ = HuntStage::Set; draw(); }
+      else if (input == Input::PowerShort) {
+        const std::string value = adjustValues()[adjustCursor_ % n];
+        const HuntExercise& x = xs[exercise_ % xs.size()];
+        if (!adjustLoad_) {
+          adjustReps_ = std::atoi(value.c_str());
+          if (x.bodyweight) { logSet(0, adjustReps_); break; }
+          adjustLoad_ = true;
+          adjustCursor_ = 4;
+          draw();
+        } else {
+          logSet(std::atof(value.c_str()), adjustReps_);
+        }
+      }
+      break;
+    }
+    case HuntStage::Rest:
+      if (input == Input::PowerShort || input == Input::SunShort || input == Input::SunDouble) { stage_ = HuntStage::Set; draw(); }
+      else if (input == Input::SunLong) { stage_ = HuntStage::List; draw(); }
+      break;
+    case HuntStage::Feel:
+      if (input == Input::SunShort) { feelCursor_ = (feelCursor_ + 1) % 3; draw(); }
+      else if (input == Input::SunDouble) { feelCursor_ = (feelCursor_ + 4) % 3; draw(); }
+      else if (input == Input::SunLong || input == Input::PowerShort) {
+        if (input == Input::PowerShort) {
+          const Civil day = epochToCivil(topAt_);
+          const auto two = [](unsigned v) { return std::string(v < 10 ? "0" : "") + std::to_string(v); };
+          daily_.queueHunt("feel " + uuidV4(random_) + " " + std::to_string(xs[exercise_ % xs.size()].id) + " "
+            + std::to_string(day.year) + "-" + two(day.month) + "-" + two(day.day) + " " + FEELS[feelCursor_ % 3]);
+        }
+        stage_ = HuntStage::List;
+        listCursor_ = (exercise_ + 1) % rows;
+        draw();
+      }
+      break;
+  }
+}
+
+void SessionMachine::openExercise(size_t i) {
+  const auto& xs = daily_.huntExercises();
+  exercise_ = i;
+  const auto it = done_.find(xs[i].id);
+  setIdx_ = it == done_.end() ? 0 : it->second;
+  moved_ = 0;
+  if (!setIdx_) topAt_ = clock_.nowEpochSeconds();
+  stage_ = HuntStage::Set;
+  draw();
+}
+
+HuntTarget SessionMachine::target() const {
+  const HuntExercise& x = daily_.huntExercises()[exercise_ % daily_.huntExercises().size()];
+  HuntTarget t = x.sets[std::min<size_t>(static_cast<size_t>(setIdx_), x.sets.size() - 1)];
+  if (!x.bodyweight) t.load = std::max(0.0, t.load + moved_);
+  return t;
+}
+
+// A window of eight around the target: four under it, three over.
+std::vector<std::string> SessionMachine::adjustValues() const {
+  const HuntExercise& x = daily_.huntExercises()[exercise_ % daily_.huntExercises().size()];
+  const HuntTarget t = target();
+  std::vector<std::string> out;
+  for (int k = -4; k <= 3; ++k) {
+    if (adjustLoad_) out.push_back(kilos(std::max(0.0, t.load + k * x.step)));
+    else out.push_back(std::to_string(std::max(0, t.reps + k)));
+  }
+  return out;
+}
+
+void SessionMachine::logSet(double load, int reps) {
+  const auto& xs = daily_.huntExercises();
+  const HuntExercise& x = xs[exercise_ % xs.size()];
+  const uint64_t now = clock_.nowEpochSeconds();
+  if (!daily_.queueHunt("set " + uuidV4(random_) + " " + std::to_string(x.id) + " " + std::to_string(now) + " "
+      + std::to_string(setIdx_) + " " + kilos(load) + " " + std::to_string(reps))) { draw(); return; }
+  if (!x.bodyweight) moved_ += load - target().load;
+  done_[x.id] = ++setIdx_;
+  if (setIdx_ >= static_cast<int>(x.sets.size())) { feelCursor_ = 1; stage_ = HuntStage::Feel; draw(); return; }
+  restUntil_ = now + static_cast<uint64_t>(x.rest);
+  restShown_ = restLeft(now);
+  stage_ = HuntStage::Rest;
+  draw();
+}
+
+// The rest left, rounded up to fifteen seconds: the glass changes four times a minute.
+int SessionMachine::restLeft(uint64_t now) const {
+  if (now >= restUntil_) return 0;
+  return static_cast<int>((restUntil_ - now + 14) / 15) * 15;
+}
+
+void SessionMachine::huntTick(uint64_t now) {
+  if (stage_ != HuntStage::Rest) return;
+  const int left = restLeft(now);
+  if (left == 0) { chime("bell"); stage_ = HuntStage::Set; draw(); return; }
+  if (left != restShown_) { restShown_ = left; draw(); }
 }

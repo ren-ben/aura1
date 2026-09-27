@@ -189,6 +189,26 @@ void test_request_carries_every_book_read_since_the_last_sync() {
   TEST_ASSERT_TRUE(buildRequest("aura-1", 1, {}).find("readings") == std::string::npos);
 }
 
+void test_hunt_lines_become_sets_and_feels() {
+  const std::vector<std::string> hunt = {
+    "set 11111111-1111-4111-8111-111111111111 3 1790000000 0 27.5 12",
+    "feel 22222222-2222-4222-8222-222222222222 3 2026-09-27 grind",
+    "set not-a-uuid 3 1790000000 0 100 8",
+    "feel 33333333-3333-4333-8333-333333333333 3 2026-09-27 meh",
+  };
+  const std::string body = buildRequest("aura-1", 1, {}, {}, "", nullptr, {}, hunt);
+  JsonDocument doc;
+  TEST_ASSERT_FALSE(deserializeJson(doc, body));
+  TEST_ASSERT_EQUAL_INT(1, doc["sets"].size());
+  TEST_ASSERT_EQUAL_STRING("11111111-1111-4111-8111-111111111111", doc["sets"][0]["uuid"]);
+  TEST_ASSERT_EQUAL_INT(3, doc["sets"][0]["exerciseId"].as<int>());
+  TEST_ASSERT_EQUAL_FLOAT(27.5f, doc["sets"][0]["load"].as<float>());
+  TEST_ASSERT_EQUAL_INT(12, doc["sets"][0]["reps"].as<int>());
+  TEST_ASSERT_EQUAL_STRING("2026-09-21T14:13:20Z", doc["sets"][0]["at"]);
+  TEST_ASSERT_EQUAL_INT(1, doc["feels"].size());
+  TEST_ASSERT_EQUAL_STRING("grind", doc["feels"][0]["feel"]);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_request_carries_every_book_read_since_the_last_sync);
@@ -204,5 +224,6 @@ int main() {
   RUN_TEST(test_request_carries_ticks_and_skips_malformed_ones);
   RUN_TEST(test_today_is_returned_when_present);
   RUN_TEST(test_request_carries_the_status_and_response_a_look);
+  RUN_TEST(test_hunt_lines_become_sets_and_feels);
   return UNITY_END();
 }

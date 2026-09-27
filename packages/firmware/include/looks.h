@@ -74,6 +74,10 @@ void readerPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art
 // The day as it is wired, the same in every look: what to be doing now,
 // what comes after, and the day around it.
 void planPage(Canvas& c, const Look& look, const ViewModel& vm);
+// The Hunt, the same in every look: the verdict and the exercises, then a
+// set, its adjustment, the rest after it and how it felt, with him in the
+// exercise's pose.
+void huntPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art);
 // Where the corner goes: the look's own, except on the plan, which keeps
 // the top right for it in every look.
 Corner pageCorner(const Look& look, const ViewModel& vm, bool scene);

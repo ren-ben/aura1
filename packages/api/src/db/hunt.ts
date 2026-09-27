@@ -110,7 +110,7 @@ export function deviceHunt(data: HuntData, lifting: number) {
       const p = prescribe(e, mine, feels);
       const bw = e.kind === 'bodyweight';
       return {
-        id: e.id, name: e.name, pose: e.pose, rest: e.rest, bodyweight: bw, sets: p.sets,
+        id: e.id, name: e.name, pose: e.pose, rest: e.rest, step: e.step, bodyweight: bw, sets: p.sets,
         last: (p.last ?? []).map((t) => (bw ? String(t.reps) : `${kg(t.load)}x${t.reps}`)).join(' '),
       };
     }),

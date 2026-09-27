@@ -147,6 +147,26 @@ void test_once_dormant_only_the_ritual_wakes_him_here() {
   TEST_ASSERT_EQUAL_STRING("stable", daily.form(LAST + 60).c_str());
 }
 
+void test_the_hunt_arrives_and_its_settled_lines_leave() {
+  FakeStorage storage;
+  Daily d(storage);
+  d.replace("{\"date\":\"2026-09-27\",\"todos\":[],\"habits\":[],\"quotes\":[],\"hunt\":{\"word\":\"RUN\",\"short\":\"RUN LONG\","
+            "\"line\":\"Run long.\",\"liftingId\":10,\"exercises\":[{\"id\":3,\"name\":\"Chest Press\",\"pose\":\"press\","
+            "\"rest\":180,\"step\":5,\"bodyweight\":false,\"sets\":[{\"load\":27.5,\"reps\":10}],\"last\":\"\"}]}}");
+  TEST_ASSERT_EQUAL_INT(1, (int)d.huntExercises().size());
+  TEST_ASSERT_EQUAL_FLOAT(27.5f, (float)d.huntExercises()[0].sets[0].load);
+  TEST_ASSERT_EQUAL_STRING("RUN LONG", d.huntShort().c_str());
+  TEST_ASSERT_EQUAL_INT(10, d.liftingId());
+  d.queueHunt("set aaa 3 1 0 100 8");
+  d.queueHunt("set bbb 3 2 1 90 12");
+  d.pruneHunt({ "aaa" });
+  const auto left = d.huntLines();
+  TEST_ASSERT_EQUAL_INT(1, (int)left.size());
+  TEST_ASSERT_EQUAL_STRING("set bbb 3 2 1 90 12", left[0].c_str());
+  d.pruneHunt({ "bbb" });
+  TEST_ASSERT_FALSE(storage.exists("/hunt.ndjson"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_replace_parses_and_saves_the_bundle);
@@ -160,5 +180,6 @@ int main() {
   RUN_TEST(test_the_plan_comes_with_the_day);
   RUN_TEST(test_a_session_ended_here_counts_before_the_next_sync);
   RUN_TEST(test_once_dormant_only_the_ritual_wakes_him_here);
+  RUN_TEST(test_the_hunt_arrives_and_its_settled_lines_leave);
   return UNITY_END();
 }

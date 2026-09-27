@@ -5,11 +5,26 @@
 enum class Screen { Waking, Idle, Running, Stopped, Dormant, Celebrate, Screensaver };
 
 // Where the user is while browsing: the menu, or one of its places.
-enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe, Vigil, Plan };
+enum class Place { Menu, Activities, Todos, Habits, Quotes, Settings, Resurrect, Shelf, Book, Reading, Transcribe, Vigil, Plan, Hunt };
 
 // A block of today's rewiring: minutes after local midnight, its name, and
 // its grey (0 lightest on the web, drawn densest here).
 struct Tap { int start = 0; int end = 0; std::string title; int shade = 1; int activityId = 0; };
+
+// The Hunt at the gym: which step of an exercise is on the glass.
+enum class HuntStage { List, Set, Adjust, Rest, Feel };
+struct HuntView {
+  HuntStage stage = HuntStage::List;
+  std::string exercise;   // its name
+  std::string pose;       // the art pack's "hunt-<pose>"
+  int set = 0, of = 0;    // this set, one-based, of the prescription's
+  std::string target;     // "100 x 8", or "16 REPS"
+  std::string last;       // the last visit, "100x9 90x12"
+  std::string field;      // adjusting: "REPS" or "KG"
+  std::string value;      // adjusting: the value under the cursor
+  int rest = -1;          // seconds of rest left, in fifteens
+  std::string line;       // the verdict's line, on the list before a hunt
+};
 
 struct ViewModel {
   Screen screen = Screen::Idle;
@@ -54,4 +69,5 @@ struct ViewModel {
   // The rewiring: today's taps, and the minute of the day it is now.
   std::vector<Tap> taps;
   int now = 0;
+  HuntView hunt;
 };

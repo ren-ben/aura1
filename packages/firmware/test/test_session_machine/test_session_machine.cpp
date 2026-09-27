@@ -838,9 +838,9 @@ void test_reading_sun_turns_power_keeps_and_holding_power_leaves_the_book() {
   EventQueue queue(storage);
   SessionMachine m(carousel, queue, clock, storage, renderer, random);
   m.begin();
-  // Up to the menu, along to READ (past Kronos and Peace), into the shelf, the book and its page.
+  // Up to the menu, along to READ (past Kronos, Peace and the Hunt), into the shelf, the book and its page.
   m.handle(Input::SunLong);
-  for (int i = 0; i < 5; ++i) m.handle(Input::SunShort);
+  for (int i = 0; i < 6; ++i) m.handle(Input::SunShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
   m.handle(Input::PowerShort);
@@ -1077,6 +1077,163 @@ void test_the_wiring_starts_nothing_between_taps() {
   TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
 }
 
+// ------------------------------------------------------------------ the Hunt
+
+static const char* HUNT_BUNDLE =
+  "{\"date\":\"2026-09-27\",\"level\":1,\"lastSessionAt\":null,\"resurrectionId\":40,"
+  "\"todos\":[],\"habits\":[],\"quotes\":[],"
+  "\"hunt\":{\"word\":\"IRON\",\"short\":\"IRON PUSH\",\"line\":\"Push has rested three days. Go and feed it.\",\"liftingId\":10,"
+  "\"exercises\":[{\"id\":3,\"name\":\"Chest Press\",\"pose\":\"press\",\"rest\":180,\"step\":5,\"bodyweight\":false,"
+  "\"sets\":[{\"load\":105,\"reps\":10},{\"load\":95,\"reps\":12},{\"load\":85,\"reps\":12}],\"last\":\"105x9 95x12 85x12\"},"
+  "{\"id\":9,\"name\":\"Muscle Ups\",\"pose\":\"hang\",\"rest\":180,\"step\":0,\"bodyweight\":true,"
+  "\"sets\":[{\"load\":0,\"reps\":16},{\"load\":0,\"reps\":11}],\"last\":\"15 10\"}]}}";
+
+static std::vector<std::string> huntLines(Rig& rig) {
+  std::vector<std::string> out;
+  for (const auto& l : rig.storage.readLines("/hunt.ndjson")) if (!l.empty()) out.push_back(l);
+  return out;
+}
+
+static std::vector<std::string> words(const std::string& line) {
+  std::vector<std::string> out;
+  size_t at = 0;
+  while (at < line.size()) {
+    const size_t sp = line.find(' ', at);
+    out.push_back(line.substr(at, sp == std::string::npos ? std::string::npos : sp - at));
+    if (sp == std::string::npos) break;
+    at = sp + 1;
+  }
+  return out;
+}
+
+void test_the_hunt_lists_the_verdict_and_what_to_lift() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(HUNT_BUNDLE);
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "HUNT");
+  const ViewModel& vm = rig.renderer.last();
+  TEST_ASSERT_TRUE(vm.place == Place::Hunt);
+  TEST_ASSERT_EQUAL_STRING("IRON PUSH", vm.title.c_str());
+  TEST_ASSERT_EQUAL_STRING("Chest Press", vm.items[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("105x10", vm.values[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("16", vm.values[1].c_str());
+  TEST_ASSERT_EQUAL_INT(2, (int)vm.items.size());
+}
+
+void test_a_hunt_starts_the_lifting_session_and_logs_a_set_as_prescribed() {
+  Rig rig;
+  FakeSound sound;
+  auto m = rig.machine();
+  m.setSound(&sound);
+  m.begin();
+  m.daily().replace(HUNT_BUNDLE);
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "HUNT");
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Running);
+  const ViewModel& set = rig.renderer.last();
+  // The hunt draws its own pages while its session runs.
+  TEST_ASSERT_TRUE(set.screen == Screen::Idle);
+  TEST_ASSERT_TRUE(set.hunt.stage == HuntStage::Set);
+  TEST_ASSERT_EQUAL_STRING("105 x 10", set.hunt.target.c_str());
+  TEST_ASSERT_EQUAL_INT(1, set.hunt.set);
+  TEST_ASSERT_EQUAL_INT(3, set.hunt.of);
+  m.handle(Input::PowerShort);
+  auto lines = huntLines(rig);
+  TEST_ASSERT_EQUAL_INT(1, (int)lines.size());
+  const auto w = words(lines[0]);
+  TEST_ASSERT_EQUAL_STRING("set", w[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("3", w[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("0", w[4].c_str());
+  TEST_ASSERT_EQUAL_STRING("105", w[5].c_str());
+  TEST_ASSERT_EQUAL_STRING("10", w[6].c_str());
+  TEST_ASSERT_TRUE(rig.renderer.last().hunt.stage == HuntStage::Rest);
+  TEST_ASSERT_EQUAL_INT(180, rig.renderer.last().hunt.rest);
+  // Three minutes on, the bell, and the next set.
+  for (int t = 0; t < 180; ++t) { rig.clock.now += 1; m.handle(Input::Tick); }
+  TEST_ASSERT_EQUAL_INT(1, sound.count("bell"));
+  TEST_ASSERT_TRUE(rig.renderer.last().hunt.stage == HuntStage::Set);
+  TEST_ASSERT_EQUAL_STRING("95 x 12", rig.renderer.last().hunt.target.c_str());
+}
+
+void test_a_set_that_went_otherwise_is_adjusted_and_carries_on() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(HUNT_BUNDLE);
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "HUNT");
+  m.handle(Input::PowerShort);
+  m.handle(Input::SunShort);           // adjust: reps, at the target
+  TEST_ASSERT_TRUE(rig.renderer.last().hunt.stage == HuntStage::Adjust);
+  TEST_ASSERT_EQUAL_STRING("10", rig.renderer.last().hunt.value.c_str());
+  m.handle(Input::SunShort);
+  m.handle(Input::SunDouble);          // back two from 11: 9
+  TEST_ASSERT_EQUAL_STRING("9", rig.renderer.last().hunt.value.c_str());
+  m.handle(Input::PowerShort);         // then the load
+  TEST_ASSERT_EQUAL_STRING("KG", rig.renderer.last().hunt.field.c_str());
+  m.handle(Input::SunShort);           // 110
+  m.handle(Input::PowerShort);
+  const auto w = words(huntLines(rig)[0]);
+  TEST_ASSERT_EQUAL_STRING("110", w[5].c_str());
+  TEST_ASSERT_EQUAL_STRING("9", w[6].c_str());
+  m.handle(Input::PowerShort);         // skip the rest
+  // Five more on the top set, five more on the back-off.
+  TEST_ASSERT_EQUAL_STRING("100 x 12", rig.renderer.last().hunt.target.c_str());
+}
+
+void test_the_last_set_asks_how_it_felt_then_the_hunt_ends() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.daily().replace(HUNT_BUNDLE);
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "HUNT");
+  m.handle(Input::SunShort);           // Muscle Ups
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_EQUAL_STRING("16 REPS", rig.renderer.last().hunt.target.c_str());
+  m.handle(Input::PowerShort);         // 16
+  m.handle(Input::PowerShort);         // rest skipped
+  m.handle(Input::PowerShort);         // 11
+  TEST_ASSERT_TRUE(rig.renderer.last().hunt.stage == HuntStage::Feel);
+  TEST_ASSERT_EQUAL_STRING("SOLID", rig.renderer.last().items[rig.renderer.last().cursor].c_str());
+  m.handle(Input::SunShort);
+  m.handle(Input::SunShort);           // round past GRIND to EASY
+  m.handle(Input::PowerShort);
+  const auto lines = huntLines(rig);
+  TEST_ASSERT_EQUAL_INT(3, (int)lines.size());
+  const auto w = words(lines[2]);
+  TEST_ASSERT_EQUAL_STRING("feel", w[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("9", w[2].c_str());
+  TEST_ASSERT_EQUAL_STRING("easy", w[4].c_str());
+  // Back on the list: Muscle Ups done, END HUNT at the end.
+  const ViewModel& list = rig.renderer.last();
+  TEST_ASSERT_TRUE(list.hunt.stage == HuntStage::List);
+  TEST_ASSERT_EQUAL_STRING("DONE", list.values[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("END HUNT", list.items[2].c_str());
+  rig.clock.now += 40 * 60;
+  // The cursor waits on the next row: END HUNT.
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Stopped);
+  const auto pending = rig.queue.pending();
+  TEST_ASSERT_EQUAL_INT(1, (int)pending.size());
+  TEST_ASSERT_EQUAL_INT(10, pending[0].activityId);
+}
+
+void test_the_hunt_before_the_first_sync_says_so() {
+  Rig rig;
+  auto m = rig.machine();
+  m.begin();
+  m.handle(Input::SunLong);
+  openNamed(rig, m, "HUNT");
+  TEST_ASSERT_EQUAL_STRING("SYNC FIRST", rig.renderer.last().items[0].c_str());
+  m.handle(Input::PowerShort);
+  TEST_ASSERT_TRUE(m.screen() == Screen::Idle);
+  TEST_ASSERT_TRUE(rig.renderer.last().place == Place::Menu);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_wiring_shows_the_day_and_power_starts_what_is_on);
@@ -1135,5 +1292,10 @@ int main() {
   RUN_TEST(test_an_open_sit_is_ended_by_power_and_the_length_is_remembered);
   RUN_TEST(test_the_vigil_before_the_first_sync_says_so);
   RUN_TEST(test_the_sun_hours_toll_once_each_while_they_are_on);
+  RUN_TEST(test_the_hunt_lists_the_verdict_and_what_to_lift);
+  RUN_TEST(test_a_hunt_starts_the_lifting_session_and_logs_a_set_as_prescribed);
+  RUN_TEST(test_a_set_that_went_otherwise_is_adjusted_and_carries_on);
+  RUN_TEST(test_the_last_set_asks_how_it_felt_then_the_hunt_ends);
+  RUN_TEST(test_the_hunt_before_the_first_sync_says_so);
   return UNITY_END();
 }

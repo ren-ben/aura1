@@ -114,6 +114,7 @@ export const todayDtoSchema = z.object({
       name: z.string(),
       pose: z.string(),
       rest: z.number().int(),
+      step: z.number(),
       bodyweight: z.boolean(),
       sets: z.array(z.object({ load: z.number(), reps: z.number().int() })),
       last: z.string(),

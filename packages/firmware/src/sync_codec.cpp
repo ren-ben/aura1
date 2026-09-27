@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <ArduinoJson.h>
 #include "time_util.h"
+#include "validate.h"
 
 #include <sstream>
 
@@ -10,7 +11,8 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<std::string>& ticks,
                          const std::string& todayHash,
                          const DeviceStatus* status,
-                         const std::vector<ReadingState>& readings) {
+                         const std::vector<ReadingState>& readings,
+                         const std::vector<std::string>& hunt) {
   JsonDocument doc;
   doc["deviceId"] = deviceId;
   doc["configVersion"] = configVersion;
@@ -38,6 +40,38 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
     tick["id"] = id;
     if (kind == "habit") tick["date"] = date;
     tick["done"] = done == 1;
+  }
+  // The Hunt's sets and feels, as the card holds them (daily.h); a torn or
+  // malformed line is left out rather than failing the whole sync.
+  JsonArray sets, feels;
+  if (!hunt.empty()) { sets = doc["sets"].to<JsonArray>(); feels = doc["feels"].to<JsonArray>(); }
+  for (const auto& line : hunt) {
+    std::istringstream in(line);
+    std::string kind, uuid;
+    int exerciseId = 0;
+    if (!(in >> kind >> uuid >> exerciseId) || exerciseId <= 0 || !validate::isValidUuid(uuid)) continue;
+    if (kind == "set") {
+      uint64_t at = 0;
+      int idx = 0, reps = 0;
+      double load = 0;
+      if (!(in >> at >> idx >> load >> reps) || sets.size() >= 400) continue;
+      JsonObject s = sets.add<JsonObject>();
+      s["uuid"] = uuid;
+      s["exerciseId"] = exerciseId;
+      s["at"] = toIso8601(at);
+      s["idx"] = idx;
+      s["load"] = load;
+      s["reps"] = reps;
+    } else if (kind == "feel") {
+      std::string date, feel;
+      if (!(in >> date >> feel) || date.size() != 10 || feels.size() >= 60) continue;
+      if (feel != "easy" && feel != "solid" && feel != "grind") continue;
+      JsonObject f = feels.add<JsonObject>();
+      f["uuid"] = uuid;
+      f["exerciseId"] = exerciseId;
+      f["date"] = date;
+      f["feel"] = feel;
+    }
   }
   if (!todayHash.empty()) doc["todayHash"] = todayHash;
   if (status) {

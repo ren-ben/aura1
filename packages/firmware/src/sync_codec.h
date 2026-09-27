@@ -41,7 +41,8 @@ std::string buildRequest(const std::string& deviceId, int configVersion,
                          const std::vector<std::string>& ticks = {},
                          const std::string& todayHash = "",
                          const DeviceStatus* status = nullptr,
-                         const std::vector<ReadingState>& readings = {});
+                         const std::vector<ReadingState>& readings = {},
+                         const std::vector<std::string>& hunt = {});
 
 struct SyncResult {
   bool ok = false;                    // well formed; otherwise apply nothing

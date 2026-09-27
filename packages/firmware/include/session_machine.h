@@ -74,6 +74,14 @@ private:
   int sitLength(const VigilPractice& p) const;  // the last length chosen, or its own
   int leftInFives(uint64_t now) const;
   void chime(const char* name) { if (sound_) sound_->play(name); }
+  // The Hunt: the list, then an exercise set by set, with rest between.
+  void hunt(Input input);
+  void huntTick(uint64_t now);
+  void openExercise(size_t i);
+  void logSet(double load, int reps);
+  HuntTarget target() const;     // this set's prescription, moved by what was really lifted
+  std::vector<std::string> adjustValues() const;
+  int restLeft(uint64_t now) const;
   void loadSettings();
   void saveSettings();
   void redrawSettings();
@@ -144,5 +152,20 @@ private:
   int shownLeft_ = -1;
   int lastBell_ = 0;
   std::map<int, int> lengths_;   // practice id to the length last chosen
+
+  // The Hunt.
+  bool hunt_ = false;            // the session running is a hunt
+  HuntStage stage_ = HuntStage::List;
+  size_t exercise_ = 0;          // the exercise open, in the day's list
+  int setIdx_ = 0;               // its set on the glass, from zero
+  double moved_ = 0;             // how far the lifted load strayed from the plan, carried on
+  bool adjustLoad_ = false;      // adjusting the load (after the reps)
+  size_t adjustCursor_ = 0;
+  int adjustReps_ = 0;
+  uint64_t topAt_ = 0;           // when this exercise's first set was done
+  uint64_t restUntil_ = 0;
+  int restShown_ = -1;
+  size_t feelCursor_ = 1;
+  std::map<int, int> done_;      // exercise id to sets done this hunt
   Sound* sound_ = nullptr;
 };

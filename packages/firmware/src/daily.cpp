@@ -34,6 +34,16 @@ bool Daily::parse(const std::string& json) {
   for (JsonObjectConst q : doc["quotes"].as<JsonArrayConst>()) {
     quotes_.push_back({ q["body"] | "", q["source"] | "" });
   }
+  hunt_.clear();
+  JsonObjectConst hunt = doc["hunt"];
+  huntShort_ = hunt["short"] | "";
+  huntLine_ = hunt["line"] | "";
+  liftingId_ = hunt["liftingId"] | 0;
+  for (JsonObjectConst e : hunt["exercises"].as<JsonArrayConst>()) {
+    HuntExercise x{ e["id"] | 0, e["name"] | "", e["pose"] | "", e["rest"] | 120, e["step"] | 2.5, e["bodyweight"] | false, {}, e["last"] | "" };
+    for (JsonObjectConst t : e["sets"].as<JsonArrayConst>()) x.sets.push_back({ t["load"] | 0.0, t["reps"] | 0 });
+    if (x.id > 0 && !x.sets.empty()) hunt_.push_back(x);
+  }
   for (JsonObjectConst v : doc["vigil"].as<JsonArrayConst>()) {
     const std::string pacer = v["pacer"] | "none";
     vigil_.push_back({ v["id"] | 0, v["name"] | "", v["minutes"] | 0,
@@ -173,4 +183,32 @@ std::string Daily::form(uint64_t now) const {
 
 std::vector<std::string> Daily::ticks() const {
   return storage_.readLines(TICKS);
+}
+
+bool Daily::queueHunt(const std::string& line) {
+  // A leading newline ends any line a power cut left torn.
+  return storage_.append(HUNT, "\n" + line);
+}
+
+std::vector<std::string> Daily::huntLines() const {
+  std::vector<std::string> out;
+  for (auto line : storage_.readLines(HUNT)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!line.empty()) out.push_back(line);
+  }
+  return out;
+}
+
+// The lines whose uuid the server settled go; the rest wait for the next sync.
+void Daily::pruneHunt(const std::vector<std::string>& settled) {
+  const auto lines = huntLines();
+  if (lines.empty()) return;
+  std::string keep;
+  for (const auto& line : lines) {
+    const size_t a = line.find(' '), b = a == std::string::npos ? a : line.find(' ', a + 1);
+    const std::string uuid = a == std::string::npos ? "" : line.substr(a + 1, b == std::string::npos ? std::string::npos : b - a - 1);
+    if (std::find(settled.begin(), settled.end(), uuid) == settled.end()) keep += line + "\n";
+  }
+  if (keep.empty()) storage_.remove(HUNT);
+  else storage_.write(HUNT, keep);
 }

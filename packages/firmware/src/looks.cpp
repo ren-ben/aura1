@@ -1276,6 +1276,7 @@ std::vector<int> readerPages(const Look& look, const std::string& text, bool lar
 void drawPage(Canvas& c, const Look& look, const ViewModel& vm, const Status& s, ArtSource& art) {
   if (vm.place == Place::Reading) readerPage(c, look, vm, art);
   else if (vm.place == Place::Plan) planPage(c, look, vm);
+  else if (vm.place == Place::Hunt) huntPage(c, look, vm, art);
   else look.page(c, vm, s, art);
 }
 
@@ -1577,4 +1578,100 @@ void planPage(Canvas& c, const Look& look, const ViewModel& vm) {
 Corner pageCorner(const Look& look, const ViewModel& vm, bool scene) {
   if (!scene && vm.place == Place::Plan) return { 2, look.negative() ? PAPER : INK };
   return look.corner(vm, scene);
+}
+
+// ---- The Hunt -------------------------------------------------------------
+void huntPage(Canvas& c, const Look& look, const ViewModel& vm, ArtSource& art) {
+  const uint8_t ink = look.negative() ? PAPER : INK;
+  const uint8_t ground = other(ink);
+  if (look.negative()) c.clear(INK);
+  const HuntView& h = vm.hunt;
+  const auto dotted = [&](int y) { for (int x = 10; x < 190; x += 3) c.pixel(x, y, ink); };
+
+  if (h.stage == HuntStage::List || h.stage == HuntStage::Feel) {
+    const bool feel = h.stage == HuntStage::Feel;
+    // The verdict, or the exercise just done, over a rule.
+    c.font(&Silk8);
+    c.text(upper(fit(c, feel ? h.exercise : vm.title, 128)), 10, 26, ink);
+    dotted(32);
+    int top = 50;
+    if (feel) {
+      c.font(&Fell13);
+      c.text("How did it go?", 10, 54, ink);
+      top = 76;
+    } else if (!h.line.empty() && std::find(vm.items.begin(), vm.items.end(), "END HUNT") == vm.items.end()) {
+      // Before a hunt, his word on the day, in two lines at most.
+      c.font(&Silk8);
+      const auto lines = wrap(c, upper(h.line), 180);
+      for (size_t i = 0; i < lines.size() && i < 2; ++i) c.text(lines[i], 10, 46 + static_cast<int>(i) * 11, ink);
+      top = 50 + static_cast<int>(std::min<size_t>(2, lines.size())) * 11 + 4;
+    }
+    const int rowH = 22, count = static_cast<int>(vm.items.size());
+    const int visible = std::max(1, (196 - top) / rowH);
+    const int first = firstRow(vm.cursor, visible, count);
+    c.font(&Silk11);
+    for (int i = first; i < count && i < first + visible; ++i) {
+      const int y = top + (i - first) * rowH;
+      const bool on = i == vm.cursor;
+      if (on) c.fillRect(6, y - 2, 188, rowH - 2, ink);
+      const uint8_t pen = on ? ground : ink;
+      const std::string value = i < static_cast<int>(vm.values.size()) ? vm.values[i] : "";
+      c.font(&Silk8);
+      const int vw = value.empty() ? 0 : c.width(value) + 8;
+      if (!value.empty()) c.right(value, 188, y + 13, pen);
+      c.font(&Silk11);
+      c.text(upper(fit(c, vm.items[i], 176 - vw)), 12, y + 14, pen);
+    }
+    return;
+  }
+
+  // An exercise: its name and which set, then the one thing that matters.
+  c.font(&Silk8);
+  const std::string of = "SET " + std::to_string(h.set) + "/" + std::to_string(h.of);
+  c.right(of, 190, 26, ink);
+  c.text(upper(fit(c, h.exercise, 170 - c.width(of))), 10, 26, ink);
+  dotted(32);
+
+  // Him, in the exercise's pose, lower right, when the pack has it.
+  const bool drawn = art.draw(c, "hunt-" + h.pose, 118, 118, ink);
+
+  if (h.stage == HuntStage::Rest) {
+    const int m = h.rest / 60, s = h.rest % 60;
+    c.font(&Silk8);
+    c.text("REST", 10, 52, ink);
+    c.font(&Tek24);
+    c.text(std::to_string(m) + ":" + (s < 10 ? "0" : "") + std::to_string(s), 10, 90, ink);
+    c.font(&Silk8);
+    c.text("NEXT", 10, 112, ink);
+    c.font(&Tek12);
+    c.text(fit(c, h.target, drawn ? 104 : 180), 10, 130, ink);
+    c.font(&Silk8);
+    c.text("POWER: GO NOW", 10, 190, ink);
+    return;
+  }
+
+  if (h.stage == HuntStage::Adjust) {
+    c.font(&Silk8);
+    c.text("AS DONE: " + h.field, 10, 52, ink);
+    c.font(&Tek24);
+    const int w = c.width(h.value);
+    c.text(h.value, 22, 94, ink);
+    c.fillTriangle(10, 82, 16, 76, 16, 88, ink);
+    c.fillTriangle(34 + w, 82, 28 + w, 76, 28 + w, 88, ink);
+    c.font(&Silk8);
+    c.text("SUN: NEXT", 10, 178, ink);
+    c.text("POWER: TAKE IT", 10, 190, ink);
+    return;
+  }
+
+  c.font(&Tek24);
+  c.text(fit(c, h.target, 180), 10, 82, ink);
+  c.font(&Silk8);
+  if (!h.last.empty()) {
+    c.text("LAST TIME", 10, 104, ink);
+    const auto lines = wrap(c, h.last, drawn ? 104 : 180);
+    for (size_t i = 0; i < lines.size() && i < 3; ++i) c.text(lines[i], 10, 116 + static_cast<int>(i) * 11, ink);
+  }
+  c.text("POWER: DONE", 10, 178, ink);
+  c.text("SUN: IT WENT OTHERWISE", 10, 190, ink);
 }

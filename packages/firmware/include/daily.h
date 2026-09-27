@@ -31,6 +31,20 @@ struct VigilPractice {
   int bell = 0;
 };
 
+// The Hunt (packages/shared/src/hunt.ts): each exercise with what to lift
+// next, the verdict of the morning, and the session a hunt runs as.
+struct HuntTarget { double load = 0; int reps = 0; };
+struct HuntExercise {
+  int id = 0;
+  std::string name;
+  std::string pose;
+  int rest = 120;          // seconds between sets
+  double step = 2.5;       // the load's smallest move
+  bool bodyweight = false; // reps only
+  std::vector<HuntTarget> sets;
+  std::string last;
+};
+
 struct DailyQuote {
   std::string body;
   std::string source;
@@ -87,6 +101,17 @@ public:
 
   std::vector<std::string> ticks() const;
 
+  // The Hunt. Sets and feels queue as lines, "set <uuid> <exercise> <epoch>
+  // <idx> <load> <reps>" and "feel <uuid> <exercise> <date> <feel>", and
+  // leave the card once the server has settled their uuids.
+  const std::vector<HuntExercise>& huntExercises() const { return hunt_; }
+  const std::string& huntShort() const { return huntShort_; }
+  const std::string& huntLine() const { return huntLine_; }
+  int liftingId() const { return liftingId_; }
+  bool queueHunt(const std::string& line);
+  std::vector<std::string> huntLines() const;
+  void pruneHunt(const std::vector<std::string>& settled);
+
 private:
   bool parse(const std::string& json);
   bool queueTick(const std::string& line);
@@ -95,6 +120,7 @@ private:
   static constexpr const char* TICKS = "/ticks.ndjson";
   static constexpr const char* HASH = "/today.hash";
   static constexpr const char* LAST = "/last.txt";
+  static constexpr const char* HUNT = "/hunt.ndjson";
 
   Storage& storage_;
   std::string date_;
@@ -111,5 +137,8 @@ private:
   std::vector<VigilPractice> vigil_;
   std::vector<int> hours_;
   std::vector<Tap> plan_;
+  std::vector<HuntExercise> hunt_;
+  std::string huntShort_, huntLine_;
+  int liftingId_ = 0;
   int64_t lastHour_ = -1;  // the local minute last tolled, since the epoch
 };
