@@ -94,7 +94,8 @@ Each of these was tried and rejected:
 
 Bust: idle (curious), focused (headphones, content). Full body (`src/body.ts`):
 sit, wave, loaf, peek, reach, hold, still (the Vigil: serene face, tail
-wrapped round the front of the feet, one ink shape with the body).
+wrapped round the front of the feet, one ink shape with the body), keeper
+(the horologe: square to us, the day's hourglass held to his chest).
 
 Skins: default, astrolabe halo, halloween. Planned: pumpkin-head, blood moon.
 

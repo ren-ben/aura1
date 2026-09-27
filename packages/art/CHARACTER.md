@@ -35,6 +35,7 @@ around the head. No brows.
 | asleep | closed lower arcs, "zzz" | dormant, off screens |
 | dizzy | spiral eyes | a 6-hour session |
 | determined | low flat lids, looking down | starting a session |
+| vowing | round eyes straight ahead, ears up | keeping the day: the horologe while it runs |
 | lonely | lids drooping to the outer corners, eyes down | decay: thinning, fragmenting |
 | serene | closed lids, lowered, head level, no marks | sitting still: every Vigil sit |
 
@@ -43,7 +44,8 @@ around the head. No brows.
 Poses (`src/body.ts`): sit (turned a little, the usual), front (square to
 us, for variety), still (square to us, the tail wrapped round his feet, for
 the Vigil), wave (animated paw), loaf, peek over an edge, reach (both
-paws up, yay), hold (something against his chest). The hunter's tricorn is
+paws up, yay), hold (something against his chest), keeper (the hourglass
+of the day held to his chest, open-eyed while it runs, proud once it is spent). The hunter's tricorn is
 worn (`wear.hat`) in the Hunter's Dream and on the hunt. Props
 (`src/props.ts`) are line art; anything he holds gets a paper halo so it reads
 on his fur. Lore pieces: paleblood and blood moons, the hunter's tricorn,

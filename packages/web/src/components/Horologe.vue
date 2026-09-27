@@ -6,7 +6,6 @@
 // A tap, or REWIRE, rolls the dial back out into the nocturne to be edited.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import art from '../gl/art.json';
-import { catSprite } from '../gl/plate';
 import { localDate } from '../store';
 import { SHADES, blocksOn, drawnOn, hm, lecturesOn, starDial, starR, starsOf, sunOf } from '../rewiring';
 
@@ -54,26 +53,14 @@ const label = (t: string, span: number) => { const n = Math.floor(span / 9); ret
 const title = (t: string) => (t.length > 18 ? `${t.slice(0, 17)}.` : t);
 const hand = computed(() => ({ a: pt(now.value, 140), b: pt(now.value, 226), bead: pt(now.value, 230) }));
 
-// Kael'thos at the centre, sitting pleased with the day, dithered in the
-// console's ink: the drawing inverted, then thresholded through a Bayer grid.
-const kael = ref('');
-catSprite(art.sitting, 240).then((c) => {
-  const S = 132, out = document.createElement('canvas');
-  out.width = out.height = S;
-  const src = document.createElement('canvas');
-  src.width = src.height = S;
-  const sx = src.getContext('2d')!;
-  sx.drawImage(c, 0, 0, S, S);
-  const d = sx.getImageData(0, 0, S, S).data, o = out.getContext('2d')!, img = o.createImageData(S, S);
-  const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-  for (let i = 0; i < S * S; i++) {
-    if (d[i * 4 + 3]! < 10) continue;
-    const ink = 1 - d[i * 4]! / 255, x = i % S, y = (i / S) | 0;
-    if (ink * 16 > B[(y % 4) * 4 + (x % 4)]! + 0.5) { img.data.set([197, 188, 171, 255], i * 4); }
-  }
-  o.putImageData(img, 0, 0);
-  kael.value = out.toDataURL();
-});
+// Kael'thos at the centre, keeping the day: the hourglass held to his chest
+// while it runs, pleased with himself once all of it is drawn. The drawing
+// in the console's inks, fur the phosphor and paper the ground, so he stands
+// out solid against the dark of the dial.
+const done = computed(() => taps.value.length > 0 && !on.value && !next.value.length);
+const inked = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg.replaceAll('#000', '#c5bcab').replaceAll('#fff', '#121212'))}`;
+const KEEPING = inked(art.keeper), KEPT = inked(art.keeperDone);
+const kael = computed(() => (done.value ? KEPT : KEEPING));
 
 // The sky behind the face: the nocturne's own stars, laid round the dial.
 const svg = ref<SVGSVGElement | null>(null), sky = ref<HTMLCanvasElement | null>(null);
@@ -134,11 +121,11 @@ watch(() => props.date, paint);
         <!-- the hand, and Kael'thos it turns round -->
         <line v-if="isToday" :x1="hand.a[0]" :y1="hand.a[1]" :x2="hand.b[0]" :y2="hand.b[1]" class="hand" />
         <circle v-if="isToday" :cx="hand.bead[0]" :cy="hand.bead[1]" r="3.5" class="bead" />
-        <text y="-106" class="pix-c">{{ on ? 'now' : next[0] ? `${isToday ? 'next' : 'first'} at ${hm(next[0].start)}` : taps.length ? 'all of it drawn' : 'nothing wired' }}</text>
-        <text y="-82" class="title-c">{{ title(on?.title ?? next[0]?.title ?? (taps.length ? 'The day is spent' : 'An unwired day')) }}</text>
-        <image v-if="kael" :href="kael" x="-58" y="-70" width="116" height="116" class="kael" />
-        <text v-if="on" y="78" class="count">{{ Math.floor(left / 60) }}:{{ String(left % 60).padStart(2, '0') }}</text>
-        <text v-if="on" y="98" class="pix-c">left of it // until {{ hm(on.end) }}</text>
+        <text y="-110" class="pix-c">{{ on ? 'now' : next[0] ? `${isToday ? 'next' : 'first'} at ${hm(next[0].start)}` : taps.length ? 'all of it drawn' : 'nothing wired' }}</text>
+        <text y="-86" class="title-c">{{ title(on?.title ?? next[0]?.title ?? (taps.length ? 'The day is spent' : 'An unwired day')) }}</text>
+        <image :href="kael" x="-72" y="-78" width="144" height="144" class="kael" />
+        <text v-if="on" y="92" class="count">{{ Math.floor(left / 60) }}:{{ String(left % 60).padStart(2, '0') }}</text>
+        <text v-if="on" y="110" class="pix-c">left of it // until {{ hm(on.end) }}</text>
       </svg>
     </div>
     <p class="then">
@@ -170,7 +157,6 @@ watch(() => props.date, paint);
 .bead { fill: var(--hi); }
 .pix-c { font: 400 9.5px var(--pix); fill: var(--dim); text-anchor: middle; text-transform: uppercase; letter-spacing: .06em; }
 .title-c { font: italic 400 22px var(--fell); fill: var(--hi); text-anchor: middle; }
-.kael { image-rendering: pixelated; }
 .count { font: 800 30px var(--tek); fill: var(--hi); text-anchor: middle; }
 .then { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin: 0; padding: 10px 14px; border-top: 3px dotted var(--low); color: var(--hi); }
 .then .tek { font-size: 14px; margin-right: 4px; }

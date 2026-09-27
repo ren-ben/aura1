@@ -80,6 +80,20 @@ export function candle(x: number, y: number, p: Palette, lit = true, seed = 70):
   return drawn(body, p, { seed }) + drip + wick + flame;
 }
 
+// An hourglass: two paper bulbs between ink caps, the sand running.
+export function hourglass(x: number, y: number, p: Palette, seed = 75, k = 1): string {
+  return `<g transform="translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})">${hourglassAt(x, y, p, seed)}</g>`;
+}
+function hourglassAt(x: number, y: number, p: Palette, seed: number): string {
+  const glass = outline([[x - 22, y - 40], [x + 22, y - 40], [x + 20, y - 26], [x + 4, y - 4], [x + 4, y + 4], [x + 20, y + 26], [x + 22, y + 40],
+    [x - 22, y + 40], [x - 20, y + 26], [x - 4, y + 4], [x - 4, y - 4], [x - 20, y - 26]], 3);
+  const top = `<path d="${toPath(wobble(outline([[x - 14, y - 22], [x + 14, y - 22], [x + 3, y - 6], [x - 3, y - 6]]), seed + 1, 0.4))}" fill="${p.ink}"/>`;
+  const heap = `<path d="${toPath(wobble(outline([[x - 17, y + 38], [x, y + 20], [x + 17, y + 38]]), seed + 2, 0.4))}" fill="${p.ink}"/>`;
+  const run = inkLine([[x, y - 4], [x, y + 24]], p, { seed: seed + 3, w: 2.5 });
+  const caps = [y - 44, y + 44].map((cy, i) => drawn(box(x - 30, cy - 5, 60, 10, 3), p, { seed: seed + 4 + i, w: 5 }, p.ink)).join('');
+  return drawn(glass, p, { seed, w: 5 }) + top + heap + run + caps;
+}
+
 // A quill standing in an inkpot.
 export function quill(x: number, y: number, p: Palette, seed = 80): string {
   const pot = outline([[x - 16, y - 20], [x + 16, y - 20], [x + 18, y], [x - 18, y]], 3);

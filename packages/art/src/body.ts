@@ -7,7 +7,7 @@
 
 import { curve, ellipse, outline, sampleCubics, shape, stroke, toPath, withWeight, wobble, type Pt } from './ink.ts';
 import { fold, head, NECK, type Palette, type Wear } from './rig.ts';
-import { tricorn } from './props.ts';
+import { hourglass, tricorn } from './props.ts';
 import type { Expression } from './expressions.ts';
 
 // Places the head so its neck lands on `neck` at `scale`, keeping lines
@@ -77,7 +77,7 @@ const STAND_BODY = sampleCubics([
   'C 208 232, 192 232, 178 238',
 ].join(' '), 10);
 
-export type Pose = 'sit' | 'front' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold' | 'still';
+export type Pose = 'sit' | 'front' | 'wave' | 'loaf' | 'peek' | 'reach' | 'hold' | 'still' | 'keeper';
 
 const paperLine = (pts: Pt[], p: Palette, seed: number) => shape(wobble(stroke(curve(pts), () => 4), seed, 0.4), p.paper);
 const sitting = (p: Palette) => tail(TURNED_TAIL, p, 5) + ink(TURNED_BODY, p, 3) + paperLine(TURNED_LEG, p, 9);
@@ -180,6 +180,9 @@ export function pose(kind: Pose, expr: Expression, p: Palette, wear: Wear = {}, 
     }
     case 'hold':
       return holding(expr, p, '', wear);
+    case 'keeper':
+      // Square to us, the hourglass of the day held to his chest.
+      return holding(expr, p, hourglass(HOLD[0], HOLD[1] + 2, p, 75, 0.62), wear);
     case 'peek':
       // Only the head and two paws above an edge along the bottom.
       return [

@@ -37,6 +37,7 @@ export const EXPRESSIONS = {
   asleep: { eyes: 'sleep', tilt: 8, marks: ['zzz'] },
   serene: { eyes: 'sleep', tilt: 1 },
   dizzy: { eyes: 'dizzy', ears: 'back', tilt: 9, marks: ['sweat'] },
+  vowing: { eyes: 'open', look: [0, -3], ears: 'perk', tilt: 0 },
   determined: { eyes: 'flat', look: [4, 9], lid: 0.28, tilt: 2 },
   lonely: { eyes: 'droop', look: [-6, 9], lid: 0.4, ears: 'back', tilt: -6 },
 } satisfies Record<string, Expression>;
