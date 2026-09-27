@@ -96,8 +96,10 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
     material.uniforms.cells!.value.copy(size);
     material.uniforms.px!.value = 1;
   }
-  // Resizing wipes the canvas; a stopped scene paints itself again at once.
-  const observer = new ResizeObserver(() => { resize(); if (!running) paint(performance.now()); });
+  // Resizing wipes the canvas, and the observer runs after the frame's own
+  // paint: painted again here, or a glass being resized shows black until
+  // it stops.
+  const observer = new ResizeObserver(() => { resize(); paint(performance.now()); });
   observer.observe(canvas);
 
   let running = false, raf = 0, last = 0;
