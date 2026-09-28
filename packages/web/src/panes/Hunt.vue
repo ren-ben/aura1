@@ -40,10 +40,10 @@ const GROUP_WORDS: Record<Group, string> = { push: 'push', pull: 'pull', arms: '
 // Each photograph is levelled once: the near-black ground goes to black, so
 // only he is dithered, and the mid-tones are opened up for the two inks.
 function photo(url: string) {
-  const img = document.createElement('canvas');
-  const ready = ref(false);
+  const out = ref<HTMLCanvasElement | null>(null);
   const src = new Image();
   src.onload = () => {
+    const img = document.createElement('canvas');
     img.width = src.naturalWidth; img.height = src.naturalHeight;
     const g = img.getContext('2d', { willReadFrequently: true })!;
     g.drawImage(src, 0, 0);
@@ -54,17 +54,18 @@ function photo(url: string) {
       d[i] = d[i + 1] = d[i + 2] = v;
     }
     g.putImageData(px, 0, 0);
-    ready.value = true;
+    out.value = img;
   };
   src.src = url;
-  return { img, ready };
+  return out;
 }
 const back = photo(backUrl), front = photo(frontUrl);
 // The photograph in the plate's grey, lifted a little, a slow band of light
-// passing over it like a lamp carried past an engraving.
-const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
-  if (!p.ready.value) return;
-  g.drawImage(p.img, 0, 0, w, hh);
+// passing over it like a lamp carried past an engraving. A new draw once the
+// photograph arrives, so the plate paints it even when nothing animates.
+const lit = (img: HTMLCanvasElement | null) => (g: CanvasRenderingContext2D, w: number, hh: number, t: number) => {
+  if (!img) return;
+  g.drawImage(img, 0, 0, w, hh);
   const x = ((t * 0.045) % 1.6 - 0.3) * w;
   const band = g.createLinearGradient(x - w * 0.25, 0, x + w * 0.25, 0);
   band.addColorStop(0, 'rgba(255,255,255,0)'); band.addColorStop(0.5, 'rgba(255,255,255,0.16)'); band.addColorStop(1, 'rgba(255,255,255,0)');
@@ -73,7 +74,7 @@ const lit = (p: ReturnType<typeof photo>) => (g: CanvasRenderingContext2D, w: nu
   g.fillStyle = band; g.fillRect(0, 0, w, hh);
   g.globalCompositeOperation = 'source-over';
 };
-const drawBack = lit(back), drawFront = lit(front);
+const drawBack = computed(() => lit(back.value)), drawFront = computed(() => lit(front.value));
 
 // ---- The recovery -------------------------------------------------------------
 // Fourteen nights under the photographs, as curves where the road is bars:

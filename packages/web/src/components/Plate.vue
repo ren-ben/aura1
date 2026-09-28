@@ -33,7 +33,7 @@ onMounted(() => {
   run();
 });
 watch(() => props.active, run);
-watch(() => props.draw, () => { render = makePlate(canvas.value!, props.draw, cellFor()); run(); });
+watch(() => props.draw, () => { render = makePlate(canvas.value!, props.draw, cellFor()); render(performance.now() / 1000); run(); });
 onBeforeUnmount(() => { cancelAnimationFrame(raf); observer?.disconnect(); });
 </script>
 
