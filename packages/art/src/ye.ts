@@ -105,14 +105,19 @@ export function yeHead(c: Costume, h: HeadParts, p: Palette, pitch = 12): string
         ...h.eyes, ...h.features];
     }
     case 'shades': {
-      // Shutter shades: paper frames, the slats cutting across his eyes.
+      // Shutter shades: paper frames, the slats cutting across his eyes. The
+      // frames and arms sit on an ink rim where they run past his head, so
+      // the paper stays his and never joins the sky.
       const lens = (cx: number, s: number) => {
-        const frame = outline([[cx - 40, 176], [cx + 40, 172], [cx + 44, 212], [cx + 30, 244], [cx - 30, 246], [cx - 44, 214]], 3);
-        return [`<path d="${toPath(wobble(frame, s, 0.6))}" fill="none" stroke="${p.paper}" stroke-width="7" stroke-linejoin="round"/>`,
+        const frame = toPath(wobble(outline([[cx - 40, 176], [cx + 40, 172], [cx + 44, 212], [cx + 30, 244], [cx - 30, 246], [cx - 44, 214]], 3), s, 0.6));
+        return [`<path d="${frame}" fill="none" stroke="${p.ink}" stroke-width="15" stroke-linejoin="round"/>`,
+          `<path d="${frame}" fill="none" stroke="${p.paper}" stroke-width="7" stroke-linejoin="round"/>`,
           ...[186, 200, 214, 228].map((y, i) => line([[cx - 42, y], [cx + 42, y - 1]], 5.5, s + i, p.paper))];
       };
-      return [...usual, ...lens(154, 910), ...lens(246, 920), line([[194, 190], [200, 186], [206, 190]], 6, 903, p.paper),
-        line([[112, 190], [98, 186]], 6, 904, p.paper), line([[288, 188], [302, 184]], 6, 905, p.paper)];
+      const arms: Pt[][] = [[[194, 190], [200, 186], [206, 190]], [[112, 190], [98, 186]], [[288, 188], [302, 184]]];
+      const rims: Pt[][] = [[[190, 191], [200, 185], [210, 191]], [[114, 190], [93, 185]], [[286, 188], [307, 183]]];
+      return [...usual, ...rims.map((a, i) => line(a, 14, 906 + i, p.ink)), ...lens(154, 910), ...lens(246, 920),
+        ...arms.map((a, i) => line(a, 6, 903 + i, p.paper))];
     }
     default:
       return usual;
