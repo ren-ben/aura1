@@ -743,7 +743,9 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { wee
 }
 @media (max-width: 860px) {
   .hunt { display: flex; flex-direction: column; }
-  .vessel { min-height: 520px; }
+  /* A set height, not a least one: stretched only by a min-height, the prints'
+     frame measured 0 tall to its own cqh, and the photographs drew at nothing. */
+  .vessel { height: 520px; }
   .change { min-height: 620px; }
   .flow { min-height: 320px; }
   .node b { font-size: 8.5px; }
