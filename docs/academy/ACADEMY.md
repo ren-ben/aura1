@@ -198,6 +198,31 @@ the map lists them under *further*.
 If Moodle stops taking the token (you changed your password), the panel says
 so and asks you to bind again; the files already read stay.
 
+## The decks
+
+**decks**, in the week's title, opens Kael'thos's table.
+
+- **At the table** he deals one card at a time from the deck chosen top left:
+  your Moodle flashcard decks, and your own files. Tap the card to turn it to
+  its answer, and again to turn it back, as often as you like. Then judge it
+  with the buttons, the arrow keys or a swipe.
+  - A Moodle card is *gewusst* or *nicht gewusst*: it climbs Moodle's five
+    boxes or falls back to the first, and Moodle is told at once (if it is
+    away, the answer waits and goes first at the next sync).
+  - One of your own is *again*, *hard*, *good* or *easy*, each showing when
+    the card comes back (FSRS, the scheduler Anki uses).
+- **Streaks:** answers in a row earn Third Eye (3), Familiar (5), Black Sun
+  (7) and Event Horizon (10), each multiplying the insight a card pays.
+- **Pictures** with bars are dealt landscape and large.
+- **anki**, top right, downloads the deck for Anki's import (File, Import).
+- **The desk:** pull the lever. He steps back, and your files are thrown down
+  on the table. A file lists its reports; open one to edit it and **refile**,
+  **shred** it, or **write a new report**. Kinds: cloze (select words and
+  *redact* them; bars with the same number are one card), basic, both ways,
+  typed, and image occlusion (attach, drop or paste a picture, drag to lay
+  bars, tap a bar to lift it). Maths as `\( \)` everywhere. The proof on the
+  right is the card as it will be dealt. Click the file's title to rename it.
+
 ## The almanac
 
 **month**, in the week's title, opens the whole month over everything: every

@@ -1,7 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
-import type { AskDto, GrownNode, LectureDto, LectureMapDto, MapMark, TaskDto } from '@aura/shared';
+import type { AskDto, CardDto, DueCardDto, GrownNode, LectureDto, LectureMapDto, MapMark, NoteDto, NoteFields, NoteKind, OwnDeckDto, TaskDto } from '@aura/shared';
 import { demoApi } from './sample';
 import type { Folios } from './folios';
 import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
@@ -206,6 +206,28 @@ export const askApi = {
   hint: (folioId: number, task: number, rung: number) => call<AskDto>('POST', '/academy/hints', { folioId, task, rung }),
   forget: (id: number) => call('DELETE', `/academy/asks/${id}`),
   tasks: (folioId: number) => call<TaskDto[]>('GET', `/academy/folios/${folioId}/tasks`),
+};
+
+// The decks: Moodle's (answered back to Moodle) and your own (FSRS).
+export type NoteBody = { kind: NoteKind; name: string; tags: string[]; fields: NoteFields };
+export const deckApi = {
+  moodleCards: (deckId: number) => call<CardDto[]>('GET', `/academy/decks/${deckId}/cards`),
+  answer: (cardId: number, right: boolean) => call<CardDto>('POST', `/academy/cards/${cardId}/answer`, { right }),
+  own: () => call<OwnDeckDto[]>('GET', '/academy/own'),
+  due: (deckId: number) => call<DueCardDto[]>('GET', `/academy/own/decks/${deckId}/due`),
+  review: (cardId: number, rating: number) => call('POST', `/academy/own/cards/${cardId}/review`, { rating }),
+  openFile: (title: string) => call<{ id: number; code: string; title: string }>('POST', '/academy/own/decks', { title }),
+  renameFile: (id: number, title: string) => call('PATCH', `/academy/own/decks/${id}`, { title }),
+  addNote: (deckId: number, note: NoteBody) => call<NoteDto>('POST', `/academy/own/decks/${deckId}/notes`, note),
+  saveNote: (id: number, note: NoteBody) => call<NoteDto>('PATCH', `/academy/own/notes/${id}`, note),
+  shred: (id: number) => call('DELETE', `/academy/own/notes/${id}`),
+  // A picture goes up as it is.
+  picture: async (file: Blob): Promise<number> => {
+    if (state.demo) throw new Error('the demo keeps no pictures');
+    const res = await fetch('/api/v1/academy/own/images', { method: 'POST', headers: { 'Content-Type': file.type || 'image/png' }, body: file });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `picture: HTTP ${res.status}`);
+    return (await res.json()).id;
+  },
 };
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.

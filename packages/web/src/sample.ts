@@ -4,6 +4,7 @@ import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quot
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { sampleFolios } from './folios';
+import type { CardDto } from '@aura/shared';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
 import { sampleHunt, type Hunt } from './hunt';
 import { verdict, bouts, partOf } from '@aura/shared';
@@ -330,6 +331,11 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'GET /academy/folios': return seg[3] === 'tasks' ? [{ n: 1, title: 'Grenzwerte', page: 1 }, { n: 2, title: 'Ableitungen', page: 1 }] : structuredClone(folios);
     case 'POST /academy/moodle': throw new Error('the demo cannot reach Moodle');
     case 'GET /academy/asks': return [];
+    case 'GET /academy/decks': return sampleCards(Number(seg[2]));
+    case 'POST /academy/cards': return;
+    case 'GET /academy/own': return seg[2] === 'decks' ? [] : [];
+    case 'POST /academy/own': throw new Error('the demo keeps no files');
+    case 'PATCH /academy/own': case 'DELETE /academy/own': return;
     case 'POST /academy/asks': case 'POST /academy/hints': throw new Error("the demo has no OpenRouter key; Kael'thos stays silent");
     case 'POST /academy/moodle/sync': case 'DELETE /academy/moodle': return;
     case 'PATCH /academy/folios': folios.folios = folios.folios.map((f) => (f.id === Number(seg[2]) ? { ...f, ...body } : f)); return;
@@ -377,4 +383,15 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       }
       throw new Error(`demo: no route ${key}`);
   }
+}
+
+// The demo's Moodle cards: two of the real ones, the rest in their manner.
+function sampleCards(deckId: number): CardDto[] {
+  const all: [number, string, string, string, number][] = [
+    [3, 'Integration 1', '<p>\\( \\int \\frac{1}{x}\\,dx = ? \\)</p>', '<p>\\( \\ln(|x|) + C \\), für \\( x \\neq 0 \\)</p>', 1],
+    [3, 'Integration 7', '<p>\\( \\int e^{2x}\\,dx \\)</p>', '<p>\\( \\tfrac{1}{2} e^{2x} + C \\)</p>', 2],
+    [2, 'Differentiation 1', '<p>Which rule must be applied to differentiate \\( \\frac{x}{\\sqrt{1-x^2}} \\)?</p>', '<p>Product rule: \\( \\frac{1}{\\sqrt{1-x^2}} + \\frac{x^2}{\\sqrt{(1-x^2)^3}} \\)</p>', 1],
+    [1, 'Funktionen 9', '<p>\\( \\sin^2 x + \\cos^2 x = ? \\)</p>', '<p>\\( 1 \\)</p>', 0],
+  ];
+  return all.filter(([d]) => d === deckId).map(([, name, front, back, box], i) => ({ id: deckId * 100 + i, deckId, qid: i, name, front, back, box, pending: 0, answeredAt: null }));
 }

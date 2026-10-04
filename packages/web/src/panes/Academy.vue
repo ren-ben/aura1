@@ -11,6 +11,7 @@ import Frame from '../components/Frame.vue';
 import LectureMap from '../components/LectureMap.vue';
 import Calendar from '../components/Calendar.vue';
 import Codex from '../components/Codex.vue';
+import Arcana from '../components/Arcana.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
@@ -629,6 +630,8 @@ const mapOf = ref<{ course: Course; begin: string } | null>(null);
 const monthOpen = ref(false);
 // The folios, opened on a course (its u:find number) or on the first with any.
 const foliosOf = ref<string | null>(null);
+// The decks, at his table.
+const arcana = ref(false);
 function fromMonth(s: { course: Course; begin: string }) {
   monthOpen.value = false;
   mapOf.value = { course: s.course, begin: s.begin };
@@ -777,7 +780,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button></span></template>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button><button class="x" title="the flashcards, at his table" @click="arcana = true">decks</button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>
@@ -840,6 +843,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="sphere" title="the rector's armillary" flush>
       <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
+    <Arcana v-if="arcana" @close="arcana = false" />
     <Codex v-if="foliosOf !== null" :nr="foliosOf || undefined" @close="foliosOf = null" />
     <Calendar v-if="monthOpen" :start="theWeek.monday" @close="monthOpen = false" @open="fromMonth" />
     <LectureMap v-if="mapOf" :key="mapOf.begin" :course="mapOf.course" :begin="mapOf.begin" @close="mapOf = null" />
