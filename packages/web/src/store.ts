@@ -38,7 +38,7 @@ export type Sit = { practice: string; startedAt: string; minutes: number; source
 // minutes after midnight.
 export type Vigil = { sits: Sit[]; signs: string[]; hours: { on: boolean; today: number[] } };
 // A course of the degree, as u:find had it when it was added.
-export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+export type CourseGroup = { id: string; events: { begin: string; end: string; room: string; lecture?: boolean }[] };
 export type CourseExam = { id: string; begin: string; end: string; title: string; room: string };
 export type Course = {
   id: number; nr: string; semester: string; module: string; name: string; type: string; ects: number;

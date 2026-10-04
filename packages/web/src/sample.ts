@@ -5,7 +5,7 @@ import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
 import { sampleHunt, type Hunt } from './hunt';
-import { verdict, bouts } from '@aura/shared';
+import { verdict, bouts, partOf } from '@aura/shared';
 
 const rng = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const r = rng(1789);
@@ -334,7 +334,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
     case 'GET /academy/lectures': {
       const c = courses.find((x) => x.id === Number(seg[2]))!;
       const begin = new URLSearchParams(query).get('begin')!;
-      const all = (c.groups.find((g) => g.id === c.groupId)?.events ?? []).map((e) => e.begin).sort();
+      const all = (c.groups.find((g) => g.id === c.groupId)?.events ?? []).filter((e) => partOf(c.type, e) !== 'UE').map((e) => e.begin).sort();
       const index = all.indexOf(begin);
       return { courseId: c.id, begin, index, total: all.length, topics: ['Grundlagen der Physik', 'Punktmechanik', 'Starre Körper', 'Deformierbare Körper und Fluide', 'Schwingungen und Wellen', 'Thermodynamik'], guess: `${c.name}: ${index < 6 ? "Newton's laws" : `lecture ${index + 1}`}`, map: structuredClone(maps.find((m) => m.courseId === c.id && m.begin === begin) ?? null) };
     }

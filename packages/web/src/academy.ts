@@ -1,7 +1,7 @@
 // The Academy: the curriculum (packages/shared), the term, and what the
 // courses kept make of it: which modules are passed, which run this term,
 // the week's dates, the ECTS and the weighted grade.
-import { CURRICULUM, type CurriculumModule } from '@aura/shared';
+import { CURRICULUM, partOf, type CurriculumModule } from '@aura/shared';
 import type { Course } from './store';
 
 export { CURRICULUM, FIRST_TERM } from '@aura/shared';
@@ -51,13 +51,21 @@ export function tally(courses: Course[]) {
 export type Slot = { course: Course; begin: string; mappable: boolean; day: number; from: string; to: string; label: string; room: string; ue: boolean };
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP3: 'Forschung' };
+type Event = Course['groups'][number]['events'][number];
+const slotOf = (c: Course, e: Event): Slot => {
+  const b = new Date(e.begin), part = partOf(c.type, e);
+  return {
+    course: c, begin: e.begin, mappable: part !== 'UE', day: (b.getDay() + 6) % 7, from: hm(b), to: hm(new Date(e.end)),
+    label: `${SHORT[c.module] ?? c.module} ${part}`, room: e.room.replace(/-?Hörsaal/, ''), ue: part !== 'VO',
+  };
+};
 
 // The week to show: this one while the term runs, otherwise the first week
 // anything is on. Only the chosen group of each course.
 export function week(courses: Course[], now = new Date()): { monday: Date; slots: Slot[] } {
   const events = courses.flatMap((c) => {
     const g = c.groups.find((x) => x.id === c.groupId);
-    return (g?.events ?? []).map((e) => ({ c, at: e.begin, begin: new Date(e.begin), end: new Date(e.end), room: e.room }));
+    return (g?.events ?? []).map((e) => ({ c, e, begin: new Date(e.begin) }));
   });
   const mondayOf = (d: Date) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
   let monday = mondayOf(now);
@@ -74,16 +82,13 @@ export function week(courses: Course[], now = new Date()): { monday: Date; slots
   }
   return {
     monday,
-    slots: inWeek(monday).map((e) => ({
-      course: e.c, begin: e.at, mappable: e.c.type !== 'UE',
-      day: (e.begin.getDay() + 6) % 7, from: hm(e.begin), to: hm(e.end),
-      label: `${SHORT[e.c.module] ?? e.c.module} ${e.c.type}`, room: e.room.replace(/-?Hörsaal/, ''), ue: e.c.type !== 'VO',
-    })),
+    slots: inWeek(monday).map((x) => slotOf(x.c, x.e)),
   };
 }
 
 // The demo's first term: the real courses and their real slots of 2026W,
-// a lecture's dates weekly through the term, two groups for each exercise.
+// a lecture's dates weekly through the term, two groups for each exercise,
+// the registered one second.
 // The demo's exams, invented for it: u:find posts the real ones later in the term.
 const DEMO_EXAMS: Record<string, Course['exams']> = {
   STEOP1: [{ id: 'd1', begin: '2027-01-22T13:00:00+01:00', end: '2027-01-22T16:00:00+01:00', title: 'STEOP 1: Modulprüfung Experimentalphysik I', room: 'Lise-Meitner-Hörsaal' }],
@@ -92,29 +97,29 @@ const DEMO_EXAMS: Record<string, Course['exams']> = {
 };
 
 export function sampleCourses(): Course[] {
-  const weekly = (weekday: number, from: string, to: string, room: string) => {
-    const out: { begin: string; end: string; room: string }[] = [];
+  const weekly = (weekday: number, from: string, to: string, room: string, lecture?: boolean) => {
+    const out: Event[] = [];
     for (let d = new Date(2026, 9, 5 + weekday); d < new Date(2027, 0, 30); d.setDate(d.getDate() + 7)) {
       const at = (t: string) => { const x = new Date(d); const [h, m] = t.split(':').map(Number); x.setHours(h!, m!); return x.toISOString(); };
-      out.push({ begin: at(from), end: at(to), room });
+      out.push({ begin: at(from), end: at(to), room, lecture });
     }
     return out;
   };
-  const LM = 'Lise-Meitner-Hörsaal', LB = 'Ludwig-Boltzmann-Hörsaal';
-  const c = (id: number, nr: string, module: string, name: string, type: string, ects: number, slots: [number, string, string, string][][], groupId: string | null = `${nr}-1`): Course => ({
+  const LM = 'Lise-Meitner-Hörsaal', LB = 'Ludwig-Boltzmann-Hörsaal', CD = 'Christian-Doppler-Hörsaal';
+  const c = (id: number, nr: string, module: string, name: string, type: string, ects: number, slots: [number, string, string, string, boolean?][][], groupId = `${nr}-${slots.length}`): Course => ({
     id, nr, semester: '2026W', module, name, type, ects, grade: null, groupId, refreshedAt: new Date().toISOString(),
     exams: type !== 'VO' ? [] : (DEMO_EXAMS[module] ?? []),
-    groups: slots.map((g, i) => ({ id: `${nr}-${i + 1}`, events: g.flatMap(([d, f, t, r]) => weekly(d, f, t, r)) })),
+    groups: slots.map((g, i) => ({ id: `${nr}-${i + 1}`, events: g.flatMap(([d, f, t, r, l]) => weekly(d, f, t, r, l)) })),
   });
   return [
     c(1, '261600', 'STEOP1', 'Experimentalphysik 1', 'VO', 5, [[[0, '09:15', '10:45', LM], [1, '09:15', '10:45', LM], [2, '09:15', '10:45', LM]]]),
-    c(2, '260162', 'STEOP1', 'Experimentalphysik 1', 'UE', 3, [[[3, '13:00', '14:30', LM]], [[4, '09:15', '10:45', LB]]], null),
+    c(2, '260162', 'STEOP1', 'Experimentalphysik 1', 'UE', 3, [[[3, '13:00', '14:30', LB]], [[3, '16:30', '18:00', LM]]]),
     c(3, '261603', 'STEOP2', 'Physikalische Rechenmethoden', 'VO', 5, [[[1, '11:00', '12:30', LM], [4, '11:00', '12:30', LM]]]),
-    c(4, '261604', 'STEOP2', 'Physikalische Rechenmethoden', 'UE', 3, [[[2, '13:00', '14:30', LM]], [[3, '15:00', '16:30', LB]]], null),
+    c(4, '261604', 'STEOP2', 'Physikalische Rechenmethoden', 'UE', 3, [[[3, '15:00', '16:30', LB]], [[2, '16:30', '18:00', CD]]]),
     c(5, '260041', 'STEOP3', 'Forschung und Studium in Physik', 'KU', 2, [[[2, '10:45', '12:15', LM]]]),
-    c(6, '260022', 'LA1', 'Lineare Algebra 1', 'VU', 4, [[[1, '13:00', '13:45', LB]]]),
+    c(6, '260022', 'LA1', 'Lineare Algebra 1', 'VU', 4, [[[1, '13:00', '13:45', LB, false], [3, '09:15', '10:45', LM, true]], [[1, '15:00', '15:45', LB, false], [3, '09:15', '10:45', LM, true]]]),
     c(7, '261608', 'ANA1', 'Analysis 1', 'VO', 5, [[[0, '11:00', '12:30', LM], [3, '11:00', '12:30', LM]]]),
-    c(8, '261609', 'ANA1', 'Analysis 1', 'UE', 3, [[[0, '13:00', '14:30', LB]], [[4, '13:00', '14:30', LM]]], null),
+    c(8, '261609', 'ANA1', 'Analysis 1', 'UE', 3, [[[0, '13:00', '14:30', LB]], [[0, '16:30', '18:00', CD]]]),
   ];
 }
 
@@ -136,8 +141,7 @@ export function monthOf(courses: Course[], year: number, month: number): MonthDa
   for (const c of courses) {
     const g = c.groups.find((x) => x.id === c.groupId);
     for (const e of g?.events ?? []) {
-      const b = new Date(e.begin), day = days.get(key(b));
-      if (day) day.slots.push({ course: c, begin: e.begin, mappable: c.type !== 'UE', day: (b.getDay() + 6) % 7, from: hm(b), to: hm(new Date(e.end)), label: `${SHORT[c.module] ?? c.module} ${c.type}`, room: e.room.replace(/-?Hörsaal/, ''), ue: c.type !== 'VO' });
+      days.get(key(new Date(e.begin)))?.slots.push(slotOf(c, e));
     }
     for (const x of c.exams) {
       const day = days.get(key(new Date(x.begin)));

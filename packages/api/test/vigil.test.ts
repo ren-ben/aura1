@@ -105,6 +105,19 @@ test('u:find XML gives the course, its groups and their dates', () => {
   assert.equal(parseCourse('<empty/>'), null);
 });
 
+test("a VU's lecture part is read from its note, weekly but not over the break", () => {
+  const la = parseCourse(fixture('260022'))!;
+  const events = la.groups.find((g) => g.id === '260022-3')!.events;
+  const lectures = events.filter((e) => e.lecture).map((e) => e.begin);
+  assert.equal(lectures[0], '2026-10-08T09:15:00+02:00');
+  assert.ok(lectures.includes('2026-11-05T09:15:00+01:00'));
+  assert.ok(lectures.includes('2027-01-21T09:15:00+01:00'));
+  assert.ok(!lectures.includes('2026-12-24T09:15:00+01:00') && !lectures.includes('2026-12-31T09:15:00+01:00'));
+  assert.equal(events.find((e) => e.lecture)!.room, 'Lise-Meitner-Hörsaal');
+  assert.ok(events.filter((e) => !e.lecture).every((e) => e.lecture === false && e.begin.includes('T15:00')));
+  assert.equal(parseCourse(fixture('261600'))!.groups[0]!.events[0]!.lecture, undefined);
+});
+
 test('a course is added by its number, graded, and its group chosen', async () => {
   const res = await call('POST', '/academy/courses', { nr: '261600', semester: '2026W' });
   assert.equal(res.statusCode, 201);
@@ -112,8 +125,9 @@ test('a course is added by its number, graded, and its group chosen', async () =
   assert.equal(lecture.module, 'STEOP1');
   assert.equal(lecture.groupId, '261600-1');
 
+  // The group registered in u:space is picked.
   const ex = (await call('POST', '/academy/courses', { nr: '260162', semester: '2026W' })).json();
-  assert.equal(ex.groupId, null);
+  assert.equal(ex.groupId, '260162-5');
   assert.equal((await call('PATCH', `/academy/courses/${ex.id}`, { groupId: ex.groups[3].id, grade: 2 })).statusCode, 204);
   const saved = (await call('GET', '/academy')).json().find((c: { id: number }) => c.id === ex.id);
   assert.equal(saved.grade, 2);

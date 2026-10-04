@@ -88,7 +88,9 @@ take it down. The card that opens lets you:
 - **change the module it counts toward:** needed for electives, which the
   server can only guess.
 - **pick your exercise group:** UE courses have several groups meeting at
-  different times; choose yours once you are told, and its dates join the week.
+  different times. The first term's are already set to the ones you are
+  registered in (EP1 5, Rechenmethoden 10, Lineare Algebra 3, Analysis 7);
+  change it here if you swap, and its dates join the week.
 - **shelve it** (put it back) or **strike it** (remove it).
 
 ## Adding your courses
@@ -109,7 +111,9 @@ number the university gives every course:
 
 The course is added to the current term. The server reads its name, type,
 ECTS, module, every group's dates and rooms, and any exams u:find has posted,
-and guesses the module from the codes u:find lists. It asks u:find again
+and guesses the module from the codes u:find lists. A VU (Lineare Algebra)
+lists only its exercise dates; its lecture part is read from the note u:find
+gives instead (Thursdays 09:15), and shows in the week as a lecture with a map. It asks u:find again
 once a day, or when you press **ask again**; the grades, groups and modules you
 set are kept.
 

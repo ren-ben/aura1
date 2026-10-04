@@ -1,5 +1,6 @@
 // The rewiring: the trap's drain schedule, redrawn by hand to feed you. What
 // a day's taps, lectures and drawn current are, in minutes after its midnight.
+import { partOf } from '@aura/shared';
 import { localDate, state, type Block } from './store';
 
 // Six greys, lightest first: the only inks a tap is drawn in.
@@ -33,7 +34,7 @@ export function lecturesOn(date: string): Lecture[] {
       const a = new Date(e.begin), b = new Date(e.end);
       return localDate(a) === date ? [{ start: minuteOf(a), end: minuteOf(b), label, room: e.room.replace(/-?Hörsaal/, ''), exam }] : [];
     };
-    return [...(g?.events ?? []).flatMap((e) => at(e, `${c.name} ${c.type}`, false)), ...c.exams.flatMap((x) => at(x, x.title, true))];
+    return [...(g?.events ?? []).flatMap((e) => at(e, `${c.name} ${partOf(c.type, e)}`, false)), ...c.exams.flatMap((x) => at(x, x.title, true))];
   });
 }
 

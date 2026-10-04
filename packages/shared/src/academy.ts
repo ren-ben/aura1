@@ -33,7 +33,17 @@ export const CURRICULUM: CurriculumModule[] = [
 ];
 
 // The first term's courses in 2026W, from u:find: offered as one click.
-export const FIRST_TERM = { semester: '2026W', courses: ['261600', '260162', '261603', '261604', '260041', '260022', '261608', '261609'] };
+// The groups are the ones registered in u:space, picked for a course when
+// it is added or asked again with none chosen.
+export const FIRST_TERM = {
+  semester: '2026W',
+  courses: ['261600', '260162', '261603', '261604', '260041', '260022', '261608', '261609'],
+  groups: { 260162: '260162-5', 261604: '261604-10', 260022: '260022-3', 261609: '261609-7' } as Record<string, string>,
+};
+
+// What a date of a course is: a VU's lecture part is marked lecture, its
+// group's own dates are the exercise part; any other course is all its type.
+export const partOf = (type: string, e: { lecture?: boolean }) => (e.lecture === undefined ? type : e.lecture ? 'VO' : 'UE');
 
 // Which module a u:find course counts toward, from the codes it lists
 // (u:find writes "LA" for Lineare Algebra 1, and so on). EXT when unknown:

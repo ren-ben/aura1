@@ -132,7 +132,7 @@ export const vigilSigns = pgTable('vigil_signs', {
 // A course of the degree, as u:find published it when it was added: its
 // groups and their dates, kept whole so the week works offline. The module
 // is the curriculum code it counts toward; the grade is the Austrian 1 to 5.
-export type CourseGroup = { id: string; events: { begin: string; end: string; room: string }[] };
+export type CourseGroup = { id: string; events: { begin: string; end: string; room: string; lecture?: boolean }[] };
 // An exam u:find lists for the course or for its module in this degree.
 export type CourseExam = { id: string; begin: string; end: string; title: string; room: string };
 export const courses = pgTable('courses', {

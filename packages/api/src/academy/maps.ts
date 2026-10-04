@@ -1,6 +1,6 @@
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { deeperSchema, lectureMapSchema, type LectureMapDto } from '@aura/shared';
+import { deeperSchema, lectureMapSchema, partOf, type LectureMapDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { courses, lectureMaps } from '../db/schema.ts';
 import { complete, type Fetch, type Settings } from './openrouter.ts';
@@ -16,10 +16,10 @@ export const toDto = (r: Row): LectureMapDto => ({
 });
 
 // The course's lectures: the dates of its chosen group (a lecture has only
-// one), in order.
+// one) that are not its exercise part, in order.
 export function lecturesOf(c: Course): string[] {
   const g = c.groups.find((x) => x.id === c.groupId) ?? (c.groups.length === 1 ? c.groups[0] : undefined);
-  return (g?.events ?? []).map((e) => e.begin).sort();
+  return (g?.events ?? []).filter((e) => partOf(c.type, e) !== 'UE').map((e) => e.begin).sort();
 }
 
 export function lectureOf(c: Course, begin: string): Omit<Lecture, 'topic'> & { guess: string } | null {

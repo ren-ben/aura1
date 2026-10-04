@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { CURRICULUM, guessModule, type LectureDto } from '@aura/shared';
+import { CURRICULUM, FIRST_TERM, guessModule, type LectureDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { courses, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
 import { deeper, generate, lectureOf, settleStale, spentThisMonth, toDto } from '../academy/maps.ts';
@@ -21,7 +21,7 @@ const courseDto = z.object({
   name: z.string(),
   type: z.string(),
   ects: z.number().int(),
-  groups: z.array(z.object({ id: z.string(), events: z.array(event) })),
+  groups: z.array(z.object({ id: z.string(), events: z.array(event.extend({ lecture: z.boolean().optional() })) })),
   groupId: z.string().nullable(),
   grade: z.number().int().nullable(),
   exams: z.array(event.extend({ id: z.string(), title: z.string() })),
@@ -43,15 +43,38 @@ const PROGRAMME = /^Bachelor Physik\b/;
 const tag = (src: string, name: string) => src.match(new RegExp(`<${name}[^>]*>([^<]*)</${name}>`))?.[1]?.trim() ?? '';
 const room = (src: string) => tag(src, 'room').split(',')[0]!.trim();
 
+// A VU lists only its exercise dates; its lecture part is a note ("Der
+// VO-Anteil findet DO wtl von 08.10.2026 bis 21.01.2027 09.15-10.45 Ort:
+// Lise-Meitner-Hörsaal, ... statt."). Its weeks are read from the note,
+// kept where the group meets within a week of them, so not over the break.
+const WEEKDAYS = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
+const viennaOffset = (day: Date) => new Intl.DateTimeFormat('en', { timeZone: 'Europe/Vienna', timeZoneName: 'longOffset' })
+  .formatToParts(day).find((p) => p.type === 'timeZoneName')!.value.replace('GMT', '');
+type Event = CourseGroup['events'][number];
+export function lecturePart(body: string, events: Event[]): Event[] {
+  const m = body.match(/VO-Anteil findet (MO|DI|MI|DO|FR) wtl von (\d\d)\.(\d\d)\.(\d{4}) bis (\d\d)\.(\d\d)\.(\d{4}) (\d\d)\.(\d\d)\s*-\s*(\d\d)\.(\d\d) Ort: ([^,<&]+)/);
+  if (!m) return [];
+  const [, wd, d1, m1, y1, d2, m2, y2, bh, bm, eh, em, where] = m;
+  const met = events.map((e) => Date.parse(e.begin));
+  const out: Event[] = [];
+  for (let day = new Date(Date.UTC(+y1!, +m1! - 1, +d1!, 12)); day <= new Date(Date.UTC(+y2!, +m2! - 1, +d2!, 12)); day.setUTCDate(day.getUTCDate() + 1)) {
+    if (WEEKDAYS[day.getUTCDay()] !== wd || !met.some((t) => Math.abs(t - day.getTime()) < 7 * 864e5)) continue;
+    const date = day.toISOString().slice(0, 10), off = viennaOffset(day);
+    out.push({ begin: `${date}T${bh}:${bm}:00${off}`, end: `${date}T${eh}:${em}:00${off}`, room: where!.trim(), lecture: true });
+  }
+  return out;
+}
+
 type Found = { name: string; type: string; ects: number; codes: string[]; groups: CourseGroup[]; syllabus: string };
 export function parseCourse(xml: string): Found | null {
   const name = xml.match(/<longname xml:lang="de">([^<]*)<\/longname>/)?.[1]?.trim();
   if (!name) return null;
-  const groups = [...xml.matchAll(/<group [^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/group>/g)].map(([, id, body]) => ({
-    id: id!,
-    events: [...body!.matchAll(/<wwevent begin="([^"]+)" end="([^"]+)"[^>]*>([\s\S]*?)<\/wwevent>/g)]
-      .map(([, begin, end, inner]) => ({ begin: begin!, end: end!, room: room(inner!) })),
-  }));
+  const groups = [...xml.matchAll(/<group [^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/group>/g)].map(([, id, body]) => {
+    const events: Event[] = [...body!.matchAll(/<wwevent begin="([^"]+)" end="([^"]+)"[^>]*>([\s\S]*?)<\/wwevent>/g)]
+      .map(([, begin, end, inner]) => ({ begin: begin!, end: end!, room: room(inner!) }));
+    const lectures = lecturePart(body!, events);
+    return { id: id!, events: lectures.length ? [...events.map((e) => ({ ...e, lecture: false })), ...lectures].sort((a, b) => a.begin.localeCompare(b.begin)) : events };
+  });
   return {
     name: name.replace(/^STEOP\d:\s*/, ''),
     type: tag(xml, 'type'),
@@ -79,6 +102,12 @@ export function parseExams(xml: string, nr: string): CourseExam[] {
   }
   return [...found.values()].sort((a, b) => a.begin.localeCompare(b.begin));
 }
+
+// The group a course is in: the one kept while it still exists, else the
+// one registered for it, else the only one.
+const groupFor = (nr: string, semester: string, groups: CourseGroup[], kept: string | null = null) =>
+  [kept, semester === FIRST_TERM.semester ? FIRST_TERM.groups[nr] : null, groups.length === 1 ? groups[0]!.id : null]
+    .find((id) => id && groups.some((g) => g.id === id)) ?? null;
 
 async function lookUp(ufind: Ufind, nr: string, semester: string) {
   const xml = await ufind(`courses/${nr}/${semester}`);
@@ -113,8 +142,7 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
       nr, semester,
       module: request.body.module ?? guessModule(found.codes, found.name),
       name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams, syllabus: found.syllabus,
-      // A lecture has one group; there is nothing to choose.
-      groupId: found.groups.length === 1 ? found.groups[0]!.id : null,
+      groupId: groupFor(nr, semester, found.groups),
     }).returning();
     return reply.code(201).send(row);
   });
@@ -131,7 +159,7 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
       let found;
       try { found = await lookUp(ufind, c.nr, c.semester); } catch { continue; }
       if (!found) continue;
-      const groupId = found.groups.some((g) => g.id === c.groupId) ? c.groupId : found.groups.length === 1 ? found.groups[0]!.id : null;
+      const groupId = groupFor(c.nr, c.semester, found.groups, c.groupId);
       await db.update(courses).set({
         name: found.name, type: found.type, ects: found.ects, groups: found.groups, exams: found.exams, syllabus: found.syllabus, groupId, refreshedAt: new Date(),
       }).where(eq(courses.id, c.id));
