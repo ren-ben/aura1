@@ -10,6 +10,10 @@
     "test": "pnpm -r test",
     "firmware:test": "node scripts/firmware-test.mjs"
   },
+  "pnpm": {
+    "//": "pdfjs only reads text here; its native canvas dies with an illegal instruction on the Pi",
+    "ignoredOptionalDependencies": ["@napi-rs/canvas"]
+  },
   "devDependencies": {
     "typescript": "^5.7.0",
     "tsx": "^4.19.0"
