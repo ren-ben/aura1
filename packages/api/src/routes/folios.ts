@@ -5,8 +5,9 @@ import { asc, eq } from 'drizzle-orm';
 import { FOLIO_KINDS, guessKind, type FoliosDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { decks, folioFiles, folios, moodle } from '../db/schema.ts';
-import { MOODLE, MoodleError, Refused, contentsOf, courseOf, download, login, poolOf, session, ws, type Http } from '../academy/moodle.ts';
+import { MoodleError, Refused, contentsOf, courseOf, download, login, session, ws, type Http } from '../academy/moodle.ts';
 import { readPdf } from '../academy/pdf.ts';
+import { syncDeck } from '../academy/cards.ts';
 
 // The folios: a course's PDFs from Moodle or by hand, and Moodle's flashcard
 // decks as counts (docs/superpowers/specs/2026-10-04-folios-design.md).
@@ -56,10 +57,9 @@ export const folioRoutes: FastifyPluginAsync<{ db: Db; http?: Http }> = async (a
         for (const d of found) {
           if (!link.privateToken) break;
           cookie ??= await session(http, link.token, link.privateToken, link.userId);
-          const page = await http(`${MOODLE}/mod/flashcards/studentquestioninit.php?id=${d.cmid}&perpage=1000`, { headers: { cookie } });
-          const boxes = poolOf(await page.text());
-          const values = { nr: c.nr, semester: c.semester, instance: d.instance, name: d.name, boxes, syncedAt: new Date() };
-          await db.insert(decks).values({ cmid: d.cmid, ...values }).onConflictDoUpdate({ target: decks.cmid, set: values });
+          const values = { nr: c.nr, semester: c.semester, instance: d.instance, name: d.name };
+          const [deck] = await db.insert(decks).values({ cmid: d.cmid, boxes: [0, 0, 0, 0, 0, 0], ...values }).onConflictDoUpdate({ target: decks.cmid, set: values }).returning();
+          await syncDeck(db, http, link, cookie, deck!.id, d.cmid, d.instance);
         }
       }
       await db.update(moodle).set({ syncedAt: new Date(), refusedAt: null, courses: seen });

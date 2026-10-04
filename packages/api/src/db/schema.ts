@@ -175,6 +175,21 @@ export const lectureMaps = pgTable('lecture_maps', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.courseId, t.begin)]);
 
+// A card of a Moodle deck: its face and back as Moodle renders them (maths
+// left as \( \)), and its box, 0 while it is still in the pool. Answers
+// given here go to Moodle at once; pending holds those it has not taken yet.
+export const cards = pgTable('cards', {
+  id: serial('id').primaryKey(),
+  deckId: integer('deck_id').notNull().references(() => decks.id, { onDelete: 'cascade' }),
+  qid: integer('qid').notNull(),
+  name: text('name').notNull(),
+  front: text('front').notNull(),
+  back: text('back').notNull(),
+  box: integer('box').notNull(),
+  pending: jsonb('pending').$type<{ right: boolean; box: number }[]>().notNull().default([]),
+  answeredAt: timestamp('answered_at', { withTimezone: true }),
+}, (t) => [unique().on(t.deckId, t.qid)]);
+
 // A question put to a course's folios, or one rung of the hint ladder on a
 // task of an exercise sheet. Answered after the request, like a map.
 export const asks = pgTable('asks', {

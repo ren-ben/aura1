@@ -6,17 +6,19 @@ import { sql } from 'drizzle-orm';
 import { guessKind } from '@aura/shared';
 import { createDb, type Db } from '../src/db/client.ts';
 import { buildApp } from '../src/app.ts';
-import { contentsOf, courseOf, formOf, login, poolOf, type Http } from '../src/academy/moodle.ts';
+import { cardOf, contentsOf, courseOf, formOf, login, poolOf, type Http } from '../src/academy/moodle.ts';
+import { anki, nextBox } from '../src/academy/cards.ts';
 import { chaptersOf } from '../src/academy/pdf.ts';
 
 const url = process.env.TEST_DATABASE_URL ?? 'postgres://aura:aura@localhost:15434/aura_test';
 const SKRIPT = new Uint8Array(readFileSync(new URL('./fixtures/skript.pdf', import.meta.url)));
 const POOL = readFileSync(new URL('./fixtures/moodle-flashcards-pool.html', import.meta.url), 'utf8');
+const CARD = readFileSync(new URL('./fixtures/moodle-flashcard-card.html', import.meta.url), 'utf8');
 
 // weblogin and Moodle as the app meets them: launch.php to the IdP, the
 // local-storage step, the login form, the SAML post back, the token.
-function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number } = {}) {
-  const seen = { downloads: 0, logins: 0 };
+function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number; cardsDown?: boolean } = {}) {
+  const seen = { downloads: 0, logins: 0, answers: [] as string[] };
   let pending: string | null = null;
   const res = (status: number, body = '', headers: Record<string, string> = {}) => new Response(status === 302 || status === 303 ? null : body, { status, headers });
   const http: Http = async (u, init) => {
@@ -49,10 +51,18 @@ function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number 
         { id: 12, instance: 2, name: 'Bild', modname: 'resource', contents: [{ type: 'file', filename: 'bild.png', fileurl: 'https://moodle.univie.ac.at/x/bild.png', mimetype: 'image/png', filesize: 1, timemodified: 1 }] },
         { id: 20015910, instance: 4631, name: 'Integration', modname: 'flashcards' },
       ] }]);
+      if (fn?.startsWith('mod_flashcards_')) {
+        if (o.cardsDown) return Response.json({ errorcode: 'servicenotavailable', message: 'down' });
+        assert.equal(body.get('wstoken'), 'tok-flashcards');
+        seen.answers.push(fn === 'mod_flashcards_init_questions' ? `init ${body.get('qids[0]')}` : `${body.get('questionid')} box${body.get('boxid')} ${body.get('qanswervalue')}`);
+        return Response.json(fn === 'mod_flashcards_init_questions' ? null : 1);
+      }
       if (fn === 'tool_mobile_get_autologin_key') return Response.json({ key: 'k', autologinurl: 'https://moodle.univie.ac.at/admin/tool/mobile/autologin.php' });
     }
-    if (href.includes('/pluginfile.php/')) { seen.downloads++; assert.match(href, /token=tok-moodle_mobile_app/); return new Response(SKRIPT); }
+    if (href.includes('/mod_resource/')) { seen.downloads++; assert.match(href, /token=tok-moodle_mobile_app/); return new Response(SKRIPT); }
     if (href.endsWith('/autologin.php')) return res(303, '', { location: '/my/', 'set-cookie': 'MoodleSession=web; path=/' });
+    if (href.includes('/mod/flashcards/flashcardpreview.php')) return res(200, CARD);
+    if (href.includes('/webservice/pluginfile.php/9/question/')) return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } });
     if (href.includes('/mod/flashcards/studentquestioninit.php?id=20015910')) { assert.match(String((init?.headers as Record<string, string>).cookie), /MoodleSession=web/); return res(200, POOL); }
     throw new Error(`unexpected ${href}`);
   };
@@ -74,7 +84,7 @@ before(async () => {
 });
 after(async () => { await app.close(); await close(); });
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE moodle, folios, folio_files, decks RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE moodle, folios, folio_files, decks, cards RESTART IDENTITY CASCADE`);
   moodle = fakeMoodle();
 });
 
@@ -180,4 +190,47 @@ test('a PDF dropped in by hand is read and filed; anything else is refused', asy
   assert.equal((await up(SKRIPT, 'nr=26&semester=2026W&title=x')).statusCode, 400);
   assert.equal((await call('DELETE', `/academy/folios/${f.id}`)).statusCode, 204);
   assert.equal((await call('GET', `/academy/folios/${f.id}/pdf`)).statusCode, 404);
+});
+
+test("a card's face and back are read from the plugin, made safe", () => {
+  const card = cardOf(CARD)!;
+  assert.match(card.front, /\\\( \\frac\{x\}\{\\sqrt\{1-x\^2\}\} \\\)/);
+  assert.ok(!/nolink|<script|onerror/.test(card.front));
+  assert.match(card.back, /Product rule!/);
+  assert.equal(cardOf('<p>nothing</p>'), null);
+  assert.deepEqual([nextBox(0, true), nextBox(0, false), nextBox(3, true), nextBox(5, true), nextBox(4, false)], [2, 1, 4, 5, 1]);
+  assert.equal(anki({ name: 'Integration', course: 'Rechenmethoden' }, [{ front: 'a\tb\nc', back: '\\( x \\)', box: 2, name: 'Integration 3' }]),
+    '#separator:tab\n#html:true\n#deck:Rechenmethoden::Integration\n#tags column:3\na b<br>c\t\\( x \\)\tmoodle box2 Integration_3\n');
+});
+
+test('a deck is played here and every answer reaches Moodle, late if it must', async () => {
+  await call('POST', '/academy/moodle', { username: 'oliwierp06', password: 'pw' });
+  const state = await settled();
+  const deck = state.decks[0];
+  const cards = (await call('GET', `/academy/decks/${deck.id}/cards`)).json();
+  assert.equal(cards.length, 20);
+  assert.deepEqual([0, 1, 2].map((b) => cards.filter((c: { box: number }) => c.box === b).length), [9, 5, 6]);
+  // The face came through, its image inline.
+  assert.match(cards[0].front, /data:image\/png;base64,/);
+
+  const pool = cards.find((c: { box: number }) => c.box === 0);
+  const res = (await call('POST', `/academy/cards/${pool.id}/answer`, { right: true })).json();
+  assert.deepEqual([res.box, res.pending], [2, 0]);
+  assert.deepEqual(moodle.seen.answers, [`init ${pool.qid}`, `${pool.qid} box1 1`]);
+  assert.deepEqual((await call('GET', '/academy/folios')).json().decks[0].boxes, [8, 5, 7, 0, 0, 0]);
+
+  // Moodle away: the answers wait, in order, and go first at the next sync.
+  moodle = fakeMoodle({ cardsDown: true });
+  const two = cards.find((c: { box: number }) => c.box === 2);
+  assert.equal((await call('POST', `/academy/cards/${two.id}/answer`, { right: false })).json().pending, 1);
+  const again = (await call('POST', `/academy/cards/${two.id}/answer`, { right: true })).json();
+  assert.deepEqual([again.box, again.pending], [2, 2]);
+  moodle = fakeMoodle();
+  await call('POST', '/academy/moodle/sync');
+  await settled();
+  assert.deepEqual(moodle.seen.answers.slice(0, 2), [`${two.qid} box2 0`, `${two.qid} box1 1`]);
+
+  const txt = await call('GET', `/academy/decks/${deck.id}/anki`);
+  assert.match(String(txt.headers['content-disposition']), /Integration\.txt/);
+  assert.equal(txt.body.split('\n').filter((l) => l && !l.startsWith('#')).length, 20);
 });

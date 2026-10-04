@@ -97,3 +97,8 @@ export type AskDto = {
   cites: Cite[]; pages: PageCut[]; costUsd: number; createdAt: string;
 };
 export type TaskDto = { n: number; title: string; page: number };
+
+// Phase 3: a card of a Moodle deck. front and back are Moodle's HTML, maths
+// as \( \). box 0 is the pool; 1 to 5 the Leitner boxes.
+export type CardDto = { id: number; deckId: number; qid: number; name: string; front: string; back: string; box: number; pending: number; answeredAt: string | null };
+export const BOXES = ['Pool', 'Anfangen', 'Wiederholen', 'Einprägen', 'Beinahe', 'Geschafft'] as const;

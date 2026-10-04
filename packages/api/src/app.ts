@@ -18,6 +18,7 @@ import { readingRoutes, type Shelf } from './routes/reading.ts';
 import { huntRoutes } from './routes/hunt.ts';
 import { folioRoutes } from './routes/folios.ts';
 import { askRoutes } from './routes/asks.ts';
+import { cardRoutes } from './routes/cards.ts';
 import type { Http } from './academy/moodle.ts';
 import type { Fetch, Settings } from './academy/openrouter.ts';
 
@@ -45,6 +46,7 @@ export function buildApp(
   app.register(readingRoutes, { prefix: '/api/v1', user: opts.goodreads ? opts.goodreads.user : process.env.GOODREADS_USER, shelf: opts.goodreads?.shelf });
   app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind, openrouter: opts.openrouter, settings: opts.settings });
   app.register(folioRoutes, { db, prefix: '/api/v1', http: opts.moodle });
+  app.register(cardRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(askRoutes, { db, prefix: '/api/v1', openrouter: opts.openrouter, settings: opts.settings });
 
   if (opts.webRoot) {

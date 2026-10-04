@@ -118,16 +118,56 @@ export function contentsOf(contents: Contents): { files: MoodleFile[]; decks: Mo
   return { files, decks };
 }
 
-// The plugin's card list: one row a card, its box as "Fach n" or "-" when
-// it is still in the pool. Counted into boxes[0..5].
+// The plugin's card list: one row a card, with its question id, its name,
+// and its box as "Fach n" or "-" while it is still in the pool (box 0).
+export type PoolCard = { qid: number; name: string; box: number };
+export function poolRows(html: string): PoolCard[] {
+  return [...html.matchAll(/<tr[^>]*id="flashcards_studentview_r\d+"[^>]*>([\s\S]*?)<\/tr>/g)].map(([, row]) => {
+    const cell = (c: number) => row!.match(new RegExp(`_c${c}">([\\s\\S]*?)</td>`))?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? '';
+    const n = Number(cell(3).match(/(\d)/)?.[1] ?? 0);
+    return { qid: Number(row!.match(/data-value="(\d+)"/)?.[1] ?? 0), name: cell(1), box: n >= 1 && n <= 5 ? n : 0 };
+  }).filter((c) => c.qid);
+}
 export function poolOf(html: string): number[] {
   const boxes = [0, 0, 0, 0, 0, 0];
-  for (const [, row] of html.matchAll(/<tr[^>]*id="flashcards_studentview_r\d+"[^>]*>([\s\S]*?)<\/tr>/g)) {
-    const cell = row!.match(/_c3">([\s\S]*?)<\/td>/)?.[1]?.replace(/<[^>]*>/g, '') ?? '';
-    const n = Number(cell.match(/(\d)/)?.[1] ?? 0);
-    boxes[n >= 1 && n <= 5 ? n : 0]!++;
-  }
+  for (const c of poolRows(html)) boxes[c.box]!++;
   return boxes;
+}
+
+// The inside of the first element whose class has this name, nested divs
+// and spans counted.
+function inner(html: string, cls: string): string | null {
+  const at = html.search(new RegExp(`<(div|span)[^>]*class="[^"]*\\b${cls}\\b`));
+  if (at < 0) return null;
+  const open = html.indexOf('>', at) + 1;
+  let depth = 1, i = open;
+  const tag = /<(\/?)(div|span)\b[^>]*>/g;
+  tag.lastIndex = open;
+  for (let m = tag.exec(html); m; m = tag.exec(html)) {
+    depth += m[1] ? -1 : 1;
+    if (!depth) return html.slice(open, m.index);
+    i = tag.lastIndex;
+  }
+  return html.slice(open, i);
+}
+// A card's HTML kept to what a card shows: no scripts, styles, handlers or
+// script URLs; Moodle's maths left as \( \) for KaTeX.
+export function clean(html: string): string {
+  return html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/\son\w+='[^']*'/gi, '')
+    .replace(/(href|src)="\s*javascript:[^"]*"/gi, '$1="#"').replace(/<span class="nolink">([\s\S]*?)<\/span>/g, '$1').trim();
+}
+// Front and back of a card from the plugin's rendering of it.
+export function cardOf(html: string): { front: string; back: string } | null {
+  const front = inner(html, 'qflashcard-question'), back = inner(html, 'qflashcard-answer');
+  return front && back ? { front: clean(front), back: clean(back) } : null;
+}
+
+// An answer sent to Moodle as its own page sends it: a card still in the
+// pool is taken into the deck first; right moves it a box up, wrong back
+// to box 1.
+export async function answerCard(http: Http, token: string, instance: number, qid: number, box: number, right: boolean) {
+  if (box === 0) await ws(http, token, 'mod_flashcards_init_questions', { flashcardsid: instance, qids: [qid] });
+  await ws(http, token, 'mod_flashcards_update_progress', { fid: instance, boxid: Math.max(1, box), questionid: qid, qanswervalue: right ? 1 : 0 });
 }
 
 export const download = async (http: Http, url: string, token: string) => {
