@@ -1,4 +1,4 @@
-import type { ActivityKind, Chapter, Cite, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, PageCut, Pose } from '@aura/shared';
+import type { ActivityKind, Chapter, Cite, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, NoteFields, NoteKind, PageCut, Pose } from '@aura/shared';
 import {
   pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision, customType,
 } from 'drizzle-orm/pg-core';
@@ -189,6 +189,37 @@ export const cards = pgTable('cards', {
   pending: jsonb('pending').$type<{ right: boolean; box: number }[]>().notNull().default([]),
   answeredAt: timestamp('answered_at', { withTimezone: true }),
 }, (t) => [unique().on(t.deckId, t.qid)]);
+
+// Your own decks, written at the desk: a deck holds notes, a note makes
+// cards (one per cloze, per bar, per direction), each card scheduled by FSRS
+// (its whole state kept as ts-fsrs has it, its due date beside for asking).
+export const ownDecks = pgTable('own_decks', {
+  id: serial('id').primaryKey(),
+  code: text('code').notNull().unique(),
+  title: text('title').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const ownImages = pgTable('own_images', {
+  id: serial('id').primaryKey(),
+  mime: text('mime').notNull(),
+  bytes: bytea('bytes').notNull(),
+});
+export const ownNotes = pgTable('own_notes', {
+  id: serial('id').primaryKey(),
+  deckId: integer('deck_id').notNull().references(() => ownDecks.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<NoteKind>().notNull(),
+  name: text('name').notNull(),
+  tags: jsonb('tags').$type<string[]>().notNull().default([]),
+  fields: jsonb('fields').$type<NoteFields>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const ownCards = pgTable('own_cards', {
+  id: serial('id').primaryKey(),
+  noteId: integer('note_id').notNull().references(() => ownNotes.id, { onDelete: 'cascade' }),
+  ord: integer('ord').notNull(),
+  fsrs: jsonb('fsrs').$type<Record<string, unknown>>().notNull(),
+  due: timestamp('due', { withTimezone: true }).notNull(),
+}, (t) => [unique().on(t.noteId, t.ord)]);
 
 // A question put to a course's folios, or one rung of the hint ladder on a
 // task of an exercise sheet. Answered after the request, like a map.

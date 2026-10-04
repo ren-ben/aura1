@@ -102,3 +102,27 @@ export type TaskDto = { n: number; title: string; page: number };
 // as \( \). box 0 is the pool; 1 to 5 the Leitner boxes.
 export type CardDto = { id: number; deckId: number; qid: number; name: string; front: string; back: string; box: number; pending: number; answeredAt: string | null };
 export const BOXES = ['Pool', 'Anfangen', 'Wiederholen', 'Einprägen', 'Beinahe', 'Geschafft'] as const;
+
+// Your own decks (docs/superpowers/specs/2026-10-04-deck-design.md): a note
+// is what you write at the desk; it makes one card per cloze number, per
+// bar on its picture, two when it goes both ways, else one.
+export const NOTE_KINDS = ['cloze', 'basic', 'reverse', 'type', 'occlusion'] as const;
+export type NoteKind = (typeof NOTE_KINDS)[number];
+export type Mask = { x: number; y: number; w: number; h: number };
+export type NoteFields = {
+  text?: string; front?: string; back?: string; plain?: string;
+  imageId?: number; imageName?: string; masks?: Mask[]; labels?: string[]; mode?: 'all' | 'one';
+};
+export type NoteDto = { id: number; deckId: number; kind: NoteKind; name: string; tags: string[]; fields: NoteFields; cards: number; updatedAt: string };
+export type OwnDeckDto = { id: number; code: string; title: string; notes: NoteDto[]; due: number };
+// A card due for review, with its note, and when it would come back for
+// each of again, hard, good and easy.
+export type DueCardDto = { id: number; ord: number; due: string; state: number; note: NoteDto; next: [string, string, string, string] };
+
+export const clozeNums = (text: string) => [...new Set([...text.matchAll(/\{\{c(\d+)::/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+export function ordsOf(kind: NoteKind, f: NoteFields): number[] {
+  if (kind === 'cloze') return clozeNums(f.text ?? '');
+  if (kind === 'occlusion') return (f.masks ?? []).map((_, i) => i + 1);
+  if (kind === 'reverse') return [1, 2];
+  return [1];
+}

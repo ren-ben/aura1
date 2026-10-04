@@ -19,6 +19,7 @@ import { huntRoutes } from './routes/hunt.ts';
 import { folioRoutes } from './routes/folios.ts';
 import { askRoutes } from './routes/asks.ts';
 import { cardRoutes } from './routes/cards.ts';
+import { ownRoutes } from './routes/own.ts';
 import type { Http } from './academy/moodle.ts';
 import type { Fetch, Settings } from './academy/openrouter.ts';
 
@@ -47,6 +48,7 @@ export function buildApp(
   app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind, openrouter: opts.openrouter, settings: opts.settings });
   app.register(folioRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(cardRoutes, { db, prefix: '/api/v1', http: opts.moodle });
+  app.register(ownRoutes, { db, prefix: '/api/v1' });
   app.register(askRoutes, { db, prefix: '/api/v1', openrouter: opts.openrouter, settings: opts.settings });
 
   if (opts.webRoot) {
