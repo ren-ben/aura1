@@ -3,6 +3,7 @@
 import { computed, reactive } from 'vue';
 import type { GrownNode, LectureDto, LectureMapDto, MapMark } from '@aura/shared';
 import { demoApi } from './sample';
+import type { Folios } from './folios';
 import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
 
 export type Progress = { xp: number; level: number; nextLevelXp: number };
@@ -180,6 +181,22 @@ const reCourses = async () => { state.courses = await call<Course[]>('GET', '/ac
 const rePlan = async () => { const p = await call<Plan>('GET', blocksPath()); [state.blocks, state.planDays] = [p.blocks, p.days]; };
 const reHunt = async () => { state.hunt = await call<Hunt>('GET', '/hunt'); };
 const reDevice = async () => { state.device = await call<Device>('GET', '/device'); };
+
+// The folios: fetched when the codex opens. A PDF goes up as it is.
+export const folioApi = {
+  list: () => call<Folios>('GET', '/academy/folios'),
+  bind: (username: string, password: string) => call('POST', '/academy/moodle', { username, password }),
+  unbind: () => call('DELETE', '/academy/moodle'),
+  sync: () => call('POST', '/academy/moodle/sync'),
+  kind: (id: number, kind: string) => call('PATCH', `/academy/folios/${id}`, { kind }),
+  remove: (id: number) => call('DELETE', `/academy/folios/${id}`),
+  upload: async (file: File, nr: string, semester: string) => {
+    if (state.demo) throw new Error('the demo keeps no files');
+    const q = new URLSearchParams({ nr, semester, title: file.name });
+    const res = await fetch(`/api/v1/academy/folios?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `upload: HTTP ${res.status}`);
+  },
+};
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.
 export const lectureMaps = {

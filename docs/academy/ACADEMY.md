@@ -152,6 +152,36 @@ prints a plain document version. Opening a map again costs nothing. It stops
 for the month once the budget (10 dollars by default) is spent. Exercise
 classes have no maps.
 
+## The folios
+
+**folios**, in the week's title (or **its folios** on a book's card), opens
+your course material over everything: the Exploded Codex.
+
+1. **Bind Moodle once** in the panel on the right, with your u:account ID
+   (the one you type into weblogin, like `musterm99`) and password. The
+   server walks weblogin the way the Moodle app does and keeps only Moodle's
+   token; your password is not stored. If weblogin refuses it, it is not
+   tried again.
+2. **Moodle is read** right away and then every morning when you open the
+   Academy (or **read it now**): every PDF of your Moodle courses, and the
+   flashcard decks with how many cards sit in each box. Files Moodle revises
+   are fetched again; nothing else is fetched twice.
+3. **The course strip** on top: a lecture and its exercise class are one
+   course. **The tomes** under it: each Skript is its own volume; everything
+   else in the course is the binder.
+4. **The codex** takes the volume apart into its chapters (read from the
+   PDF's bookmarks), each slab as thick as its pages. Chapters are named down
+   the left; down the right, what belongs to each: the course's other files
+   and decks whose names share a word with the chapter. New files fly in.
+   Click a chapter to slide it out: the panel shows its first page and what
+   hangs off it. Drag to turn it, Esc to let go.
+5. **Drop a PDF** anywhere on it (or **add a pdf**) to file it under the
+   course on screen. Change what a file is (skript, exercise sheet, slides,
+   past exam, other) in the panel; files you added yourself can be struck.
+
+If Moodle stops taking the token (you changed your password), the panel says
+so and asks you to bind again; the files already read stay.
+
 ## The almanac
 
 **month**, in the week's title, opens the whole month over everything: every

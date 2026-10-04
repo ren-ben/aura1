@@ -85,6 +85,13 @@
       "when": 1790517168309,
       "tag": "0010_hunt_scenes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791129846298,
+      "tag": "0012_folios",
+      "breakpoints": true
     }
   ]
 }

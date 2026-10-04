@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import Frame from '../components/Frame.vue';
 import LectureMap from '../components/LectureMap.vue';
 import Calendar from '../components/Calendar.vue';
+import Codex from '../components/Codex.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
@@ -18,7 +19,7 @@ import { lights } from '../gl/models';
 import { reduced } from '../gl/engine';
 import { rand, starfield } from '../gl/plate';
 import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
-import { actions, state, type Course } from '../store';
+import { actions, folioApi, state, type Course } from '../store';
 
 defineProps<{ active: boolean }>();
 
@@ -45,9 +46,14 @@ async function refresh() {
   await actions.refreshCourses(TERM.name);
   refreshing.value = false;
 }
-onMounted(() => {
+onMounted(async () => {
   const term = state.courses.filter((c) => c.semester === TERM.name);
   if (!state.demo && term.some((c) => Date.now() - Date.parse(c.refreshedAt) > 864e5)) refresh();
+  // Moodle the same way: read again once a day, if it is bound and still
+  // takes the token.
+  if (state.demo) return;
+  const { moodle } = await folioApi.list().catch(() => ({ moodle: null }));
+  if (moodle?.bound && !moodle.refusedAt && Date.now() - Date.parse(moodle.syncedAt ?? '0') > 864e5) folioApi.sync().catch(() => {});
 });
 const lastAsked = computed(() => {
   const times = state.courses.filter((c) => c.semester === TERM.name).map((c) => Date.parse(c.refreshedAt));
@@ -621,6 +627,8 @@ const theWeek = computed(() => {
 const mapOf = ref<{ course: Course; begin: string } | null>(null);
 // The whole month, opened from the week.
 const monthOpen = ref(false);
+// The folios, opened on a course (its u:find number) or on the first with any.
+const foliosOf = ref<string | null>(null);
 function fromMonth(s: { course: Course; begin: string }) {
   monthOpen.value = false;
   mapOf.value = { course: s.course, begin: s.begin };
@@ -769,7 +777,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button></span></template>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>
@@ -824,7 +832,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
               </select>
             </template>
           </span>
-          <span class="acts"><button class="btn" @click="pulledId = null">shelve it</button><button class="btn quiet" @click="actions.removeCourse(pulled!); pulledId = null">strike it</button></span>
+          <span class="acts"><button class="btn" @click="foliosOf = pulled.nr">its folios</button><button class="btn" @click="pulledId = null">shelve it</button><button class="btn quiet" @click="actions.removeCourse(pulled!); pulledId = null">strike it</button></span>
         </div>
       </Transition>
     </Frame>
@@ -832,6 +840,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="sphere" title="the rector's armillary" flush>
       <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
+    <Codex v-if="foliosOf !== null" :nr="foliosOf || undefined" @close="foliosOf = null" />
     <Calendar v-if="monthOpen" :start="theWeek.monday" @close="monthOpen = false" @open="fromMonth" />
     <LectureMap v-if="mapOf" :key="mapOf.begin" :course="mapOf.course" :begin="mapOf.begin" @close="mapOf = null" />
   </div>

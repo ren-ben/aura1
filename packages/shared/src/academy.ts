@@ -54,3 +54,31 @@ export function guessModule(codes: string[], name: string): string {
   const byName = CURRICULUM.find((m) => name.toLowerCase().includes(m.name.toLowerCase()));
   return byName?.code ?? 'EXT';
 }
+
+// The folios: a course's PDFs, from Moodle or dropped in by hand
+// (docs/superpowers/specs/2026-10-04-folios-design.md).
+export const FOLIO_KINDS = ['skript', 'sheet', 'slides', 'exam', 'other'] as const;
+export type FolioKind = (typeof FOLIO_KINDS)[number];
+export type Chapter = { title: string; from: number; to: number };
+export type FolioDto = {
+  id: number; nr: string; semester: string; title: string; kind: FolioKind; source: 'moodle' | 'upload';
+  section: string | null; size: number; pages: number; outline: Chapter[]; modifiedAt: string; addedAt: string;
+};
+// A Moodle flashcard activity and where its cards stand: boxes[0] is the
+// pool not yet taken into the deck, boxes[1..5] the deck's five boxes.
+export type DeckDto = { id: number; nr: string; semester: string; name: string; cmid: number; boxes: number[]; syncedAt: string };
+export type MoodleDto = {
+  bound: boolean; username: string | null; boundAt: string | null; syncedAt: string | null;
+  refusedAt: string | null; courses: { nr: string; semester: string; name: string }[];
+};
+export type FoliosDto = { moodle: MoodleDto; folios: FolioDto[]; decks: DeckDto[] };
+
+// What a file is, from its name and the Moodle section it sits in.
+export function guessKind(title: string, section = ''): FolioKind {
+  const t = `${title} ${section}`.toLowerCase();
+  if (/skript/.test(t)) return 'skript';
+  if (/prüfung|pruefung|klausur|termin\d|exam|erwartung/.test(t)) return 'exam';
+  if (/serie|blatt|übung|uebung|aufgabe|exercise|sheet|zettel/.test(t)) return 'sheet';
+  if (/folie|slide|foliensatz|kapitel|vorlesung/.test(t)) return 'slides';
+  return 'other';
+}

@@ -1,7 +1,9 @@
-import type { ActivityKind, Feel, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, Pose } from '@aura/shared';
+import type { ActivityKind, Chapter, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, Pose } from '@aura/shared';
 import {
-  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision,
+  pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision, customType,
 } from 'drizzle-orm/pg-core';
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' });
 
 export const folders = pgTable('folders', {
   id: serial('id').primaryKey(),
@@ -170,6 +172,58 @@ export const lectureMaps = pgTable('lecture_maps', {
   costUsd: doublePrecision('cost_usd').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.courseId, t.begin)]);
+
+// The one Moodle account, bound through weblogin once. Only tokens are kept:
+// the app's, the flashcard plugin's, and the private one that buys a browser
+// session. refusedAt is set when Moodle stops taking them.
+export const moodle = pgTable('moodle', {
+  id: integer('id').primaryKey().default(1),
+  username: text('username').notNull(),
+  userId: integer('user_id').notNull(),
+  token: text('token').notNull(),
+  flashcardsToken: text('flashcards_token'),
+  privateToken: text('private_token'),
+  boundAt: timestamp('bound_at', { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  refusedAt: timestamp('refused_at', { withTimezone: true }),
+  // The Moodle courses last seen, by u:find number and term.
+  courses: jsonb('courses').$type<{ nr: string; semester: string; name: string; id: number }[]>().notNull().default([]),
+});
+
+// A folio: one PDF of a course, from Moodle (keyed by its file URL) or
+// dropped in by hand. The bytes and the text of each page live apart.
+export const folios = pgTable('folios', {
+  id: serial('id').primaryKey(),
+  nr: text('nr').notNull(),
+  semester: text('semester').notNull(),
+  title: text('title').notNull(),
+  kind: text('kind').$type<FolioKind>().notNull(),
+  source: text('source').$type<'moodle' | 'upload'>().notNull(),
+  moodleUrl: text('moodle_url').unique(),
+  section: text('section'),
+  size: integer('size').notNull(),
+  pages: integer('pages').notNull(),
+  outline: jsonb('outline').$type<Chapter[]>().notNull(),
+  modifiedAt: timestamp('modified_at', { withTimezone: true }).notNull(),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const folioFiles = pgTable('folio_files', {
+  folioId: integer('folio_id').primaryKey().references(() => folios.id, { onDelete: 'cascade' }),
+  pdf: bytea('pdf').notNull(),
+  texts: jsonb('texts').$type<string[]>().notNull(),
+});
+
+// A Moodle flashcard activity and how many of its cards sit in each box.
+export const decks = pgTable('decks', {
+  id: serial('id').primaryKey(),
+  nr: text('nr').notNull(),
+  semester: text('semester').notNull(),
+  cmid: integer('cmid').notNull().unique(),
+  instance: integer('instance').notNull(),
+  name: text('name').notNull(),
+  boxes: jsonb('boxes').$type<number[]>().notNull(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // The rewiring: the day planned as taps off the bus. A block lives on one
 // local day, in minutes after its midnight; shade 0 is the lightest grey.

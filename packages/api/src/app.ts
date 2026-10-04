@@ -16,12 +16,14 @@ import { academyRoutes } from './routes/academy.ts';
 import { blockRoutes } from './routes/blocks.ts';
 import { readingRoutes, type Shelf } from './routes/reading.ts';
 import { huntRoutes } from './routes/hunt.ts';
+import { folioRoutes } from './routes/folios.ts';
+import type { Http } from './academy/moodle.ts';
 import type { Fetch, Settings } from './academy/openrouter.ts';
 
 export function buildApp(
   db: Db,
   opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null>; openrouter?: Fetch; settings?: Settings;
-    goodreads?: { user?: string; shelf?: Shelf }; garmin?: string } = {},
+    goodreads?: { user?: string; shelf?: Shelf }; garmin?: string; moodle?: Http } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? true });
   app.setValidatorCompiler(validatorCompiler);
@@ -41,6 +43,7 @@ export function buildApp(
   app.register(huntRoutes, { db, prefix: '/api/v1', garmin: opts.garmin ?? process.env.GARMIN_URL });
   app.register(readingRoutes, { prefix: '/api/v1', user: opts.goodreads ? opts.goodreads.user : process.env.GOODREADS_USER, shelf: opts.goodreads?.shelf });
   app.register(academyRoutes, { db, prefix: '/api/v1', ufind: opts.ufind, openrouter: opts.openrouter, settings: opts.settings });
+  app.register(folioRoutes, { db, prefix: '/api/v1', http: opts.moodle });
 
   if (opts.webRoot) {
     app.register(fastifyStatic, { root: opts.webRoot });

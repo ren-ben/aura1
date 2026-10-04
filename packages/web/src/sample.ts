@@ -3,6 +3,7 @@
 import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
+import { sampleFolios } from './folios';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
 import { sampleHunt, type Hunt } from './hunt';
 import { verdict, bouts, partOf } from '@aura/shared';
@@ -174,6 +175,7 @@ const vigil: Vigil = {
   hours: { on: false, today: [406, 766, 1131, 0] },
 };
 let courses: Course[] = sampleCourses();
+const folios = sampleFolios();
 // Lecture maps: every one the same Newton, "written" over two polls.
 const maps: LectureMapDto[] = [];
 
@@ -325,6 +327,11 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       return;
     case 'GET /academy': return structuredClone(courses);
     case 'POST /academy/courses': throw new Error('the demo cannot reach u:find');
+    case 'GET /academy/folios': return structuredClone(folios);
+    case 'POST /academy/moodle': throw new Error('the demo cannot reach Moodle');
+    case 'POST /academy/moodle/sync': case 'DELETE /academy/moodle': return;
+    case 'PATCH /academy/folios': folios.folios = folios.folios.map((f) => (f.id === Number(seg[2]) ? { ...f, ...body } : f)); return;
+    case 'DELETE /academy/folios': folios.folios = folios.folios.filter((f) => f.id !== Number(seg[2])); return;
     case 'PATCH /academy/courses': case 'DELETE /academy/courses': {
       const cid = Number(seg[2]);
       if (method === 'DELETE') courses = courses.filter((c) => c.id !== cid);
