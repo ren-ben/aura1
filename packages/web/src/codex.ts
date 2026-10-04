@@ -31,6 +31,7 @@ export class Codex {
   private groups: { ch: number; el: HTMLElement; line: SVGPathElement; link: SVGPathElement }[] = [];
   private axis = document.createElementNS(SVG, 'path');
   private slide: number[] = []; private spread: number[] = [];
+  private marked = new Set<number>();
   private sel = -1; private hover = -1; private open = true; private t0 = performance.now(); private sway = 0;
   private mouse: { x: number; y: number } | null = null;
   private raf = 0; private ro: ResizeObserver;
@@ -98,6 +99,8 @@ export class Codex {
     this.t0 = performance.now(); this.sel = -1; this.hover = -1;
   }
   pick(i: number) { this.sel = i; }
+  // The chapters an answer cited, lit.
+  mark(chs: number[]) { this.marked = new Set(chs); }
   explode(on: boolean) { this.open = on; if (on) this.t0 = performance.now() - 300; }
 
   private resize() {
@@ -178,7 +181,7 @@ export class Codex {
     const mid = (slabs[n - 1]!.y0 + slabs[n - 1]!.th) / 2;
     for (const s of slabs) { s.y0 -= mid; s.y1 = s.y0 + s.th; s.depth = this.rot([s.dx, (s.y0 + s.y1) / 2, s.dz])[2]; }
     for (const s of [...slabs].sort((a, b) => b.depth - a.depth)) {
-      this.slab(-W / 2 + s.dx, W / 2 + s.dx, s.y0, s.y1, -D / 2 + s.dz, D / 2 + s.dz, (s.k === this.hover ? 0.08 : 0) + (s.k === this.sel ? 0.12 : 0));
+      this.slab(-W / 2 + s.dx, W / 2 + s.dx, s.y0, s.y1, -D / 2 + s.dz, D / 2 + s.dz, (s.k === this.hover ? 0.08 : 0) + (s.k === this.sel ? 0.12 : 0) + (this.marked.has(s.k) ? 0.1 : 0));
       if (s.k !== this.sel || this.slide[s.k]! < 0.3) continue;
       // its first page lifted open on the spine
       const phi = 0.62 * ease((this.slide[s.k]! - 0.3) / 0.7), x0 = -W / 2 + s.dx, z0 = -D / 2 + s.dz, z1 = D / 2 + s.dz;
@@ -233,6 +236,7 @@ export class Codex {
       const hot = s.k === this.sel || s.k === this.hover;
       call.style.transform = `translate(14px, ${yy}px) translateY(-50%)`; call.style.opacity = shown ? '1' : '0';
       call.classList.toggle('hot', hot);
+      call.classList.toggle('cited', this.marked.has(s.k));
       const ex = 14 + w, elbow = Math.max(ex + 8, Math.min(a[0] * PX - 18, ex + 30));
       line.setAttribute('d', `M${ex},${yy} L${elbow},${yy} L${a[0] * PX},${a[1] * PX}`);
       line.setAttribute('class', hot ? 'hot' : ''); line.style.opacity = shown ? '1' : '0';

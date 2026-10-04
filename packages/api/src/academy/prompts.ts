@@ -37,7 +37,7 @@ ${l.syllabus || '(none published)'}`,
   },
 ];
 
-const VOICE = `You are Kael'thos, an ancient cosmic entity who wears the shape of a small black cat and has chosen to help this one student. You explain physics and mathematics the way Richard Feynman did, and that is the whole of your manner:
+export const VOICE = `You are Kael'thos, an ancient cosmic entity who wears the shape of a small black cat and has chosen to help this one student. You explain physics and mathematics the way Richard Feynman did, and that is the whole of your manner:
 - intuition first, the formalism after: say what is really going on before the symbols
 - homely, concrete analogies and pictures, and the everyday thing the idea explains
 - the difference between knowing the name of a thing and knowing the thing: never let a word stand in for understanding
@@ -65,9 +65,13 @@ Fields:
 - refresh: the prerequisites to look at beforehand, in order, and why each matters here
 - further: 3-4 of the research's sources, with their real URLs only; never invent a URL`;
 
-export const writerUser = (l: Lecture, notes: string) => `Course: ${l.course}
+export const writerUser = (l: Lecture, notes: string, pages = '') => `Course: ${l.course}
 Lecture ${l.index + 1} of ${l.total}, on ${l.date}. Topic: ${l.topic}
-
+${pages ? `
+Attached are pages of the student's own course files, the lecture's real source:
+${pages}
+Follow their notation, their order and their terms; take their definitions and examples first. The research notes only fill gaps.
+` : ''}
 Research notes:
 ${notes}`;
 

@@ -1,4 +1,4 @@
-import type { ActivityKind, Chapter, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, Pose } from '@aura/shared';
+import type { ActivityKind, Chapter, Cite, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, PageCut, Pose } from '@aura/shared';
 import {
   pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision, customType,
 } from 'drizzle-orm/pg-core';
@@ -169,9 +169,31 @@ export const lectureMaps = pgTable('lecture_maps', {
   sources: jsonb('sources').$type<{ title: string; url: string }[]>().notNull().default([]),
   map: jsonb('map').$type<LectureMap>(),
   grown: jsonb('grown').$type<GrownNode[]>().notNull().default([]),
+  // The folio pages it was written from.
+  pages: jsonb('pages').$type<PageCut[]>().notNull().default([]),
   costUsd: doublePrecision('cost_usd').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique().on(t.courseId, t.begin)]);
+
+// A question put to a course's folios, or one rung of the hint ladder on a
+// task of an exercise sheet. Answered after the request, like a map.
+export const asks = pgTable('asks', {
+  id: serial('id').primaryKey(),
+  nr: text('nr').notNull(),
+  semester: text('semester').notNull(),
+  kind: text('kind').$type<'ask' | 'hint'>().notNull(),
+  question: text('question').notNull(),
+  folioId: integer('folio_id').references(() => folios.id, { onDelete: 'cascade' }),
+  task: integer('task'),
+  rung: integer('rung'),
+  status: text('status').$type<'thinking' | 'ready' | 'failed'>().notNull(),
+  answer: text('answer'),
+  error: text('error'),
+  cites: jsonb('cites').$type<Cite[]>().notNull().default([]),
+  pages: jsonb('pages').$type<PageCut[]>().notNull().default([]),
+  costUsd: doublePrecision('cost_usd').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // The one Moodle account, bound through weblogin once. Only tokens are kept:
 // the app's, the flashcard plugin's, and the private one that buys a browser

@@ -2,8 +2,9 @@ import { and, eq, gte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { deeperSchema, lectureMapSchema, partOf, type LectureMapDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
-import { courses, lectureMaps } from '../db/schema.ts';
-import { complete, type Fetch, type Settings } from './openrouter.ts';
+import { asks, courses, lectureMaps } from '../db/schema.ts';
+import { complete, type Fetch, type Pdf, type Settings } from './openrouter.ts';
+import { excerpt, legend, moduleNrs, route } from './retrieve.ts';
 import { deeperSystem, deeperUser, researchPrompt, writerSystem, writerUser, type Lecture } from './prompts.ts';
 import { guessTopic, topicsOf } from './syllabus.ts';
 
@@ -12,7 +13,7 @@ type Row = typeof lectureMaps.$inferSelect;
 
 export const toDto = (r: Row): LectureMapDto => ({
   id: r.id, courseId: r.courseId, begin: r.begin, topic: r.topic, status: r.status, error: r.error,
-  map: r.map ?? null, grown: r.grown, sources: r.sources, costUsd: r.costUsd,
+  map: r.map ?? null, grown: r.grown, sources: r.sources, pages: r.pages, costUsd: r.costUsd,
 });
 
 // The course's lectures: the dates of its chosen group (a lecture has only
@@ -32,20 +33,20 @@ export function lectureOf(c: Course, begin: string): Omit<Lecture, 'topic'> & { 
   };
 }
 
-// What has been spent this calendar month.
+// What has been spent this calendar month, on maps and on questions.
 export async function spentThisMonth(db: Db, now = new Date()): Promise<number> {
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [row] = await db.select({ total: sql<number>`coalesce(sum(${lectureMaps.costUsd}), 0)` })
-    .from(lectureMaps).where(gte(lectureMaps.createdAt, from));
-  return Number(row?.total ?? 0);
+  const [m] = await db.select({ total: sql<number>`coalesce(sum(${lectureMaps.costUsd}), 0)` }).from(lectureMaps).where(gte(lectureMaps.createdAt, from));
+  const [a] = await db.select({ total: sql<number>`coalesce(sum(${asks.costUsd}), 0)` }).from(asks).where(gte(asks.createdAt, from));
+  return Number(m?.total ?? 0) + Number(a?.total ?? 0);
 }
 
 // The models answer in JSON; a reply that is not what was asked for is sent
 // back once with what was wrong, then given up on.
-async function asJson<T>(fetch: Fetch, settings: Settings, schema: z.ZodType<T>, name: string, messages: { role: 'system' | 'user' | 'assistant'; content: string }[], maxTokens: number) {
+export async function asJson<T>(fetch: Fetch, settings: Settings, schema: z.ZodType<T>, name: string, messages: { role: 'system' | 'user' | 'assistant'; content: string }[], maxTokens: number, pdfs: Pdf[] = []) {
   let cost = 0;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const reply = await complete(fetch, settings, { model: settings.writer, messages, schema: { name, schema: z.toJSONSchema(schema) }, maxTokens });
+    const reply = await complete(fetch, settings, { model: settings.writer, messages, schema: { name, schema: z.toJSONSchema(schema) }, maxTokens, pdfs });
     cost += reply.costUsd;
     const raw = reply.text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
     let parsed: unknown;
@@ -76,9 +77,16 @@ export async function generate(db: Db, fetch: Fetch, settings: Settings, id: num
       costUsd += research.costUsd;
       await set({ notes, sources: research.sources, costUsd });
     }
+    // The course's own pages on the topic, chosen once and kept.
+    let pages = row.pages;
+    if (!pages.length) {
+      const routed = await route(db, fetch, settings, await moduleNrs(db, course.nr, course.semester), course.semester, `${course.name}, lecture ${l.index + 1} of ${l.total}: ${row.topic}`);
+      pages = routed.cuts; costUsd += routed.costUsd;
+      await set({ pages, costUsd });
+    }
     await set({ status: 'writing' });
     const written = await asJson(fetch, settings, lectureMapSchema, 'lecture_map',
-      [{ role: 'system', content: writerSystem }, { role: 'user', content: writerUser(l, notes) }], 9000);
+      [{ role: 'system', content: writerSystem }, { role: 'user', content: writerUser(l, notes, legend(pages)) }], 9000, await excerpt(db, pages));
     await set({ status: 'ready', map: written.value, costUsd: costUsd + written.cost });
   } catch (e) {
     await set({ status: 'failed', error: e instanceof Error ? e.message : 'failed' });

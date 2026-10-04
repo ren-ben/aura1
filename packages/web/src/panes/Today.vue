@@ -6,7 +6,7 @@ import Frame from '../components/Frame.vue';
 import RewiringSheet from '../components/RewiringSheet.vue';
 import Wiring, { type View } from '../components/Wiring.vue';
 import { actions, clock, dueBy, localDate, plan, state, today, type Todo } from '../store';
-import { dateShift, dayOf, hisLine, hours } from '../rewiring';
+import { dateShift, dayOf, hisLine, hm, hours, lecturesOn } from '../rewiring';
 import { narrow } from '../screen';
 
 defineProps<{ active: boolean }>();
@@ -35,6 +35,15 @@ const step = (n: number) => { day.value = dateShift(day.value, n); plan.show(day
 const dayName = computed(() => day.value === todayStr.value ? 'today'
   : new Date(`${day.value}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' }).toLowerCase().replace(',', ''));
 const wired = computed(() => dayOf(day.value));
+// A day without lectures says when the next one is, a step away.
+const next = computed(() => {
+  if (lecturesOn(day.value).length) return null;
+  for (let i = 1; i <= 21; i++) {
+    const d = dateShift(day.value, i), l = lecturesOn(d).filter((x) => !x.exam).sort((a, b) => a.start - b.start)[0];
+    if (l) return { date: d, label: `${new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit' }).toLowerCase().replace(',', '')} ${hm(l.start)} ${l.label}` };
+  }
+  return null;
+});
 const sheetOpen = ref(false);
 // The nocturne to wire the day in, the horologe to read it by; the last one
 // chosen is the one the console opens on.
@@ -116,6 +125,7 @@ const since = (iso: string | null) => {
         <button class="x open" @click="sheetOpen = true">open</button>
       </template>
       <Wiring v-model="view" :date="day" />
+      <button v-if="next" class="pix next" @click="day = next.date; plan.show(next.date, next.date)">no lectures {{ dayName }} // next: {{ next.label }}</button>
       <p class="fell said" :class="{ err: state.error }">{{ state.error ? `The line did not hold: ${state.error}` : hisLine(day) }}</p>
     </Frame>
     <RewiringSheet v-if="sheetOpen" @close="sheetOpen = false" />
@@ -135,6 +145,8 @@ const since = (iso: string | null) => {
 
 <style scoped>
 .today { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "hours list" "wire list" "wire hunger"; }
+.next { align-self: center; margin: 2px 12px 0; color: var(--dim); text-align: center; transition: color .3s var(--out); }
+.next:hover { color: var(--hi); }
 .hours { grid-area: hours; display: flex; flex-direction: column; min-height: 0; }
 .clock { font-size: clamp(64px, 8vw, 150px); margin: 8px 0 8px; }
 .sess { list-style: none; margin: 0; padding: 0; overflow: auto; max-height: 92px; }

@@ -3,10 +3,12 @@
 // time, its tome taken apart as the Exploded Codex. Drop a PDF anywhere on
 // it to file it under the course on screen.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
-import { FOLIO_KINDS, type FolioDto, type FolioKind } from '@aura/shared';
+import 'katex/dist/katex.min.css';
+import { FOLIO_KINDS, RUNGS, type AskDto, type Cite, type FolioDto, type FolioKind, type TaskDto } from '@aura/shared';
 import { Codex } from '../codex';
 import { KIND_LABEL, pdfUrl, shelvesOf, tomesOf, type Folios, type Plate } from '../folios';
-import { folioApi, state } from '../store';
+import { askApi, folioApi, state } from '../store';
+import { prose } from '../lecturemap';
 import { termOf } from '../academy';
 
 const props = defineProps<{ nr?: string }>();
@@ -123,13 +125,53 @@ async function chosen() {
   if (picker.value) picker.value.value = '';
 }
 
+// ---- asking: questions to the course's folios ------------------------------
+const asked = ref<AskDto[]>([]);
+async function loadAsks() {
+  const s = shelf.value;
+  asked.value = s ? await askApi.list(s.nrs, s.semester).catch(() => []) : [];
+}
+watch(() => shelf.value?.key, loadAsks);
+let askPoll = 0;
+watch(() => asked.value.some((a) => a.status === 'thinking'), (on) => { clearInterval(askPoll); if (on) askPoll = window.setInterval(loadAsks, 2500); });
+const question = ref('');
+const asking = ref(false);
+async function ask() {
+  const s = shelf.value, q = question.value.trim();
+  if (!s || q.length < 3 || asking.value) return;
+  asking.value = true; error.value = '';
+  try { await askApi.ask(s.nrs[0]!, s.semester, q); question.value = ''; await loadAsks(); } catch (e) { error.value = e instanceof Error ? e.message : 'he did not answer'; }
+  asking.value = false;
+}
+const questions = computed(() => asked.value.filter((a) => a.kind === 'ask'));
+async function forget(a: AskDto) { await askApi.forget(a.id); await loadAsks(); }
+const citeUrl = (c: Cite) => `/api/v1/academy/folios/${c.folioId}/pdf#page=${c.page}`;
+const short = (title: string) => title.replace(/\.pdf$/i, '');
+const reading = (a: AskDto) => (a.pages.length ? `reading ${a.pages.map((p) => `${short(p.title)} p ${p.from}${p.to > p.from ? `-${p.to}` : ''}`).join(', ')}` : 'finding the pages');
+// The chapters the latest answer cited light up in the drawing.
+watch([asked, tome], () => {
+  const f = tome.value?.folio, last = questions.value.find((a) => a.status === 'ready');
+  scene.value?.mark(f && last ? last.cites.filter((c) => c.folioId === f.id).map((c) => f.outline.findIndex((ch) => c.page >= ch.from && c.page <= ch.to)).filter((i) => i >= 0) : []);
+});
+
+// ---- the ladder on an exercise sheet or a past exam ----------------------
+const sheet = computed(() => (file.value && (file.value.kind === 'sheet' || file.value.kind === 'exam') ? file.value : null));
+const tasks = ref<TaskDto[]>([]);
+watch(sheet, async (f) => { tasks.value = f ? await askApi.tasks(f.id).catch(() => []) : []; }, { immediate: true });
+const rungsOf = (n: number) => asked.value.filter((a) => a.kind === 'hint' && a.folioId === sheet.value?.id && a.task === n).sort((a, b) => a.rung! - b.rung!);
+const climbed = (n: number) => rungsOf(n).filter((a) => a.status === 'ready').length;
+async function climb(n: number, rung: number) {
+  error.value = '';
+  try { await askApi.hint(sheet.value!.id, n, rung); await loadAsks(); } catch (e) { error.value = e instanceof Error ? e.message : 'no hint came'; }
+}
+
 const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (pick.value >= 0) pick.value = -1; else shut(); } };
 onMounted(async () => {
   window.addEventListener('keydown', key);
   scene.value = new Codex(stage.value!, choose);
   await load();
 });
-onBeforeUnmount(() => { window.removeEventListener('keydown', key); clearInterval(poll); scene.value?.dispose(); docs.forEach((d) => d.destroy()); });
+onBeforeUnmount(() => { window.removeEventListener('keydown', key); clearInterval(poll); clearInterval(askPoll); scene.value?.dispose(); docs.forEach((d) => d.destroy()); });
 const plateLink = (p: Plate) => (p.folio ? pdfUrl(p.folio) : null);
 </script>
 
@@ -210,6 +252,40 @@ const plateLink = (p: Plate) => (p.folio ? pdfUrl(p.folio) : null);
                 </component>
               </div>
             </section>
+
+            <section v-if="sheet" class="ladder">
+              <span class="pix">the ladder // {{ sheet.title }}</span>
+              <p class="note">One rung at a time: where it stands, a nudge, the next step, and only then the whole solution.</p>
+              <div v-for="t in tasks" :key="t.n" class="task">
+                <b class="fell">{{ t.n ? `Aufgabe ${t.n}` : 'The whole sheet' }}</b><span v-if="t.n" class="note">{{ t.title }}</span>
+                <div class="rungs">
+                  <button v-for="(r, i) in RUNGS" :key="r" class="rung" :class="{ done: rungsOf(t.n)[i]?.status === 'ready', busy: rungsOf(t.n)[i]?.status === 'thinking' }"
+                          :disabled="!!rungsOf(t.n)[i] || i > climbed(t.n)" @click="climb(t.n, i + 1)">{{ r }}</button>
+                </div>
+                <div v-for="h in rungsOf(t.n)" :key="h.id" class="said">
+                  <span class="pix">{{ RUNGS[h.rung! - 1] }}</span>
+                  <div v-if="h.answer" class="prose" v-html="prose(h.answer)"></div>
+                  <p v-else-if="h.status === 'thinking'" class="note thinking">{{ reading(h) }}</p>
+                  <p v-else class="note err">{{ h.error }}</p>
+                  <span v-if="h.cites.length" class="cites"><a v-for="c in h.cites" :key="`${c.folioId}.${c.page}`" :href="citeUrl(c)" target="_blank" rel="noopener">{{ short(c.title) }} p {{ c.page }}</a></span>
+                </div>
+              </div>
+            </section>
+
+            <section v-if="shelf" class="asking">
+              <span class="pix">ask kael&apos;thos // from the folios of {{ shelf.label }}</span>
+              <form class="askform" @submit.prevent="ask">
+                <label class="lab" for="cx-q"><span>your question</span><textarea id="cx-q" v-model="question" class="field" rows="2" placeholder="Warum ist das Integral von 1/x gleich ln|x|?" @keydown.ctrl.enter.prevent="ask" @keydown.meta.enter.prevent="ask"></textarea></label>
+                <button class="btn" :class="{ busy: asking }" :disabled="asking || question.trim().length < 3">ask</button>
+              </form>
+              <article v-for="a in questions" :key="a.id" class="said">
+                <p class="q fell">{{ a.question }}<button class="x" aria-label="forget this question" @click="forget(a)">forget</button></p>
+                <div v-if="a.answer" class="prose" v-html="prose(a.answer)"></div>
+                <p v-else-if="a.status === 'thinking'" class="note thinking">{{ reading(a) }}</p>
+                <p v-else class="note err">{{ a.error }}</p>
+                <span v-if="a.cites.length" class="cites"><a v-for="c in a.cites" :key="`${c.folioId}.${c.page}`" :href="citeUrl(c)" target="_blank" rel="noopener">{{ short(c.title) }} p {{ c.page }}</a></span>
+              </article>
+            </section>
           </aside>
         </div>
       </section>
@@ -287,6 +363,30 @@ a.plate:hover { border-color: var(--phos); }
 .plate i { font-style: normal; color: var(--hi); }
 .plate b { display: block; font: 400 12px/1.3 var(--mono); color: var(--phos); overflow-wrap: anywhere; }
 .plate em { font-style: normal; }
+
+.ladder, .asking { display: grid; gap: 10px; padding-top: 14px; border-top: 3px dotted var(--low); }
+.task { display: grid; gap: 6px; }
+.task > b { font-size: 17px; color: var(--hi); font-weight: 400; }
+.rungs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.rung { border: 2px solid var(--low); padding: 5px 4px; font: 400 9px/1.2 var(--pix); text-transform: uppercase; color: var(--dim); transition: border-color .3s var(--out), color .3s var(--out); }
+.rung:not(:disabled):hover { border-color: var(--phos); color: var(--hi); }
+.rung:disabled { cursor: default; }
+.rung.done { border-color: var(--phos); color: var(--phos); }
+.rung.busy { border-style: dashed; color: var(--hi); }
+.askform { display: grid; gap: 8px; }
+.askform textarea { resize: vertical; font: 400 15px/1.35 var(--fell); }
+.said { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--low); background: var(--ground); }
+.said .q { margin: 0; display: flex; justify-content: space-between; gap: 10px; font-size: 16px; color: var(--hi); font-style: italic; }
+.prose { font-size: 13px; line-height: 1.55; color: var(--phos); overflow-wrap: anywhere; }
+.prose :deep(.para) { margin: 0 0 8px; }
+.prose :deep(.para:last-child) { margin-bottom: 0; }
+.prose :deep(.tex) { overflow-x: auto; margin: 4px 0; color: var(--hi); }
+.thinking::after { content: '...'; animation: dots 1.2s steps(1) infinite; }
+@keyframes dots { 50% { opacity: 0; } }
+.cites { display: flex; flex-wrap: wrap; gap: 4px; }
+.cites a { border: 1px solid var(--low); padding: 2px 6px; font: 400 9.5px var(--pix); text-transform: uppercase; color: var(--hi); text-decoration: none; }
+.cites a:hover { border-color: var(--phos); }
+.cx-stage :deep(.cx-call.cited) { border-color: var(--phos); box-shadow: 0 0 0 1px var(--phos); }
 
 @media (max-width: 900px) {
   .cx { width: 100vw; height: 100dvh; border: 0; }

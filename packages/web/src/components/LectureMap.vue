@@ -464,6 +464,7 @@ const GLYPHS: Record<Kind, string> = {
                 <li v-for="(r, j) in map.refresh" :key="j"><span><b v-html="rich(r.topic)"></b> <span class="note" v-html="rich(r.why)"></span></span><button class="more" :disabled="!!growing" title="deeper on this" @click="deeper(`refresh.${j}`, 'prerequisite', r.topic, r.why)">+</button></li>
               </ol>
               <ul v-else-if="k === 'further'" class="further">
+                <li v-for="p in dto!.pages" :key="`${p.folioId}.${p.from}`"><a :href="`/api/v1/academy/folios/${p.folioId}/pdf#page=${p.from}`" target="_blank" rel="noopener">{{ p.title.replace(/\.pdf$/i, '') }}, S. {{ p.from }}{{ p.to > p.from ? `-${p.to}` : '' }}</a><span class="note">aus deinen Unterlagen, gelesen für diese Karte</span></li>
                 <li v-for="(f, j) in map.further" :key="j"><a :href="f.url" target="_blank" rel="noopener">{{ f.title }}</a><span class="note" v-html="rich(f.note)"></span></li>
               </ul>
               <footer><button class="grow" :class="{ on: growing === k }" :disabled="!!growing" @click="deeperCard(k)">{{ growing === k ? 'wächst' : 'tiefer' }}</button></footer>

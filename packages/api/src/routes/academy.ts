@@ -1,13 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { CURRICULUM, FIRST_TERM, guessModule, type LectureDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
-import { courses, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
+import { courses, folios, lectureMaps, type CourseExam, type CourseGroup } from '../db/schema.ts';
 import { deeper, generate, lectureOf, settleStale, spentThisMonth, toDto } from '../academy/maps.ts';
 import { settingsFromEnv, type Fetch, type Settings } from '../academy/openrouter.ts';
-import { parseSyllabus, topicsOf } from '../academy/syllabus.ts';
+import { guessTopic, parseSyllabus, topicsOf } from '../academy/syllabus.ts';
+import { moduleNrs } from '../academy/retrieve.ts';
 
 const idParams = z.object({ id: z.coerce.number().int().positive() });
 const moduleCode = z.enum(CURRICULUM.map((m) => m.code) as [string, ...string[]]);
@@ -211,7 +212,14 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
     if (!lecture) return reply.code(404).send({ message: 'no such lecture' });
     await settleStale(db);
     const [row] = await db.select().from(lectureMaps).where(and(eq(lectureMaps.courseId, courseId), eq(lectureMaps.begin, begin)));
-    const dto: LectureDto = { courseId, begin, index: lecture.index, total: lecture.total, guess: lecture.guess, topics: topicsOf(lecture.syllabus), map: row ? toDto(row) : null };
+    // With a Skript in the folios, its chapters are the topics, and the guess
+    // is taken from them.
+    const [skript] = course ? await db.select({ outline: folios.outline }).from(folios)
+      .where(and(inArray(folios.nr, await moduleNrs(db, course.nr, course.semester)), eq(folios.semester, course.semester), eq(folios.kind, 'skript')))
+      .orderBy(desc(folios.modifiedAt)).limit(1) : [];
+    const topics = skript && skript.outline.length > 1 ? skript.outline.map((c) => c.title) : topicsOf(lecture.syllabus);
+    const guess = skript && skript.outline.length > 1 ? guessTopic(course!.name, topics, lecture.index, lecture.total) : lecture.guess;
+    const dto: LectureDto = { courseId, begin, index: lecture.index, total: lecture.total, guess, topics, map: row ? toDto(row) : null };
     return dto;
   });
 
@@ -230,7 +238,7 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
     // Rewritten, the map and what grew out of it go.
     const same = existing && existing.topic === topic;
     const [row] = existing
-      ? await db.update(lectureMaps).set({ topic, status: 'researching', error: null, map: null, grown: [], createdAt: new Date(), ...(same ? {} : { notes: null, sources: [] }) })
+      ? await db.update(lectureMaps).set({ topic, status: 'researching', error: null, map: null, grown: [], createdAt: new Date(), ...(same ? {} : { notes: null, sources: [], pages: [] }) })
         .where(eq(lectureMaps.id, existing.id)).returning()
       : await db.insert(lectureMaps).values({ courseId, begin, topic, status: 'researching' }).returning();
     void generate(db, openrouter, settings, row!.id);

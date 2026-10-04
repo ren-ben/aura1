@@ -327,8 +327,10 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       return;
     case 'GET /academy': return structuredClone(courses);
     case 'POST /academy/courses': throw new Error('the demo cannot reach u:find');
-    case 'GET /academy/folios': return structuredClone(folios);
+    case 'GET /academy/folios': return seg[3] === 'tasks' ? [{ n: 1, title: 'Grenzwerte', page: 1 }, { n: 2, title: 'Ableitungen', page: 1 }] : structuredClone(folios);
     case 'POST /academy/moodle': throw new Error('the demo cannot reach Moodle');
+    case 'GET /academy/asks': return [];
+    case 'POST /academy/asks': case 'POST /academy/hints': throw new Error("the demo has no OpenRouter key; Kael'thos stays silent");
     case 'POST /academy/moodle/sync': case 'DELETE /academy/moodle': return;
     case 'PATCH /academy/folios': folios.folios = folios.folios.map((f) => (f.id === Number(seg[2]) ? { ...f, ...body } : f)); return;
     case 'DELETE /academy/folios': folios.folios = folios.folios.filter((f) => f.id !== Number(seg[2])); return;
@@ -352,7 +354,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
         m.grown.push(...SAMPLE_DEEPER.nodes.map((x, i) => ({ ...x, id: `${body.node.key}.g${n + i}`, parent: body.node.key })));
         return structuredClone(m);
       }
-      const m: LectureMapDto = { id: nextId++, courseId: body.courseId, begin: body.begin, topic: body.topic, status: 'researching', error: null, map: null, grown: [], sources: [], costUsd: 0 };
+      const m: LectureMapDto = { id: nextId++, courseId: body.courseId, begin: body.begin, topic: body.topic, status: 'researching', error: null, map: null, grown: [], sources: [], pages: [], costUsd: 0 };
       maps.push(m);
       return structuredClone(m);
     }

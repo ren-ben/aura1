@@ -12,6 +12,16 @@ export const tex = (s: string, display = false) => katex.renderToString(s, { thr
 export const rich = (s: string) => s.split(/(\$[^$]+\$)/g)
   .map((part) => (/^\$[^$]+\$$/.test(part) ? tex(part.slice(1, -1)) : escape(part))).join('');
 
+// An answer: paragraphs split by a blank line, an equation alone on its line
+// as $$...$$ shown displayed, the rest as rich text.
+export const prose = (s: string) => s.trim().split(/\n\s*\n/).map((para) => {
+  const lines = para.split('\n').map((line) => {
+    const eq = line.trim().match(/^\$\$([\s\S]+)\$\$$/);
+    return eq ? `<div class="tex">${tex(eq[1]!, true)}</div>` : rich(line);
+  });
+  return `<div class="para">${lines.join('<br>').replace(/<br>(?=<div)|(?<=<\/div>)<br>/g, '')}</div>`;
+}).join('');
+
 // ---- plots -----------------------------------------------------------------
 // An expression in x and t, read into a function by hand: numbers, x, t, pi,
 // e, + - * / ^, brackets and a handful of functions. Nothing else is ever

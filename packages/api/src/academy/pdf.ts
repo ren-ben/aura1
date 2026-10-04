@@ -10,7 +10,7 @@ P.withResolvers ??= () => { let resolve, reject; const promise = new Promise((a,
 
 export async function readPdf(bytes: Uint8Array, title: string): Promise<{ pages: number; outline: Chapter[]; texts: string[] }> {
   // pdf.js takes the buffer over; it gets a copy.
-  const task = getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: false });
+  const task = getDocument({ data: bytes.slice(), useSystemFonts: false });
   const doc = await task.promise;
   try {
     const pages = doc.numPages;

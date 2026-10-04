@@ -53,6 +53,8 @@ export type LectureMapDto = {
   map: LectureMap | null;
   grown: GrownNode[];
   sources: { title: string; url: string }[];
+  // The pages of the student's own folios the map was written from.
+  pages: { folioId: number; title: string; from: number; to: number }[];
   costUsd: number;
 };
 

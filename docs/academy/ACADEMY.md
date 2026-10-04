@@ -179,6 +179,22 @@ your course material over everything: the Exploded Codex.
    course on screen. Change what a file is (skript, exercise sheet, slides,
    past exam, other) in the panel; files you added yourself can be struck.
 
+**Ask Kael'thos**, at the foot of the panel: a question about the course on
+screen. He finds the pages of its folios that answer it (the lecture's Skript
+serves its exercise class too), reads them as printed, equations and all,
+and answers with the pages he used; each opens the PDF at that page. The
+chapters he cited light up in the codex.
+
+**The ladder**, on an exercise sheet or a past exam: each task (read off
+"Aufgabe 1", "Aufgabe 2"...) has four rungs. *Where it stands* points to the
+Skript pages and the idea; *a nudge* says how to approach it; *the next step*
+writes out only the next step; *show me* is the whole solution. Each opens
+only after the one before, so you still solve it yourself.
+
+**Lecture maps** now read your Skript too: its chapters become the topics in
+the letter, the pages for the lecture go to Kael'thos as its real source, and
+the map lists them under *further*.
+
 If Moodle stops taking the token (you changed your password), the panel says
 so and asks you to bind again; the files already read stay.
 

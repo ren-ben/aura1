@@ -32,8 +32,10 @@ export function shapeOf(schema: unknown): unknown {
     .map(([k, v]) => [k, k === 'minItems' ? Math.min(Number(v), 1) : k === 'properties' ? Object.fromEntries(Object.entries(v as object).map(([p, x]) => [p, shapeOf(x)])) : shapeOf(v)]));
 }
 
+// PDFs go along with the last message, read by the model itself.
+export type Pdf = { name: string; base64: string };
 export async function complete(fetch: Fetch, settings: Settings, body: {
-  model: string; messages: Message[]; web?: boolean; schema?: { name: string; schema: unknown }; maxTokens?: number;
+  model: string; messages: Message[]; web?: boolean; schema?: { name: string; schema: unknown }; maxTokens?: number; pdfs?: Pdf[];
 }): Promise<Reply> {
   if (!settings.key) throw new OpenRouterError('no OpenRouter key is set on the server (OPENROUTER_API_KEY)');
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -46,10 +48,14 @@ export async function complete(fetch: Fetch, settings: Settings, body: {
     },
     body: JSON.stringify({
       model: body.model,
-      messages: body.messages,
+      messages: body.pdfs?.length
+        ? body.messages.map((m, i) => (i === body.messages.length - 1
+          ? { ...m, content: [{ type: 'text', text: m.content }, ...body.pdfs!.map((f) => ({ type: 'file', file: { filename: f.name, file_data: `data:application/pdf;base64,${f.base64}` } }))] }
+          : m))
+        : body.messages,
       max_tokens: body.maxTokens ?? 8000,
       usage: { include: true },
-      ...(body.web ? { plugins: [{ id: 'web', max_results: 6 }] } : {}),
+      ...(body.web ? { plugins: [{ id: 'web', max_results: 6 }] } : body.pdfs?.length ? { plugins: [{ id: 'file-parser', pdf: { engine: 'native' } }] } : {}),
       ...(body.schema ? { response_format: { type: 'json_schema', json_schema: { name: body.schema.name, strict: true, schema: shapeOf(body.schema.schema) } } } : {}),
     }),
     signal: AbortSignal.timeout(180_000),

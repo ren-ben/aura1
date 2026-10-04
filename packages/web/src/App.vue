@@ -531,6 +531,11 @@ onBeforeUnmount(() => {
   .hud .mini { font-size: 9.5px; }
 }
 @media (max-width: 1180px) { .hud .where, .hud .mini i { display: none; } }
+/* On a tablet the foot of the screen belongs to the system (its swipes go
+   home), so search and the web sit at the top right instead. */
+@media (pointer: coarse) and (min-width: 861px) {
+  .hud .tools { top: 0; bottom: auto; left: auto; right: 0; transform: none; }
+}
 @media (max-width: 860px) {
   .pane { padding: calc(64px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
                   calc(92px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }

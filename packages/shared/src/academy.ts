@@ -82,3 +82,18 @@ export function guessKind(title: string, section = ''): FolioKind {
   if (/folie|slide|foliensatz|kapitel|vorlesung/.test(t)) return 'slides';
   return 'other';
 }
+
+// Phase 2: pages of the folios behind a map, an answer or a hint
+// (docs/superpowers/specs/2026-10-04-rag-design.md).
+export type PageCut = { folioId: number; title: string; from: number; to: number };
+export type Cite = { folioId: number; title: string; page: number };
+// The hint ladder: where it is in the Skript, a nudge, the next step, and
+// the worked solution, each only after the one before.
+export const RUNGS = ['where it stands', 'a nudge', 'the next step', 'show me'] as const;
+export type AskDto = {
+  id: number; nr: string; semester: string; kind: 'ask' | 'hint'; question: string;
+  folioId: number | null; task: number | null; rung: number | null;
+  status: 'thinking' | 'ready' | 'failed'; answer: string | null; error: string | null;
+  cites: Cite[]; pages: PageCut[]; costUsd: number; createdAt: string;
+};
+export type TaskDto = { n: number; title: string; page: number };

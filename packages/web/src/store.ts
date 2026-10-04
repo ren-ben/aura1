@@ -1,7 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
-import type { GrownNode, LectureDto, LectureMapDto, MapMark } from '@aura/shared';
+import type { AskDto, GrownNode, LectureDto, LectureMapDto, MapMark, TaskDto } from '@aura/shared';
 import { demoApi } from './sample';
 import type { Folios } from './folios';
 import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
@@ -196,6 +196,16 @@ export const folioApi = {
     const res = await fetch(`/api/v1/academy/folios?${q}`, { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
     if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `upload: HTTP ${res.status}`);
   },
+};
+
+// Questions to the folios and the hint ladder, answered after the request.
+export const askApi = {
+  list: (nrs: string[], semester: string) => call<AskDto[]>('GET', `/academy/asks?nrs=${nrs.join(',')}&semester=${semester}`),
+  get: (id: number) => call<AskDto>('GET', `/academy/asks/${id}`),
+  ask: (nr: string, semester: string, question: string) => call<AskDto>('POST', '/academy/asks', { nr, semester, question }),
+  hint: (folioId: number, task: number, rung: number) => call<AskDto>('POST', '/academy/hints', { folioId, task, rung }),
+  forget: (id: number) => call('DELETE', `/academy/asks/${id}`),
+  tasks: (folioId: number) => call<TaskDto[]>('GET', `/academy/folios/${folioId}/tasks`),
 };
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.
