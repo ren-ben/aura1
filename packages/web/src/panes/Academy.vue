@@ -642,13 +642,12 @@ function openBlock(b: { course: Course; begin: string; mappable: boolean; module
 }
 // The day drawn only as long as the week's dates need, so a lecture card is
 // tall enough to read.
-// The hours drawn: only as many as the week's dates use (at least five),
-// so a lecture is tall enough to read in a small frame.
+// The hours drawn: the whole teaching day, eight to seven, and wider when a
+// date runs outside it; the frame scrolls when they do not all fit.
 const span = computed(() => {
   const sl = theWeek.value.slots;
-  if (!sl.length) return { h0: 9, h1: 15 };
-  const h0 = Math.floor(Math.min(...sl.map((e) => hm(e.from))));
-  return { h0, h1: Math.max(h0 + 5, Math.ceil(Math.max(...sl.map((e) => hm(e.to))))) };
+  const h0 = Math.min(8, ...sl.map((e) => Math.floor(hm(e.from))));
+  return { h0, h1: Math.max(19, ...sl.map((e) => Math.ceil(hm(e.to)))) };
 });
 const hourMarks = computed(() => Array.from({ length: span.value.h1 - span.value.h0 + 1 }, (_, i) => span.value.h0 + i));
 const at = (h: number) => ((h - span.value.h0) / (span.value.h1 - span.value.h0)) * 100;
@@ -786,7 +785,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
             <span></span>
             <span v-for="d in dates" :key="d.label" class="tt-day" :class="{ today: d.today }"><span class="pix">{{ d.day }}</span><b class="tek">{{ d.date }}</b></span>
           </div>
-          <div class="tt-body">
+          <div class="tt-body" :style="{ '--hours': span.h1 - span.h0 }">
             <div class="tt-rules" aria-hidden="true">
               <span v-for="h in hourMarks" :key="h" class="rule" :class="{ even: h % 2 === 0 }" :style="{ top: `${at(h)}%` }"><em class="pix">{{ String(h).padStart(2, '0') }}</em></span>
             </div>
@@ -951,14 +950,14 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 @keyframes word { from { opacity: 0; transform: translateX(6px); } 25% { opacity: 1; transform: none; } 80% { opacity: 1; } to { opacity: 0; } }
 .week { min-height: 0; }
 .week :deep(.flush) { display: flex; flex-direction: column; }
-.tt { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px 12px 10px 8px; }
+.tt { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px 12px 10px 8px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
 .tt-head, .tt-cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 6px; }
-.tt-head { grid-template-columns: 30px repeat(5, minmax(0, 1fr)); padding-bottom: 6px; border-bottom: 3px dotted var(--low); }
+.tt-head { grid-template-columns: 30px repeat(5, minmax(0, 1fr)); padding-bottom: 6px; border-bottom: 3px dotted var(--low); position: sticky; top: -6px; z-index: 2; background: var(--ground); }
 .tt-day { display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 2px 0; }
 .tt-day .tek { font-size: 15px; color: var(--phos); }
 .tt-day.today { background: var(--faint); }
 .tt-day.today .pix, .tt-day.today .tek { color: var(--hi); }
-.tt-body { position: relative; min-height: 0; margin-top: 8px; margin-bottom: 6px; }
+.tt-body { position: relative; min-height: calc(var(--hours) * 34px); margin-top: 8px; margin-bottom: 6px; }
 .tt-rules { position: absolute; inset: 0; pointer-events: none; }
 .rule { position: absolute; left: 30px; right: 0; border-top: 1px dotted var(--faint); }
 .rule.even { border-top-color: var(--low); }

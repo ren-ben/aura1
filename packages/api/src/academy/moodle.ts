@@ -97,7 +97,10 @@ export async function session(http: Http, token: string, privateToken: string, u
 // A course's shortname: "WS2026-261603-1" is 2026W, course 261603, group 1.
 export function courseOf(shortname: string): { nr: string; semester: string } | null {
   const m = shortname.match(/^(WS|SS)(\d{4})-(\d{6})-\d+/);
-  return m ? { nr: m[3]!, semester: `${m[2]}${m[1] === 'WS' ? 'W' : 'S'}` } : null;
+  if (m) return { nr: m[3]!, semester: `${m[2]}${m[1] === 'WS' ? 'W' : 'S'}` };
+  // Or as a full name has it: "2026W 260162-5 Analysis 1".
+  const f = shortname.match(/^(\d{4})([WS])\s+(\d{6})-\d+/);
+  return f ? { nr: f[3]!, semester: `${f[1]}${f[2]}` } : null;
 }
 
 type Contents = { name: string; modules?: { id: number; instance: number; name: string; modname: string; contents?: { type: string; filename: string; fileurl: string; mimetype?: string; filesize: number; timemodified: number }[] }[] }[];
@@ -176,5 +179,6 @@ export const download = async (http: Http, url: string, token: string) => {
   const bytes = new Uint8Array(await res.arrayBuffer());
   // A refused token comes back as a JSON error, not a PDF.
   if (bytes[0] === 0x7b) throw new Refused('Moodle refused the token for a file');
+  if (String.fromCharCode(...bytes.slice(0, 5)) !== '%PDF-') throw new MoodleError(`Moodle sent ${res.headers.get('content-type') ?? 'something'} instead of a PDF`);
   return bytes;
 };

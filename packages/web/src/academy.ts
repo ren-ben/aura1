@@ -68,7 +68,8 @@ export function week(courses: Course[], now = new Date()): { monday: Date; slots
     return (g?.events ?? []).map((e) => ({ c, e, begin: new Date(e.begin) }));
   });
   const mondayOf = (d: Date) => { const m = new Date(d); m.setHours(0, 0, 0, 0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m; };
-  let monday = mondayOf(now);
+  // Saturday and Sunday look ahead: the week just gone is over.
+  let monday = mondayOf((now.getDay() + 6) % 7 >= 5 ? new Date(now.getTime() + 2 * 864e5) : now);
   const inWeek = (m: Date) => events.filter((e) => e.begin >= m && e.begin.getTime() < m.getTime() + 5 * 864e5);
   // A week with nothing in it yet (before the term, or a break) shows the
   // next one that has: of that week and the one after, the fuller, so a term

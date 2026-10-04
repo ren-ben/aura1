@@ -136,15 +136,15 @@ onBeforeUnmount(() => removeEventListener('keydown', key));
 <template>
   <Teleport to="body">
     <div class="post-back" @pointerdown.self="emit('close')">
-      <section class="post" role="dialog" aria-modal="true" aria-label="The post: your university mail">
+      <section class="mailsky" role="dialog" aria-modal="true" aria-label="The post: your university mail">
         <div ref="stageEl" class="heavens">
-          <Gl :build="build" :active="true" :options="{ px: narrow ? 1 : 2, fov: 55, drift: 0.0004, tilt: 0, yaw: 0 }" label="Your university mail as a night sky: a constellation for each sender, a star for each letter." hint="drag to turn the sky // click a star" />
+          <Gl :build="build" :active="true" :options="{ px: narrow ? 1 : 2, fov: 55, drift: 0.0004, tilt: 0, yaw: 0, speed: 0.0028 }" label="Your university mail as a night sky: a constellation for each sender, a star for each letter." hint="drag to turn the sky // click a star" />
           <div ref="labels" class="labels"></div>
           <div v-if="tip && letters[tip.i]" class="tip" :style="{ left: `${tip.x}px`, top: `${tip.y}px` }">
             <span class="pix">{{ sender(letters[tip.i]!) }} // {{ day(letters[tip.i]!.date) }}</span>
             <b>{{ letters[tip.i]!.subject || '(no subject)' }}</b>
           </div>
-          <div class="hud" :class="{ away: reading }">
+          <div class="sky-hud" :class="{ away: reading }">
             <div class="count"><b class="tek">{{ mail?.unread ?? 0 }}</b><span class="pix">unread // checked {{ checked }}</span></div>
             <button class="btn quiet" @click="emit('close')">close</button>
           </div>
@@ -215,69 +215,69 @@ onBeforeUnmount(() => removeEventListener('keydown', key));
 <style>
 .post-back { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; background: rgba(12, 11, 10, .72); backdrop-filter: blur(6px) grayscale(1); animation: po-fade .45s var(--out); }
 @keyframes po-fade { from { opacity: 0; } }
-.post { --paper: #d3cbba; --ink: #161514; --ink2: #4a463f; --type: 'Special Elite', 'Courier New', monospace;
+.mailsky { --paper: #d3cbba; --ink: #161514; --ink2: #4a463f; --type: 'Special Elite', 'Courier New', monospace;
   position: relative; width: min(98vw, 1600px); height: 94vh; border: 3px dotted var(--low); background: var(--ground); display: grid; grid-template-columns: minmax(0, 1fr) 360px; overflow: hidden; animation: po-open .7s var(--ease); }
 @keyframes po-open { from { clip-path: inset(49% 30% 49% 30%); opacity: .3; } 60% { clip-path: inset(0 0 0 0); } }
-.post .heavens { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
-.post .heavens .hint { left: 14px; right: auto; }
-.post .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.post .constellation { position: absolute; left: 0; top: 0; white-space: nowrap; font: 400 10px var(--pix); color: var(--phos); text-transform: uppercase; letter-spacing: .06em; padding: 2px 4px; transition: opacity .3s, color .25s; }
-.post .constellation:hover { color: var(--hi); }
-.post .constellation i { font-style: normal; color: var(--ground); background: var(--hi); padding: 0 4px; margin-left: 6px; }
-.post .tip { position: absolute; pointer-events: none; background: var(--ground); border: 2px solid var(--phos); padding: 6px 9px; max-width: 280px; transform: translate(-50%, calc(-100% - 16px)); z-index: 3; animation: po-fade .18s; }
-.post .tip b { display: block; font: 400 15px/1.25 var(--fell); color: var(--hi); }
-.post .hud { position: absolute; left: 14px; top: 12px; right: 14px; display: flex; justify-content: space-between; align-items: start; pointer-events: none; transition: opacity .3s; }
-.post .hud > * { pointer-events: auto; }
-.post .hud.away { opacity: 0; }
-.post .hud.away > * { pointer-events: none; }
-.post .hud .count { display: grid; gap: 2px; }
-.post .hud .count b { font-size: 38px; }
-.post .unset { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, 90%); background: var(--ground); border: 2px solid var(--phos); padding: 18px 20px; display: grid; gap: 8px; }
-.post .unset b { font: 400 22px var(--fell); color: var(--hi); }
-.post .unset p { margin: 0; color: var(--phos); }
-.post .unset code { color: var(--hi); }
+.mailsky .heavens { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.mailsky .heavens .hint { left: 14px; right: auto; }
+.mailsky .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.mailsky .constellation { position: absolute; left: 0; top: 0; white-space: nowrap; font: 400 10px var(--pix); color: var(--phos); text-transform: uppercase; letter-spacing: .06em; padding: 2px 4px; transition: opacity .3s, color .25s; }
+.mailsky .constellation:hover { color: var(--hi); }
+.mailsky .constellation i { font-style: normal; color: var(--ground); background: var(--hi); padding: 0 4px; margin-left: 6px; }
+.mailsky .tip { position: absolute; pointer-events: none; background: var(--ground); border: 2px solid var(--phos); padding: 6px 9px; max-width: 280px; transform: translate(-50%, calc(-100% - 16px)); z-index: 3; animation: po-fade .18s; }
+.mailsky .tip b { display: block; font: 400 15px/1.25 var(--fell); color: var(--hi); }
+.mailsky .sky-hud { position: absolute; left: 14px; top: 12px; right: 14px; display: flex; justify-content: space-between; align-items: start; pointer-events: none; transition: opacity .3s; }
+.mailsky .sky-hud > * { pointer-events: auto; }
+.mailsky .sky-hud.away { opacity: 0; }
+.mailsky .sky-hud.away > * { pointer-events: none; }
+.mailsky .sky-hud .count { display: grid; gap: 2px; }
+.mailsky .sky-hud .count b { font-size: 38px; }
+.mailsky .unset { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, 90%); background: var(--ground); border: 2px solid var(--phos); padding: 18px 20px; display: grid; gap: 8px; }
+.mailsky .unset b { font: 400 22px var(--fell); color: var(--hi); }
+.mailsky .unset p { margin: 0; color: var(--phos); }
+.mailsky .unset code { color: var(--hi); }
 
-.post .reader { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; z-index: 4; }
-.post .sheet { position: relative; width: min(620px, 100%); height: min(680px, 88%); overflow-y: auto; scrollbar-width: thin; background: var(--paper); color: var(--ink); padding: 26px 30px 22px; font: 400 16px/1.6 var(--fell); box-shadow: 0 30px 60px rgba(0, 0, 0, .55); display: flex; flex-direction: column; }
-.post .sheet.pre { visibility: hidden; }
-.post .sheet .mark { position: absolute; right: 18px; top: 14px; width: 92px; height: 92px; color: var(--ink); font-family: var(--type); pointer-events: none; }
-.post .sheet .lh { display: grid; grid-template-columns: auto 1fr; gap: 1px 14px; font: 400 12px/1.5 var(--type); padding: 0 92px 12px 0; margin-bottom: 14px; border-bottom: 1.5px solid var(--ink); }
-.post .sheet .lh span { color: var(--ink2); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; padding-top: 2px; }
-.post .sheet .lh b { font-weight: 400; overflow-wrap: anywhere; }
-.post .sheet .lh i { font-style: normal; color: var(--ink2); }
-.post .sheet h3 { margin: 0 0 10px; font: 400 24px/1.15 var(--fell); }
-.post .sheet .words { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; flex: 1; }
-.post .sheet .words a { color: var(--ink); }
-.post .sheet .faint { color: var(--ink2); font-style: italic; }
-.post .sheet .att { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-.post .sheet .att a, .post .sheet footer > * { font: 400 11px var(--type); letter-spacing: .12em; text-transform: uppercase; border: 1.5px solid var(--ink); padding: 6px 10px; color: var(--ink); text-decoration: none; background: none; cursor: pointer; }
-.post .sheet footer { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
-.post .sheet footer .dark { background: var(--ink); color: var(--paper); }
+.mailsky .reader { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; z-index: 4; }
+.mailsky .sheet { position: relative; width: min(620px, 100%); height: min(680px, 88%); overflow-y: auto; scrollbar-width: thin; background: var(--paper); color: var(--ink); padding: 26px 30px 22px; font: 400 16px/1.6 var(--fell); box-shadow: 0 30px 60px rgba(0, 0, 0, .55); display: flex; flex-direction: column; }
+.mailsky .sheet.pre { visibility: hidden; }
+.mailsky .sheet .mark { position: absolute; right: 18px; top: 14px; width: 92px; height: 92px; color: var(--ink); font-family: var(--type); pointer-events: none; }
+.mailsky .sheet .lh { display: grid; grid-template-columns: auto 1fr; gap: 1px 14px; font: 400 12px/1.5 var(--type); padding: 0 92px 12px 0; margin-bottom: 14px; border-bottom: 1.5px solid var(--ink); }
+.mailsky .sheet .lh span { color: var(--ink2); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; padding-top: 2px; }
+.mailsky .sheet .lh b { font-weight: 400; overflow-wrap: anywhere; }
+.mailsky .sheet .lh i { font-style: normal; color: var(--ink2); }
+.mailsky .sheet h3 { margin: 0 0 10px; font: 400 24px/1.15 var(--fell); }
+.mailsky .sheet .words { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; flex: 1; }
+.mailsky .sheet .words a { color: var(--ink); }
+.mailsky .sheet .faint { color: var(--ink2); font-style: italic; }
+.mailsky .sheet .att { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.mailsky .sheet .att a, .mailsky .sheet footer > * { font: 400 11px var(--type); letter-spacing: .12em; text-transform: uppercase; border: 1.5px solid var(--ink); padding: 6px 10px; color: var(--ink); text-decoration: none; background: none; cursor: pointer; }
+.mailsky .sheet footer { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.mailsky .sheet footer .dark { background: var(--ink); color: var(--paper); }
 
-.post .ledger { border-left: 3px dotted var(--low); display: grid; grid-template-rows: auto auto auto 1fr; min-height: 0; }
-.post .ledger > header { padding: 12px 14px; border-bottom: 3px dotted var(--low); display: flex; justify-content: space-between; align-items: baseline; }
-.post .ledger > header b { font: 400 26px/1 var(--goth); color: var(--hi); }
-.post .filters { display: flex; gap: 4px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--faint); flex-wrap: wrap; }
-.post .filters .x.on { color: var(--hi); text-decoration: underline; text-underline-offset: 3px; }
-.post .filters .grow { flex: 1; }
-.post .err { margin: 0; padding: 8px 14px; color: var(--hi); }
-.post .ledger ol { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
-.post .ledger li button { width: 100%; text-align: left; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 14px; border-bottom: 1px solid var(--faint); transition: background .25s var(--out); }
-.post .ledger li button:hover, .post .ledger li button.on { background: var(--faint); }
-.post .ledger li button::before { content: ''; grid-row: span 2; width: 8px; height: 8px; margin-top: 5px; border: 2px solid var(--dim); }
-.post .ledger li button.un::before { background: var(--hi); border-color: var(--hi); box-shadow: 0 0 8px rgba(230, 224, 212, .5); }
-.post .ledger .who { font: 400 10px var(--pix); color: var(--dim); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.post .ledger .when { font: 400 10px var(--pix); color: var(--dim); }
-.post .ledger .what { grid-column: 2 / 4; font: 400 15px/1.25 var(--fell); color: var(--phos); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.post .ledger .un .what { color: var(--hi); }
-.post .ledger .none { padding: 18px 14px; color: var(--dim); font: italic 400 16px var(--fell); }
+.mailsky .ledger { border-left: 3px dotted var(--low); display: grid; grid-template-rows: auto auto auto 1fr; min-height: 0; }
+.mailsky .ledger > header { padding: 12px 14px; border-bottom: 3px dotted var(--low); display: flex; justify-content: space-between; align-items: baseline; }
+.mailsky .ledger > header b { font: 400 26px/1 var(--goth); color: var(--hi); }
+.mailsky .filters { display: flex; gap: 4px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--faint); flex-wrap: wrap; }
+.mailsky .filters .x.on { color: var(--hi); text-decoration: underline; text-underline-offset: 3px; }
+.mailsky .filters .grow { flex: 1; }
+.mailsky .err { margin: 0; padding: 8px 14px; color: var(--hi); }
+.mailsky .ledger ol { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--low) transparent; }
+.mailsky .ledger li button { width: 100%; text-align: left; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 14px; border-bottom: 1px solid var(--faint); transition: background .25s var(--out); }
+.mailsky .ledger li button:hover, .mailsky .ledger li button.on { background: var(--faint); }
+.mailsky .ledger li button::before { content: ''; grid-row: span 2; width: 8px; height: 8px; margin-top: 5px; border: 2px solid var(--dim); }
+.mailsky .ledger li button.un::before { background: var(--hi); border-color: var(--hi); box-shadow: 0 0 8px rgba(230, 224, 212, .5); }
+.mailsky .ledger .who { font: 400 10px var(--pix); color: var(--dim); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mailsky .ledger .when { font: 400 10px var(--pix); color: var(--dim); }
+.mailsky .ledger .what { grid-column: 2 / 4; font: 400 15px/1.25 var(--fell); color: var(--phos); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mailsky .ledger .un .what { color: var(--hi); }
+.mailsky .ledger .none { padding: 18px 14px; color: var(--dim); font: italic 400 16px var(--fell); }
 
 @media (max-width: 860px) {
-  .post { width: 100vw; height: 100dvh; border: 0; grid-template-columns: 1fr; grid-template-rows: 52dvh 1fr; }
-  .post .ledger { border-left: 0; border-top: 3px dotted var(--low); }
-  .post .reader { position: fixed; padding: 12px; background: rgba(12, 11, 10, .88); }
-  .post .sheet { height: 100%; padding: 20px 18px; }
-  .post .sheet .mark { width: 70px; height: 70px; right: 10px; }
-  .post .sheet .lh { padding-right: 70px; }
+  .mailsky { width: 100vw; height: 100dvh; border: 0; grid-template-columns: 1fr; grid-template-rows: 52dvh 1fr; }
+  .mailsky .ledger { border-left: 0; border-top: 3px dotted var(--low); }
+  .mailsky .reader { position: fixed; padding: 12px; background: rgba(12, 11, 10, .88); }
+  .mailsky .sheet { height: 100%; padding: 20px 18px; }
+  .mailsky .sheet .mark { width: 70px; height: 70px; right: 10px; }
+  .mailsky .sheet .lh { padding-right: 70px; }
 }
 </style>

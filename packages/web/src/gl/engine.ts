@@ -26,10 +26,10 @@ export type Build = (ctx: {
   // and the canvas, for one that wants its own wheel or clicks.
   turn: Turn; canvas: HTMLCanvasElement;
 }) => ((t: number, dt: number) => void) | void;
-export type Options = { dither?: boolean; px?: number; fov?: number; distance?: number; drift?: number; tilt?: number; yaw?: number };
+export type Options = { dither?: boolean; px?: number; fov?: number; distance?: number; drift?: number; tilt?: number; yaw?: number; speed?: number };
 
 export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Options = {}) {
-  const { dither = true, px = 2, fov = 34, distance = 4.2, drift = 0.0035, tilt = 0.12, yaw = 0.4 } = opts;
+  const { dither = true, px = 2, fov = 34, distance = 4.2, drift = 0.0035, tilt = 0.12, yaw = 0.4, speed = 0.008 } = opts;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !dither, alpha: true, powerPreference: 'high-performance' });
   // A dithered scene is drawn once per dither cell, never once per pixel:
   // the whole glass is a cell a pixel, scaled up crisp. The same cells, a
@@ -72,8 +72,8 @@ export function createScene(canvas: HTMLCanvasElement, build: Build, opts: Optio
   };
   const move = (e: PointerEvent) => {
     if (!drag) return;
-    turn.y = drag.ty + (e.clientX - drag.x) * 0.008;
-    turn.x = Math.max(-1.3, Math.min(1.3, drag.tx + (e.clientY - drag.y) * 0.008));
+    turn.y = drag.ty + (e.clientX - drag.x) * speed;
+    turn.x = Math.max(-1.3, Math.min(1.3, drag.tx + (e.clientY - drag.y) * speed));
   };
   const up = () => { drag = null; };
   canvas.addEventListener('pointerdown', down);

@@ -17,7 +17,7 @@ const CARD = readFileSync(new URL('./fixtures/moodle-flashcard-card.html', impor
 
 // weblogin and Moodle as the app meets them: launch.php to the IdP, the
 // local-storage step, the login form, the SAML post back, the token.
-function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number; cardsDown?: boolean } = {}) {
+function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number; cardsDown?: boolean; broken?: boolean } = {}) {
   const seen = { downloads: 0, logins: 0, answers: [] as string[] };
   let pending: string | null = null;
   const res = (status: number, body = '', headers: Record<string, string> = {}) => new Response(status === 302 || status === 303 ? null : body, { status, headers });
@@ -48,6 +48,7 @@ function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number;
       if (fn === 'core_enrol_get_users_courses') return Response.json([{ id: 472673, shortname: 'WS2026-261603-1', fullname: '2026W 261603-1 STEOP2: Physikalische Rechenmethoden' }, { id: 1, shortname: 'Sandbox', fullname: 'Sandbox' }]);
       if (fn === 'core_course_get_contents') return Response.json([{ name: 'Übungsblätter und Kursunterlagen', modules: [
         { id: 11, instance: 1, name: 'Skriptum', modname: 'resource', contents: [{ type: 'file', filename: 'Skriptum_2026.pdf', fileurl: 'https://moodle.univie.ac.at/webservice/pluginfile.php/9/mod_resource/content/3/Skriptum_2026.pdf?forcedownload=1', mimetype: 'application/pdf', filesize: SKRIPT.length, timemodified: o.modified ?? 1790000000 }] },
+        ...(o.broken ? [{ id: 13, instance: 3, name: 'Altklausur', modname: 'resource', contents: [{ type: 'file', filename: 'Altklausur.pdf', fileurl: 'https://moodle.univie.ac.at/webservice/pluginfile.php/9/mod_resource/content/1/Altklausur.pdf?forcedownload=1', mimetype: 'application/pdf', filesize: 10, timemodified: 1790000000 }] }] : []),
         { id: 12, instance: 2, name: 'Bild', modname: 'resource', contents: [{ type: 'file', filename: 'bild.png', fileurl: 'https://moodle.univie.ac.at/x/bild.png', mimetype: 'image/png', filesize: 1, timemodified: 1 }] },
         { id: 20015910, instance: 4631, name: 'Integration', modname: 'flashcards' },
       ] }]);
@@ -59,6 +60,7 @@ function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number;
       }
       if (fn === 'tool_mobile_get_autologin_key') return Response.json({ key: 'k', autologinurl: 'https://moodle.univie.ac.at/admin/tool/mobile/autologin.php' });
     }
+    if (href.includes('Altklausur.pdf')) return new Response('<html>Anmelden</html>', { headers: { 'content-type': 'text/html' } });
     if (href.includes('/mod_resource/')) { seen.downloads++; assert.match(href, /token=tok-moodle_mobile_app/); return new Response(SKRIPT); }
     if (href.endsWith('/autologin.php')) return res(303, '', { location: '/my/', 'set-cookie': 'MoodleSession=web; path=/' });
     if (href.includes('/mod/flashcards/flashcardpreview.php')) return res(200, CARD);
@@ -107,6 +109,7 @@ test('Moodle courses, files and flashcard pools are read as they come', () => {
   assert.deepEqual(courseOf('WS2026-261603-1'), { nr: '261603', semester: '2026W' });
   assert.deepEqual(courseOf('SS2027-250011-3'), { nr: '250011', semester: '2027S' });
   assert.equal(courseOf('Sandbox'), null);
+  assert.deepEqual(courseOf('2026W 260162-5 Analysis 1'), { nr: '260162', semester: '2026W' });
   const { files, decks } = contentsOf([{ name: 'Kurs', modules: [
     { id: 1, instance: 1, name: 'S', modname: 'resource', contents: [{ type: 'file', filename: 'a.pdf', fileurl: 'https://m/webservice/pluginfile.php/9/mod_resource/content/7/a.pdf?forcedownload=1', mimetype: 'application/pdf', filesize: 3, timemodified: 1 }] },
     { id: 2, instance: 5, name: 'Funktionen', modname: 'flashcards' },
@@ -233,4 +236,14 @@ test('a deck is played here and every answer reaches Moodle, late if it must', a
   const txt = await call('GET', `/academy/decks/${deck.id}/anki`);
   assert.match(String(txt.headers['content-disposition']), /Integration\.txt/);
   assert.equal(txt.body.split('\n').filter((l) => l && !l.startsWith('#')).length, 20);
+});
+
+test('a file Moodle will not give is passed over; the rest and the decks still come', async () => {
+  moodle = fakeMoodle({ broken: true });
+  await call('POST', '/academy/moodle', { username: 'oliwierp06', password: 'pw' });
+  const state = await settled();
+  assert.deepEqual(state.folios.map((f: { title: string }) => f.title), ['Skriptum_2026.pdf']);
+  assert.equal(state.decks.length, 1);
+  assert.match(state.error, /Altklausur\.pdf: Moodle sent text\/html instead of a PDF/);
+  assert.ok(state.moodle.syncedAt);
 });

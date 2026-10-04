@@ -246,7 +246,7 @@ function keyUp(e: KeyboardEvent) { if (e.key === ' ') release(); }
 let touch: { x: number; y: number } | null = null;
 function tDown(e: PointerEvent) {
   // A phone travels by the web alone.
-  if (narrow.value || e.pointerType === 'mouse' || (e.target as HTMLElement).closest('canvas, input, textarea, select, button, .scroll')) return;
+  if (narrow.value || e.pointerType === 'mouse' || (e.target as HTMLElement).closest('canvas, input, textarea, select, button, .scroll, [aria-modal], .post-back')) return;
   touch = { x: e.clientX, y: e.clientY };
 }
 function tUp(e: PointerEvent) {
@@ -302,7 +302,7 @@ onBeforeUnmount(() => {
         <svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M9.5 9.5 13 13" stroke="currentColor" stroke-width="2" /></svg>
         <span>search</span>
       </button>
-      <button v-if="state.mail?.configured" class="post" :aria-label="`The post, ${state.mail.unread} unread`" @click="state.postOpen = true">
+      <button v-if="state.mail?.configured" class="mailbtn" :aria-label="`The post, ${state.mail.unread} unread`" @click="state.postOpen = true">
         <svg viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="3" width="12" height="9" fill="none" stroke="currentColor" stroke-width="1.6" /><path class="flap" d="M1 3.5 7 8 13 3.5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>
         <span>post</span><b v-if="state.mail.unread" class="count">{{ state.mail.unread > 99 ? '99+' : state.mail.unread }}</b>
       </button>
@@ -428,11 +428,11 @@ onBeforeUnmount(() => {
 .hud .tools button:hover, .hud .tools button.held { background: var(--phos); color: var(--ground); }
 .hud .tools svg { width: 14px; height: 14px; }
 /* The post: the count on the envelope's corner, knocking now and then. */
-.hud .tools .post { position: relative; }
-.hud .tools .post .count { position: absolute; top: -10px; right: -10px; min-width: 19px; height: 19px; padding: 0 4px; background: var(--hi); color: var(--ground); font: 800 11px/19px var(--tek); text-align: center; animation: knock 3.4s var(--out) infinite; }
+.hud .tools .mailbtn { position: relative; }
+.hud .tools .mailbtn .count { position: absolute; top: -10px; right: -10px; min-width: 19px; height: 19px; padding: 0 4px; background: var(--hi); color: var(--ground); font: 800 11px/19px var(--tek); text-align: center; animation: knock 3.4s var(--out) infinite; }
 @keyframes knock { 0%, 84% { transform: none; } 87% { transform: translateY(-3px) rotate(-9deg); } 90% { transform: rotate(6deg); } 93% { transform: rotate(-3deg); } 96% { transform: none; } }
-.hud .tools .post .flap { transform-origin: 50% 20%; transition: transform .35s var(--out); }
-.hud .tools .post:hover .flap { transform: scaleY(-1) translateY(-2px); }
+.hud .tools .mailbtn .flap { transform-origin: 50% 20%; transition: transform .35s var(--out); }
+.hud .tools .mailbtn:hover .flap { transform: scaleY(-1) translateY(-2px); }
 .hud .mini { right: 0; bottom: 2px; display: grid; gap: 4px; justify-items: end; color: var(--dim); }
 .hud .mini p { margin: 0; display: flex; gap: 14px; }
 .hud .mini p:first-child { color: var(--phos); }

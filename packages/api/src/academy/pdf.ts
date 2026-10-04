@@ -8,6 +8,9 @@ import type { Chapter } from '@aura/shared';
 const P = Promise as unknown as { withResolvers?: () => unknown };
 P.withResolvers ??= () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 
+// Control characters some PDFs carry in their text: Postgres will not keep a NUL.
+const bare = (s: string) => s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+
 export async function readPdf(bytes: Uint8Array, title: string): Promise<{ pages: number; outline: Chapter[]; texts: string[] }> {
   // pdf.js takes the buffer over; it gets a copy.
   const task = getDocument({ data: bytes.slice(), useSystemFonts: false });
@@ -17,7 +20,7 @@ export async function readPdf(bytes: Uint8Array, title: string): Promise<{ pages
     const texts: string[] = [];
     for (let i = 1; i <= pages; i++) {
       const content = await (await doc.getPage(i)).getTextContent();
-      texts.push(content.items.map((t) => ('str' in t ? t.str + (t.hasEOL ? '\n' : '') : '')).join('').replace(/[ \t]+/g, ' ').trim());
+      texts.push(bare(content.items.map((t) => ('str' in t ? t.str + (t.hasEOL ? '\n' : '') : '')).join('')).replace(/[ \t]+/g, ' ').trim());
     }
     const starts: { title: string; from: number }[] = [];
     for (const item of (await doc.getOutline()) ?? []) {
@@ -25,7 +28,7 @@ export async function readPdf(bytes: Uint8Array, title: string): Promise<{ pages
         const dest = typeof item.dest === 'string' ? await doc.getDestination(item.dest) : item.dest;
         if (!dest?.[0]) continue;
         const from = (typeof dest[0] === 'number' ? dest[0] : await doc.getPageIndex(dest[0])) + 1;
-        if (item.title.trim()) starts.push({ title: item.title.trim(), from });
+        if (bare(item.title).trim()) starts.push({ title: bare(item.title).trim(), from });
       } catch { /* a bookmark pointing nowhere is left out */ }
     }
     return { pages, outline: chaptersOf(starts, pages, title), texts };

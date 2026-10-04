@@ -27,14 +27,18 @@ export const folioRoutes: FastifyPluginAsync<{ db: Db; http?: Http }> = async (a
   async function store(f: { nr: string; semester: string; title: string; section: string | null; source: 'moodle' | 'upload'; moodleUrl: string | null; modifiedAt: Date; bytes: Uint8Array }, kind = guessKind(f.title, f.section ?? '')) {
     const pdf = await readPdf(f.bytes, f.title);
     const values = { nr: f.nr, semester: f.semester, title: f.title, section: f.section, source: f.source, moodleUrl: f.moodleUrl, modifiedAt: f.modifiedAt, size: f.bytes.length, pages: pdf.pages, outline: pdf.outline };
-    const [existing] = f.moodleUrl ? await db.select({ id: folios.id }).from(folios).where(eq(folios.moodleUrl, f.moodleUrl)) : [];
-    // A file Moodle revised keeps the kind it was given.
-    const [row] = existing
-      ? await db.update(folios).set(values).where(eq(folios.id, existing.id)).returning()
-      : await db.insert(folios).values({ ...values, kind }).returning();
-    const file = { pdf: Buffer.from(f.bytes), texts: pdf.texts };
-    await db.insert(folioFiles).values({ folioId: row!.id, ...file }).onConflictDoUpdate({ target: folioFiles.folioId, set: file });
-    return row!;
+    // The folio and its file together, or neither: a folio without its file
+    // opens blank and would never be fetched again.
+    return db.transaction(async (tx) => {
+      const [existing] = f.moodleUrl ? await tx.select({ id: folios.id }).from(folios).where(eq(folios.moodleUrl, f.moodleUrl)) : [];
+      // A file Moodle revised keeps the kind it was given.
+      const [row] = existing
+        ? await tx.update(folios).set(values).where(eq(folios.id, existing.id)).returning()
+        : await tx.insert(folios).values({ ...values, kind }).returning();
+      const file = { pdf: Buffer.from(f.bytes), texts: pdf.texts };
+      await tx.insert(folioFiles).values({ folioId: row!.id, ...file }).onConflictDoUpdate({ target: folioFiles.folioId, set: file });
+      return row!;
+    });
   }
 
   // Every course Moodle has for us: new and revised PDFs fetched and read,
@@ -44,26 +48,38 @@ export const folioRoutes: FastifyPluginAsync<{ db: Db; http?: Http }> = async (a
     if (!link) return;
     try {
       const mine = await ws<{ id: number; shortname: string; fullname: string }[]>(http, link.token, 'core_enrol_get_users_courses', { userid: link.userId });
-      const seen = mine.flatMap((c) => { const at = courseOf(c.shortname); return at ? [{ ...at, id: c.id, name: c.fullname.replace(/^\d{4}[WS]\s+\d{6}-\d+\s+/, '').replace(/^STEOP\d:\s*/, '') }] : []; });
-      const known = new Map((await db.select({ url: folios.moodleUrl, at: folios.modifiedAt }).from(folios)).map((f) => [f.url, f.at.getTime()]));
+      const seen = mine.flatMap((c) => { const at = courseOf(c.shortname) ?? courseOf(c.fullname); return at ? [{ ...at, id: c.id, name: c.fullname.replace(/^\d{4}[WS]\s+\d{6}-\d+\s+/, '').replace(/^STEOP\d:\s*/, '') }] : []; });
+      // Only folios whose file was kept count as had.
+      const known = new Map((await db.select({ url: folios.moodleUrl, at: folios.modifiedAt }).from(folios)
+        .innerJoin(folioFiles, eq(folioFiles.folioId, folios.id))).map((f) => [f.url, f.at.getTime()]));
       let cookie: string | null = null;
+      // A file or deck that will not come is noted and passed over; the rest still do.
+      const missed: string[] = [];
+      const attempt = async (what: string, run: () => Promise<unknown>) => {
+        try { await run(); } catch (e) { if (e instanceof Refused) throw e; missed.push(`${what}: ${e instanceof Error ? e.message : 'failed'}`); }
+      };
       for (const c of seen) {
         const { files, decks: found } = contentsOf(await ws(http, link.token, 'core_course_get_contents', { courseid: c.id }));
         for (const f of files) {
           if (known.get(f.key) === f.modified.getTime()) continue;
-          const bytes = await download(http, f.url, link.token);
-          await store({ nr: c.nr, semester: c.semester, title: f.title, section: f.section, source: 'moodle', moodleUrl: f.key, modifiedAt: f.modified, bytes });
+          await attempt(f.title, async () => {
+            const bytes = await download(http, f.url, link.token);
+            await store({ nr: c.nr, semester: c.semester, title: f.title, section: f.section, source: 'moodle', moodleUrl: f.key, modifiedAt: f.modified, bytes });
+          });
         }
         for (const d of found) {
           if (!link.privateToken) break;
-          cookie ??= await session(http, link.token, link.privateToken, link.userId);
-          const values = { nr: c.nr, semester: c.semester, instance: d.instance, name: d.name };
-          const [deck] = await db.insert(decks).values({ cmid: d.cmid, boxes: [0, 0, 0, 0, 0, 0], ...values }).onConflictDoUpdate({ target: decks.cmid, set: values }).returning();
-          await syncDeck(db, http, link, cookie, deck!.id, d.cmid, d.instance);
+          await attempt(d.name, async () => {
+            cookie ??= await session(http, link.token, link.privateToken!, link.userId);
+            const values = { nr: c.nr, semester: c.semester, instance: d.instance, name: d.name };
+            const [deck] = await db.insert(decks).values({ cmid: d.cmid, boxes: [0, 0, 0, 0, 0, 0], ...values }).onConflictDoUpdate({ target: decks.cmid, set: values }).returning();
+            await syncDeck(db, http, link, cookie, deck!.id, d.cmid, d.instance);
+          });
         }
       }
       await db.update(moodle).set({ syncedAt: new Date(), refusedAt: null, courses: seen });
-      lastError = null;
+      lastError = missed.length ? `${missed.length} could not be fetched: ${missed.slice(0, 3).join('; ')}` : null;
+      if (missed.length) app.log.warn({ missed }, 'moodle sync passed some over');
     } catch (e) {
       if (e instanceof Refused) await db.update(moodle).set({ refusedAt: new Date() });
       lastError = e instanceof Error ? e.message : 'the sync failed';
