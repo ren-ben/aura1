@@ -66,6 +66,7 @@ public:
   bool tookReadings() { const bool t = tookReadings_; tookReadings_ = false; return t; }
   // A look the last sync brought from the web, once.
   std::string takeLook() { std::string l = look_; look_.clear(); return l; }
+  int mail() const { return mail_; }
 
 private:
   SyncOutcome post(int& configVersion, Carousel& carousel, bool setClock);
@@ -104,6 +105,7 @@ private:
   DeviceStatus status_;
   std::vector<ReadingState> readings_;
   std::string look_;
+  int mail_ = 0;
   std::string shelf_;
   bool tookReadings_ = false;
 

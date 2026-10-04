@@ -160,6 +160,8 @@ export const syncResponseSchema = z.object({
   look: z.string().optional(),
   // Everything on the shelf, with where each one was left.
   books: z.array(shelfBookSchema).max(60).optional(),
+  // Unread university mail, when the post is set up.
+  mail: z.number().int().nonnegative().optional(),
 });
 
 export type SessionEnded = z.infer<typeof sessionEndedSchema>;

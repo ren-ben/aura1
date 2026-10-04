@@ -1,7 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
-import type { AskDto, CardDto, DueCardDto, GrownNode, LectureDto, LectureMapDto, MapMark, NoteDto, NoteFields, NoteKind, OwnDeckDto, TaskDto } from '@aura/shared';
+import type { AskDto, CardDto, MailDto, OpenedDto, DueCardDto, GrownNode, LectureDto, LectureMapDto, MapMark, NoteDto, NoteFields, NoteKind, OwnDeckDto, TaskDto } from '@aura/shared';
 import { demoApi } from './sample';
 import type { Folios } from './folios';
 import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
@@ -86,6 +86,9 @@ export const state = reactive({
   planDays: [] as PlanDay[],
   reading: { current: [], read: [] } as Reading,
   hunt: EMPTY_HUNT as Hunt,
+  // The post: the university inbox, and whether its sky is open.
+  mail: null as MailDto | null,
+  postOpen: false,
 });
 
 export function localDate(d = new Date()): string {
@@ -364,3 +367,13 @@ export const density = computed(() => {
   const deep = state.sessions.filter((s) => s.minutes >= 45).reduce((a, s) => a + s.minutes, 0);
   return all ? deep / all : 0;
 });
+
+// The post: looked at again every few minutes; a letter opened is read.
+export async function refreshMail(): Promise<void> {
+  try { state.mail = await call<MailDto>('GET', '/mail'); } catch { /* the last look stands */ }
+}
+export const postApi = {
+  open: (uid: number) => call<OpenedDto>('GET', `/mail/${uid}`),
+  seen: (uids: number[], seen: boolean) => call('PUT', '/mail/seen', { uids, seen }),
+  check: async () => { state.mail = await call<MailDto>('POST', '/mail/check'); },
+};

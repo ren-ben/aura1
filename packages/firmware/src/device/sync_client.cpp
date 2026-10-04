@@ -282,6 +282,7 @@ SyncOutcome SyncClient::post(int& configVersion, Carousel& carousel, bool setClo
   queue_.prune(result.settled);
   daily_.pruneHunt(result.settled);
   look_ = result.look;
+  if (result.mail >= 0) mail_ = result.mail;
   // The places and the marks went with the request: the card can forget them.
   tookReadings_ = !readings_.empty();
   if (result.hasShelf) shelf_ = result.shelf;

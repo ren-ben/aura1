@@ -9,7 +9,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed-run.ts",
-    "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts test/routes.test.ts test/phase2.test.ts test/today.test.ts test/device.test.ts test/books.test.ts test/vigil.test.ts test/lecturemaps.test.ts test/journal.test.ts test/blocks.test.ts test/reading.test.ts test/hunt.test.ts test/folios.test.ts test/asks.test.ts test/own.test.ts"
+    "test": "tsx --test --test-concurrency=1 test/schema.test.ts test/sync-service.test.ts test/routes.test.ts test/phase2.test.ts test/today.test.ts test/device.test.ts test/books.test.ts test/vigil.test.ts test/lecturemaps.test.ts test/journal.test.ts test/blocks.test.ts test/reading.test.ts test/hunt.test.ts test/folios.test.ts test/asks.test.ts test/own.test.ts test/post.test.ts"
   },
   "dependencies": {
     "@aura/shared": "workspace:*",
@@ -17,6 +17,9 @@
     "@fastify/type-provider-zod": "^1.0.0",
     "drizzle-orm": "^0.38.0",
     "fastify": "^5.5.0",
+    "html-to-text": "^10.0.1",
+    "imapflow": "^2.2.5",
+    "mailparser": "^3.9.35",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.3.289",
     "pg": "^8.13.0",
@@ -24,6 +27,8 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
+    "@types/mailparser": "^3.9.0",
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.30.0",
     "tsx": "^4.19.0"

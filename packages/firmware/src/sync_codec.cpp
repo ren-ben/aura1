@@ -145,6 +145,7 @@ SyncResult parseResponse(const std::string& body) {
   }
   result.todayHash = doc["todayHash"] | "";
   result.look = doc["look"] | "";
+  result.mail = doc["mail"] | -1;
   if (doc["books"].is<JsonArrayConst>()) {
     result.hasShelf = true;
     serializeJson(doc["books"], result.shelf);

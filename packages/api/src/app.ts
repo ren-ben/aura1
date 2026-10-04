@@ -20,19 +20,22 @@ import { folioRoutes } from './routes/folios.ts';
 import { askRoutes } from './routes/asks.ts';
 import { cardRoutes } from './routes/cards.ts';
 import { ownRoutes } from './routes/own.ts';
+import { postRoutes } from './routes/post.ts';
+import { postFromEnv, type Post } from './academy/post.ts';
 import type { Http } from './academy/moodle.ts';
 import type { Fetch, Settings } from './academy/openrouter.ts';
 
 export function buildApp(
   db: Db,
   opts: { logger?: boolean; webRoot?: string; ufind?: (path: string) => Promise<string | null>; openrouter?: Fetch; settings?: Settings;
-    goodreads?: { user?: string; shelf?: Shelf }; garmin?: string; moodle?: Http } = {},
+    goodreads?: { user?: string; shelf?: Shelf }; garmin?: string; moodle?: Http; post?: Post } = {},
 ): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? true });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  app.register(syncRoutes, { db, prefix: '/api/v1' });
+  const post = opts.post ?? postFromEnv();
+  app.register(syncRoutes, { db, prefix: '/api/v1', post });
   app.register(sessionRoutes, { db, prefix: '/api/v1' });
   app.register(catalogRoutes, { db, prefix: '/api/v1' });
   app.register(todoRoutes, { db, prefix: '/api/v1' });
@@ -49,6 +52,7 @@ export function buildApp(
   app.register(folioRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(cardRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(ownRoutes, { db, prefix: '/api/v1' });
+  app.register(postRoutes, { prefix: '/api/v1', post });
   app.register(askRoutes, { db, prefix: '/api/v1', openrouter: opts.openrouter, settings: opts.settings });
 
   if (opts.webRoot) {

@@ -171,6 +171,8 @@ void test_request_carries_the_status_and_response_a_look() {
   TEST_ASSERT_EQUAL_STRING("ye", doc["status"]["skin"].as<const char*>());
   const SyncResult r = parseResponse("{\"acked\":[],\"rejected\":[],\"look\":\"CARMILLA\"}");
   TEST_ASSERT_EQUAL_STRING("CARMILLA", r.look.c_str());
+  TEST_ASSERT_EQUAL_INT(-1, r.mail);
+  TEST_ASSERT_EQUAL_INT(4, parseResponse("{\"acked\":[],\"rejected\":[],\"mail\":4}").mail);
 }
 
 void test_request_carries_every_book_read_since_the_last_sync() {

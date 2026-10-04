@@ -42,6 +42,11 @@ const char* const CACTUS[] = {
   "#######..#.#.", ".#####...####", ".#####.....##", "#######....#.",
   "#######....#.", "########...#.", "#############", "..#.....##...",
 };
+// Unread university mail, by the battery.
+const char* const ENVELOPE[] = {
+  "###########", "##.......##", "#.#.....#.#", "#..#...#..#",
+  "#...#.#...#", "#....#....#", "#.........#", "###########",
+};
 const char* const BOLT[] = { "....##.", "...##..", "..##...", ".######", "...##..", "..##...", ".##....", ".#....." };
 // His head alone, a seal for rules.
 const char* const SEAL[] = { "#.....#", "##...##", "#######", "##.#.##", "#######", ".#####." };
@@ -1354,7 +1359,11 @@ int lookIndex(const std::string& name) {
 
 void drawCorner(Canvas& c, int y, const Status& s, uint8_t ink) {
   constexpr int X = 172, BW = 22, BH = 12;
-  c.fillRect(X - 22, y - 2, 50, BH + 4, other(ink));
+  // The envelope stands where the link icon would; beside it when that is shown.
+  const bool linked = s.link == Link::Online;
+  const int left = s.mail ? (linked ? X - 19 : X - 36) : X - 22;
+  c.fillRect(left, y - 2, X + 28 - left, BH + 4, other(ink));
+  if (s.mail) c.icon(linked ? X - 16 : X - 33, y + 2, ENVELOPE, 8, ink);
   c.drawRect(X, y, BW, BH, ink);
   c.fillRect(X + BW, y + 3, 2, BH - 6, ink);
   if (s.charging) c.icon(X + 8, y + 2, BOLT, 8, ink);

@@ -223,6 +223,27 @@ so and asks you to bind again; the files already read stay.
   bars, tap a bar to lift it). Maths as `\( \)` everywhere. The proof on the
   right is the card as it will be dealt. Click the file's title to rename it.
 
+## The post
+
+The university inbox (the u:account in `UNIVIE_MAIL_USER`, its password in
+`UNIVIE_MAIL_PASSWORD`, both only in the Pi's `.env`) is read over IMAP from
+imap.univie.ac.at every five minutes. The newest 400 letters are kept in memory.
+Nothing is sent or deleted; the only change made on the server is the read flag,
+set when a letter is opened or marked, and cleared again with "mark unread".
+
+It opens as a night sky ("post" on the week bar, or the envelope on the top bar).
+- Each sender is a constellation. The eleven busiest get their own and the rest
+  share "the scattered".
+- A constellation grows a week at a time: each week a sender wrote is one star
+  of the figure, stepping off an earlier week's, so a term draws a branching
+  figure and new mail only ever adds to it.
+- That week's letters gather round its star in a small spiral.
+- Unread stars are large and turning; read ones fade with age.
+
+Open a star and it falls, breaks into dust, and the letter comes through the
+dither as plain text with its attachments. The device gets the unread count with
+every sync and shows an envelope beside the battery while anything is unread.
+
 ## The almanac
 
 **month**, in the week's title, opens the whole month over everything: every

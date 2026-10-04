@@ -159,6 +159,7 @@ void test_every_look_draws_every_page() {
       Status s = status;
       s.charging = k % 2;
       s.link = k % 3 == 0 ? Link::Syncing : k % 3 == 1 ? Link::Offline : Link::Online;
+      s.mail = k % 2 ? 3 : 0;
       std::fprintf(stderr, "%s %s\n", look.name(), name.c_str()); std::fflush(stderr);
       drawPage(c, look, vm, s, art);
       const Corner at = pageCorner(look, vm, false);

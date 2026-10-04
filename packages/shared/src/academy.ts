@@ -126,3 +126,8 @@ export function ordsOf(kind: NoteKind, f: NoteFields): number[] {
   if (kind === 'reverse') return [1, 2];
   return [1];
 }
+
+// The post: the university inbox, as the server last looked at it.
+export type LetterDto = { uid: number; from: string; addr: string; subject: string; date: string; unread: boolean };
+export type MailDto = { configured: boolean; unread: number; total: number; checkedAt: string | null; error: string | null; letters: LetterDto[] };
+export type OpenedDto = LetterDto & { to: string; text: string; attachments: { name: string; type: string; size: number }[] };

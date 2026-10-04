@@ -56,6 +56,7 @@ struct SyncResult {
   std::string today;                  // today's bundle, re-serialised
   std::string todayHash;              // the server's bundle, sent or not
   std::string look;                   // a look chosen on the web, to wear
+  int mail = -1;                      // unread university mail; -1 when not said
   bool hasShelf = false;
   std::string shelf;                  // every book he has, re-serialised
 };

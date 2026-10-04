@@ -43,6 +43,9 @@ services:
       ACADEMY_BUDGET_USD: ${ACADEMY_BUDGET_USD:-}
       # The reading: a public Goodreads profile's user id.
       GOODREADS_USER: ${GOODREADS_USER:-}
+      # The post: the u:account and its password, for univie's IMAP. Read only.
+      UNIVIE_MAIL_USER: ${UNIVIE_MAIL_USER:-}
+      UNIVIE_MAIL_PASSWORD: ${UNIVIE_MAIL_PASSWORD:-}
       # The Hunt: where the Garmin sidecar listens for "pull now".
       GARMIN_URL: ${GARMIN_URL:-http://garmin:8765}
     ports: ["127.0.0.1:13000:3000"]

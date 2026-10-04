@@ -6,10 +6,11 @@ import { syncRequestSchema, syncResponseSchema } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { books, chapters } from '../db/schema.ts';
 import { applySync } from '../sync/service.ts';
+import type { Post } from '../academy/post.ts';
 
 // Everything the device reaches lives under /sync: Cloudflare Access lets its
 // service token through on that path and nowhere else.
-export const syncRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {
+export const syncRoutes: FastifyPluginAsync<{ db: Db; post?: Post }> = async (app, opts) => {
   const r = app.withTypeProvider<ZodTypeProvider>();
   const { db } = opts;
 
@@ -18,7 +19,11 @@ export const syncRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => {
       body: syncRequestSchema,
       response: { 200: syncResponseSchema },
     },
-  }, async (request) => applySync(db, request.body));
+  }, async (request) => {
+    const res = await applySync(db, request.body);
+    // Unread university mail, for the envelope in the device's corner.
+    return opts.post?.configured ? { ...res, mail: opts.post.inbox.unread } : res;
+  });
 
   // The device keeps every book whole on its card. A book's head as plain
   // lines - "<chapters> <chapterIdx> <through>", the title, the author, then

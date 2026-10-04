@@ -55,7 +55,7 @@ constexpr unsigned long POWER_OFF_CONNECT_MS = 10000;
 constexpr const char* BATTERY_FILE = "/battery.txt";  // the learned full reading
 
 static void showStatus() {
-  renderer.setStatus({ gauge.bars(), gauge.charging(), linkState, gauge.percent(), gauge.millivolts() });
+  renderer.setStatus({ gauge.bars(), gauge.charging(), linkState, gauge.percent(), gauge.millivolts(), syncClient.mail() });
 }
 
 static void checkBattery() {

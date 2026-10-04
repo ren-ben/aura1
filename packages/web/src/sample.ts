@@ -4,6 +4,7 @@ import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quot
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
 import { sampleFolios } from './folios';
+import { samplePost, sampleOpened } from './post';
 import type { CardDto } from '@aura/shared';
 import { SAMPLE_DEEPER, SAMPLE_MAP } from './samplemap';
 import { sampleHunt, type Hunt } from './hunt';
@@ -240,6 +241,8 @@ function huntApi(method: string, seg: string[], body: any): unknown {
   return undefined;
 }
 
+const post = samplePost();
+
 export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
   const seg = route!.split('/').filter(Boolean);
@@ -327,6 +330,13 @@ export function demoApi(method: string, path: string, body?: any): unknown {
       vigil.signs = body.kept ? [...new Set([...vigil.signs, body.sign])] : vigil.signs.filter((s) => s !== body.sign);
       return;
     case 'GET /academy': return structuredClone(courses);
+    case 'GET /mail': case 'POST /mail/check': return structuredClone(post.mail);
+    case 'GET /mail/:id': return sampleOpened(post.mail, post.bodies, id);
+    case 'GET /mail/:id/attachments': throw new Error('the demo has no attachments');
+    case 'PUT /mail/seen': {
+      for (const l of post.mail.letters) if (body.uids.includes(l.uid) && l.unread === body.seen) { l.unread = !body.seen; post.mail.unread += body.seen ? -1 : 1; }
+      return;
+    }
     case 'POST /academy/courses': throw new Error('the demo cannot reach u:find');
     case 'GET /academy/folios': return seg[3] === 'tasks' ? [{ n: 1, title: 'Grenzwerte', page: 1 }, { n: 2, title: 'Ableitungen', page: 1 }] : structuredClone(folios);
     case 'POST /academy/moodle': throw new Error('the demo cannot reach Moodle');

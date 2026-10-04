@@ -780,7 +780,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button><button class="x" title="the flashcards, at his table" @click="arcana = true">decks</button></span></template>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button><button class="x" title="the flashcards, at his table" @click="arcana = true">decks</button><button v-if="state.mail?.configured || state.demo" class="x" title="your university mail" @click="state.postOpen = true">post<template v-if="state.mail?.unread"> {{ state.mail.unread }}</template></button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>

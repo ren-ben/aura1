@@ -8,7 +8,9 @@ struct Status {
   Link link = Link::Syncing;
   int percent = 0;  // for the settings' battery panel
   int millivolts = 0;
+  int mail = 0;      // unread university mail: an envelope in the corner
   bool operator==(const Status& o) const {
-    return bars == o.bars && charging == o.charging && link == o.link && percent == o.percent && millivolts == o.millivolts;
+    return bars == o.bars && charging == o.charging && link == o.link && percent == o.percent && millivolts == o.millivolts
+        && mail == o.mail;
   }
 };
