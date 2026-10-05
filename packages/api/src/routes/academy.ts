@@ -22,7 +22,7 @@ const courseDto = z.object({
   name: z.string(),
   type: z.string(),
   ects: z.number().int(),
-  groups: z.array(z.object({ id: z.string(), events: z.array(event.extend({ lecture: z.boolean().optional() })) })),
+  groups: z.array(z.object({ id: z.string(), teachers: z.array(z.string()).optional(), events: z.array(event.extend({ lecture: z.boolean().optional() })) })),
   groupId: z.string().nullable(),
   grade: z.number().int().nullable(),
   exams: z.array(event.extend({ id: z.string(), title: z.string() })),
@@ -66,6 +66,11 @@ export function lecturePart(body: string, events: Event[]): Event[] {
   return out;
 }
 
+// Who holds a group, as u:space lists them: the lecturers, then the tutors.
+const teachers = (body: string) => [...body.matchAll(/<lecturer [^>]*type="(\w)"[^>]*><firstname>([^<]*)<\/firstname><lastname>([^<]*)<\/lastname>/g)]
+  .sort(([, a], [, b]) => Number(a === 'T') - Number(b === 'T'))
+  .map(([, type, first, last]) => `${first} ${last}${type === 'T' ? ' (Tutor)' : ''}`);
+
 type Found = { name: string; type: string; ects: number; codes: string[]; groups: CourseGroup[]; syllabus: string };
 export function parseCourse(xml: string): Found | null {
   const name = xml.match(/<longname xml:lang="de">([^<]*)<\/longname>/)?.[1]?.trim();
@@ -74,7 +79,7 @@ export function parseCourse(xml: string): Found | null {
     const events: Event[] = [...body!.matchAll(/<wwevent begin="([^"]+)" end="([^"]+)"[^>]*>([\s\S]*?)<\/wwevent>/g)]
       .map(([, begin, end, inner]) => ({ begin: begin!, end: end!, room: room(inner!) }));
     const lectures = lecturePart(body!, events);
-    return { id: id!, events: lectures.length ? [...events.map((e) => ({ ...e, lecture: false })), ...lectures].sort((a, b) => a.begin.localeCompare(b.begin)) : events };
+    return { id: id!, teachers: teachers(body!), events: lectures.length ? [...events.map((e) => ({ ...e, lecture: false })), ...lectures].sort((a, b) => a.begin.localeCompare(b.begin)) : events };
   });
   return {
     name: name.replace(/^STEOP\d:\s*/, ''),

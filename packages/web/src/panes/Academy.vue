@@ -19,7 +19,7 @@ import { narrow } from '../screen';
 import { lights } from '../gl/models';
 import { reduced } from '../gl/engine';
 import { rand, starfield } from '../gl/plate';
-import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, type Module } from '../academy';
+import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, whereWho, type Module } from '../academy';
 import { actions, folioApi, state, type Course } from '../store';
 
 defineProps<{ active: boolean }>();
@@ -792,7 +792,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
             <div class="tt-cols">
               <div v-for="(d, i) in dates" :key="d.label" class="tt-col" :class="{ today: d.today }">
                 <button v-for="b in blocks.filter((x) => x.day === i)" :key="b.label + b.from" class="blk" :class="{ ue: b.ue, short: b.short, hot: moduleFor(b.module) === (hovered || chosen) }"
-                        :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}, ${b.room}${b.mappable ? ' // open its map' : ''}`"
+                        :style="{ top: `${b.top}%`, height: `${b.height}%` }" :title="`${b.label}, ${b.from} to ${b.to}${b.mappable ? ' // open its map' : ''}\n${whereWho(b)}`"
                         @pointerenter="overArc(moduleFor(b.module))" @pointerleave="offArc" @click="openBlock(b)">
                   <b>{{ b.label }}</b><span class="when">{{ b.from }}-{{ b.to }}</span>
                 </button>

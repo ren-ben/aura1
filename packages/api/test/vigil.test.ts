@@ -101,6 +101,7 @@ test('u:find XML gives the course, its groups and their dates', () => {
   assert.ok(lecture.codes.includes('STEOP1'));
   assert.equal(lecture.groups.length, 1);
   assert.equal(lecture.groups[0]!.events[0]!.room, 'Lise-Meitner-Hörsaal');
+  assert.deepEqual(lecture.groups[0]!.teachers, ['Markus Mezger', 'Malena Sarikyan (Tutor)']);
   assert.equal(parseCourse(fixture('260162'))!.groups.length, 10);
   assert.equal(parseCourse('<empty/>'), null);
 });

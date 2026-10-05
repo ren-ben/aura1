@@ -48,17 +48,21 @@ export function tally(courses: Course[]) {
   return { passed, running, avg, steop };
 }
 
-export type Slot = { course: Course; begin: string; mappable: boolean; day: number; from: string; to: string; label: string; room: string; ue: boolean };
+export type Slot = { course: Course; begin: string; mappable: boolean; day: number; from: string; to: string; label: string; room: string; teachers: string[]; ue: boolean };
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const SHORT: Record<string, string> = { STEOP1: 'EP1', STEOP2: 'Rechenm.', STEOP3: 'Forschung' };
 type Event = Course['groups'][number]['events'][number];
 const slotOf = (c: Course, e: Event): Slot => {
+  const teachers = c.groups.find((g) => g.id === c.groupId)?.teachers ?? [];
   const b = new Date(e.begin), part = partOf(c.type, e);
   return {
     course: c, begin: e.begin, mappable: part !== 'UE', day: (b.getDay() + 6) % 7, from: hm(b), to: hm(new Date(e.end)),
-    label: `${SHORT[c.module] ?? c.module} ${part}`, room: e.room.replace(/-?Hörsaal/, ''), ue: part !== 'VO',
+    label: `${SHORT[c.module] ?? c.module} ${part}`, room: e.room, teachers, ue: part !== 'VO',
   };
 };
+
+// Where and with whom, for a slot's hover: a line each.
+export const whereWho = (s: Slot) => [s.room, s.teachers.join(', ')].filter(Boolean).join('\n');
 
 // The week to show: this one while the term runs, otherwise the first week
 // anything is on. Only the chosen group of each course.

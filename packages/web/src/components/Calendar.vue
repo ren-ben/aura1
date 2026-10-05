@@ -3,7 +3,7 @@
 // chosen groups, the moon over each day, and a mark on every lecture that
 // already has its map. A lecture opens its map.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { monthOf, moonPath, type Slot } from '../academy';
+import { monthOf, moonPath, whereWho, type Slot } from '../academy';
 import { lectureMaps, state, type MapMark } from '../store';
 
 const props = defineProps<{ start?: Date }>();
@@ -75,7 +75,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: 
                 <em class="pix">exam</em><span>{{ time(x.begin) }} {{ x.title }}</span>
               </button>
               <button v-for="s in d.slots" :key="s.begin + s.label" class="ev" :class="{ ue: !s.mappable, mapped: mapped(s) }" :disabled="!s.mappable"
-                      :title="`${s.course.name} ${s.course.type}, ${s.from} to ${s.to}, ${s.room}${mapped(s)?.title ? ` // mapped: ${mapped(s)!.title}` : s.mappable ? ' // open its map' : ''}`"
+                      :title="`${s.course.name} ${s.course.type}, ${s.from} to ${s.to}${mapped(s)?.title ? ` // mapped: ${mapped(s)!.title}` : s.mappable ? ' // open its map' : ''}\n${whereWho(s)}`"
                       @click="shut(() => emit('open', s))">
                 <span class="t">{{ s.from }}</span><span class="l">{{ s.label }}</span><i v-if="mapped(s)" class="star" aria-label="mapped"></i>
               </button>
