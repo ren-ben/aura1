@@ -58,8 +58,11 @@ export const folioRoutes: FastifyPluginAsync<{ db: Db; http?: Http }> = async (a
       const attempt = async (what: string, run: () => Promise<unknown>) => {
         try { await run(); } catch (e) { if (e instanceof Refused) throw e; missed.push(`${what}: ${e instanceof Error ? e.message : 'failed'}`); }
       };
+      if (!link.privateToken) missed.push('the decks: Moodle gave no private token at binding; unbind and bind again');
       for (const c of seen) {
-        const { files, decks: found } = contentsOf(await ws(http, link.token, 'core_course_get_contents', { courseid: c.id }));
+        let contents: ReturnType<typeof contentsOf> = { files: [], decks: [] };
+        await attempt(c.name, async () => { contents = contentsOf(await ws(http, link.token, 'core_course_get_contents', { courseid: c.id })); });
+        const { files, decks: found } = contents;
         for (const f of files) {
           if (known.get(f.key) === f.modified.getTime()) continue;
           await attempt(f.title, async () => {
@@ -81,6 +84,7 @@ export const folioRoutes: FastifyPluginAsync<{ db: Db; http?: Http }> = async (a
       lastError = missed.length ? `${missed.length} could not be fetched: ${missed.slice(0, 3).join('; ')}` : null;
       if (missed.length) app.log.warn({ missed }, 'moodle sync passed some over');
     } catch (e) {
+      app.log.error(e, 'moodle sync failed');
       if (e instanceof Refused) await db.update(moodle).set({ refusedAt: new Date() });
       lastError = e instanceof Error ? e.message : 'the sync failed';
     }

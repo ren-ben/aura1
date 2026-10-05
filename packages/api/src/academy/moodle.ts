@@ -75,7 +75,8 @@ export async function ws<T>(http: Http, token: string, fn: string, params: Recor
   const res = await http(`${MOODLE}/webservice/rest/server.php`, { method: 'POST', body, headers: { 'User-Agent': AGENT } });
   const json = await res.json() as T & { errorcode?: string; message?: string };
   if (json && typeof json === 'object' && 'errorcode' in json && json.errorcode) {
-    if (json.errorcode === 'invalidtoken' || json.errorcode === 'accessexception') throw new Refused(json.message ?? json.errorcode);
+    // Only a dead token breaks the link; a course closed to us is that course's matter.
+    if (json.errorcode === 'invalidtoken') throw new Refused(json.message ?? json.errorcode);
     throw new MoodleError(json.message ?? json.errorcode);
   }
   return json;

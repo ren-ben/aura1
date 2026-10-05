@@ -113,6 +113,9 @@ export function duration(minutes: number): string {
 
 async function call<T = void>(method: string, path: string, body?: unknown): Promise<T> {
   if (state.demo) return demoApi(method, path, body) as T;
+  // An empty POST reaches the API chunked through the tunnel, and Fastify
+  // turns a chunked body with no type away: send an empty object instead.
+  if (body === undefined && method !== 'GET' && method !== 'DELETE') body = {};
   const response = await fetch(`/api/v1${path}`, {
     method,
     ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
