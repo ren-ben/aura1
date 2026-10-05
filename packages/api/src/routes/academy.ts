@@ -125,9 +125,17 @@ export const academyRoutes: FastifyPluginAsync<{ db: Db; ufind?: Ufind; openrout
   const openrouter = opts.openrouter ?? fetch;
   const settings = opts.settings ?? settingsFromEnv();
 
-  r.get('/academy', { schema: { response: { 200: z.array(courseDto) } } }, async () =>
-    (await db.select().from(courses).orderBy(asc(courses.semester), asc(courses.nr)))
-      .map(({ addedAt: _, refreshedAt, ...c }) => ({ ...c, refreshedAt: refreshedAt.toISOString() })));
+  // A course kept with no group (added before the groups were known) is
+  // given the one it is in, when that is known.
+  r.get('/academy', { schema: { response: { 200: z.array(courseDto) } } }, async () => {
+    const rows = await db.select().from(courses).orderBy(asc(courses.semester), asc(courses.nr));
+    for (const c of rows) {
+      if (c.groupId) continue;
+      c.groupId = groupFor(c.nr, c.semester, c.groups);
+      if (c.groupId) await db.update(courses).set({ groupId: c.groupId }).where(eq(courses.id, c.id));
+    }
+    return rows.map(({ addedAt: _, refreshedAt, ...c }) => ({ ...c, refreshedAt: refreshedAt.toISOString() }));
+  });
 
   // Added by its number: looked up on u:find now, and kept.
   r.post('/academy/courses', {

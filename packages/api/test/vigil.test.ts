@@ -132,6 +132,9 @@ test('a course is added by its number, graded, and its group chosen', async () =
   const saved = (await call('GET', '/academy')).json().find((c: { id: number }) => c.id === ex.id);
   assert.equal(saved.grade, 2);
   assert.equal(saved.groupId, ex.groups[3].id);
+  // One kept with no group (added before the groups were known) gets its own.
+  await call('PATCH', `/academy/courses/${ex.id}`, { groupId: null });
+  assert.equal((await call('GET', '/academy')).json().find((c: { id: number }) => c.id === ex.id).groupId, '260162-5');
 
   assert.equal((await call('POST', '/academy/courses', { nr: '261600', semester: '2026W' })).statusCode, 409);
   assert.equal((await call('POST', '/academy/courses', { nr: '999999', semester: '2026W' })).statusCode, 404);
