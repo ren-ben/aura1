@@ -331,6 +331,25 @@ async function shred() {
   await dossier.value!.animate([{ clipPath: 'inset(0 0 0 0)', transform: 'translateY(-30px)', opacity: 0 }, { clipPath: 'inset(0 0 0 0)', transform: 'none', opacity: 1 }], { duration: REDUCE ? 1 : 450, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'forwards' }).finished;
 }
 
+// A report shredded from the list; the one open goes the long way.
+async function shredNote(n: NoteDto) {
+  if (!confirm(`Shred "${n.name || 'untitled'}" and its cards?`)) return;
+  if (n.id === editing.value) return shred();
+  await deckApi.shred(n.id).catch(() => {});
+  await load();
+}
+// A whole file burned, every report in it with it.
+async function burnFile() {
+  const f = file.value;
+  if (!f || !confirm(`Burn the file "${f.title}" and its ${counts(f)} cards? This cannot be undone.`)) return;
+  try { await deckApi.burnFile(f.id); } catch (e) { error.value = e instanceof Error ? e.message : 'the file would not burn'; return; }
+  await dossier.value!.animate([{ opacity: 1, filter: 'brightness(1)' }, { opacity: 0, filter: 'brightness(.2)', transform: 'translateY(30px) rotate(-2deg)' }], { duration: REDUCE ? 1 : 600, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' }).finished;
+  await load();
+  fileId.value = own.value[0]?.id ?? null; load2(file.value?.notes[0] ?? null);
+  await nextTick();
+  dossier.value!.getAnimations().forEach((a) => a.cancel());
+}
+
 // ---- keys, paste, drop ---------------------------------------------------
 function key(e: KeyboardEvent) {
   const typing = (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]');
@@ -415,9 +434,12 @@ const moodleAnki = computed(() => (current.value?.src === 'moodle' ? `/api/v1/ac
               <div v-if="file" class="contents">
                 <span class="pix">in this file</span>
                 <button class="entry new" :class="{ on: editing === null }" style="--i:0" @click="openNote(null)"><b>+ write a new report</b></button>
-                <button v-for="(n, i) in file.notes" :key="n.id" class="entry" :class="{ on: n.id === editing }" :style="{ '--i': i + 1 }" @click="openNote(n)">
-                  <i>{{ ABBR[n.kind] }}</i><b>{{ n.name || 'untitled' }}</b><em>{{ n.cards }}</em>
-                </button>
+                <div v-for="(n, i) in file.notes" :key="n.id" class="line" :style="{ '--i': i + 1 }">
+                  <button class="entry" :class="{ on: n.id === editing }" @click="openNote(n)">
+                    <i>{{ ABBR[n.kind] }}</i><b>{{ n.name || 'untitled' }}</b><em>{{ n.cards }}</em>
+                  </button>
+                  <button class="unfile" :aria-label="`shred ${n.name || 'this report'}`" title="shred" @click="shredNote(n)">x</button>
+                </div>
               </div>
             </aside>
 
@@ -429,15 +451,15 @@ const moodleAnki = computed(() => (current.value?.src === 'moodle' ? `/api/v1/ac
                   <div class="letterhead">
                     <div><div class="org">Amygdala Inc. // Containment Archive // Academy Division</div>
                       <h3 contenteditable="plaintext-only" spellcheck="false" title="rename the file" @blur="rename" @keydown.enter.prevent="($event.target as HTMLElement).blur()">{{ file.title }}</h3></div>
-                    <div class="fileno">file no.<br><b>{{ file.code }}</b><br><span>{{ counts(file) }} cards on file</span></div>
+                    <div class="fileno">file no.<br><b>{{ file.code }}</b><br><span>{{ counts(file) }} cards on file</span><br><button class="burn" @click="burnFile">burn the file</button></div>
                   </div>
                   <div class="kinds" role="tablist">
                     <button v-for="[k, n] in KINDS" :key="k" class="kind" :class="{ on: draft.kind === k }" role="tab" :aria-selected="draft.kind === k" @click="setKind(k)">{{ n }}</button>
                   </div>
                   <div class="form">
-                    <label class="field"><span>subject</span><input v-model="draft.name" type="text" placeholder="what this report is about"></label>
+                    <label class="slot"><span>subject</span><input v-model="draft.name" type="text" placeholder="what this report is about"></label>
                     <template v-if="draft.kind === 'cloze'">
-                      <label class="field"><span>the report <em>select words, then redact</em></span>
+                      <label class="slot"><span>the report <em>select words, then redact</em></span>
                         <textarea ref="textArea" v-model="draft.fields.text" rows="4" placeholder="Write it out, then black out what should be asked." @focus="lastField = $event.target as HTMLTextAreaElement"></textarea></label>
                       <div class="row"><button class="redact" @click="redact(false, $event)">redact // new card</button><button class="redact dim" @click="redact(true, $event)">redact // same card</button>
                         <span class="keys"><button class="key wide" @click="insert('\\( \\)')">\( math \)</button><button v-for="[l, t] in LATEX" :key="l" class="key" :class="{ wide: l.length > 2 }" @click="insert(t)">{{ l }}</button></span></div>
@@ -454,16 +476,16 @@ const moodleAnki = computed(() => (current.value?.src === 'moodle' ? `/api/v1/ac
                         <div class="caption"><span>{{ draft.fields.imageName }}</span><span>drag to lay a bar // tap one to lift it</span></div>
                       </div>
                       <div class="opts"><label><input v-model="draft.fields.mode" type="radio" value="all"> hide all, ask one</label><label><input v-model="draft.fields.mode" type="radio" value="one"> hide one, ask one</label></div>
-                      <label class="field"><span>what each bar hides <em>one per bar, split with |</em></span><input v-model="labels" type="text"></label>
+                      <label class="slot"><span>what each bar hides <em>one per bar, split with |</em></span><input v-model="labels" type="text"></label>
                     </template>
                     <template v-else>
-                      <label class="field"><span>{{ draft.kind === 'reverse' ? 'one side' : 'the question' }}</span><textarea v-model="draft.fields.front" rows="2" @focus="lastField = $event.target as HTMLTextAreaElement"></textarea></label>
-                      <label class="field"><span>{{ draft.kind === 'reverse' ? 'the other side' : 'the answer' }}</span><textarea v-model="draft.fields.back" rows="2" @focus="lastField = $event.target as HTMLTextAreaElement"></textarea></label>
+                      <label class="slot"><span>{{ draft.kind === 'reverse' ? 'one side' : 'the question' }}</span><textarea v-model="draft.fields.front" rows="2" @focus="lastField = $event.target as HTMLTextAreaElement"></textarea></label>
+                      <label class="slot"><span>{{ draft.kind === 'reverse' ? 'the other side' : 'the answer' }}</span><textarea v-model="draft.fields.back" rows="2" @focus="lastField = $event.target as HTMLTextAreaElement"></textarea></label>
                       <span class="keys"><button class="key wide" @click="insert('\\( \\)')">\( math \)</button><button v-for="[l, t] in LATEX" :key="l" class="key" :class="{ wide: l.length > 2 }" @click="insert(t)">{{ l }}</button></span>
-                      <label v-if="draft.kind === 'type'" class="field"><span>what must be typed</span><input v-model="draft.fields.plain" type="text"></label>
+                      <label v-if="draft.kind === 'type'" class="slot"><span>what must be typed</span><input v-model="draft.fields.plain" type="text"></label>
                       <div ref="viewEl" class="typeset" data-label="as typeset" v-html="typesetView"></div>
                     </template>
-                    <div class="field"><span>tags</span><div class="tags"><button v-for="t in TAGS" :key="t" class="tag" :class="{ on: draft.tags.includes(t) }" @click="toggleTag(t)">{{ t }}</button></div></div>
+                    <div class="slot"><span>tags</span><div class="tags"><button v-for="t in TAGS" :key="t" class="tag" :class="{ on: draft.tags.includes(t) }" @click="toggleTag(t)">{{ t }}</button></div></div>
                   </div>
                   <p v-if="error" class="err">{{ error }}</p>
                   <div class="foot-actions">
@@ -626,6 +648,12 @@ const moodleAnki = computed(() => (current.value?.src === 'moodle' ? `/api/v1/ac
 .arcana .entry { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left; padding: 8px 10px; background: #1d1b18; border: 1px solid #2c2925; color: var(--phos); transition: background .25s, border-color .25s, transform .3s var(--out); animation: ar-entry .45s var(--out) both; animation-delay: calc(var(--i) * 40ms); }
 @keyframes ar-entry { from { opacity: 0; transform: translateX(-12px); } }
 .arcana .entry:hover { border-color: var(--phos); }
+.arcana .line { display: flex; gap: 4px; align-items: stretch; }
+.arcana .line .entry { flex: 1; min-width: 0; }
+.arcana .unfile { flex: none; width: 30px; font: 400 12px var(--type); color: var(--dim); border: 1.5px solid transparent; transition: color .2s, border-color .2s; }
+.arcana .unfile:hover { color: var(--hi); border-color: var(--phos); }
+.arcana .burn { margin-top: 8px; font: 400 10px var(--type); letter-spacing: .16em; text-transform: uppercase; padding: 4px 8px; border: 1.5px solid var(--ink2); color: var(--ink2); }
+.arcana .burn:hover { background: var(--ink); color: var(--paper); }
 .arcana .entry.on { background: var(--paper); color: var(--ink); border-color: var(--paper); transform: translateX(8px); }
 .arcana .entry i { font: normal 400 10px var(--type); border: 1.5px solid currentColor; display: grid; place-items: center; height: 22px; }
 .arcana .entry b { font: 400 13px/1.2 var(--type); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -644,11 +672,11 @@ const moodleAnki = computed(() => (current.value?.src === 'moodle' ? `/api/v1/ac
 .arcana .kind { font: 400 12px var(--type); letter-spacing: .14em; text-transform: uppercase; padding: 6px 12px 5px; border: 1.5px solid var(--ink); color: var(--ink); transition: background .2s, color .2s; }
 .arcana .kind.on { background: var(--ink); color: var(--paper); }
 .arcana .form { display: grid; gap: 14px; margin-top: 18px; }
-.arcana .field { display: grid; gap: 4px; }
-.arcana .field > span { font: 400 11px var(--type); letter-spacing: .22em; text-transform: uppercase; color: var(--ink2); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.arcana .field em { font-style: normal; }
-.arcana .field textarea, .arcana .field input[type=text] { width: 100%; background: transparent; border: 0; border-bottom: 1.5px dashed var(--ink2); color: var(--ink); font: 400 17px/1.55 var(--type); padding: 4px 0; resize: vertical; outline: none; }
-.arcana .field textarea:focus, .arcana .field input:focus { border-bottom-style: solid; border-bottom-color: var(--ink); }
+.arcana .slot { display: grid; gap: 4px; }
+.arcana .slot > span { font: 400 11px var(--type); letter-spacing: .22em; text-transform: uppercase; color: var(--ink2); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.arcana .slot em { font-style: normal; }
+.arcana .slot textarea, .arcana .slot input[type=text] { width: 100%; background: transparent; border: 0; border-bottom: 1.5px dashed var(--ink2); color: var(--ink); caret-color: var(--ink); font: 400 17px/1.55 var(--type); padding: 4px 0; resize: vertical; outline: none; }
+.arcana .slot textarea:focus, .arcana .slot input:focus { border-bottom-style: solid; border-bottom-color: var(--ink); }
 .arcana .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .arcana .keys { display: flex; gap: 4px; flex-wrap: wrap; }
 .arcana .key { font: 400 11px var(--type); border: 1.5px solid var(--ink); border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink); background: var(--paper2); box-shadow: 0 2px 0 var(--ink); }

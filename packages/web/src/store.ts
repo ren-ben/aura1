@@ -224,6 +224,7 @@ export const deckApi = {
   addNote: (deckId: number, note: NoteBody) => call<NoteDto>('POST', `/academy/own/decks/${deckId}/notes`, note),
   saveNote: (id: number, note: NoteBody) => call<NoteDto>('PATCH', `/academy/own/notes/${id}`, note),
   shred: (id: number) => call('DELETE', `/academy/own/notes/${id}`),
+  burnFile: (id: number) => call('DELETE', `/academy/own/decks/${id}`),
   // A picture goes up as it is.
   picture: async (file: Blob): Promise<number> => {
     if (state.demo) throw new Error('the demo keeps no pictures');
