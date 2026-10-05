@@ -4,7 +4,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { cards, decks, moodle } from '../db/schema.ts';
-import { MOODLE, answerCard, cardOf, poolRows, type Http } from './moodle.ts';
+import { MOODLE, answerCard, cardOf, poolRows, type Http, type PoolCard } from './moodle.ts';
 
 type Link = typeof moodle.$inferSelect;
 type Card = typeof cards.$inferSelect;
@@ -46,20 +46,27 @@ export async function flush(db: Db, http: Http, link: Link, card: Card, instance
 // not seen before.
 export async function syncDeck(db: Db, http: Http, link: Link, cookie: string, deckId: number, cmid: number, instance: number) {
   for (const c of await db.select().from(cards).where(eq(cards.deckId, deckId))) await flush(db, http, link, c, instance);
-  const page = await http(`${MOODLE}/mod/flashcards/studentquestioninit.php?id=${cmid}&perpage=1000`, { headers: { cookie } });
-  const rows = poolRows(await page.text());
+  // The plugin takes only its own page sizes (5000 the largest) and falls
+  // back to 20 otherwise, so the pages are walked until one brings nothing new.
+  const rows = new Map<number, PoolCard>();
+  for (let p = 0; ; p++) {
+    const page = await http(`${MOODLE}/mod/flashcards/studentquestioninit.php?id=${cmid}&perpage=5000&page=${p}`, { headers: { cookie } });
+    const fresh = poolRows(await page.text()).filter((r) => !rows.has(r.qid));
+    if (!fresh.length) break;
+    for (const r of fresh) rows.set(r.qid, r);
+  }
   const known = new Map((await db.select().from(cards).where(eq(cards.deckId, deckId))).map((c) => [c.qid, c]));
-  for (const r of rows) {
+  for (const r of rows.values()) {
     const had = known.get(r.qid);
     // A card with answers still owed keeps the box it was answered into.
-    if (had) { if (!had.pending.length) await db.update(cards).set({ box: r.box, name: r.name }).where(eq(cards.id, had.id)); continue; }
-    const res = await http(`${MOODLE}/mod/flashcards/flashcardpreview.php?id=${r.qid}&cmid=${cmid}&fcid=${instance}`, { headers: { cookie } });
+    if (had && !had.pending.length) await db.update(cards).set({ box: r.box, name: r.name }).where(eq(cards.id, had.id));
+    // A card is read once; one that came without its back is read again.
+    if (had?.back) continue;
+    const res = await http(`${MOODLE}/mod/flashcards/flashcardpreview.php?id=${r.qid}&cmid=${cmid}`, { headers: { cookie } });
     const face = cardOf(await res.text());
-    await db.insert(cards).values({
-      deckId, qid: r.qid, name: r.name, box: r.box,
-      front: face ? await inline(http, face.front, link.token) : r.name,
-      back: face ? await inline(http, face.back, link.token) : '',
-    });
+    const faces = { front: face ? await inline(http, face.front, link.token) : r.name, back: face ? await inline(http, face.back, link.token) : '' };
+    if (had) await db.update(cards).set(faces).where(eq(cards.id, had.id));
+    else await db.insert(cards).values({ deckId, qid: r.qid, name: r.name, box: r.box, ...faces });
   }
   return recount(db, deckId);
 }

@@ -17,7 +17,7 @@ const CARD = readFileSync(new URL('./fixtures/moodle-flashcard-card.html', impor
 
 // weblogin and Moodle as the app meets them: launch.php to the IdP, the
 // local-storage step, the login form, the SAML post back, the token.
-function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number; cardsDown?: boolean; broken?: boolean } = {}) {
+function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number; cardsDown?: boolean; broken?: boolean; pageSize?: number } = {}) {
   const seen = { downloads: 0, logins: 0, answers: [] as string[] };
   let pending: string | null = null;
   const res = (status: number, body = '', headers: Record<string, string> = {}) => new Response(status === 302 || status === 303 ? null : body, { status, headers });
@@ -65,7 +65,14 @@ function fakeMoodle(o: { password?: string; refuse?: boolean; modified?: number;
     if (href.endsWith('/autologin.php')) return res(303, '', { location: '/my/', 'set-cookie': 'MoodleSession=web; path=/' });
     if (href.includes('/mod/flashcards/flashcardpreview.php')) return res(200, CARD);
     if (href.includes('/webservice/pluginfile.php/9/question/')) return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } });
-    if (href.includes('/mod/flashcards/studentquestioninit.php?id=20015910')) { assert.match(String((init?.headers as Record<string, string>).cookie), /MoodleSession=web/); return res(200, POOL); }
+    if (href.includes('/mod/flashcards/studentquestioninit.php?id=20015910')) {
+      assert.match(String((init?.headers as Record<string, string>).cookie), /MoodleSession=web/);
+      // The plugin's pages: past the last, Moodle shows the last one again.
+      const q = new URL(href).searchParams, rows = POOL.split(/(?=<tr class="" id="flashcards_studentview_r)/);
+      const per = q.get('perpage') === '5000' ? 5000 : 20, size = o.pageSize ?? per;
+      const last = Math.ceil((rows.length - 1) / size) - 1, at = Math.min(Number(q.get('page') ?? 0), last);
+      return res(200, rows[0] + rows.slice(1 + at * size, 1 + (at + 1) * size).join(''));
+    }
     throw new Error(`unexpected ${href}`);
   };
   return { http, seen };
@@ -201,6 +208,10 @@ test("a card's face and back are read from the plugin, made safe", () => {
   assert.ok(!/nolink|<script|onerror/.test(card.front));
   assert.match(card.back, /Product rule!/);
   assert.equal(cardOf('<p>nothing</p>'), null);
+  // The preview page as the plugin now serves it: title, question, answer.
+  const box = (s: string) => `<div class ="formulation clearfix"><div class="blue-box">${s}</div></div>`;
+  assert.deepEqual(cardOf(box('Integration 38') + box('<p>What is \( \int x \, dx \)?</p>') + box('<div><p>\( x^2/2 \)</p></div>')),
+    { front: '<p>What is \( \int x \, dx \)?</p>', back: '<div><p>\( x^2/2 \)</p></div>' });
   assert.deepEqual([nextBox(0, true), nextBox(0, false), nextBox(3, true), nextBox(5, true), nextBox(4, false)], [2, 1, 4, 5, 1]);
   assert.equal(anki({ name: 'Integration', course: 'Rechenmethoden' }, [{ front: 'a\tb\nc', back: '\\( x \\)', box: 2, name: 'Integration 3' }]),
     '#separator:tab\n#html:true\n#deck:Rechenmethoden::Integration\n#tags column:3\na b<br>c\t\\( x \\)\tmoodle box2 Integration_3\n');
@@ -236,6 +247,18 @@ test('a deck is played here and every answer reaches Moodle, late if it must', a
   const txt = await call('GET', `/academy/decks/${deck.id}/anki`);
   assert.match(String(txt.headers['content-disposition']), /Integration\.txt/);
   assert.equal(txt.body.split('\n').filter((l) => l && !l.startsWith('#')).length, 20);
+});
+
+test('a deck longer than a page comes whole; a card read without its back is read again', async () => {
+  moodle = fakeMoodle({ pageSize: 7 });
+  await call('POST', '/academy/moodle', { username: 'oliwierp06', password: 'pw' });
+  const deck = (await settled()).decks[0];
+  assert.equal((await call('GET', `/academy/decks/${deck.id}/cards`)).json().length, 20);
+  await db.execute(sql`UPDATE cards SET front = name, back = ''`);
+  await call('POST', '/academy/moodle/sync');
+  await settled();
+  const cards = (await call('GET', `/academy/decks/${deck.id}/cards`)).json();
+  assert.ok(cards.every((c: { back: string }) => c.back));
 });
 
 test('a file Moodle will not give is passed over; the rest and the decks still come', async () => {

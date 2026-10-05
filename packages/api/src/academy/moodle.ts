@@ -140,10 +140,10 @@ export function poolOf(html: string): number[] {
 
 // The inside of the first element whose class has this name, nested divs
 // and spans counted.
-function inner(html: string, cls: string): string | null {
-  const at = html.search(new RegExp(`<(div|span)[^>]*class="[^"]*\\b${cls}\\b`));
+function inner(html: string, cls: string, from = 0): string | null {
+  const at = html.slice(from).search(new RegExp(`<(div|span)[^>]*class="[^"]*\\b${cls}\\b`));
   if (at < 0) return null;
-  const open = html.indexOf('>', at) + 1;
+  const open = html.indexOf('>', from + at) + 1;
   let depth = 1, i = open;
   const tag = /<(\/?)(div|span)\b[^>]*>/g;
   tag.lastIndex = open;
@@ -160,10 +160,21 @@ export function clean(html: string): string {
   return html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/\son\w+='[^']*'/gi, '')
     .replace(/(href|src)="\s*javascript:[^"]*"/gi, '$1="#"').replace(/<span class="nolink">([\s\S]*?)<\/span>/g, '$1').trim();
 }
-// Front and back of a card from the plugin's rendering of it.
+// Every element whose class has this name, in order.
+function inners(html: string, cls: string): string[] {
+  const found: string[] = [];
+  for (const m of html.matchAll(new RegExp(`<(div|span)[^>]*class="[^"]*\\b${cls}\\b`, 'g'))) found.push(inner(html, cls, m.index)!);
+  return found;
+}
+// Front and back of a card from the plugin's rendering of it: the flip card,
+// or the preview page's boxes (its title, the question, the answer).
 export function cardOf(html: string): { front: string; back: string } | null {
-  const front = inner(html, 'qflashcard-question'), back = inner(html, 'qflashcard-answer');
-  return front && back ? { front: clean(front), back: clean(back) } : null;
+  let front = inner(html, 'qflashcard-question'), back = inner(html, 'qflashcard-answer');
+  if (!front || !back) {
+    const boxes = inners(html, 'blue-box');
+    if (boxes.length >= 2) [front, back] = boxes.slice(-2) as [string, string];
+  }
+  return front?.trim() && back?.trim() ? { front: clean(front), back: clean(back) } : null;
 }
 
 // An answer sent to Moodle as its own page sends it: a card still in the
