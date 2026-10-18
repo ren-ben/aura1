@@ -38,11 +38,11 @@ const SEEDS: Record<string, { name: string; ground: number; at: [number, number]
     ['Basis and dimension', 580, -230, 0, 0, 0],
   ] },
   ep: { name: 'Experimentalphysik 1', ground: 3, at: [300, -20], topics: [
-    ['Units and dimensions', 890, -380, 14, 4, 3, ['SI base units', 'Check every result by its dimension']],
-    ['Kinematics in 1D', 1070, -390, 7, 4, 2, ['$v = \\dot{x}$, $a = \\dot{v}$', 'Constant $a$: $x = x_0 + v_0 t + \\tfrac{1}{2} a t^2$']],
-    ['Vectors in kinematics', 1080, -220, 3, 5, 2, ['Motion splits into independent components', 'Speed is $|\\vec{v}|$']],
-    ["Newton's laws", 920, -80, 2, 1, 1, ['$\\vec{F} = \\dot{\\vec{p}}$', 'Actio = reactio, on different bodies']],
-    ['Work and energy', 1310, -60, 0, 0, 0],
+    ['Units and dimensions', 880, -440, 14, 4, 3, ['SI base units', 'Check every result by its dimension']],
+    ['Kinematics in 1D', 1180, -520, 7, 4, 2, ['$v = \\dot{x}$, $a = \\dot{v}$', 'Constant $a$: $x = x_0 + v_0 t + \\tfrac{1}{2} a t^2$']],
+    ['Vectors in kinematics', 1380, -380, 3, 5, 2, ['Motion splits into independent components', 'Speed is $|\\vec{v}|$']],
+    ["Newton's laws", 940, -20, 2, 1, 1, ['$\\vec{F} = \\dot{\\vec{p}}$', 'Actio = reactio, on different bodies']],
+    ['Work and energy', 1360, 40, 0, 0, 0],
   ] },
   rm: { name: 'Rechenmethoden', ground: 0, at: [70, 120], topics: [
     ['Derivative rules', 170, 110, 16, 5, 3, ["Product: $(fg)' = f'g + fg'$", "Chain: $(f \\circ g)' = f'(g)\\,g'$"]],
@@ -58,6 +58,8 @@ const LINKS: [string, string][] = [['Field axioms', 'Absolute value'], ['Absolut
   ['Kinematics in 1D', 'Vectors in kinematics'], ["Kinematics in 1D", "Newton's laws"], ["Newton's laws", 'Work and energy'], ['Dot and cross product', 'Vectors in kinematics'],
   ['Derivative rules', 'Taylor series'], ['Taylor series', "Euler's formula"], ['Complex numbers', "Euler's formula"]];
 
+const HUB_LINKS: [string, string][] = [['Mechanics', 'Kinematics'], ['Mechanics', 'Dynamics'], ['Mechanics', 'Units and dimensions'],
+  ['Kinematics', 'Kinematics in 1D'], ['Kinematics', 'Vectors in kinematics'], ['Dynamics', "Newton's laws"], ['Dynamics', 'Work and energy']];
 let next = 1;
 function seed(): MnemosyneDto {
   const out: MnemosyneDto = { groups: [], topics: [], links: [] };
@@ -65,13 +67,19 @@ function seed(): MnemosyneDto {
     const g = { id: next++, name: s.name, ground: s.ground };
     out.groups.push(g);
     for (const [title, x, y, stability, ago, reps, points = []] of s.topics) {
-      const t: TopicDto = { id: next++, groupId: g.id, title, points, x: x + s.at[0], y: y + s.at[1], learned: false, stability: 0, lastReview: null, due: null, reps, lapses: reps > 2 ? 1 : 0, next: null };
+      const t: TopicDto = { id: next++, groupId: g.id, title, points, hub: false, x: x + s.at[0], y: y + s.at[1], learned: false, stability: 0, lastReview: null, due: null, reps, lapses: reps > 2 ? 1 : 0, next: null };
       if (stability) schedule(t, stability, Date.now() - ago * DAY);
       out.topics.push(t);
     }
   }
+  // Hubs: Mechanics holds Kinematics and Dynamics, and each of those its
+  // own topics.
+  const ep = out.groups.find((g) => g.name === 'Experimentalphysik 1')!;
+  for (const [title, x, y] of [['Mechanics', 1360, -230], ['Kinematics', 1530, -380], ['Dynamics', 1460, -40]] as const) {
+    out.topics.push({ id: next++, groupId: ep.id, title, points: [], hub: true, x, y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null });
+  }
   const id = (title: string) => out.topics.find((t) => t.title === title)!.id;
-  out.links = LINKS.map(([a, b]) => ({ id: next++, from: id(a), to: id(b) }));
+  out.links = [...LINKS, ...HUB_LINKS].map(([a, b]) => ({ id: next++, from: id(a), to: id(b) }));
   return out;
 }
 let map: MnemosyneDto | null = null;
@@ -92,7 +100,7 @@ export function mnemoDemo(method: string, seg: string[], body: any): unknown {
       return structuredClone(topic);
     }
     if (method === 'POST') {
-      const t: TopicDto = { id: next++, groupId: body.groupId, title: body.title, points: body.points ?? [], x: body.x, y: body.y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null };
+      const t: TopicDto = { id: next++, groupId: body.groupId, title: body.title, points: body.points ?? [], hub: false, x: body.x, y: body.y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null };
       m.topics.push(t);
       return structuredClone(t);
     }

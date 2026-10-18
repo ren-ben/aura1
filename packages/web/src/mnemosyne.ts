@@ -10,14 +10,15 @@ import type { Build } from './gl/engine';
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 export const ease = (u: number) => 1 - (1 - clamp(u)) ** 3;
 export const CELL = 2;
-const MAXT = 512;
+const MAXT = 512, ROWS = 5;
 // Seven pools to give out; the eighth is where loose topics gather.
 export const LOOSE = 7;
 
 // What the water shows of a topic now. q is its recall stretched over the
 // range that matters (60% to 100%), so 90% sits three quarters up.
-export type Look = { r: number; q: number; due: boolean; kind: 'held' | 'fading' | 'slipping' | 'unlearned' };
+export type Look = { r: number; q: number; due: boolean; kind: 'held' | 'fading' | 'slipping' | 'unlearned' | 'hub' };
 export function look(t: TopicDto, now: number): Look {
+  if (t.hub) return { r: 0, q: 0, due: false, kind: 'hub' };
   if (!t.learned || !t.lastReview) return { r: 0, q: 0, due: false, kind: 'unlearned' };
   const r = recallOf((now - Date.parse(t.lastReview)) / 864e5, t.stability);
   const due = !!t.due && Date.parse(t.due) <= now;
@@ -26,25 +27,31 @@ export function look(t: TopicDto, now: number): Look {
 export const withRecall = (l: Look, r: number): Look => ({ ...l, r, q: clamp((r - 0.6) / 0.4) });
 // The liquid a topic gives its pool: wide while it is held, a drop once it
 // has faded, a bead before it is learned.
-export const reach = (t: TopicDto, l: Look) => (t.learned ? 46 + 74 * l.q * l.q : 42);
+export const reach = (t: TopicDto, l: Look) => (t.hub ? 60 : t.learned ? 46 + 74 * l.q * l.q : 42);
 
 // Pools of different groups must never run together. Neighbours get
 // different slots; groups far apart may share one.
-export function slotsFor(groups: TopicGroupDto[], topics: TopicDto[]): Map<number, number> {
-  const boxes = new Map<number, { x0: number; y0: number; x1: number; y1: number }>();
-  for (const g of groups) {
-    const ts = topics.filter((t) => t.groupId === g.id);
-    if (ts.length) boxes.set(g.id, { x0: Math.min(...ts.map((t) => t.x)) - 320, x1: Math.max(...ts.map((t) => t.x)) + 320, y0: Math.min(...ts.map((t) => t.y)) - 320, y1: Math.max(...ts.map((t) => t.y)) + 320 });
-  }
+type Box = { x0: number; y0: number; x1: number; y1: number };
+const around = (ts: TopicDto[], pad: number): Box | null => (ts.length ? { x0: Math.min(...ts.map((t) => t.x)) - pad, x1: Math.max(...ts.map((t) => t.x)) + pad, y0: Math.min(...ts.map((t) => t.y)) - pad, y1: Math.max(...ts.map((t) => t.y)) + pad } : null);
+function colour(ids: number[], boxes: Map<number, Box | null>, slots: number): Map<number, number> {
   const out = new Map<number, number>();
-  for (const g of groups) {
-    const b = boxes.get(g.id), used = new Set<number>();
-    if (b) for (const [id, s] of out) { const o = boxes.get(id); if (o && b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0) used.add(s); }
+  for (const id of ids) {
+    const b = boxes.get(id), used = new Set<number>();
+    if (b) for (const [o, s] of out) { const c = boxes.get(o); if (c && b.x0 < c.x1 && b.x1 > c.x0 && b.y0 < c.y1 && b.y1 > c.y0) used.add(s); }
     let s = 0;
-    while (used.has(s) && s < LOOSE - 1) s++;
-    out.set(g.id, s);
+    while (used.has(s) && s < slots - 1) s++;
+    out.set(id, s);
   }
   return out;
+}
+export function slotsFor(groups: TopicGroupDto[], topics: TopicDto[]): Map<number, number> {
+  return colour(groups.map((g) => g.id), new Map(groups.map((g) => [g.id, around(topics.filter((t) => t.groupId === g.id), 320)])), LOOSE);
+}
+// Hubs get membranes of their own, eight to give out; a hub inside another
+// always overlaps it, so never shares its slot.
+export const HUBS = 8;
+export function hubSlotsFor(hubs: number[], members: (id: number) => TopicDto[]): Map<number, number> {
+  return colour(hubs, new Map(hubs.map((id) => [id, around(members(id), 260)])), HUBS);
 }
 // Each group's own tone of water.
 const TONES = [0.13, 0.17, 0.2, 0.15, 0.18, 0.12, 0.16, 0.14];
@@ -55,6 +62,9 @@ export type Drop = {
   // Its pool, and the one it is pouring out of while it changes groups.
   slot: number; from: number; mix: number;
   ground: number; tone: number; cx: number; cy: number;
+  // The hubs it lies in (a bit a hub slot) and, if it hangs from one, the
+  // hub it hangs from: the membrane runs to it along a tendril.
+  within: number; tendril: number; px: number; py: number;
 };
 export type View = { x: number; y: number; k: number };
 
@@ -69,13 +79,13 @@ const FRAG = `
   void main() {
     vec2 cell = floor(gl_FragCoord.xy);
     vec2 w = (vec2(gl_FragCoord.x, uScreen.y / uCell - gl_FragCoord.y) * uCell - uView.xy) / uView.z;
-    float f[8]; float gs[8]; float tn[8]; vec2 cn[8];
-    for (int g = 0; g < 8; g++) { f[g] = 0.0; gs[g] = 0.0; tn[g] = 0.0; cn[g] = vec2(0.0); }
+    float f[8]; float gs[8]; float tn[8]; vec2 cn[8]; float hf[8];
+    for (int g = 0; g < 8; g++) { f[g] = 0.0; gs[g] = 0.0; tn[g] = 0.0; cn[g] = vec2(0.0); hf[g] = 0.0; }
     float glow = 0.0, ripple = 0.0;
     for (int i = 0; i < ${MAXT}; i++) {
       if (i >= uN) break;
       vec4 a = texelFetch(uData, ivec2(i, 0), 0), b = texelFetch(uData, ivec2(i, 1), 0);
-      vec4 m = texelFetch(uData, ivec2(i, 2), 0), c = texelFetch(uData, ivec2(i, 3), 0);
+      vec4 m = texelFetch(uData, ivec2(i, 2), 0), c = texelFetch(uData, ivec2(i, 3), 0), h = texelFetch(uData, ivec2(i, 4), 0);
       vec2 d = w - a.xy; float d2 = dot(d, d);
       // A topic gives its liquid to its pool; changing groups, it pours
       // from the old one into the new.
@@ -84,6 +94,19 @@ const FRAG = `
       float u = m.y;
       if (g >= 0 && g < 8) { float k = e * u; f[g] += k; gs[g] += k * c.x; tn[g] += k * c.y; cn[g] += k * c.zw; }
       if (g0 >= 0 && g0 < 8 && u < 1.0) { float k = e * (1.0 - u); f[g0] += k; gs[g0] += k * c.x; tn[g0] += k * c.y; cn[g0] += k * c.zw; }
+      // A hub's membrane: a wider well round everything it holds, and a
+      // tendril, thick at the hub and thin at the topic, from each member to
+      // the hub it hangs from.
+      int within = int(h.x + 0.5), tendril = int(h.y + 0.5);
+      if (within != 0) {
+        float ew = exp(-d2 / (a.z * a.z * 1.7)), ec = 0.0;
+        if (tendril != 0) {
+          vec2 ab = h.zw - a.xy; float s = clamp(dot(w - a.xy, ab) / max(dot(ab, ab), 1.0), 0.0, 1.0);
+          vec2 o = a.xy + ab * s - w; float r = mix(15.0, 30.0, s);
+          ec = exp(-dot(o, o) / (r * r));
+        }
+        for (int s = 0; s < 8; s++) { int bit = 1 << s; if ((within & bit) != 0) hf[s] += ew; if ((tendril & bit) != 0) hf[s] += ec; }
+      }
       float q = a.w;
       if (b.y > 0.5) { float rg = 7.0 + 11.0 * q; glow += (0.2 + 0.7 * q * q) * exp(-d2 / (rg * rg)); }
       if (b.z > 0.5) {
@@ -105,6 +128,16 @@ const FRAG = `
       float inside = smoothstep(0.44, 0.56, v), rim = exp(-pow((v - 0.5) / 0.05, 2.0));
       L = max(L, inside * body + rim * 0.26);
     }
+    // Membranes: a faint tone inside, and at the edge a dark channel cut
+    // through whatever water is there with a fine bright line just inside
+    // it, so one membrane inside another reads as a shape inside a shape.
+    for (int s = 0; s < 8; s++) {
+      float v = hf[s];
+      if (v < 0.05) continue;
+      L = max(L, smoothstep(0.42, 0.58, v) * 0.055);
+      L *= 1.0 - 0.9 * exp(-pow((v - 0.46) / 0.05, 2.0));
+      L += exp(-pow((v - 0.6) / 0.05, 2.0)) * 0.24;
+    }
     L += glow * 0.85 + ripple * 0.55;
     for (int k = 0; k < 4; k++) {
       vec4 p = uPulse[k];
@@ -118,8 +151,8 @@ const FRAG = `
 export function water(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: false });
   renderer.setClearColor(0x000000, 0);
-  const data = new Float32Array(MAXT * 4 * 4);
-  const tex = new THREE.DataTexture(data, MAXT, 4, THREE.RGBAFormat, THREE.FloatType);
+  const data = new Float32Array(MAXT * ROWS * 4);
+  const tex = new THREE.DataTexture(data, MAXT, ROWS, THREE.RGBAFormat, THREE.FloatType);
   const U = {
     uData: { value: tex }, uN: { value: 0 }, uView: { value: new THREE.Vector3() }, uScreen: { value: new THREE.Vector2(1, 1) },
     uCell: { value: CELL }, uTime: { value: 0 }, uPulse: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
@@ -140,6 +173,7 @@ export function water(canvas: HTMLCanvasElement) {
         data.set([d.slot + 1, d.learned ? 1 : 0, d.due ? 1 : 0, d.phase], (MAXT + i) * 4);
         data.set([d.from + 1, d.mix, 0, 0], (2 * MAXT + i) * 4);
         data.set([d.ground, d.tone, d.cx, d.cy], (3 * MAXT + i) * 4);
+        data.set([d.within, d.tendril, d.px, d.py], (4 * MAXT + i) * 4);
       }
       tex.needsUpdate = true;
       U.uN.value = n; U.uView.value.set(view.x, view.y, view.k); U.uTime.value = t;

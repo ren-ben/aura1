@@ -38,6 +38,10 @@ test('a topic waits unlearned, starts its clock on its first good, and comes bac
   const edited = (await call('PATCH', `/academy/topics/${t.id}`, { title: 'Dreiecksungleichung', points: ['a', 'b'] })).json();
   assert.equal(edited.title, 'Dreiecksungleichung');
   assert.equal(edited.reps, 1);
+  assert.equal(edited.hub, false);
+  const hub = (await call('PATCH', `/academy/topics/${t.id}`, { hub: true })).json();
+  assert.equal(hub.hub, true);
+  assert.equal(hub.title, 'Dreiecksungleichung');
   assert.equal((await call('PATCH', '/academy/topics/999', { title: 'x' })).statusCode, 404);
 });
 

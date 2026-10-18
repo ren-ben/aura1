@@ -266,6 +266,12 @@ for you: you write each topic and its key points yourself.
   group's name to rename it or pick its water; drag the name to move it.
 - **Links:** drag from a topic to one that builds on it with the link tool
   (or alt-drag).
+- **Hubs:** switch **a hub** on in a topic's edit panel and it stops being
+  something to recall: it holds every topic linked to it, drawn as a
+  membrane round them with a tendril to each. Link a hub to another hub and
+  the one you dragged from holds the other (its panel can **turn it
+  around**). Dragging a hub carries everything in it; its panel recalls just
+  its fading topics.
 - **The water is the schedule.** A topic you hold well sits deep in its pool.
   As you forget it, the pool draws back from it until it is a lone drop, and
   once it is due it ripples. A small bead is a topic not learned yet: **mark

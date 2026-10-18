@@ -394,6 +394,7 @@ export const topics = pgTable('topics', {
   groupId: integer('group_id').references(() => topicGroups.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   points: jsonb('points').$type<string[]>().notNull().default([]),
+  hub: boolean('hub').notNull().default(false),
   x: doublePrecision('x').notNull(),
   y: doublePrecision('y').notNull(),
   fsrs: jsonb('fsrs').$type<Record<string, unknown>>(),

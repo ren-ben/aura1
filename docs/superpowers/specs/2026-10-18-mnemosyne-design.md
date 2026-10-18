@@ -22,6 +22,14 @@ https://claude.ai/artifact/3XPhFrc76ts9goTAUs8LYd (material I, ink).
   Due topics send out slow ripples. A topic not yet learned is a small bead.
 - **Links** ("builds on") are faint curves; drag from one topic to another
   with the link tool or alt.
+- **Hubs** (added on request): a toggle in a topic's settings. A hub is never
+  recalled and holds every topic linked to it; between two hubs the link's
+  from end holds the other, so hubs nest. Each hub draws a membrane (a wider
+  well round everything it holds plus a tapered tendril from each member to
+  it) with a dark channel and a fine line at its edge, nested membranes
+  inside each other. Links to a hub show as the membrane, not as threads.
+  Dragging a hub carries its subtree. Hubs stay out of the counts, the held
+  average and every recall queue.
 - **Overview**: wheel or pinch to zoom, drag to pan with a little momentum,
   names fade in as you come closer (what is fading keeps its name longest),
   group names stay above their pools. Choose an area with shift-drag, the

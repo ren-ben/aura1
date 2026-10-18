@@ -636,7 +636,7 @@ const arcana = ref(false);
 // Mnemosyne, the map of everything learned, and how much of it is fading.
 const mnemo = ref(false);
 const mnemoFading = ref(0);
-const countFading = () => mnemoApi.load().then((m) => { mnemoFading.value = m.topics.filter((t) => t.due && Date.parse(t.due) <= Date.now()).length; }, () => {});
+const countFading = () => mnemoApi.load().then((m) => { mnemoFading.value = m.topics.filter((t) => !t.hub && t.due && Date.parse(t.due) <= Date.now()).length; }, () => {});
 onMounted(countFading);
 function fromMonth(s: { course: Course; begin: string }) {
   monthOpen.value = false;

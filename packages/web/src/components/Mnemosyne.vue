@@ -14,7 +14,7 @@ import { reduced } from '../gl/engine';
 import { worn } from '../worn';
 import { rich } from '../lecturemap';
 import { mnemoApi } from '../store';
-import { ease, hourglass, look, LOOSE, reach, slotsFor, toneOf, water, withRecall, type Drop, type Look } from '../mnemosyne';
+import { ease, hourglass, hubSlotsFor, look, LOOSE, reach, slotsFor, toneOf, water, withRecall, type Drop, type Look } from '../mnemosyne';
 
 const emit = defineEmits<{ close: [] }>();
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -48,6 +48,29 @@ function seen(t: TopicDto, now = Date.now()): Look {
   if (u >= 1) { anims.delete(t.id); return l; }
   return withRecall(l, u < 0 ? a.from : lerp(a.from, l.r, ease(u)));
 }
+// Hubs: a topic marked hub holds whatever is linked to it, and is never
+// recalled. Between two hubs, the one the link was drawn from holds the other.
+const tree = computed(() => {
+  const hubs = new Set(map.value.topics.filter((t) => t.hub).map((t) => t.id));
+  const parents = new Map<number, number[]>(), kids = new Map<number, number[]>();
+  for (const l of map.value.links) {
+    const [p, c] = hubs.has(l.from) ? [l.from, l.to] : hubs.has(l.to) ? [l.to, l.from] : [0, 0];
+    if (!p) continue;
+    parents.set(c, [...(parents.get(c) ?? []), p]); kids.set(p, [...(kids.get(p) ?? []), c]);
+  }
+  return { hubs, parents, kids };
+});
+const isMembership = (l: TopicLinkDto) => tree.value.hubs.has(l.from) || tree.value.hubs.has(l.to);
+function ancestors(id: number): number[] {
+  const out: number[] = [], stack = [...(tree.value.parents.get(id) ?? [])];
+  while (stack.length) { const p = stack.pop()!; if (p === id || out.includes(p)) continue; out.push(p); stack.push(...(tree.value.parents.get(p) ?? [])); }
+  return out;
+}
+function descendants(id: number): TopicDto[] {
+  const seen = new Set<number>(), stack = [...(tree.value.kids.get(id) ?? [])];
+  while (stack.length) { const c = stack.pop()!; if (c === id || seen.has(c)) continue; seen.add(c); stack.push(...(tree.value.kids.get(c) ?? [])); }
+  return [...seen].map(topicOf).filter((t): t is TopicDto => !!t);
+}
 const fading = computed(() => {
   void clock.value;
   const now = Date.now();
@@ -55,14 +78,18 @@ const fading = computed(() => {
 });
 const heldPct = computed(() => {
   void clock.value;
-  const ls = map.value.topics.filter((t) => t.learned), now = Date.now();
+  const ls = map.value.topics.filter((t) => t.learned && !t.hub), now = Date.now();
   return ls.length ? Math.round((ls.reduce((a, t) => a + look(t, now).r, 0) / ls.length) * 100) : 0;
 });
 
 // Pools of neighbouring groups get slots of their own; a topic changing
 // groups pours from its old slot into its new one.
-let slots = new Map<number, number>();
-const recolor = () => { slots = slotsFor(map.value.groups, map.value.topics); };
+let slots = new Map<number, number>(), hubSlots = new Map<number, number>();
+const recolor = () => {
+  slots = slotsFor(map.value.groups, map.value.topics);
+  hubSlots = hubSlotsFor([...tree.value.hubs], (id) => [topicOf(id)!, ...descendants(id)]);
+};
+watch(tree, recolor);
 const pour = new Map<number, { slot: number; from: number; t0: number }>();
 
 // ---- the view: everything eases toward where it is asked to be ---------------
@@ -115,7 +142,11 @@ function drops(t: number, looks: Map<number, Look>): Drop[] {
     if (!p) { p = { slot, from: slot, t0: 0 }; pour.set(tp.id, p); }
     if (p.slot !== slot) { p.from = p.slot; p.slot = slot; p.t0 = now; }
     const c = tp.groupId !== null ? cen.get(tp.groupId) : undefined;
+    let above = 0;
+    for (const a of ancestors(tp.id)) { const s = hubSlots.get(a); if (s !== undefined) above |= 1 << s; }
+    const own = tp.hub && hubSlots.has(tp.id) ? 1 << hubSlots.get(tp.id)! : 0, parent = topicOf(tree.value.parents.get(tp.id)?.[0]);
     return {
+      within: above | own, tendril: parent ? above : 0, px: parent ? parent.x + bobX(parent, t) : 0, py: parent ? parent.y + bobY(parent, t) : 0,
       x: tp.x + bobX(tp, t), y: tp.y + bobY(tp, t), reach: reach(tp, l), q: l.q, learned: tp.learned, due: l.due, phase: Math.abs(tp.x * 0.0013 + tp.y * 0.0007) % 1,
       slot: p.slot, from: p.from, mix: ease((now - p.t0) / 450),
       ground: (tp.groupId !== null && groups.get(tp.groupId)?.ground) || 0, tone: toneOf(tp.groupId), cx: c ? c.x / c.n : tp.x, cy: c ? c.y / c.n : tp.y,
@@ -139,13 +170,14 @@ function ink(t: number, looks: Map<number, Look>) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, inkCv.value!.width, inkCv.value!.height); c.setTransform(DPR, 0, 0, DPR, 0, 0);
   const k = view.k, ts = map.value.topics;
   // Names arrive as you come closer; what is fading keeps its name longer.
-  const near = smooth(0.24, 0.38, k), nearFading = smooth(0.16, 0.26, k), far = 1 - smooth(1.0, 1.6, k) * 0.55;
+  const near = smooth(0.24, 0.38, k), nearFading = smooth(0.16, 0.26, k), nearHub = smooth(0.14, 0.24, k), far = 1 - smooth(1.0, 1.6, k) * 0.55;
   const pos = new Map(ts.map((tp) => [tp.id, { x: sx(tp.x + bobX(tp, t)), y: sy(tp.y + bobY(tp, t)) }]));
   // Threads: soft curves, as faint as the weaker of their two ends.
   c.lineCap = 'round';
   for (const l of map.value.links) {
     const A = pos.get(l.from), B = pos.get(l.to);
-    if (!A || !B) continue;
+    // What a hub holds hangs from it by liquid, not by a thread.
+    if (!A || !B || isMembership(l)) continue;
     const q = Math.min(looks.get(l.from)!.q, looks.get(l.to)!.q), lit = [hover.value, openId.value].some((id) => id === l.from || id === l.to);
     const both = topicOf(l.from)!.learned && topicOf(l.to)!.learned;
     c.strokeStyle = lit ? rgbaHi(0.55) : rgba(both ? 0.1 + 0.16 * q : 0.07); c.lineWidth = lit ? 1.3 : 1;
@@ -161,7 +193,7 @@ function ink(t: number, looks: Map<number, Look>) {
   for (const g of map.value.groups) {
     const ms = ts.filter((x) => x.groupId === g.id);
     if (!ms.length) continue;
-    const learned = ms.filter((m) => m.learned), nFading = ms.filter((m) => looks.get(m.id)!.due).length;
+    const learned = ms.filter((m) => m.learned && !m.hub), nFading = ms.filter((m) => looks.get(m.id)!.due).length;
     const held = learned.length ? learned.reduce((a, m) => a + looks.get(m.id)!.r, 0) / learned.length : 0;
     const x = sx(ms.reduce((a, m) => a + m.x, 0) / ms.length), y = sy(Math.min(...ms.map((m) => m.y))) - clamp(118 * k, 40, 120), fs = clamp(34 * k, 17, 36);
     const hot = openGroupId.value === g.id || dragGroup === g.id;
@@ -178,24 +210,30 @@ function ink(t: number, looks: Map<number, Look>) {
   for (const tp of ts) {
     const l = looks.get(tp.id)!, p = pos.get(tp.id)!;
     if (p.x < -100 || p.y < -60 || p.x > W + 100 || p.y > H + 60) continue;
-    if (!tp.learned) { c.strokeStyle = rgba(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3.2 * z, 0, 7); c.stroke(); }
+    if (tp.hub) {
+      // A hub: two rings, the nucleus of its membrane.
+      c.strokeStyle = rgbaHi(0.9); c.lineWidth = 1.3; c.beginPath(); c.arc(p.x, p.y, 7 * z, 0, 7); c.stroke();
+      c.strokeStyle = rgbaHi(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3 * z, 0, 7); c.stroke();
+    } else if (!tp.learned) { c.strokeStyle = rgba(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3.2 * z, 0, 7); c.stroke(); }
     else {
       c.fillStyle = l.due ? rgbaHi(0.5 + 0.5 * Math.abs(Math.sin(t * 1.8 + tp.x))) : rgbaHi(0.55 + 0.45 * l.q);
       c.beginPath(); c.arc(p.x, p.y, (2.4 + Math.min(4, Math.log2(1 + tp.stability)) * 0.55) * z, 0, 7); c.fill();
     }
     const chosen = sel.value.has(tp.id), hot = hover.value === tp.id || openId.value === tp.id || chosen || act?.tp === tp;
     if (hot) { c.strokeStyle = rgbaHi(chosen ? 0.85 : 0.5); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 13 * z + (chosen ? 2 * Math.sin(t * 3) : 0), 0, 7); c.stroke(); }
-    const alpha = hot ? 1 : l.due ? nearFading : near * (tp.learned ? 1 : 0.7);
-    if (alpha > 0.02) cands.push({ tp, x: p.x, y: p.y, alpha, hot, pri: (hot ? 0 : l.due ? 1 : tp.learned ? 2 : 3) * 10 - l.q });
+    const alpha = hot ? 1 : tp.hub ? nearHub : l.due ? nearFading : near * (tp.learned ? 1 : 0.7);
+    if (alpha > 0.02) cands.push({ tp, x: p.x, y: p.y, alpha, hot, pri: (hot ? 0 : tp.hub ? 0.5 : l.due ? 1 : tp.learned ? 2 : 3) * 10 - l.q });
   }
   cands.sort((a, b) => a.pri - b.pri);
   for (const { tp, x, y, alpha, hot } of cands) {
-    const font = `${tp.learned ? '' : 'italic '}${fs}px "IM Fell English"`; c.font = font;
-    const w = c.measureText(tp.title).width, ly = y + 13 * z + fs * 0.55;
+    // A hub's name in spaced capitals, the way a chapter is headed.
+    const label = tp.hub ? tp.title.toUpperCase().split('').join('\u2009') : tp.title;
+    const font = tp.hub ? `${Math.round(fs * 0.86)}px "IM Fell English"` : `${tp.learned ? '' : 'italic '}${fs}px "IM Fell English"`; c.font = font;
+    const w = c.measureText(label).width, ly = y + (tp.hub ? 16 : 13) * z + fs * 0.55;
     const box = { x0: x - w / 2 - 3, x1: x + w / 2 + 3, y0: ly - fs * 0.6, y1: ly + fs * 0.6 };
     if (!hot && placed.some((p) => box.x0 < p.x1 && box.x1 > p.x0 && box.y0 < p.y1 && box.y1 > p.y0)) continue;
     placed.push(box);
-    text(c, tp.title, x, ly, font, tp.learned ? INK.hi : INK.unlearned, alpha);
+    text(c, label, x, ly, font, tp.learned || tp.hub ? INK.hi : INK.unlearned, alpha);
   }
   if (marquee) {
     const m = marquee, x = Math.min(m.x0, m.x1), y = Math.min(m.y0, m.y1), w = Math.abs(m.x1 - m.x0), h = Math.abs(m.y1 - m.y0);
@@ -209,7 +247,7 @@ const tool = ref<'hand' | 'lens' | 'link'>('hand');
 const hover = ref<number | null>(null);
 type Act =
   | { kind: 'pan'; x: number; y: number; gx: number; gy: number; moved: boolean; tp?: undefined }
-  | { kind: 'node'; tp: TopicDto; x: number; y: number; ox: number; oy: number; moved: boolean }
+  | { kind: 'node'; tp: TopicDto; x: number; y: number; ox: number; oy: number; moved: boolean; kids: [TopicDto, number, number][]; stay: number }
   | { kind: 'group'; id: number; x: number; y: number; kids: [TopicDto, number, number][]; moved: boolean; tp?: undefined }
   | { kind: 'marquee'; tp?: undefined }
   | { kind: 'link'; tp?: undefined }
@@ -226,13 +264,20 @@ const frameAt = (x: number, y: number) => frames.find((b) => x > b.x0 && x < b.x
 // How much two drops overlap is a well as wide as both, so a drop joins
 // once its edge meets a pool, and has to be pulled a little further to come
 // away again, like surface tension.
-function poolAt(x: number, y: number, except: TopicDto | null): number | null {
+function depth(g: number, x: number, y: number, except: TopicDto | null) {
   const now = Date.now(), own = except ? reach(except, seen(except, now)) : 42;
+  let v = 0;
+  for (const tp of map.value.topics) if (tp.groupId === g && tp !== except) { const r = reach(tp, seen(tp, now)); v += Math.exp(-((x - tp.x) ** 2 + (y - tp.y) ** 2) / (r * r + own * own)); }
+  return v;
+}
+// A topic stays in its own group until it is pulled clearly further from
+// the rest than it started (so one placed apart is not lost by a nudge),
+// and joins another the moment it touches that one's water.
+function poolAt(x: number, y: number, except: TopicDto | null, stay = 0.3): number | null {
   let best: number | null = null, bv = 0;
   for (const g of map.value.groups) {
-    let v = 0;
-    for (const tp of map.value.topics) if (tp.groupId === g.id && tp !== except) { const r = reach(tp, seen(tp, now)); v += Math.exp(-((x - tp.x) ** 2 + (y - tp.y) ** 2) / (r * r + own * own)); }
-    if (v > (except?.groupId === g.id ? 0.3 : 0.45) && v > bv) { bv = v; best = g.id; }
+    const v = depth(g.id, x, y, except);
+    if (v > (except?.groupId === g.id ? stay : 0.45) && v > bv) { bv = v; best = g.id; }
   }
   return best;
 }
@@ -244,7 +289,12 @@ function down(e: PointerEvent) {
   const x = e.clientX, y = e.clientY, tp = topicAt(x, y);
   const lens = tool.value === 'lens' || e.shiftKey || e.button === 2 || e.pointerType === 'pen';
   if (tp && (tool.value === 'link' || e.altKey)) { act = { kind: 'link' }; linking = { from: tp, x, y }; return; }
-  if (tp && !lens) { act = { kind: 'node', tp, x, y, ox: tp.x, oy: tp.y, moved: false }; return; }
+  // A hub is dragged with everything it holds.
+  if (tp && !lens) {
+    const start = tp.groupId !== null ? depth(tp.groupId, tp.x, tp.y, tp) : 0;
+    act = { kind: 'node', tp, x, y, ox: tp.x, oy: tp.y, moved: false, kids: tp.hub ? descendants(tp.id).map((t) => [t, t.x, t.y]) : [], stay: Math.min(0.3, start * 0.5) };
+    return;
+  }
   if (lens) { act = { kind: 'marquee' }; marquee = { x0: x, y0: y, x1: x, y1: y }; return; }
   const g = frameAt(x, y);
   if (g !== null) { act = { kind: 'group', id: g, x, y, kids: map.value.topics.filter((t) => t.groupId === g).map((t) => [t, t.x, t.y]), moved: false }; return; }
@@ -283,8 +333,10 @@ function move(e: PointerEvent) {
     // The liquid follows while it is held, and the drop changes pools the
     // moment it touches one.
     const tp = act.tp;
+    // What a hub holds moves first, so the hub stays in the water it carries.
+    for (const [t, ox, oy] of act.kids) { t.x = ox + dx / view.k; t.y = oy + dy / view.k; }
     tp.x = act.ox + dx / view.k; tp.y = act.oy + dy / view.k;
-    tp.groupId = poolAt(tp.x, tp.y, tp);
+    tp.groupId = poolAt(tp.x, tp.y, tp, act.stay);
   } else if (act.kind === 'group' && act.moved) {
     dragGroup = act.id;
     for (const [t, ox, oy] of act.kids) { t.x = ox + dx / view.k; t.y = oy + dy / view.k; }
@@ -299,7 +351,7 @@ function up(e: PointerEvent) {
   if (a.kind === 'node') {
     if (!a.moved) { openTopic(a.tp.id); return; }
     dry(); recolor();
-    mnemoApi.place([{ id: a.tp.id, x: a.tp.x, y: a.tp.y, groupId: a.tp.groupId }]).catch(fail);
+    mnemoApi.place([a.tp, ...a.kids.map(([t]) => t)].map((t) => ({ id: t.id, x: t.x, y: t.y, groupId: t.groupId }))).catch(fail);
   } else if (a.kind === 'group') {
     if (!a.moved) { openGroup(a.id); return; }
     recolor();
@@ -330,7 +382,7 @@ const clearSel = () => { sel.value = new Set(); };
 function focusChosen() { fitTo(boundsOf(chosen.value, 110), false, 1.6); }
 function recallChosen() {
   const now = Date.now();
-  startRecall(chosen.value.filter((t) => t.learned).sort((a, b) => Number(look(b, now).due) - Number(look(a, now).due) || look(a, now).r - look(b, now).r).map((t) => t.id));
+  startRecall(chosen.value.filter((t) => t.learned && !t.hub).sort((a, b) => Number(look(b, now).due) - Number(look(a, now).due) || look(a, now).r - look(b, now).r).map((t) => t.id));
 }
 async function gather() {
   const ids = chosen.value.map((t) => t.id);
@@ -348,16 +400,32 @@ const openId = ref<number | null>(null), openGroupId = ref<number | null>(null),
 const opened = computed(() => topicOf(openId.value));
 const openedGroup = computed(() => groupOf(openGroupId.value));
 const openLook = computed(() => { void clock.value; return opened.value ? look(opened.value, Date.now()) : null; });
-const builds = computed(() => map.value.links.filter((l) => l.to === openId.value).map((l) => ({ l, t: topicOf(l.from)! })).filter((x) => x.t));
-const holds = computed(() => map.value.links.filter((l) => l.from === openId.value).map((l) => ({ l, t: topicOf(l.to)! })).filter((x) => x.t));
-const draft = ref({ title: '', points: '' });
+const builds = computed(() => map.value.links.filter((l) => l.to === openId.value && !isMembership(l)).map((l) => ({ l, t: topicOf(l.from)! })).filter((x) => x.t));
+const holds = computed(() => map.value.links.filter((l) => l.from === openId.value && !isMembership(l)).map((l) => ({ l, t: topicOf(l.to)! })).filter((x) => x.t));
+// The hubs it sits in, and for a hub, what it holds.
+const linkOf = (a: number, b: number) => map.value.links.find((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a))!;
+const inside = computed(() => (tree.value.parents.get(openId.value ?? 0) ?? []).map((id) => ({ l: linkOf(id, openId.value!), t: topicOf(id)! })).filter((x) => x.t && x.l));
+const members = computed(() => (tree.value.kids.get(openId.value ?? 0) ?? []).map((id) => ({ l: linkOf(id, openId.value!), t: topicOf(id)! })).filter((x) => x.t && x.l));
+const hubAll = computed(() => (opened.value?.hub ? descendants(opened.value.id) : []));
+const hubFading = computed(() => { void clock.value; const now = Date.now(); return hubAll.value.filter((t) => look(t, now).due).sort((a, b) => look(a, now).r - look(b, now).r); });
+const hubHeld = computed(() => { void clock.value; const ls = hubAll.value.filter((t) => t.learned && !t.hub), now = Date.now(); return ls.length ? Math.round((ls.reduce((a, t) => a + look(t, now).r, 0) / ls.length) * 100) : 0; });
+// Two hubs linked the wrong way round: the link turned, so the other holds.
+async function turn(l: TopicLinkDto) {
+  try {
+    await mnemoApi.unlink(l.id);
+    const back = await mnemoApi.link(l.to, l.from);
+    map.value.links = [...map.value.links.filter((x) => x.id !== l.id), back];
+  } catch (e) { fail(e); }
+}
+const focusHub = () => { const t = opened.value!; fitTo(boundsOf([t, ...hubAll.value], 120), false, 1.4); };
+const draft = ref({ title: '', points: '', hub: false });
 const titleField = ref<HTMLInputElement | null>(null), nameField = ref<HTMLInputElement | null>(null), curveEl = ref<HTMLCanvasElement | null>(null);
 function closePanel() { openId.value = null; openGroupId.value = null; editing.value = false; sure.value = false; }
 function openTopic(id: number, edit = false) {
   clearSel(); openGroupId.value = null; openId.value = id; sure.value = false;
   editing.value = edit;
   const t = topicOf(id)!;
-  draft.value = { title: t.title, points: t.points.join('\n') };
+  draft.value = { title: t.title, points: t.points.join('\n'), hub: t.hub };
   if (edit) nextTick(() => { titleField.value?.focus(); titleField.value?.select(); });
 }
 function openGroup(id: number, rename = false) {
@@ -375,7 +443,7 @@ async function add(x: number, y: number) {
 }
 async function save() {
   const t = opened.value!;
-  const body = { title: draft.value.title.trim() || 'Untitled', points: draft.value.points.split('\n').map((s) => s.trim()).filter(Boolean) };
+  const body = { title: draft.value.title.trim() || 'Untitled', points: draft.value.points.split('\n').map((s) => s.trim()).filter(Boolean), hub: draft.value.hub };
   try { Object.assign(t, await mnemoApi.edit(t.id, body)); editing.value = false; } catch (e) { fail(e); }
 }
 async function remove() {
@@ -530,6 +598,7 @@ const line = computed(() => {
   const h = topicOf(hover.value);
   if (h) {
     const l = look(h, Date.now());
+    if (h.hub) { const all = descendants(h.id).filter((t) => !t.hub), f = all.filter((t) => look(t, Date.now()).due).length; return `${h.title} holds ${all.length} topic${all.length === 1 ? '' : 's'}${f ? `; ${f} fading` : ''}. Drag it and they come along.`; }
     if (!h.learned) return `${h.title}. Not learned yet; once it is, its clock starts.`;
     if (l.due) return `${h.title} is ${l.kind === 'slipping' ? 'slipping into Lethe' : 'fading'}. Write it out before the water takes it.`;
     return `${h.title}, ${Math.round(l.r * 100)}% held. It keeps until ${dayLabel(h.due!)}.`;
@@ -603,7 +672,7 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
       <header class="top">
         <div class="name">
           <h1>Mnemosyne</h1>
-          <div class="line pix"><span><b>{{ map.topics.length }}</b>topics</span><span><b>{{ fading.length }}</b>fading</span><span><b>{{ heldPct }}%</b>held</span></div>
+          <div class="line pix"><span><b>{{ map.topics.filter((t) => !t.hub).length }}</b>topics</span><span><b>{{ fading.length }}</b>fading</span><span><b>{{ heldPct }}%</b>held</span></div>
         </div>
         <div class="right">
           <div class="row">
@@ -635,7 +704,21 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
       </div>
 
       <aside v-if="opened" :key="`t${opened.id}`" class="panel glass">
-        <div v-if="!editing" class="body">
+        <div v-if="!editing && opened.hub" class="body">
+          <div class="head"><span class="pix">{{ groupOf(opened.groupId)?.name ?? 'no group' }} // a hub</span><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
+          <h2 class="hubname">{{ opened.title }}</h2>
+          <p v-if="hubAll.length" class="state">Holds <b>{{ hubAll.filter((t) => !t.hub).length }}</b> topics<template v-if="hubFading.length">, <b>{{ hubFading.length }}</b> fading</template><template v-if="hubHeld">; <b>{{ hubHeld }}%</b> held</template>.</p>
+          <p v-else class="state">Holds nothing yet. Link topics to it with the link tool, and they hang from it.</p>
+          <div v-if="opened.points.length" class="pts"><ol><li v-for="(p, i) in opened.points" :key="i" v-html="rich(p)"></li></ol></div>
+          <p v-if="members.length" class="rel">Holds <span v-for="(b, i) in members" :key="b.l.id" class="ln"><button :class="{ sub: b.t.hub }" @click="goToTopic(b.t)">{{ b.t.title }}</button><button class="un" title="let it go from here" aria-label="unlink" @click="unlink(b.l)">&times;</button>{{ i < members.length - 1 ? ', ' : '.' }}</span></p>
+          <p v-for="b in inside" :key="b.l.id" class="rel">Sits inside <span class="ln"><button @click="goToTopic(b.t)">{{ b.t.title }}</button></span>. <button v-if="b.t.hub" class="turn" @click="turn(b.l)">turn it around</button></p>
+          <div class="acts">
+            <button class="btn" :disabled="!hubFading.length" @click="startRecall(hubFading.map((t) => t.id))">recall its fading</button>
+            <button class="btn ghost" :disabled="!hubAll.length" @click="focusHub">focus</button>
+            <button class="btn ghost" @click="openTopic(opened.id, true)">edit</button>
+          </div>
+        </div>
+        <div v-else-if="!editing" class="body">
           <div class="head"><span class="pix">{{ groupOf(opened.groupId)?.name ?? 'no group' }}</span><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
           <h2>{{ opened.title }}</h2>
           <p v-if="!opened.learned || !openLook" class="state">Not learned yet. Its clock starts once you mark it.</p>
@@ -651,6 +734,7 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
             <ol v-if="opened.points.length"><li v-for="(p, i) in opened.points" :key="i" v-html="rich(p)"></li></ol>
             <p v-else class="rel">No key points yet. Edit to add them, one a line; the recall is checked against them.</p>
           </div>
+          <p v-if="inside.length" class="rel">Inside <span v-for="(b, i) in inside" :key="b.l.id" class="ln"><button class="sub" @click="goToTopic(b.t)">{{ b.t.title }}</button><button class="un" title="take it out" aria-label="unlink" @click="unlink(b.l)">&times;</button>{{ i < inside.length - 1 ? ', ' : '.' }}</span></p>
           <p v-if="builds.length || holds.length" class="rel">
             <template v-if="builds.length">Builds on <span v-for="(b, i) in builds" :key="b.l.id" class="ln"><button @click="goToTopic(b.t)">{{ b.t.title }}</button><button class="un" title="unlink" aria-label="unlink" @click="unlink(b.l)">&times;</button>{{ i < builds.length - 1 ? ', ' : '. ' }}</span></template>
             <template v-if="holds.length">Holds up <span v-for="(b, i) in holds" :key="b.l.id" class="ln"><button @click="goToTopic(b.t)">{{ b.t.title }}</button><button class="un" title="unlink" aria-label="unlink" @click="unlink(b.l)">&times;</button>{{ i < holds.length - 1 ? ', ' : '.' }}</span></template>
@@ -664,7 +748,12 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
         <form v-else class="body" @submit.prevent="save">
           <div class="head"><span class="pix">{{ groupOf(opened.groupId)?.name ?? 'no group' }} // editing</span><button type="button" class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
           <label class="lab"><span class="pix">name</span><input ref="titleField" v-model="draft.title" class="field" maxlength="200"></label>
-          <label class="lab"><span class="pix">key points // one a line // $maths$ works</span><textarea v-model="draft.points" class="field" rows="7"></textarea></label>
+          <label class="lab"><span class="pix">{{ draft.hub ? 'notes // one a line // $maths$ works' : 'key points // one a line // $maths$ works' }}</span><textarea v-model="draft.points" class="field" rows="7"></textarea></label>
+          <label class="toggle">
+            <input v-model="draft.hub" type="checkbox">
+            <i aria-hidden="true"></i>
+            <span><b>a hub</b> It holds the topics linked to it, hubs inside hubs, and is never recalled itself.</span>
+          </label>
           <div class="acts">
             <button class="btn" type="submit">keep</button>
             <button class="btn ghost" type="button" @click="editing = false">cancel</button>
@@ -816,6 +905,21 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
 .field:focus { border-color: var(--line2); outline: none; }
 textarea.field { resize: vertical; font: 15px/1.45 var(--fell); }
 .gname { font: 400 26px var(--goth); }
+.hubname { letter-spacing: .14em; text-transform: uppercase; font-size: 24px !important; }
+.ln button.sub { letter-spacing: .08em; text-transform: uppercase; font-size: 12.5px; }
+.turn { font: 400 9px var(--pix); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); padding: 3px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); transition: color .3s, box-shadow .3s; }
+.turn:hover { color: var(--hi); box-shadow: inset 0 0 0 1px var(--line2); }
+/* The hub switch: a pill with a bead that slides over. */
+.toggle { display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start; cursor: pointer; padding: 10px 12px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s; }
+.toggle:hover { box-shadow: inset 0 0 0 1px var(--line2); }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle i { position: relative; width: 40px; height: 22px; border-radius: 999px; background: var(--faint); box-shadow: inset 0 0 0 1px var(--line2); transition: background .35s var(--out); margin-top: 1px; }
+.toggle i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--dim); transition: transform .45s var(--out), background .35s var(--out); }
+.toggle input:checked + i { background: var(--phos); }
+.toggle input:checked + i::after { transform: translateX(18px); background: var(--ground); }
+.toggle input:focus-visible + i { outline: 1.5px solid var(--hi); outline-offset: 3px; }
+.toggle span { font: 14px/1.4 var(--fell); color: var(--dim); }
+.toggle b { display: block; font: 400 9.5px var(--pix); text-transform: uppercase; letter-spacing: .06em; color: var(--hi); margin-bottom: 2px; }
 .lab { display: grid; gap: 6px; }
 .grounds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .grounds button { display: grid; gap: 6px; justify-items: center; padding: 8px 4px; border-radius: 16px; font: 400 8.5px var(--pix); text-transform: uppercase; color: var(--dim); box-shadow: inset 0 0 0 1px var(--line); transition: color .3s, box-shadow .3s; }

@@ -3,6 +3,9 @@
 // hand, gathered into groups, each learned one scheduled by FSRS.
 export type TopicDto = {
   id: number; groupId: number | null; title: string; points: string[]; x: number; y: number;
+  // A hub holds the topics linked to it, hubs inside hubs, and is never
+  // recalled itself.
+  hub: boolean;
   // Not learned yet: its clock has not started, and the rest is empty.
   learned: boolean; stability: number; lastReview: string | null; due: string | null; reps: number; lapses: number;
   // When it would come back for again, hard, good and easy, asked now.
