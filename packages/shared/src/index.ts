@@ -5,3 +5,4 @@ export * from './vigil.ts';
 export * from './academy.ts';
 export * from './lecturemap.ts';
 export * from './hunt.ts';
+export * from './mnemosyne.ts';

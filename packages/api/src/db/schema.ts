@@ -378,3 +378,30 @@ export const garminDays = pgTable('garmin_days', {
   acuteLoad: doublePrecision('acute_load'),
   chronicLoad: doublePrecision('chronic_load'),
 });
+
+// Mnemosyne (docs/superpowers/specs/2026-10-18-mnemosyne-design.md): topics
+// written by hand on an endless map, gathered into groups, linked by what
+// builds on what. A learned topic keeps its FSRS card whole, its due date
+// beside it; one not learned yet has neither.
+export const topicGroups = pgTable('topic_groups', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  ground: integer('ground').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const topics = pgTable('topics', {
+  id: serial('id').primaryKey(),
+  groupId: integer('group_id').references(() => topicGroups.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  points: jsonb('points').$type<string[]>().notNull().default([]),
+  x: doublePrecision('x').notNull(),
+  y: doublePrecision('y').notNull(),
+  fsrs: jsonb('fsrs').$type<Record<string, unknown>>(),
+  due: timestamp('due', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const topicLinks = pgTable('topic_links', {
+  id: serial('id').primaryKey(),
+  fromId: integer('from_id').notNull().references(() => topics.id, { onDelete: 'cascade' }),
+  toId: integer('to_id').notNull().references(() => topics.id, { onDelete: 'cascade' }),
+}, (t) => [unique().on(t.fromId, t.toId)]);

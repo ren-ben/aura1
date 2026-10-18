@@ -20,6 +20,7 @@ import { folioRoutes } from './routes/folios.ts';
 import { askRoutes } from './routes/asks.ts';
 import { cardRoutes } from './routes/cards.ts';
 import { ownRoutes } from './routes/own.ts';
+import { topicRoutes } from './routes/topics.ts';
 import { postRoutes } from './routes/post.ts';
 import { postFromEnv, type Post } from './academy/post.ts';
 import type { Http } from './academy/moodle.ts';
@@ -52,6 +53,7 @@ export function buildApp(
   app.register(folioRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(cardRoutes, { db, prefix: '/api/v1', http: opts.moodle });
   app.register(ownRoutes, { db, prefix: '/api/v1' });
+  app.register(topicRoutes, { db, prefix: '/api/v1' });
   app.register(postRoutes, { prefix: '/api/v1', post });
   app.register(askRoutes, { db, prefix: '/api/v1', openrouter: opts.openrouter, settings: opts.settings });
 

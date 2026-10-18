@@ -113,6 +113,13 @@
       "when": 1791137116150,
       "tag": "0015_own_decks",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792347246795,
+      "tag": "0016_mnemosyne",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import LectureMap from '../components/LectureMap.vue';
 import Calendar from '../components/Calendar.vue';
 import Codex from '../components/Codex.vue';
 import Arcana from '../components/Arcana.vue';
+import Mnemosyne from '../components/Mnemosyne.vue';
 import Gl from '../components/Gl.vue';
 import Num from '../components/Num.vue';
 import Plate from '../components/Plate.vue';
@@ -20,7 +21,7 @@ import { lights } from '../gl/models';
 import { reduced } from '../gl/engine';
 import { rand, starfield } from '../gl/plate';
 import { CURRICULUM, FIRST_TERM, GRADES, modules, tally as tallyOf, termOf, week as weekOf, whereWho, type Module } from '../academy';
-import { actions, folioApi, state, type Course } from '../store';
+import { actions, folioApi, mnemoApi, state, type Course } from '../store';
 
 defineProps<{ active: boolean }>();
 
@@ -632,6 +633,11 @@ const monthOpen = ref(false);
 const foliosOf = ref<string | null>(null);
 // The decks, at his table.
 const arcana = ref(false);
+// Mnemosyne, the map of everything learned, and how much of it is fading.
+const mnemo = ref(false);
+const mnemoFading = ref(0);
+const countFading = () => mnemoApi.load().then((m) => { mnemoFading.value = m.topics.filter((t) => t.due && Date.parse(t.due) <= Date.now()).length; }, () => {});
+onMounted(countFading);
 function fromMonth(s: { course: Course; begin: string }) {
   monthOpen.value = false;
   mapOf.value = { course: s.course, begin: s.begin };
@@ -726,7 +732,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     <Frame class="instrument" :title="narrow ? 'the degree as an astrolabe' : 'the degree as an astrolabe // hover a ring, drag to turn the rete'" flush>
       <div class="stage" @pointerdown="grab" @pointermove="turnRete" @pointerup="letGo" @pointercancel="letGo">
         <div class="dial">
-          <Plate :draw="drawAstrolabe" :active="active" animated :cell="narrow ? 1 : 2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
+          <Plate :draw="drawAstrolabe" :active="active && !mnemo" animated :cell="narrow ? 1 : 2" label="The physics degree drawn as an astrolabe: semesters as rings, modules as arcs." />
           <svg class="arcs" viewBox="-112 -112 224 224" preserveAspectRatio="xMidYMid meet">
             <g v-for="l in labels" :key="l.code" class="arc" :class="[l.status, { hot: hovered === l.code, sel: chosen === l.code }]">
               <path class="hit" :d="l.d" tabindex="0" role="button" :aria-label="`${l.name}, ${l.ects} ECTS, ${STATUS[l.status]}`"
@@ -779,7 +785,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
       </div>
 
       <Frame class="week" :title="weekTitle" flush>
-        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button><button class="x" title="the flashcards, at his table" @click="arcana = true">decks</button><button v-if="state.mail?.configured || state.demo" class="x" title="your university mail" @click="state.postOpen = true">post<template v-if="state.mail?.unread"> {{ state.mail.unread }}</template></button></span></template>
+        <template #bar><span class="wk"><button class="x" aria-label="the week before" @click="shift--">prev</button><button v-if="shift" class="x" @click="shift = 0">now</button><button class="x" aria-label="the week after" @click="shift++">next</button><button class="x" title="the whole month" @click="monthOpen = true">month</button><button class="x" title="the course material" @click="foliosOf = ''">folios</button><button class="x" title="the flashcards, at his table" @click="arcana = true">decks</button><button class="x" title="everything learned, and what is fading" @click="mnemo = true">mnemosyne<template v-if="mnemoFading"> {{ mnemoFading }}</template></button><button v-if="state.mail?.configured || state.demo" class="x" title="your university mail" @click="state.postOpen = true">post<template v-if="state.mail?.unread"> {{ state.mail.unread }}</template></button></span></template>
         <div class="tt">
           <div class="tt-head">
             <span></span>
@@ -807,7 +813,7 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
 
 
     <Frame class="stacks" title="the forbidden stacks // a grimoire a course" flush>
-      <Gl :key="volumeKey" :build="faculty" :active="active" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as grimoires on a shelf, with a Newton's cradle, a radiometer and a candle. Click one to take it down and grade it." hint="hover to read // click to take down" />
+      <Gl :key="volumeKey" :build="faculty" :active="active && !mnemo" :options="{ px: 1, drift: 0, tilt: 0, yaw: 0, distance: 3.35 }" label="The courses kept, as grimoires on a shelf, with a Newton's cradle, a radiometer and a candle. Click one to take it down and grade it." hint="hover to read // click to take down" />
       <button v-if="!state.courses.length" class="btn bare" :class="{ busy: adding }" :disabled="adding" @click="firstTerm">{{ adding ? 'asking u:find' : `add the first term // ${FIRST_TERM.courses.length} courses` }}</button>
       <div class="tags" aria-hidden="true"><span v-for="g in tags" :key="g.id" :class="{ out: g.out }" :style="{ left: `${g.x}px`, top: `${g.y}px` }">{{ g.label }}</span></div>
     <div v-if="spineTip && spineTip.c.id !== pulledId" class="vtip" :style="{ left: `${Math.min(Math.max(spineTip.x, 150), spineTip.w - 150)}px`, top: `${spineTip.y}px` }">
@@ -840,9 +846,10 @@ const armillary = ({ scene, group, camera }: { scene: THREE.Scene; group: THREE.
     </Frame>
 
     <Frame class="sphere" title="the rector's armillary" flush>
-      <Gl :build="armillary" :active="active" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
+      <Gl :build="armillary" :active="active && !mnemo" :options="{ px: narrow ? 1 : 2, drift: 0.003, tilt: 0.18, distance: 5.2 }" label="An armillary sphere; its six beads are the semesters, lit as they are done." hint="a bead a semester" />
     </Frame>
     <Arcana v-if="arcana" @close="arcana = false" />
+    <Mnemosyne v-if="mnemo" @close="mnemo = false; countFading()" />
     <Codex v-if="foliosOf !== null" :nr="foliosOf || undefined" @close="foliosOf = null" />
     <Calendar v-if="monthOpen" :start="theWeek.monday" @close="monthOpen = false" @open="fromMonth" />
     <LectureMap v-if="mapOf" :key="mapOf.begin" :course="mapOf.course" :begin="mapOf.begin" @close="mapOf = null" />

@@ -251,6 +251,31 @@ lecture, exercise class and exam of your groups, the moon's phase over each
 day, and a star on every lecture that already has a map. Click a lecture to
 open its map; prev and next (or the arrow keys) turn the months.
 
+## Mnemosyne: everything learned
+
+**mnemosyne** in the week's title bar (with how many topics are fading)
+opens one endless map of every topic you have written in. Nothing is made
+for you: you write each topic and its key points yourself.
+
+- **Write a topic:** double-click the water, or press **+**. Give it a name
+  and its key points, one a line (`$maths$` works). The recall is checked
+  against these points.
+- **Groups are pools.** Drop a topic into a pool and it joins that group;
+  pull it out and it leaves. Choose an area (shift-drag, right-drag, the
+  dashed tool, or the Apple Pencil) and press **make a group**. Click a
+  group's name to rename it or pick its water; drag the name to move it.
+- **Links:** drag from a topic to one that builds on it with the link tool
+  (or alt-drag).
+- **The water is the schedule.** A topic you hold well sits deep in its pool.
+  As you forget it, the pool draws back from it until it is a lone drop, and
+  once it is due it ripples. A small bead is a topic not learned yet: **mark
+  learned** starts its clock.
+- **The recall:** **recall what is fading** takes everything due, most
+  faded first. Write the topic out on paper or in Notability (an hourglass
+  keeps five minutes), press **done writing** (space), tick the key points
+  that are on your page, and rate it (1 to 4). The rating your ticks suggest
+  is lit. FSRS sets when it comes back, in days.
+
 ## The rest of the pane
 
 - **The tally:** ECTS passed out of 180, this term's ECTS, the StEOP out of 18,

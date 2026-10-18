@@ -1,5 +1,6 @@
 // Sample data for the published demo, answering the same calls as the API.
 // Seeded, so the demo looks the same on every visit.
+import { mnemoDemo } from './samplemnemo';
 import type { Block, Book, Reading, Course, PlanDay, Device, Folder, Habit, Quote, Session, Stats, Todo, Vigil, LectureMapDto } from './store';
 import { sampleSits } from './vigil';
 import { sampleCourses } from './academy';
@@ -247,6 +248,7 @@ export function demoApi(method: string, path: string, body?: any): unknown {
   const [route, query] = path.split('?');
   const seg = route!.split('/').filter(Boolean);
   if (seg[0] === 'hunt') return huntApi(method, seg, body);
+  if (seg[0] === 'academy' && seg[1]?.startsWith('topic')) return mnemoDemo(method, seg, body);
   const id = Number(seg[1]);
   const second = seg[1] === undefined ? '' : /^\d+$/.test(seg[1]) ? '/:id' : `/${seg[1]}`;
   const key = `${method} /${seg[0]}${second}${seg[2] && !/^\d+$/.test(seg[2]) ? `/${seg[2]}` : ''}`;

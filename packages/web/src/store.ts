@@ -1,7 +1,7 @@
 // Everything the console shows, from the API. When the API cannot be reached
 // (the published demo), the same calls run against sample data in memory.
 import { computed, reactive } from 'vue';
-import type { AskDto, CardDto, MailDto, OpenedDto, DueCardDto, GrownNode, LectureDto, LectureMapDto, MapMark, NoteDto, NoteFields, NoteKind, OwnDeckDto, TaskDto } from '@aura/shared';
+import type { AskDto, CardDto, MailDto, OpenedDto, DueCardDto, GrownNode, LectureDto, LectureMapDto, MapMark, MnemosyneDto, NoteDto, NoteFields, NoteKind, OwnDeckDto, TaskDto, TopicDto, TopicGroupDto, TopicLinkDto, TopicPlace } from '@aura/shared';
 import { demoApi } from './sample';
 import type { Folios } from './folios';
 import { EMPTY_HUNT, type Hunt, type HuntSetRow, type HuntExercise } from './hunt';
@@ -235,6 +235,21 @@ export const deckApi = {
     if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `picture: HTTP ${res.status}`);
     return (await res.json()).id;
   },
+};
+
+// Mnemosyne: the map of everything learned, fetched when it is opened.
+export const mnemoApi = {
+  load: () => call<MnemosyneDto>('GET', '/academy/topics'),
+  add: (t: { title: string; x: number; y: number; groupId: number | null }) => call<TopicDto>('POST', '/academy/topics', t),
+  edit: (id: number, t: { title?: string; points?: string[] }) => call<TopicDto>('PATCH', `/academy/topics/${id}`, t),
+  remove: (id: number) => call('DELETE', `/academy/topics/${id}`),
+  place: (topics: TopicPlace[]) => call('POST', '/academy/topics/place', { topics }),
+  review: (id: number, rating: number) => call<TopicDto>('POST', `/academy/topics/${id}/review`, { rating }),
+  group: (name: string, topicIds: number[]) => call<TopicGroupDto>('POST', '/academy/topic-groups', { name, topicIds }),
+  editGroup: (id: number, g: { name?: string; ground?: number }) => call('PATCH', `/academy/topic-groups/${id}`, g),
+  dissolve: (id: number) => call('DELETE', `/academy/topic-groups/${id}`),
+  link: (from: number, to: number) => call<TopicLinkDto>('POST', '/academy/topic-links', { from, to }),
+  unlink: (id: number) => call('DELETE', `/academy/topic-links/${id}`),
 };
 
 // Lecture maps: fetched when a lecture is opened, never held in the console.
