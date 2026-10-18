@@ -217,9 +217,10 @@ function ink(t: number, looks: Map<number, Look>, ts: TopicDto[], byId: Map<numb
       c.strokeStyle = rgbaHi(0.9); c.lineWidth = 1.3; c.beginPath(); c.arc(p.x, p.y, 7 * z, 0, 7); c.stroke();
       c.strokeStyle = rgbaHi(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3 * z, 0, 7); c.stroke();
     } else if (tp.skin) {
-      // A mark sits on a small dark disc in the water, like a seal, so it reads.
-      c.fillStyle = 'rgba(18,18,18,.88)'; c.beginPath(); c.arc(p.x, p.y, 13 * z, 0, 7); c.fill();
-      drawSkin(c, tp.skin, p.x, p.y, 8.5 * z, t, !tp.learned ? rgba(0.6) : l.due ? rgbaHi(0.5 + 0.5 * Math.abs(Math.sin(t * 1.8 + tp.x))) : rgbaHi(0.55 + 0.45 * l.q));
+      // A mark sits still on a small dark disc in the water, so it reads
+      // without asking to be looked at; fading, it only dims.
+      c.fillStyle = 'rgba(18,18,18,.85)'; c.beginPath(); c.arc(p.x, p.y, 12 * z, 0, 7); c.fill();
+      drawSkin(c, tp.skin, p.x, p.y, 7.5 * z, !tp.learned ? rgba(0.5) : rgbaHi(0.45 + 0.4 * l.q));
     } else if (!tp.learned) { c.strokeStyle = rgba(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3.2 * z, 0, 7); c.stroke(); }
     else {
       c.fillStyle = l.due ? rgbaHi(0.5 + 0.5 * Math.abs(Math.sin(t * 1.8 + tp.x))) : rgbaHi(0.55 + 0.45 * l.q);
@@ -431,18 +432,18 @@ async function turn(l: TopicLinkDto) {
 }
 const focusHub = () => { const t = opened.value!; fitTo(boundsOf([t, ...hubAll.value], 120), false, 1.4); };
 const draft = ref<{ title: string; points: string; hub: boolean; skin: SkinId | null }>({ title: '', points: '', hub: false, skin: null });
-const FIELDS = ['physics', 'analysis', 'calculus', 'linear algebra', 'proofs'] as const;
-// The marks to choose from, drawn moving while the settings are open.
+const FIELDS = ['physics', 'mathematics', 'craft'] as const;
+// The marks to choose from, drawn while the settings are open.
 const previews = new Map<SkinId, HTMLCanvasElement>();
 const preview = (id: SkinId) => (el: unknown) => { if (el instanceof HTMLCanvasElement) previews.set(id, el); else previews.delete(id); };
-function drawPreviews(t: number) {
+function drawPreviews() {
   for (const [id, cv] of previews) {
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w) continue;
     if (cv.width !== Math.round(w * DPR)) { cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR); }
     const c = cv.getContext('2d')!;
     c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, w, h);
-    drawSkin(c, id, w / 2, h / 2, w * 0.27, t, draft.value.skin === id ? INK.hi : rgba(0.75));
+    drawSkin(c, id, w / 2, h / 2, w * 0.24, draft.value.skin === id ? INK.hi : rgba(0.7));
   }
 }
 const titleField = ref<HTMLInputElement | null>(null), nameField = ref<HTMLInputElement | null>(null), curveEl = ref<HTMLCanvasElement | null>(null);
@@ -675,7 +676,7 @@ function frame(nowMs: number) {
   const hidden = !!rc.value && !rc.value.peek;
   if (hidden && still) return;
   still = hidden;
-  if (editing.value) drawPreviews(t);
+  if (editing.value) drawPreviews();
   settle(dt);
   flow(nowMs);
   const ts = toRaw(map.value).topics.map(toRaw), byId = new Map(ts.map((tp) => [tp.id, tp]));
@@ -823,10 +824,10 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
           </label>
           <div v-if="!draft.hub" class="marks">
             <span class="pix">its mark</span>
-            <div class="shelf"><span class="pix">plain</span><button type="button" class="mark" :class="{ on: !draft.skin }" title="a plain drop" @click="draft.skin = null"><i></i></button></div>
+            <div class="shelf"><span class="pix">plain</span><button type="button" class="mark" :class="{ on: !draft.skin }" title="a plain drop" @click="draft.skin = null"><i></i><span>drop</span></button></div>
             <div v-for="f in FIELDS" :key="f" class="shelf">
               <span class="pix">{{ f }}</span>
-              <button v-for="m in SKINS.filter((x) => x.field === f)" :key="m.id" type="button" class="mark" :class="{ on: draft.skin === m.id }" :title="m.id" @click="draft.skin = m.id"><canvas :ref="preview(m.id)"></canvas></button>
+              <button v-for="m in SKINS.filter((x) => x.field === f)" :key="m.id" type="button" class="mark" :class="{ on: draft.skin === m.id }" :title="m.name" @click="draft.skin = m.id"><canvas :ref="preview(m.id)"></canvas><span>{{ m.name }}</span></button>
             </div>
           </div>
           <div class="acts">
@@ -992,11 +993,13 @@ textarea.field { resize: vertical; font: 15px/1.45 var(--fell); }
 .marks { display: grid; gap: 8px; }
 .shelf { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .shelf > .pix { width: 100%; font-size: 8.5px; color: var(--low); }
-.mark { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s, background .3s; }
+.mark { width: 52px; display: grid; justify-items: center; gap: 3px; padding: 6px 0 5px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s, background .3s; }
+.mark span { font: 400 7.5px var(--pix); text-transform: uppercase; letter-spacing: .04em; color: var(--dim); }
+.mark.on span { color: var(--hi); }
 .mark:hover { box-shadow: inset 0 0 0 1px var(--line2); }
 .mark.on { background: var(--faint); box-shadow: inset 0 0 0 1.5px var(--phos); }
-.mark canvas { width: 40px; height: 40px; display: block; }
-.mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--hi); }
+.mark canvas { width: 34px; height: 34px; display: block; }
+.mark i { width: 9px; height: 9px; margin: 12.5px 0; border-radius: 50%; background: var(--hi); }
 .hubname { letter-spacing: .14em; text-transform: uppercase; font-size: 24px !important; }
 .ln button.sub { letter-spacing: .08em; text-transform: uppercase; font-size: 12.5px; }
 .turn { font: 400 9px var(--pix); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); padding: 3px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); transition: color .3s, box-shadow .3s; }

@@ -134,6 +134,13 @@
       "when": 1792352603810,
       "tag": "0018_topic_skins",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792353320470,
+      "tag": "0019_skins_by_area",
+      "breakpoints": true
     }
   ]
 }

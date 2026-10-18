@@ -113,8 +113,8 @@ const FRAG = `
         for (int s = 0; s < 8; s++) { int bit = 1 << s; if ((within & bit) != 0) hf[s] += ew; if ((tendril & bit) != 0) hf[s] += ec; }
       }
       float q = a.w;
-      // A plain drop glows at its heart; a marked one glows round its disc instead.
-      if (b.y > 1.5) glow += (0.12 + 0.3 * q * q) * exp(-pow((sqrt(d2) - 22.0) / 9.0, 2.0));
+      // A plain drop glows at its heart; a marked one only faintly, round its disc.
+      if (b.y > 1.5) { float rg = 14.0 + 8.0 * q; glow += (0.08 + 0.25 * q * q) * exp(-d2 / (rg * rg)); }
       else if (b.y > 0.5) { float rg = 7.0 + 11.0 * q; glow += (0.2 + 0.7 * q * q) * exp(-d2 / (rg * rg)); }
       if (b.z > 0.5) {
         float t = fract(uTime / 3.6 + b.w), rr = t * 150.0;

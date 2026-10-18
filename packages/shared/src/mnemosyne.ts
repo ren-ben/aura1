@@ -18,13 +18,15 @@ export type TopicLinkDto = { id: number; from: number; to: number };
 export type MnemosyneDto = { groups: TopicGroupDto[]; topics: TopicDto[]; links: TopicLinkDto[] };
 export type TopicPlace = { id: number; x: number; y: number; groupId: number | null };
 
-// The marks a topic can wear instead of a plain drop, one shelf a subject.
+// The marks a topic can wear instead of a plain drop: one a broad area of
+// the degree, never a single concept.
 export const SKINS = [
-  { id: 'orbit', field: 'physics' }, { id: 'pendulum', field: 'physics' }, { id: 'wave', field: 'physics' }, { id: 'spring', field: 'physics' },
-  { id: 'infinity', field: 'analysis' }, { id: 'epsilon', field: 'analysis' }, { id: 'sequence', field: 'analysis' }, { id: 'partial', field: 'analysis' },
-  { id: 'integral', field: 'calculus' }, { id: 'tangent', field: 'calculus' }, { id: 'sigma', field: 'calculus' }, { id: 'nabla', field: 'calculus' }, { id: 'phasor', field: 'calculus' },
-  { id: 'basis', field: 'linear algebra' }, { id: 'matrix', field: 'linear algebra' }, { id: 'lattice', field: 'linear algebra' }, { id: 'eigen', field: 'linear algebra' },
-  { id: 'therefore', field: 'proofs' }, { id: 'implies', field: 'proofs' }, { id: 'qed', field: 'proofs' },
+  { id: 'mechanics', field: 'physics', name: 'mechanics' }, { id: 'fields', field: 'physics', name: 'fields' }, { id: 'waves', field: 'physics', name: 'waves' },
+  { id: 'heat', field: 'physics', name: 'heat' }, { id: 'quantum', field: 'physics', name: 'quantum' }, { id: 'atoms', field: 'physics', name: 'atoms' },
+  { id: 'matter', field: 'physics', name: 'matter' }, { id: 'relativity', field: 'physics', name: 'relativity' },
+  { id: 'analysis', field: 'mathematics', name: 'analysis' }, { id: 'algebra', field: 'mathematics', name: 'algebra' }, { id: 'calculus', field: 'mathematics', name: 'calculus' },
+  { id: 'chance', field: 'mathematics', name: 'chance' }, { id: 'proof', field: 'mathematics', name: 'proof' },
+  { id: 'lab', field: 'craft', name: 'lab' }, { id: 'code', field: 'craft', name: 'code' },
 ] as const;
 export type SkinId = (typeof SKINS)[number]['id'];
 export const SKIN_IDS = SKINS.map((s) => s.id) as [SkinId, ...SkinId[]];

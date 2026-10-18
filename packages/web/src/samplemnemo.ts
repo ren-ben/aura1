@@ -62,9 +62,9 @@ const HUB_LINKS: [string, string][] = [['Mechanics', 'Kinematics'], ['Mechanics'
   ['Kinematics', 'Kinematics in 1D'], ['Kinematics', 'Vectors in kinematics'], ['Dynamics', "Newton's laws"], ['Dynamics', 'Work and energy']];
 // The marks a few of them wear.
 const SKIN_OF: Record<string, SkinId> = {
-  'Taylor series': 'sigma', "Euler's formula": 'phasor', 'Complex numbers': 'phasor', 'Derivative rules': 'tangent', "Newton's laws": 'orbit',
-  'Kinematics in 1D': 'pendulum', 'Vectors in kinematics': 'basis', 'Sequences and convergence': 'sequence', 'Supremum and completeness': 'epsilon',
-  'Vector spaces': 'lattice', 'Linear independence': 'basis', 'Groups': 'matrix', 'Work and energy': 'spring', 'Cauchy sequences': 'infinity',
+  'Taylor series': 'calculus', "Euler's formula": 'calculus', 'Derivative rules': 'calculus', "Newton's laws": 'mechanics', 'Kinematics in 1D': 'mechanics',
+  'Units and dimensions': 'lab', 'Sequences and convergence': 'analysis', 'Supremum and completeness': 'analysis', 'Cauchy sequences': 'analysis',
+  'Vector spaces': 'algebra', 'Linear independence': 'algebra', 'Groups': 'algebra', 'Work and energy': 'mechanics',
 };
 let next = 1;
 function seed(): MnemosyneDto {
