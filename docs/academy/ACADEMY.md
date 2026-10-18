@@ -264,6 +264,14 @@ for you: you write each topic and its key points yourself.
   pull it out and it leaves. Choose an area (shift-drag, right-drag, the
   dashed tool, or the Apple Pencil) and press **make a group**. Click a
   group's name to rename it or pick its water; drag the name to move it.
+- **A topic's group** is the picker at the top of its panel: any group, no
+  group, or a new one. It flows over to the edge of that pool.
+- **Its mark:** in the edit panel, pick what it wears instead of a plain drop,
+  one shelf a subject: an orbit, a pendulum, a wave or a spring (physics);
+  infinity, an epsilon-ball, a converging sequence or a partial (analysis);
+  an integral, a sliding tangent, a sum, nabla or a phasor (calculus); a
+  basis, a matrix, a shearing lattice or an eigenvector (linear algebra);
+  therefore, implies or a tombstone (proofs). The ones about motion move.
 - **Links:** drag from a topic to one that builds on it with the link tool
   (or alt-drag).
 - **Hubs:** switch **a hub** on in a topic's edit panel and it stops being

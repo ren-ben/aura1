@@ -4,9 +4,10 @@
 // fades draws back from them and ripples until it is recalled. A recall is
 // written on paper, checked against the topic's own key points and rated,
 // and FSRS says when it comes back.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue';
 import 'katex/dist/katex.min.css';
-import { GROUNDS, recallOf, type MnemosyneDto, type TopicDto, type TopicLinkDto } from '@aura/shared';
+import { GROUNDS, SKINS, recallOf, type MnemosyneDto, type SkinId, type TopicDto, type TopicLinkDto } from '@aura/shared';
+import { drawSkin } from '../skins';
 import Gl from './Gl.vue';
 import Plate from './Plate.vue';
 import { catSprite, type Draw } from '../gl/plate';
@@ -98,9 +99,10 @@ const view = { x: 0, y: 0, k: 0.6 }, goal = { x: 0, y: 0, k: 0.6 };
 let vel = { x: 0, y: 0 }, W = 0, H = 0, DPR = 1;
 const sx = (x: number) => x * view.k + view.x, sy = (y: number) => y * view.k + view.y;
 const wx = (x: number) => (x - view.x) / view.k, wy = (y: number) => (y - view.y) / view.k;
-function settle() {
-  if (act?.kind !== 'pan') { goal.x += vel.x; goal.y += vel.y; vel.x *= 0.9; vel.y *= 0.9; }
-  const f = reduced() ? 1 : 0.16;
+// Eased by time, not by frame, so a 120 Hz iPad and a slow one feel the same.
+function settle(dt: number) {
+  if (act?.kind !== 'pan') { goal.x += vel.x * dt * 60; goal.y += vel.y * dt * 60; const d = Math.exp(-dt * 6.3); vel.x *= d; vel.y *= d; }
+  const f = reduced() ? 1 : 1 - Math.exp(-dt * 10.5);
   view.x += (goal.x - view.x) * f; view.y += (goal.y - view.y) * f; view.k += (goal.k - view.k) * f;
 }
 function goTo(v: { x: number; y: number; k: number }, now = false) { Object.assign(goal, v); vel = { x: 0, y: 0 }; if (now) Object.assign(view, v); }
@@ -132,11 +134,11 @@ const bobY = (t: TopicDto, s: number) => (reduced() ? 0 : Math.cos(s * 0.42 + t.
 // ---- the water ----------------------------------------------------------------------
 let pool: ReturnType<typeof water> | null = null;
 const pulses: { id: number; t0: number }[] = [];
-function drops(t: number, looks: Map<number, Look>): Drop[] {
-  const now = performance.now(), groups = new Map(map.value.groups.map((g) => [g.id, g]));
+function drops(t: number, looks: Map<number, Look>, ts: TopicDto[], byId: Map<number, TopicDto>): Drop[] {
+  const now = performance.now(), groups = new Map(toRaw(map.value).groups.map((g) => [g.id, g]));
   const cen = new Map<number, { x: number; y: number; n: number }>();
-  for (const tp of map.value.topics) if (tp.groupId !== null) { const c = cen.get(tp.groupId) ?? { x: 0, y: 0, n: 0 }; c.x += tp.x; c.y += tp.y; c.n++; cen.set(tp.groupId, c); }
-  return map.value.topics.map((tp) => {
+  for (const tp of ts) if (tp.groupId !== null) { const c = cen.get(tp.groupId) ?? { x: 0, y: 0, n: 0 }; c.x += tp.x; c.y += tp.y; c.n++; cen.set(tp.groupId, c); }
+  return ts.map((tp) => {
     const l = looks.get(tp.id)!, slot = tp.groupId !== null && slots.has(tp.groupId) ? slots.get(tp.groupId)! : LOOSE;
     let p = pour.get(tp.id);
     if (!p) { p = { slot, from: slot, t0: 0 }; pour.set(tp.id, p); }
@@ -144,10 +146,10 @@ function drops(t: number, looks: Map<number, Look>): Drop[] {
     const c = tp.groupId !== null ? cen.get(tp.groupId) : undefined;
     let above = 0;
     for (const a of ancestors(tp.id)) { const s = hubSlots.get(a); if (s !== undefined) above |= 1 << s; }
-    const own = tp.hub && hubSlots.has(tp.id) ? 1 << hubSlots.get(tp.id)! : 0, parent = topicOf(tree.value.parents.get(tp.id)?.[0]);
+    const own = tp.hub && hubSlots.has(tp.id) ? 1 << hubSlots.get(tp.id)! : 0, parent = byId.get(tree.value.parents.get(tp.id)?.[0] ?? 0);
     return {
       within: above | own, tendril: parent ? above : 0, px: parent ? parent.x + bobX(parent, t) : 0, py: parent ? parent.y + bobY(parent, t) : 0,
-      x: tp.x + bobX(tp, t), y: tp.y + bobY(tp, t), reach: reach(tp, l), q: l.q, learned: tp.learned, due: l.due, phase: Math.abs(tp.x * 0.0013 + tp.y * 0.0007) % 1,
+      x: tp.x + bobX(tp, t), y: tp.y + bobY(tp, t), reach: reach(tp, l), q: l.q, learned: tp.learned, marked: !!tp.skin, due: l.due, phase: Math.abs(tp.x * 0.0013 + tp.y * 0.0007) % 1,
       slot: p.slot, from: p.from, mix: ease((now - p.t0) / 450),
       ground: (tp.groupId !== null && groups.get(tp.groupId)?.ground) || 0, tone: toneOf(tp.groupId), cx: c ? c.x / c.n : tp.x, cy: c ? c.y / c.n : tp.y,
     };
@@ -165,21 +167,21 @@ function text(c: CanvasRenderingContext2D, s: string, x: number, y: number, font
   return c.measureText(s).width;
 }
 let frames: (Box & { id: number })[] = [];
-function ink(t: number, looks: Map<number, Look>) {
+function ink(t: number, looks: Map<number, Look>, ts: TopicDto[], byId: Map<number, TopicDto>) {
   const c = inkCv.value!.getContext('2d')!;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, inkCv.value!.width, inkCv.value!.height); c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const k = view.k, ts = map.value.topics;
+  const k = view.k, raw = toRaw(map.value);
   // Names arrive as you come closer; what is fading keeps its name longer.
   const near = smooth(0.24, 0.38, k), nearFading = smooth(0.16, 0.26, k), nearHub = smooth(0.14, 0.24, k), far = 1 - smooth(1.0, 1.6, k) * 0.55;
   const pos = new Map(ts.map((tp) => [tp.id, { x: sx(tp.x + bobX(tp, t)), y: sy(tp.y + bobY(tp, t)) }]));
   // Threads: soft curves, as faint as the weaker of their two ends.
   c.lineCap = 'round';
-  for (const l of map.value.links) {
+  for (const l of raw.links) {
     const A = pos.get(l.from), B = pos.get(l.to);
     // What a hub holds hangs from it by liquid, not by a thread.
     if (!A || !B || isMembership(l)) continue;
     const q = Math.min(looks.get(l.from)!.q, looks.get(l.to)!.q), lit = [hover.value, openId.value].some((id) => id === l.from || id === l.to);
-    const both = topicOf(l.from)!.learned && topicOf(l.to)!.learned;
+    const both = byId.get(l.from)!.learned && byId.get(l.to)!.learned;
     c.strokeStyle = lit ? rgbaHi(0.55) : rgba(both ? 0.1 + 0.16 * q : 0.07); c.lineWidth = lit ? 1.3 : 1;
     c.beginPath(); c.moveTo(A.x, A.y); c.quadraticCurveTo((A.x + B.x) / 2 + (B.y - A.y) * 0.14, (A.y + B.y) / 2 - (B.x - A.x) * 0.14, B.x, B.y); c.stroke();
   }
@@ -190,7 +192,7 @@ function ink(t: number, looks: Map<number, Look>) {
   // Group names above their pools: large and quiet, and quieter up close.
   frames = [];
   const placed: Box[] = [];
-  for (const g of map.value.groups) {
+  for (const g of raw.groups) {
     const ms = ts.filter((x) => x.groupId === g.id);
     if (!ms.length) continue;
     const learned = ms.filter((m) => m.learned && !m.hub), nFading = ms.filter((m) => looks.get(m.id)!.due).length;
@@ -214,6 +216,10 @@ function ink(t: number, looks: Map<number, Look>) {
       // A hub: two rings, the nucleus of its membrane.
       c.strokeStyle = rgbaHi(0.9); c.lineWidth = 1.3; c.beginPath(); c.arc(p.x, p.y, 7 * z, 0, 7); c.stroke();
       c.strokeStyle = rgbaHi(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3 * z, 0, 7); c.stroke();
+    } else if (tp.skin) {
+      // A mark sits on a small dark disc in the water, like a seal, so it reads.
+      c.fillStyle = 'rgba(18,18,18,.88)'; c.beginPath(); c.arc(p.x, p.y, 13 * z, 0, 7); c.fill();
+      drawSkin(c, tp.skin, p.x, p.y, 8.5 * z, t, !tp.learned ? rgba(0.6) : l.due ? rgbaHi(0.5 + 0.5 * Math.abs(Math.sin(t * 1.8 + tp.x))) : rgbaHi(0.55 + 0.45 * l.q));
     } else if (!tp.learned) { c.strokeStyle = rgba(0.55); c.lineWidth = 1; c.beginPath(); c.arc(p.x, p.y, 3.2 * z, 0, 7); c.stroke(); }
     else {
       c.fillStyle = l.due ? rgbaHi(0.5 + 0.5 * Math.abs(Math.sin(t * 1.8 + tp.x))) : rgbaHi(0.55 + 0.45 * l.q);
@@ -236,7 +242,7 @@ function ink(t: number, looks: Map<number, Look>) {
     text(c, label, x, ly, font, tp.learned || tp.hub ? INK.hi : INK.unlearned, alpha);
   }
   if (marquee) {
-    const m = marquee, x = Math.min(m.x0, m.x1), y = Math.min(m.y0, m.y1), w = Math.abs(m.x1 - m.x0), h = Math.abs(m.y1 - m.y0);
+    const m = marquee, x = sx(Math.min(m.x0, m.x1)), y = sy(Math.min(m.y0, m.y1)), w = Math.abs(m.x1 - m.x0) * k, h = Math.abs(m.y1 - m.y0) * k;
     c.fillStyle = rgba(0.05); c.strokeStyle = rgbaHi(0.6); c.lineWidth = 1; c.setLineDash([3, 5]);
     c.beginPath(); c.roundRect(x, y, w, h, 16); c.fill(); c.stroke(); c.setLineDash([]);
   }
@@ -295,7 +301,7 @@ function down(e: PointerEvent) {
     act = { kind: 'node', tp, x, y, ox: tp.x, oy: tp.y, moved: false, kids: tp.hub ? descendants(tp.id).map((t) => [t, t.x, t.y]) : [], stay: Math.min(0.3, start * 0.5) };
     return;
   }
-  if (lens) { act = { kind: 'marquee' }; marquee = { x0: x, y0: y, x1: x, y1: y }; return; }
+  if (lens) { act = { kind: 'marquee' }; marquee = { x0: wx(x), y0: wy(y), x1: wx(x), y1: wy(y) }; return; }
   const g = frameAt(x, y);
   if (g !== null) { act = { kind: 'group', id: g, x, y, kids: map.value.topics.filter((t) => t.groupId === g).map((t) => [t, t.x, t.y]), moved: false }; return; }
   act = { kind: 'pan', x, y, gx: goal.x, gy: goal.y, moved: false };
@@ -320,7 +326,7 @@ function move(e: PointerEvent) {
     return;
   }
   if (p) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (act.kind === 'marquee') { marquee!.x1 = e.clientX; marquee!.y1 = e.clientY; return; }
+  if (act.kind === 'marquee') { marquee!.x1 = wx(e.clientX); marquee!.y1 = wy(e.clientY); return; }
   if (act.kind === 'link') { linking!.x = e.clientX; linking!.y = e.clientY; return; }
   const dx = e.clientX - act.x, dy = e.clientY - act.y;
   if (Math.abs(dx) + Math.abs(dy) > 5) act.moved = true;
@@ -360,8 +366,14 @@ function up(e: PointerEvent) {
   else if (a.kind === 'marquee' && marquee) {
     const m = marquee, x0 = Math.min(m.x0, m.x1), x1 = Math.max(m.x0, m.x1), y0 = Math.min(m.y0, m.y1), y1 = Math.max(m.y0, m.y1);
     marquee = null;
-    sel.value = new Set(map.value.topics.filter((t) => sx(t.x) >= x0 && sx(t.x) <= x1 && sy(t.y) >= y0 && sy(t.y) <= y1).map((t) => t.id));
-    selAt.value = { x: clamp((x0 + x1) / 2, 200, W - 200), y: clamp(y1 + 14, 120, H - 150) };
+    // A topic is chosen when the area touches its drop or its name, not only
+    // when it holds the drop's centre.
+    const k = view.k, fs = clamp(16 * k * 1.15, 14, 21);
+    sel.value = new Set(map.value.topics.filter((t) => {
+      const hw = Math.max(16, t.title.length * fs * 0.27) / k;
+      return t.x + hw >= x0 && t.x - hw <= x1 && t.y + 46 / k >= y0 && t.y - 16 / k <= y1;
+    }).map((t) => t.id));
+    selAt.value = { x: clamp(sx((x0 + x1) / 2), 200, W - 200), y: clamp(sy(y1) + 14, 120, H - 150) };
   } else if (a.kind === 'link' && linking) {
     const from = linking.from, to = topicAt(e.clientX, e.clientY);
     linking = null;
@@ -418,14 +430,28 @@ async function turn(l: TopicLinkDto) {
   } catch (e) { fail(e); }
 }
 const focusHub = () => { const t = opened.value!; fitTo(boundsOf([t, ...hubAll.value], 120), false, 1.4); };
-const draft = ref({ title: '', points: '', hub: false });
+const draft = ref<{ title: string; points: string; hub: boolean; skin: SkinId | null }>({ title: '', points: '', hub: false, skin: null });
+const FIELDS = ['physics', 'analysis', 'calculus', 'linear algebra', 'proofs'] as const;
+// The marks to choose from, drawn moving while the settings are open.
+const previews = new Map<SkinId, HTMLCanvasElement>();
+const preview = (id: SkinId) => (el: unknown) => { if (el instanceof HTMLCanvasElement) previews.set(id, el); else previews.delete(id); };
+function drawPreviews(t: number) {
+  for (const [id, cv] of previews) {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w) continue;
+    if (cv.width !== Math.round(w * DPR)) { cv.width = Math.round(w * DPR); cv.height = Math.round(h * DPR); }
+    const c = cv.getContext('2d')!;
+    c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, w, h);
+    drawSkin(c, id, w / 2, h / 2, w * 0.27, t, draft.value.skin === id ? INK.hi : rgba(0.75));
+  }
+}
 const titleField = ref<HTMLInputElement | null>(null), nameField = ref<HTMLInputElement | null>(null), curveEl = ref<HTMLCanvasElement | null>(null);
 function closePanel() { openId.value = null; openGroupId.value = null; editing.value = false; sure.value = false; }
 function openTopic(id: number, edit = false) {
   clearSel(); openGroupId.value = null; openId.value = id; sure.value = false;
   editing.value = edit;
   const t = topicOf(id)!;
-  draft.value = { title: t.title, points: t.points.join('\n'), hub: t.hub };
+  draft.value = { title: t.title, points: t.points.join('\n'), hub: t.hub, skin: t.skin };
   if (edit) nextTick(() => { titleField.value?.focus(); titleField.value?.select(); });
 }
 function openGroup(id: number, rename = false) {
@@ -433,6 +459,36 @@ function openGroup(id: number, rename = false) {
   if (rename) nextTick(() => { nameField.value?.focus(); nameField.value?.select(); });
 }
 const addHere = () => add(wx(W / 2), wy(H / 2));
+// Moved to a group from its panel: the topic flows to the edge of that pool,
+// beside the member nearest to it, carrying what it holds if it is a hub.
+const flows: { tp: TopicDto; kids: [TopicDto, number, number][]; fx: number; fy: number; tx: number; ty: number; t0: number }[] = [];
+async function moveTo(t: TopicDto, v: string) {
+  if (v === 'new') {
+    try { const g = await mnemoApi.group('New group', [t.id]); map.value.groups.push(g); t.groupId = g.id; dry(); recolor(); openGroup(g.id, true); } catch (e) { fail(e); }
+    return;
+  }
+  const gid = v ? Number(v) : null;
+  if (gid === t.groupId) return;
+  const held = t.hub ? descendants(t.id) : [];
+  let to = { x: t.x, y: t.y };
+  const nearest = gid === null ? null : map.value.topics.filter((m) => m.groupId === gid && m !== t && !held.includes(m)).sort((a, b) => Math.hypot(a.x - t.x, a.y - t.y) - Math.hypot(b.x - t.x, b.y - t.y))[0];
+  if (nearest) {
+    const d = Math.hypot(t.x - nearest.x, t.y - nearest.y) || 1;
+    if (d > 170) to = { x: nearest.x + ((t.x - nearest.x) / d) * 150, y: nearest.y + ((t.y - nearest.y) / d) * 150 };
+  }
+  t.groupId = gid;
+  flows.push({ tp: t, kids: held.map((k) => [k, k.x, k.y]), fx: t.x, fy: t.y, tx: to.x, ty: to.y, t0: performance.now() });
+}
+function flow(now: number) {
+  for (let i = flows.length - 1; i >= 0; i--) {
+    const f = flows[i]!, u = ease((now - f.t0) / 800), dx = (f.tx - f.fx) * u, dy = (f.ty - f.fy) * u;
+    f.tp.x = f.fx + dx; f.tp.y = f.fy + dy;
+    for (const [k, ox, oy] of f.kids) { k.x = ox + dx; k.y = oy + dy; }
+    if (u < 1) continue;
+    flows.splice(i, 1); dry(); recolor();
+    mnemoApi.place([f.tp, ...f.kids.map(([k]) => k)].map((x) => ({ id: x.id, x: x.x, y: x.y, groupId: x.groupId }))).catch(fail);
+  }
+}
 const focusGroup = () => fitTo(boundsOf(groupTopics.value, 120), false, 1.4);
 function goToTopic(t: TopicDto) { const k = Math.max(goal.k, 0.8); goTo({ k, x: W / 2 - t.x * k, y: H / 2 - t.y * k }); openTopic(t.id); }
 async function add(x: number, y: number) {
@@ -443,7 +499,7 @@ async function add(x: number, y: number) {
 }
 async function save() {
   const t = opened.value!;
-  const body = { title: draft.value.title.trim() || 'Untitled', points: draft.value.points.split('\n').map((s) => s.trim()).filter(Boolean), hub: draft.value.hub };
+  const body = { title: draft.value.title.trim() || 'Untitled', points: draft.value.points.split('\n').map((s) => s.trim()).filter(Boolean), hub: draft.value.hub, skin: draft.value.skin };
   try { Object.assign(t, await mnemoApi.edit(t.id, body)); editing.value = false; } catch (e) { fail(e); }
 }
 async function remove() {
@@ -609,16 +665,27 @@ const line = computed(() => {
 });
 
 // ---- the loop ------------------------------------------------------------------------------------
-let raf = 0, clockTimer = 0;
+let raf = 0, clockTimer = 0, last = 0, slow = 0, still = false;
 function frame(nowMs: number) {
-  const t = nowMs / 1000, now = Date.now();
-  settle();
-  const looks = new Map(map.value.topics.map((tp) => [tp.id, seen(tp, now)]));
-  for (let i = pulses.length - 1; i >= 0; i--) if (nowMs - pulses[i]!.t0 > 1900) pulses.splice(i, 1);
-  pool?.draw(view, t, drops(t, looks), pulses.slice(0, 4).flatMap((p) => { const tp = topicOf(p.id); const age = (nowMs - p.t0) / 1000; return tp && age >= 0 ? [{ x: tp.x, y: tp.y, age }] : []; }));
-  ink(t, looks);
-  if (rc.value?.step === 1) elapsed.value = clockOf((nowMs - rc.value.t0) / 1000);
   raf = requestAnimationFrame(frame);
+  const t = nowMs / 1000, now = Date.now(), dt = last ? Math.min(0.1, (nowMs - last) / 1000) : 1 / 60;
+  last = nowMs;
+  if (rc.value?.step === 1) elapsed.value = clockOf((nowMs - rc.value.t0) / 1000);
+  // Behind the recall's sheet the water holds still: one frame, then nothing.
+  const hidden = !!rc.value && !rc.value.peek;
+  if (hidden && still) return;
+  still = hidden;
+  if (editing.value) drawPreviews(t);
+  settle(dt);
+  flow(nowMs);
+  const ts = toRaw(map.value).topics.map(toRaw), byId = new Map(ts.map((tp) => [tp.id, tp]));
+  const looks = new Map(ts.map((tp) => [tp.id, seen(tp, now)]));
+  for (let i = pulses.length - 1; i >= 0; i--) if (nowMs - pulses[i]!.t0 > 1900) pulses.splice(i, 1);
+  pool?.draw(view, t, drops(t, looks, ts, byId), pulses.slice(0, 4).flatMap((p) => { const tp = byId.get(p.id); const age = (nowMs - p.t0) / 1000; return tp && age >= 0 ? [{ x: tp.x, y: tp.y, age }] : []; }));
+  ink(t, looks, ts, byId);
+  // A screen that cannot keep up gets coarser water rather than a stutter.
+  slow = dt > 0.026 ? slow + 1 : Math.max(0, slow - 1);
+  if (slow > 40 && pool && pool.cell < 3) { pool.cell = 3; resize(); }
 }
 function resize() {
   const el = root.value;
@@ -705,7 +772,7 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
 
       <aside v-if="opened" :key="`t${opened.id}`" class="panel glass">
         <div v-if="!editing && opened.hub" class="body">
-          <div class="head"><span class="pix">{{ groupOf(opened.groupId)?.name ?? 'no group' }} // a hub</span><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
+          <div class="head"><span class="row"><select class="gpick" :value="opened.groupId ?? ''" aria-label="its group" @change="moveTo(opened, ($event.target as HTMLSelectElement).value)"><option v-for="g in map.groups" :key="g.id" :value="g.id">{{ g.name }}</option><option value="">no group</option><option value="new">a new group</option></select><span class="pix">a hub</span></span><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
           <h2 class="hubname">{{ opened.title }}</h2>
           <p v-if="hubAll.length" class="state">Holds <b>{{ hubAll.filter((t) => !t.hub).length }}</b> topics<template v-if="hubFading.length">, <b>{{ hubFading.length }}</b> fading</template><template v-if="hubHeld">; <b>{{ hubHeld }}%</b> held</template>.</p>
           <p v-else class="state">Holds nothing yet. Link topics to it with the link tool, and they hang from it.</p>
@@ -719,7 +786,7 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
           </div>
         </div>
         <div v-else-if="!editing" class="body">
-          <div class="head"><span class="pix">{{ groupOf(opened.groupId)?.name ?? 'no group' }}</span><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
+          <div class="head"><select class="gpick" :value="opened.groupId ?? ''" aria-label="its group" @change="moveTo(opened, ($event.target as HTMLSelectElement).value)"><option v-for="g in map.groups" :key="g.id" :value="g.id">{{ g.name }}</option><option value="">no group</option><option value="new">a new group</option></select><button class="x" aria-label="close" @click="closePanel"><svg viewBox="0 0 12 12"><path :d="X" /></svg></button></div>
           <h2>{{ opened.title }}</h2>
           <p v-if="!opened.learned || !openLook" class="state">Not learned yet. Its clock starts once you mark it.</p>
           <p v-else-if="!openLook.due" class="state"><b>{{ Math.round(openLook.r * 100) }}%</b> held. It comes back on <b>{{ dayLabel(opened.due!) }}</b>.</p>
@@ -754,6 +821,14 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
             <i aria-hidden="true"></i>
             <span><b>a hub</b> It holds the topics linked to it, hubs inside hubs, and is never recalled itself.</span>
           </label>
+          <div v-if="!draft.hub" class="marks">
+            <span class="pix">its mark</span>
+            <div class="shelf"><span class="pix">plain</span><button type="button" class="mark" :class="{ on: !draft.skin }" title="a plain drop" @click="draft.skin = null"><i></i></button></div>
+            <div v-for="f in FIELDS" :key="f" class="shelf">
+              <span class="pix">{{ f }}</span>
+              <button v-for="m in SKINS.filter((x) => x.field === f)" :key="m.id" type="button" class="mark" :class="{ on: draft.skin === m.id }" :title="m.id" @click="draft.skin = m.id"><canvas :ref="preview(m.id)"></canvas></button>
+            </div>
+          </div>
           <div class="acts">
             <button class="btn" type="submit">keep</button>
             <button class="btn ghost" type="button" @click="editing = false">cancel</button>
@@ -820,7 +895,7 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
 <style scoped>
 /* Dark water, edge to edge; the chrome floats over it in soft glass. Nothing
    has a corner. */
-.mn { --glass: rgba(14, 13, 12, .84); --line: rgba(197, 188, 171, .13); --line2: rgba(197, 188, 171, .26); --soft: cubic-bezier(.45, 0, .2, 1);
+.mn { --glass: rgba(14, 13, 12, .97); --line: rgba(197, 188, 171, .13); --line2: rgba(197, 188, 171, .26); --soft: cubic-bezier(.45, 0, .2, 1);
   position: fixed; inset: 0; z-index: 58; background: var(--ground); overflow: hidden; animation: mn-in .6s var(--out); }
 @keyframes mn-in { from { opacity: 0; } }
 .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -831,7 +906,9 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
 .ink.link { cursor: alias; }
 .ink.over { cursor: pointer; }
 .pix { font: 400 9.5px/1.4 var(--pix); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
-.glass { background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+/* Solid glass: a blur over water that moves every frame is the most
+   expensive thing an iPad can be asked to paint. */
+.glass { background: var(--glass); border: 1px solid var(--line); }
 .pill { border-radius: 999px; }
 
 .top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none;
@@ -905,6 +982,21 @@ const X = 'M2.5 2.5l7 7M9.5 2.5l-7 7';
 .field:focus { border-color: var(--line2); outline: none; }
 textarea.field { resize: vertical; font: 15px/1.45 var(--fell); }
 .gname { font: 400 26px var(--goth); }
+.head .row { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.gpick { appearance: none; -webkit-appearance: none; min-width: 0; max-width: 220px; font: 400 9.5px var(--pix); text-transform: uppercase; letter-spacing: .06em; color: var(--phos);
+  background: transparent; border: 0; border-radius: 999px; padding: 6px 26px 6px 12px; box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; text-overflow: ellipsis;
+  background-image: linear-gradient(45deg, transparent 50%, var(--dim) 50%), linear-gradient(135deg, var(--dim) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 4px 4px; background-repeat: no-repeat; transition: box-shadow .3s; }
+.gpick:hover, .gpick:focus { box-shadow: inset 0 0 0 1px var(--line2); outline: none; }
+.gpick option { background: var(--deep); color: var(--hi); }
+.marks { display: grid; gap: 8px; }
+.shelf { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.shelf > .pix { width: 100%; font-size: 8.5px; color: var(--low); }
+.mark { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s, background .3s; }
+.mark:hover { box-shadow: inset 0 0 0 1px var(--line2); }
+.mark.on { background: var(--faint); box-shadow: inset 0 0 0 1.5px var(--phos); }
+.mark canvas { width: 40px; height: 40px; display: block; }
+.mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--hi); }
 .hubname { letter-spacing: .14em; text-transform: uppercase; font-size: 24px !important; }
 .ln button.sub { letter-spacing: .08em; text-transform: uppercase; font-size: 12.5px; }
 .turn { font: 400 9px var(--pix); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); padding: 3px 9px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); transition: color .3s, box-shadow .3s; }

@@ -1,4 +1,4 @@
-import type { ActivityKind, Chapter, Cite, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, NoteFields, NoteKind, PageCut, Pose } from '@aura/shared';
+import type { SkinId, ActivityKind, Chapter, Cite, Feel, FolioKind, Group, GrownNode, HrvStatus, Kind, LectureMap, MapStatus, NoteFields, NoteKind, PageCut, Pose } from '@aura/shared';
 import {
   pgTable, serial, text, integer, timestamp, date, boolean, primaryKey, jsonb, unique, doublePrecision, customType,
 } from 'drizzle-orm/pg-core';
@@ -395,6 +395,7 @@ export const topics = pgTable('topics', {
   title: text('title').notNull(),
   points: jsonb('points').$type<string[]>().notNull().default([]),
   hub: boolean('hub').notNull().default(false),
+  skin: text('skin').$type<SkinId>(),
   x: doublePrecision('x').notNull(),
   y: doublePrecision('y').notNull(),
   fsrs: jsonb('fsrs').$type<Record<string, unknown>>(),

@@ -1,6 +1,6 @@
 // Mnemosyne in the demo: the first term as it might stand in week three, kept
 // in memory, scheduled by a rough likeness of FSRS.
-import type { MnemosyneDto, TopicDto } from '@aura/shared';
+import type { MnemosyneDto, SkinId, TopicDto } from '@aura/shared';
 
 const DAY = 864e5;
 const iso = (t: number) => new Date(t).toISOString();
@@ -60,6 +60,12 @@ const LINKS: [string, string][] = [['Field axioms', 'Absolute value'], ['Absolut
 
 const HUB_LINKS: [string, string][] = [['Mechanics', 'Kinematics'], ['Mechanics', 'Dynamics'], ['Mechanics', 'Units and dimensions'],
   ['Kinematics', 'Kinematics in 1D'], ['Kinematics', 'Vectors in kinematics'], ['Dynamics', "Newton's laws"], ['Dynamics', 'Work and energy']];
+// The marks a few of them wear.
+const SKIN_OF: Record<string, SkinId> = {
+  'Taylor series': 'sigma', "Euler's formula": 'phasor', 'Complex numbers': 'phasor', 'Derivative rules': 'tangent', "Newton's laws": 'orbit',
+  'Kinematics in 1D': 'pendulum', 'Vectors in kinematics': 'basis', 'Sequences and convergence': 'sequence', 'Supremum and completeness': 'epsilon',
+  'Vector spaces': 'lattice', 'Linear independence': 'basis', 'Groups': 'matrix', 'Work and energy': 'spring', 'Cauchy sequences': 'infinity',
+};
 let next = 1;
 function seed(): MnemosyneDto {
   const out: MnemosyneDto = { groups: [], topics: [], links: [] };
@@ -67,7 +73,7 @@ function seed(): MnemosyneDto {
     const g = { id: next++, name: s.name, ground: s.ground };
     out.groups.push(g);
     for (const [title, x, y, stability, ago, reps, points = []] of s.topics) {
-      const t: TopicDto = { id: next++, groupId: g.id, title, points, hub: false, x: x + s.at[0], y: y + s.at[1], learned: false, stability: 0, lastReview: null, due: null, reps, lapses: reps > 2 ? 1 : 0, next: null };
+      const t: TopicDto = { id: next++, groupId: g.id, title, points, hub: false, skin: SKIN_OF[title] ?? null, x: x + s.at[0], y: y + s.at[1], learned: false, stability: 0, lastReview: null, due: null, reps, lapses: reps > 2 ? 1 : 0, next: null };
       if (stability) schedule(t, stability, Date.now() - ago * DAY);
       out.topics.push(t);
     }
@@ -76,7 +82,7 @@ function seed(): MnemosyneDto {
   // own topics.
   const ep = out.groups.find((g) => g.name === 'Experimentalphysik 1')!;
   for (const [title, x, y] of [['Mechanics', 1360, -230], ['Kinematics', 1530, -380], ['Dynamics', 1460, -40]] as const) {
-    out.topics.push({ id: next++, groupId: ep.id, title, points: [], hub: true, x, y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null });
+    out.topics.push({ id: next++, groupId: ep.id, title, points: [], hub: true, skin: null, x, y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null });
   }
   const id = (title: string) => out.topics.find((t) => t.title === title)!.id;
   out.links = [...LINKS, ...HUB_LINKS].map(([a, b]) => ({ id: next++, from: id(a), to: id(b) }));
@@ -100,7 +106,7 @@ export function mnemoDemo(method: string, seg: string[], body: any): unknown {
       return structuredClone(topic);
     }
     if (method === 'POST') {
-      const t: TopicDto = { id: next++, groupId: body.groupId, title: body.title, points: body.points ?? [], hub: false, x: body.x, y: body.y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null };
+      const t: TopicDto = { id: next++, groupId: body.groupId, title: body.title, points: body.points ?? [], hub: false, skin: null, x: body.x, y: body.y, learned: false, stability: 0, lastReview: null, due: null, reps: 0, lapses: 0, next: null };
       m.topics.push(t);
       return structuredClone(t);
     }

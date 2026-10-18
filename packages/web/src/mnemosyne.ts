@@ -58,7 +58,7 @@ const TONES = [0.13, 0.17, 0.2, 0.15, 0.18, 0.12, 0.16, 0.14];
 export const toneOf = (groupId: number | null) => (groupId === null ? 0.15 : TONES[groupId % TONES.length]!);
 
 export type Drop = {
-  x: number; y: number; reach: number; q: number; learned: boolean; due: boolean; phase: number;
+  x: number; y: number; reach: number; q: number; learned: boolean; marked: boolean; due: boolean; phase: number;
   // Its pool, and the one it is pouring out of while it changes groups.
   slot: number; from: number; mix: number;
   ground: number; tone: number; cx: number; cy: number;
@@ -84,12 +84,17 @@ const FRAG = `
     float glow = 0.0, ripple = 0.0;
     for (int i = 0; i < ${MAXT}; i++) {
       if (i >= uN) break;
-      vec4 a = texelFetch(uData, ivec2(i, 0), 0), b = texelFetch(uData, ivec2(i, 1), 0);
-      vec4 m = texelFetch(uData, ivec2(i, 2), 0), c = texelFetch(uData, ivec2(i, 3), 0), h = texelFetch(uData, ivec2(i, 4), 0);
+      vec4 a = texelFetch(uData, ivec2(i, 0), 0);
       vec2 d = w - a.xy; float d2 = dot(d, d);
+      // Most topics are far from most of the screen: nothing of them reaches
+      // here, unless a tendril runs past (its reach is then stored negative).
+      float rz = abs(a.z);
+      if (a.z > 0.0 && d2 > max(rz * rz * 9.5, 25600.0)) continue;
+      vec4 b = texelFetch(uData, ivec2(i, 1), 0), m = texelFetch(uData, ivec2(i, 2), 0);
+      vec4 c = texelFetch(uData, ivec2(i, 3), 0), h = texelFetch(uData, ivec2(i, 4), 0);
       // A topic gives its liquid to its pool; changing groups, it pours
       // from the old one into the new.
-      float e = exp(-d2 / (a.z * a.z));
+      float e = exp(-d2 / (rz * rz));
       int g = int(b.x + 0.5) - 1, g0 = int(m.x + 0.5) - 1;
       float u = m.y;
       if (g >= 0 && g < 8) { float k = e * u; f[g] += k; gs[g] += k * c.x; tn[g] += k * c.y; cn[g] += k * c.zw; }
@@ -99,7 +104,7 @@ const FRAG = `
       // the hub it hangs from.
       int within = int(h.x + 0.5), tendril = int(h.y + 0.5);
       if (within != 0) {
-        float ew = exp(-d2 / (a.z * a.z * 1.7)), ec = 0.0;
+        float ew = exp(-d2 / (rz * rz * 1.7)), ec = 0.0;
         if (tendril != 0) {
           vec2 ab = h.zw - a.xy; float s = clamp(dot(w - a.xy, ab) / max(dot(ab, ab), 1.0), 0.0, 1.0);
           vec2 o = a.xy + ab * s - w; float r = mix(15.0, 30.0, s);
@@ -108,7 +113,9 @@ const FRAG = `
         for (int s = 0; s < 8; s++) { int bit = 1 << s; if ((within & bit) != 0) hf[s] += ew; if ((tendril & bit) != 0) hf[s] += ec; }
       }
       float q = a.w;
-      if (b.y > 0.5) { float rg = 7.0 + 11.0 * q; glow += (0.2 + 0.7 * q * q) * exp(-d2 / (rg * rg)); }
+      // A plain drop glows at its heart; a marked one glows round its disc instead.
+      if (b.y > 1.5) glow += (0.12 + 0.3 * q * q) * exp(-pow((sqrt(d2) - 22.0) / 9.0, 2.0));
+      else if (b.y > 0.5) { float rg = 7.0 + 11.0 * q; glow += (0.2 + 0.7 * q * q) * exp(-d2 / (rg * rg)); }
       if (b.z > 0.5) {
         float t = fract(uTime / 3.6 + b.w), rr = t * 150.0;
         ripple += exp(-pow((sqrt(d2) - rr) / 4.5, 2.0)) * (1.0 - t) * (1.0 - t) * 0.75;
@@ -149,7 +156,8 @@ const FRAG = `
   }`;
 
 export function water(canvas: HTMLCanvasElement) {
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, premultipliedAlpha: false });
+  // Premultiplied, as the browser wants it: anything else is a slow path in Safari.
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: 'high-performance' });
   renderer.setClearColor(0x000000, 0);
   const data = new Float32Array(MAXT * ROWS * 4);
   const tex = new THREE.DataTexture(data, MAXT, ROWS, THREE.RGBAFormat, THREE.FloatType);
@@ -164,13 +172,15 @@ export function water(canvas: HTMLCanvasElement) {
   const plane = new THREE.PlaneGeometry(2, 2);
   scene.add(new THREE.Mesh(plane, material));
   return {
-    size(w: number, h: number) { renderer.setPixelRatio(1 / CELL); renderer.setSize(w, h, false); U.uScreen.value.set(w, h); },
+    // How many screen pixels one dither cell covers; three on a screen that cannot keep up with two.
+    cell: CELL,
+    size(w: number, h: number) { renderer.setPixelRatio(1 / this.cell); renderer.setSize(w, h, false); U.uScreen.value.set(w, h); U.uCell.value = this.cell; },
     draw(view: View, t: number, drops: Drop[], pulses: { x: number; y: number; age: number }[]) {
       const n = Math.min(MAXT, drops.length);
       for (let i = 0; i < n; i++) {
         const d = drops[i]!;
-        data.set([d.x, d.y, d.reach, d.q], i * 4);
-        data.set([d.slot + 1, d.learned ? 1 : 0, d.due ? 1 : 0, d.phase], (MAXT + i) * 4);
+        data.set([d.x, d.y, d.tendril ? -d.reach : d.reach, d.q], i * 4);
+        data.set([d.slot + 1, d.learned ? (d.marked ? 2 : 1) : 0, d.due ? 1 : 0, d.phase], (MAXT + i) * 4);
         data.set([d.from + 1, d.mix, 0, 0], (2 * MAXT + i) * 4);
         data.set([d.ground, d.tone, d.cx, d.cy], (3 * MAXT + i) * 4);
         data.set([d.within, d.tendril, d.px, d.py], (4 * MAXT + i) * 4);

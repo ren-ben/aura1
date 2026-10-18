@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from '@fastify/type-provider-zod';
 import { z } from 'zod';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { createEmptyCard, fsrs, Rating, type Card, type Grade } from 'ts-fsrs';
-import type { MnemosyneDto, TopicDto } from '@aura/shared';
+import { SKIN_IDS, type MnemosyneDto, type TopicDto } from '@aura/shared';
 import type { Db } from '../db/client.ts';
 import { topicGroups, topicLinks, topics } from '../db/schema.ts';
 
@@ -22,7 +22,7 @@ function dto(t: Row, now = new Date()): TopicDto {
   const card = t.fsrs ? revive(t.fsrs) : null;
   const next = card ? scheduler.repeat(card, now) : null;
   return {
-    id: t.id, groupId: t.groupId, title: t.title, points: t.points, hub: t.hub, x: t.x, y: t.y,
+    id: t.id, groupId: t.groupId, title: t.title, points: t.points, hub: t.hub, skin: t.skin, x: t.x, y: t.y,
     learned: !!card, stability: card?.stability ?? 0, lastReview: card?.last_review?.toISOString() ?? null,
     due: t.due?.toISOString() ?? null, reps: card?.reps ?? 0, lapses: card?.lapses ?? 0,
     next: next ? (GRADES.map((g) => next[g].card.due.toISOString()) as TopicDto['next']) : null,
@@ -60,7 +60,7 @@ export const topicRoutes: FastifyPluginAsync<{ db: Db }> = async (app, opts) => 
     return reply.code(201).send(dto(row!));
   });
 
-  r.patch('/academy/topics/:id', { schema: { params: idParams, body: z.object({ title: title.optional(), points: points.optional(), hub: z.boolean().optional() }) } }, async (request, reply) => {
+  r.patch('/academy/topics/:id', { schema: { params: idParams, body: z.object({ title: title.optional(), points: points.optional(), hub: z.boolean().optional(), skin: z.enum(SKIN_IDS).nullable().optional() }) } }, async (request, reply) => {
     const [row] = await db.update(topics).set(request.body).where(eq(topics.id, request.params.id)).returning();
     return row ? dto(row) : reply.code(404).send();
   });
